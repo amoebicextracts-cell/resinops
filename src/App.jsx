@@ -160,7 +160,7 @@ const MODULES = [
     id: "extraction",
     label: "Extraction",
     icon: "⚗️",
-    available: false,
+    available: true,
     description: "Solventless, hydrocarbon, CO2, distillate",
   },
   {
@@ -186,6 +186,12 @@ const SUGGESTIONS = {
     "What's the honest trade-off between running a Twister T6 vs. a Mobius M108S for a 200 lb/week dry weight operation?",
     "We're trying to cut our drying time from 12 days to 7. Walk me through how to do that without wrecking terpenes.",
     "What should our hand trim throughput standard be for dry trimming dense indoor flower and how do we hold people to it?",
+  ],
+  extraction: [
+    "We're running BHO on fresh frozen and our live resin is coming out darker than expected. What are the most likely causes and how do I dial it in?",
+    "Walk me through the difference between running a cold column passive dewax vs. inline active chilling for BHO — when does each make sense?",
+    "What are realistic yield expectations pressing 4-star fresh frozen bubble hash into live rosin, and what parameters should I start with?",
+    "We're getting residual solvent failures on our BHO — coming in over state limits on butane. What's the troubleshooting checklist?",
   ],
   cultivation: [
     "My plants in late flower are showing brown tips on the fan leaves. EC is at 2.4. What's most likely going on?",
