@@ -608,6 +608,39 @@ const css = `
   }
   .clear-btn:hover { color: var(--text-2); }
 
+
+  .attach-btn {
+    width: 44px; height: 44px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-3);
+    transition: all 0.15s;
+  }
+  .attach-btn:hover { border-color: var(--accent); color: var(--accent-2); }
+  .attach-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .image-preview-bar {
+    display: flex; align-items: center; gap: 10px;
+    max-width: 760px; margin: 0 auto 10px;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+  }
+  .image-preview-wrap { position: relative; flex-shrink: 0; }
+  .image-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; display: block; }
+  .image-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--danger); border: none; color: white;
+    font-size: 12px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; line-height: 1;
+  }
+  .image-preview-label { font-size: 12px; color: var(--text-2); }
+
   /* ── Responsive ── */
   @media (max-width: 640px) {
     .sidebar { display: none; }
@@ -666,8 +699,10 @@ export default function ResinOps() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [image, setImage] = useState(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const currentModule = MODULES.find((m) => m.id === activeModule);
 
@@ -680,32 +715,55 @@ export default function ResinOps() {
     e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
   };
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const mediaType = file.type || 'image/jpeg';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      setImage({ base64, mediaType, preview: ev.target.result });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const removeImage = () => setImage(null);
+
   const send = async (text) => {
     const query = (text || input).trim();
-    if (!query || loading) return;
+    if ((!query && !image) || loading) return;
 
-    const userMsg = { role: "user", content: query };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    let userContent;
+    if (image) {
+      userContent = [
+        { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+        { type: 'text', text: query || 'What do you see in this image?' },
+      ];
+    } else {
+      userContent = query;
+    }
+
+    const userMsg = { role: 'user', content: userContent, preview: image?.preview || null, displayText: query };
+    const newMessages = [...messages, { role: 'user', content: userContent }];
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    setImage(null);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          module: activeModule,
-          messages: newMessages,
-        }),
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: activeModule, messages: newMessages }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Server error");
-      const reply = data.content?.map((b) => b.text || "").join("") || "Something went wrong. Please try again.";
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      const reply = data.content?.map((b) => b.text || '').join('') || 'Something went wrong. Please try again.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "Connection error. Check your network and try again." }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Check your network and try again.' }]);
     } finally {
       setLoading(false);
     }
@@ -723,6 +781,7 @@ export default function ResinOps() {
     if (!mod?.available) return;
     setActiveModule(id);
     setMessages([]);
+    setImage(null);
   };
 
   const showWelcome = messages.length === 0;
@@ -805,7 +864,14 @@ export default function ResinOps() {
                       {msg.role === "user" ? "U" : "RO"}
                     </div>
                     <div className={`bubble ${msg.role === "user" ? "user-bubble" : "ai"}`}>
-                      {msg.role === "assistant" ? renderMarkdown(msg.content) : msg.content}
+                      {msg.role === 'assistant'
+                        ? renderMarkdown(msg.content)
+                        : (<>
+                            {msg.preview && <img src={msg.preview} alt="uploaded" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', marginBottom: msg.displayText ? '8px' : '0', display: 'block' }} />}
+                            {msg.displayText && <span>{msg.displayText}</span>}
+                            {!msg.preview && !msg.displayText && (typeof msg.content === 'string' ? msg.content : '')}
+                          </>)
+                      }
                     </div>
                   </div>
                 ))}
@@ -825,18 +891,33 @@ export default function ResinOps() {
           </div>
 
           <div className="input-area">
+            {image && (
+              <div className="image-preview-bar">
+                <div className="image-preview-wrap">
+                  <img src={image.preview} alt="preview" className="image-thumb" />
+                  <button className="image-remove" onClick={removeImage}>×</button>
+                </div>
+                <span className="image-preview-label">Image attached — add a question below or send as-is</span>
+              </div>
+            )}
             <div className="input-wrap">
+              <input ref={fileInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImageSelect} />
+              <button className="attach-btn" onClick={() => fileInputRef.current?.click()} disabled={loading} title="Attach image">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                </svg>
+              </button>
               <div className="textarea-wrap">
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={(e) => { setInput(e.target.value); autoResize(e); }}
                   onKeyDown={handleKey}
-                  placeholder={`Ask the ${currentModule?.label} module anything…`}
+                  placeholder={image ? "Ask about this image…" : `Ask the ${currentModule?.label} module anything…`}
                   rows={1}
                 />
               </div>
-              <button className="send-btn" onClick={() => send()} disabled={!input.trim() || loading}>
+              <button className="send-btn" onClick={() => send()} disabled={(!input.trim() && !image) || loading}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -846,7 +927,7 @@ export default function ResinOps() {
             <div className="input-meta">
               <span className="input-hint">Enter to send · Shift+Enter for new line</span>
               {messages.length > 0 && (
-                <button className="clear-btn" onClick={() => setMessages([])}>Clear conversation</button>
+                <button className="clear-btn" onClick={() => { setMessages([]); setImage(null); }}>Clear conversation</button>
               )}
             </div>
           </div>
