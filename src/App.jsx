@@ -174,7 +174,7 @@ const MODULES = [
     id: "facility",
     label: "Facility & Infra",
     icon: "🏗️",
-    available: false,
+    available: true,
     description: "HVAC, electrical, dehumidification, water",
   },
 ];
@@ -186,6 +186,12 @@ const SUGGESTIONS = {
     "What's the honest trade-off between running a Twister T6 vs. a Mobius M108S for a 200 lb/week dry weight operation?",
     "We're trying to cut our drying time from 12 days to 7. Walk me through how to do that without wrecking terpenes.",
     "What should our hand trim throughput standard be for dry trimming dense indoor flower and how do we hold people to it?",
+  ],
+  facility: [
+    "My flower room dehu is short cycling — runs for a few minutes, shuts off, repeats. What's the diagnostic checklist?",
+    "I'm building out a 5,000 sq ft flower room with 50 x 1000W HPS. Walk me through how to size the electrical service and HVAC.",
+    "What's the real difference between running a Quest Intelliclimate vs. separate mini-splits plus standalone dehu units in a commercial flower room?",
+    "My dry room is hitting 72% RH two days after loading wet flower even with the dehu running constantly. What's going on?",
   ],
   extraction: [
     "We're running BHO on fresh frozen and our live resin is coming out darker than expected. What are the most likely causes and how do I dial it in?",
