@@ -83,29 +83,49 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: messages,
-      }),
-    });
+    const MAX_CONTINUATIONS = 2;
+    const callAnthropic = async (msgs) => {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: msgs,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error?.message || "Anthropic API error");
+      return d;
+    };
 
-    const data = await response.json();
+    let data = await callAnthropic(messages);
+    let fullText = data.content?.map((b) => b.text || "").join("") || "";
+    let continuationMessages = [...messages];
+    let continuations = 0;
 
-    if (!response.ok) {
-      console.error("Anthropic API error:", data);
-      return res.status(response.status).json({ error: data.error?.message || "Anthropic API error" });
+    while (data.stop_reason === "max_tokens" && continuations < MAX_CONTINUATIONS) {
+      continuations++;
+      continuationMessages = [
+        ...continuationMessages,
+        { role: "assistant", content: fullText },
+        { role: "user", content: "Please continue your response." },
+      ];
+      data = await callAnthropic(continuationMessages);
+      const continuedText = data.content?.map((b) => b.text || "").join("") || "";
+      fullText = fullText + continuedText;
     }
 
-    return res.status(200).json(data);
+    return res.status(200).json({
+      ...data,
+      content: [{ type: "text", text: fullText }],
+    });
+
   } catch (err) {
     console.error("Proxy error:", err);
     return res.status(500).json({ error: "Internal server error" });
