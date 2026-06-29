@@ -1,78 +1,51 @@
 import { useState, useEffect } from "react";
 
-const LW = 280, RH = 92, HH = 56, PX = 11, LBS_TO_G = 453.592;
+const LW = 280, RH = 96, HH = 56, PX = 11, LBS_TO_G = 453.592;
 
-// ── Step colors (bg / text) ────────────────────────────────────────────────
 const SBG = {
-  "Intake / Prep":     "#1e3248", "Drying":            "#1e4420",
-  "Bucking":           "#2e5010", "Trimming":          "#3a5e14",
-  "Curing":            "#143810", "Grinding":          "#504810",
-  "Rolling / Filling": "#583c0e", "Extraction":        "#582208",
-  "Pressing":          "#4a2008", "Washing":           "#143848",
-  "Lyophilization":    "#0e2848", "Purge / Process":   "#3e1414",
-  "Winterization":     "#221438", "Decarb":            "#481c0e",
-  "Distillation":      "#200e48", "Formulation":       "#0e3848",
-  "Production":        "#104038", "Dose QC":           "#0e2838",
-  "QC / Testing":      "#0a1848", "Packaging":         "#2e0e48",
-  "Inventory":         "#0e3030",
+  "Intake / Prep":"#1e3248","Drying":"#1e4420","Bucking":"#2e5010","Trimming":"#3a5e14",
+  "Curing":"#143810","Grinding":"#504810","Rolling / Filling":"#583c0e","Extraction":"#582208",
+  "Pressing":"#4a2008","Washing":"#143848","Lyophilization":"#0e2848","Purge / Process":"#3e1414",
+  "Winterization":"#221438","Decarb":"#481c0e","Distillation":"#200e48","Formulation":"#0e3848",
+  "Production":"#104038","Dose QC":"#0e2838","QC / Testing":"#0a1848","Packaging":"#2e0e48","Inventory":"#0e3030",
 };
 const SFG = {
-  "Intake / Prep":     "#90c0f0", "Drying":            "#90f0a0",
-  "Bucking":           "#b0e080", "Trimming":          "#c0f090",
-  "Curing":            "#80d080", "Grinding":          "#f0e060",
-  "Rolling / Filling": "#f0b860", "Extraction":        "#f8a870",
-  "Pressing":          "#f09870", "Washing":           "#80d0f0",
-  "Lyophilization":    "#78b0f0", "Purge / Process":   "#f09090",
-  "Winterization":     "#b090f8", "Decarb":            "#f0a870",
-  "Distillation":      "#c090ff", "Formulation":       "#70d0f0",
-  "Production":        "#70e0c8", "Dose QC":           "#80c0f0",
-  "QC / Testing":      "#7090f8", "Packaging":         "#c080f8",
-  "Inventory":         "#70d0d0",
+  "Intake / Prep":"#90c0f0","Drying":"#90f0a0","Bucking":"#b0e080","Trimming":"#c0f090",
+  "Curing":"#80d080","Grinding":"#f0e060","Rolling / Filling":"#f0b860","Extraction":"#f8a870",
+  "Pressing":"#f09870","Washing":"#80d0f0","Lyophilization":"#78b0f0","Purge / Process":"#f09090",
+  "Winterization":"#b090f8","Decarb":"#f0a870","Distillation":"#c090ff","Formulation":"#70d0f0",
+  "Production":"#70e0c8","Dose QC":"#80c0f0","QC / Testing":"#7090f8","Packaging":"#c080f8","Inventory":"#70d0d0",
 };
 
-// ── Product catalog ────────────────────────────────────────────────────────
 const CATS = [
-  { v: "whole_flower",  l: "Whole Flower" },
-  { v: "ground_flower", l: "Ground Flower" },
-  { v: "pre_roll",      l: "Pre-Roll" },
-  { v: "extract",       l: "Extract / Concentrate" },
-  { v: "vape",          l: "Vape" },
-  { v: "tincture",      l: "Tincture" },
-  { v: "topical",       l: "Topical" },
-  { v: "edible",        l: "Edible" },
+  {v:"whole_flower",l:"Whole Flower"},{v:"ground_flower",l:"Ground Flower"},
+  {v:"pre_roll",l:"Pre-Roll"},{v:"extract",l:"Extract / Concentrate"},
+  {v:"vape",l:"Vape"},{v:"tincture",l:"Tincture"},
+  {v:"topical",l:"Topical"},{v:"edible",l:"Edible"},
 ];
 
 const SUBS = {
-  extract: [
-    { v: "shatter",    l: "BHO — Shatter / Wax" },
-    { v: "badder",     l: "BHO — Badder / Budder" },
-    { v: "live_resin", l: "BHO — Live Resin" },
-    { v: "sugar",      l: "BHO — Sugar" },
-    { v: "diamonds",   l: "BHO — Diamonds & Sauce" },
-    { v: "rosin_fl",   l: "Rosin — Flower Press" },
-    { v: "rosin_hash", l: "Rosin — Hash Press" },
-    { v: "hash",       l: "Ice Water Hash" },
-    { v: "co2",        l: "CO2 Extract" },
-    { v: "distillate", l: "Distillate" },
+  extract:[
+    {v:"shatter",l:"BHO — Shatter / Wax"},{v:"badder",l:"BHO — Badder / Budder"},
+    {v:"live_resin",l:"BHO — Live Resin"},{v:"sugar",l:"BHO — Sugar"},
+    {v:"diamonds",l:"BHO — Diamonds & Sauce"},{v:"rosin_fl",l:"Rosin — Flower Press"},
+    {v:"rosin_hash",l:"Rosin — Hash Press"},{v:"hash",l:"Ice Water Hash"},
+    {v:"co2",l:"CO2 Extract"},{v:"distillate",l:"Distillate"},
   ],
-  vape: [
-    { v: "cartridge",  l: "Cartridge" },
-    { v: "disposable", l: "Disposable" },
+  vape:[
+    {v:"cartridge",l:"510-Thread Cartridge"},
+    {v:"disposable",l:"AIO / Disposable"},
   ],
-  edible: [
-    { v: "gummies",    l: "Gummies" },
-    { v: "chocolate",  l: "Chocolate" },
-    { v: "capsules",   l: "Capsules" },
-    { v: "beverage",   l: "Beverage" },
-    { v: "other",      l: "Other" },
+  edible:[
+    {v:"gummies",l:"Gummies"},{v:"chocolate",l:"Chocolate"},
+    {v:"capsules",l:"Capsules"},{v:"beverage",l:"Beverage"},{v:"other",l:"Other"},
   ],
 };
 
-// ── Steps by product type ──────────────────────────────────────────────────
 const STEPS = {
-  whole_flower:  [{ n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:21},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  ground_flower: [{ n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  pre_roll:      [{ n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  whole_flower:  [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:21},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  ground_flower: [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  pre_roll:      [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   shatter:       [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   badder:        [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   live_resin:    [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
@@ -94,29 +67,30 @@ const STEPS = {
   other:         [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
 };
 
-// Package size options {l: label, v: numeric value for calc}
-const PKG_OPTS = {
-  whole_flower:  [{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7},{l:"14g",v:14},{l:"28g",v:28}],
-  ground_flower: [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
-  pre_roll:      [{l:"0.5g cone",v:0.5},{l:"0.75g cone",v:0.75},{l:"1g cone",v:1},{l:"1.5g cone",v:1.5},{l:"2g cone",v:2}],
-  extract_solid: [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
-  extract_bulk:  [{l:"bulk grams",v:1}],
-  vape:          [{l:"0.5g",v:0.5},{l:"1g",v:1}],
-  tincture:      [{l:"15ml",v:15},{l:"30ml",v:30},{l:"60ml",v:60}],
-  topical:       [{l:"1 oz",v:1},{l:"2 oz",v:2},{l:"4 oz",v:4}],
-  edible_dose:   [{l:"2.5mg",v:2.5},{l:"5mg",v:5},{l:"10mg",v:10},{l:"25mg",v:25},{l:"50mg",v:50}],
-  beverage:      [{l:"100ml",v:100},{l:"200ml",v:200},{l:"355ml",v:355}],
+// Package size options
+const PKG = {
+  whole_flower:    [{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7},{l:"14g",v:14},{l:"28g",v:28}],
+  ground_flower:   [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
+  pre_roll:        [{l:"0.5g",v:0.5},{l:"0.75g",v:0.75},{l:"1g",v:1},{l:"1.5g",v:1.5},{l:"2g",v:2}],
+  extract_solid:   [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
+  extract_bulk:    [{l:"bulk (g)",v:1}],
+  vape_cart:       [{l:"0.3g",v:0.3},{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2}],
+  vape_aio:        [{l:"1g",v:1},{l:"1.75g",v:1.75},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
+  tincture:        [{l:"15ml",v:15},{l:"30ml",v:30},{l:"60ml",v:60}],
+  topical:         [{l:"1 oz",v:1},{l:"2 oz",v:2},{l:"4 oz",v:4}],
+  edible_dose:     [{l:"1mg",v:1},{l:"2mg",v:2},{l:"2.5mg",v:2.5},{l:"5mg",v:5},{l:"10mg",v:10},{l:"20mg",v:20},{l:"25mg",v:25},{l:"50mg",v:50},{l:"100mg",v:100}],
+  edible_bev:      [{l:"100ml",v:100},{l:"200ml",v:200},{l:"355ml",v:355}],
 };
 
-function getPkgOpts(cat, sub) {
-  if (cat === "whole_flower") return PKG_OPTS.whole_flower;
-  if (cat === "ground_flower") return PKG_OPTS.ground_flower;
-  if (cat === "pre_roll") return PKG_OPTS.pre_roll;
-  if (cat === "extract") return sub === "distillate" ? PKG_OPTS.extract_bulk : PKG_OPTS.extract_solid;
-  if (cat === "vape") return PKG_OPTS.vape;
-  if (cat === "tincture") return PKG_OPTS.tincture;
-  if (cat === "topical") return PKG_OPTS.topical;
-  if (cat === "edible") return sub === "beverage" ? PKG_OPTS.beverage : PKG_OPTS.edible_dose;
+function getPkg(cat, sub) {
+  if (cat === "whole_flower") return PKG.whole_flower;
+  if (cat === "ground_flower") return PKG.ground_flower;
+  if (cat === "pre_roll") return PKG.pre_roll;
+  if (cat === "extract") return sub === "distillate" ? PKG.extract_bulk : PKG.extract_solid;
+  if (cat === "vape") return sub === "disposable" ? PKG.vape_aio : PKG.vape_cart;
+  if (cat === "tincture") return PKG.tincture;
+  if (cat === "topical") return PKG.topical;
+  if (cat === "edible") return sub === "beverage" ? PKG.edible_bev : PKG.edible_dose;
   return [{l:"unit",v:1}];
 }
 
@@ -129,67 +103,100 @@ function getStepKey(cat, sub) {
 }
 
 function getInputLabel(cat) {
-  const map = {
-    whole_flower: "Input — wet flower (lbs)", ground_flower: "Input — dry flower (lbs)",
-    pre_roll: "Input — dry flower (lbs)", extract: "Input — biomass / trim (lbs)",
-    vape: "Input — oil / distillate (lbs)", tincture: "Input — extract (lbs)",
-    topical: "Batch size (lbs)", edible: "Input — distillate (lbs)",
-  };
-  return map[cat] || "Input (lbs)";
+  return ({
+    whole_flower:"Input — wet flower (lbs)", ground_flower:"Input — dry flower (lbs)",
+    pre_roll:"Input — dry flower (lbs)", extract:"Input — biomass / trim (lbs)",
+    vape:"Input — oil / distillate (lbs)", tincture:"Input — extract (lbs)",
+    topical:"Batch size (lbs)", edible:"Input — extract / distillate (lbs)",
+  })[cat] || "Input (lbs)";
 }
 
-function calcYield(cat, sub, inputLbs, pkgV, pkgL) {
+// State overfill defaults (grams per unit)
+const STATE_DEFAULTS = {
+  "NY":0.10,"CA":0.10,"CO":0.10,"OR":0.10,"WA":0.10,
+  "MI":0.10,"MA":0.10,"IL":0.10,"NJ":0.10,"AZ":0.10,
+  "MO":0.10,"NV":0.10,"MD":0.10,"OH":0.10,"FL":0.10,
+  "Custom":0.10,
+};
+
+// Yield calculation (all waste factors included)
+function calcYield(cat, sub, inputLbs, pkgV, pkgL, opts) {
   const lbs = parseFloat(inputLbs);
-  if (!lbs || lbs <= 0) return null;
+  if (!lbs || lbs <= 0 || !pkgV) return null;
   const g = lbs * LBS_TO_G;
-  let out = "";
+  const {
+    stemWastePct=0, moistureLossPct=0, fillWastePct=0,
+    coneWeight=1, packSize=5,
+    overfillG=0, vapeInputType="distillate",
+    extractInputType="distillate", inputPotencyPct=80,
+  } = opts;
 
   if (cat === "whole_flower") {
     const dry = g * 0.27;
-    const units = Math.floor(dry / pkgV * 0.95);
-    out = `~${dry.toFixed(0)}g dry flower  ·  ${units.toLocaleString()} × ${pkgL} units`;
-  } else if (cat === "ground_flower") {
-    const outG = g * 0.97;
-    const units = Math.floor(outG / pkgV * 0.98);
-    out = `~${outG.toFixed(0)}g  ·  ${units.toLocaleString()} × ${pkgL} units`;
-  } else if (cat === "pre_roll") {
-    const units = Math.floor(g * 0.90 / pkgV);
-    out = `~${units.toLocaleString()} × ${pkgL} pre-rolls`;
-  } else if (cat === "extract") {
-    const yld = {shatter:0.15,badder:0.15,live_resin:0.10,sugar:0.15,diamonds:0.08,rosin_fl:0.15,rosin_hash:0.60,hash:0.05,co2:0.10,distillate:0.70}[sub] || 0.15;
-    const outG = g * yld;
+    const eff = pkgV + parseFloat(overfillG || 0);
+    const units = Math.floor(dry / eff * 0.95);
+    const ovNote = parseFloat(overfillG) > 0 ? ` +${overfillG}g overfill/unit` : "";
+    return `~${dry.toFixed(0)}g dry · ${units.toLocaleString()} × ${pkgL} units${ovNote}`;
+  }
+  if (cat === "ground_flower") {
+    const sw = parseFloat(stemWastePct)/100 || 0;
+    const ml = parseFloat(moistureLossPct)/100 || 0;
+    const usable = g * (1-sw) * (1-ml);
+    const units = Math.floor(usable / pkgV * 0.98);
+    return `~${usable.toFixed(0)}g usable · ${units.toLocaleString()} × ${pkgL} units (${stemWastePct}% stem, ${moistureLossPct}% moisture loss)`;
+  }
+  if (cat === "pre_roll") {
+    const sw = parseFloat(stemWastePct)/100 || 0;
+    const ml = parseFloat(moistureLossPct)/100 || 0;
+    const fw = parseFloat(fillWastePct)/100 || 0;
+    const usable = g * (1-sw) * (1-ml) * (1-fw);
+    const coneG = parseFloat(coneWeight) || 1;
+    const units = Math.floor(usable / coneG);
+    const packs = Math.floor(units / (parseInt(packSize) || 1));
+    return `${units.toLocaleString()} cones · ${packs.toLocaleString()} × ${packSize}-packs from ${usable.toFixed(0)}g usable (${stemWastePct}% stem, ${moistureLossPct}% moisture, ${fillWastePct}% fill waste)`;
+  }
+  if (cat === "extract") {
+    const yldMap = {shatter:0.15,badder:0.15,live_resin:0.10,sugar:0.15,diamonds:0.08,rosin_fl:0.15,rosin_hash:0.60,hash:0.05,co2:0.10,distillate:0.70};
+    const outG = g * (yldMap[sub] || 0.15);
     const units = Math.floor(outG / pkgV * 0.97);
-    out = `~${outG.toFixed(1)}g extract  ·  ${units.toLocaleString()} × ${pkgL} units`;
-  } else if (cat === "vape") {
-    const units = Math.floor(g * 0.97 / pkgV);
-    out = `~${units.toLocaleString()} × ${pkgL} ${sub === "disposable" ? "disposables" : "cartridges"}`;
-  } else if (cat === "tincture") {
+    return `~${outG.toFixed(1)}g extract · ${units.toLocaleString()} × ${pkgL} units`;
+  }
+  if (cat === "vape") {
+    const fillEff = vapeInputType === "live_resin" ? 0.95 : vapeInputType === "rosin" ? 0.93 : 0.97;
+    const units = Math.floor(g * fillEff / pkgV);
+    const typeLabel = {distillate:"distillate",live_resin:"live resin",rosin:"rosin"}[vapeInputType] || vapeInputType;
+    const unitLabel = sub === "disposable" ? "AIOs" : "carts";
+    return `~${units.toLocaleString()} × ${pkgL} ${unitLabel} (${typeLabel}, ${(fillEff*100).toFixed(0)}% fill efficiency)`;
+  }
+  if (cat === "tincture") {
     const ml = g * 10;
     const units = Math.floor(ml / pkgV * 0.98);
-    out = `~${ml.toFixed(0)}ml total  ·  ${units.toLocaleString()} × ${pkgL} bottles`;
-  } else if (cat === "topical") {
+    return `~${ml.toFixed(0)}ml total · ${units.toLocaleString()} × ${pkgL} bottles`;
+  }
+  if (cat === "topical") {
     const oz = lbs * 16;
     const units = Math.floor(oz / pkgV * 0.97);
-    out = `~${oz.toFixed(1)} oz total  ·  ${units.toLocaleString()} × ${pkgL} units`;
-  } else if (cat === "edible") {
-    if (sub === "beverage") {
-      const ml = g;
-      const units = Math.floor(ml / pkgV * 0.97);
-      out = `~${ml.toFixed(0)}ml  ·  ${units.toLocaleString()} × ${pkgL} bottles`;
-    } else {
-      const totalMg = g * 0.80 * 1000;
-      const units = Math.floor(totalMg / pkgV * 0.95);
-      out = `~${totalMg.toFixed(0)}mg total THC  ·  ${units.toLocaleString()} × ${pkgL} units`;
-    }
+    return `~${oz.toFixed(1)} oz total · ${units.toLocaleString()} × ${pkgL} units`;
   }
-  return out || null;
+  if (cat === "edible") {
+    if (sub === "beverage") {
+      const units = Math.floor(g / pkgV * 0.97);
+      return `~${g.toFixed(0)}ml · ${units.toLocaleString()} × ${pkgL} bottles`;
+    }
+    const potency = extractInputType === "rosin" ? 0.55 : (parseFloat(inputPotencyPct)/100 || 0.80);
+    const totalMg = g * potency * 1000;
+    const units = Math.floor(totalMg / pkgV * 0.95);
+    const src = extractInputType === "rosin" ? "rosin ~55% THC" : `${(potency*100).toFixed(0)}% THC`;
+    return `~${totalMg.toFixed(0)}mg total THC (${src}) · ${units.toLocaleString()} × ${pkgL} units`;
+  }
+  return null;
 }
 
-// ── Date helpers ───────────────────────────────────────────────────────────
-function dAdd(dt, n) { const r = new Date(dt); r.setDate(r.getDate() + n); return r; }
-function dDiff(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
-function fmtS(dt) { return new Date(dt).toLocaleDateString("en-US", {month:"short",day:"numeric"}); }
-function fmtF(dt) { return new Date(dt).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}); }
+// Date helpers
+function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
+function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+function fmtS(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function fmtF(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 
 function buildTimeline(startDate, steps) {
   let cur = new Date(startDate + "T12:00:00");
@@ -197,125 +204,136 @@ function buildTimeline(startDate, steps) {
     const start = new Date(cur);
     const end = dAdd(cur, s.days);
     cur = end;
-    return { name: s.n, days: s.days, start, end };
+    return {name:s.n, days:s.days, start, end};
   });
 }
 
-// ── CSS ────────────────────────────────────────────────────────────────────
 const CSS = `
-  .ps-wrap { padding: 24px; flex: 1; overflow-y: auto; }
-  .ps-outer { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
-  .ps-row { display: flex; border-bottom: 1px solid var(--border); }
-  .ps-row:last-child { border-bottom: none; }
-  .ps-left {
-    position: sticky; left: 0; z-index: 4; width: ${LW}px; min-width: ${LW}px;
-    flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
-    padding: 10px 14px; display: flex; flex-direction: column;
-    justify-content: center; gap: 3px; box-sizing: border-box;
-  }
-  .ps-tl { position: relative; flex: 1; }
-  .ps-spill { font-size: 8px; font-weight: 700; padding: 2px 4px; border-radius: 3px;
-    color: #fff; white-space: nowrap; font-family: monospace; line-height: 1.4; cursor: default; }
-  .ps-btn { border: none; border-radius: 8px; cursor: pointer; font-family: 'Inter',sans-serif;
-    font-weight: 600; transition: opacity 0.15s; }
-  .ps-btn:hover { opacity: 0.85; }
-  .ps-primary { background: var(--accent); color: #fff; font-size: 12px; padding: 7px 14px; }
-  .ps-secondary { background: var(--surface-2); border: 1px solid var(--border-2) !important;
-    color: var(--text-2); font-size: 12px; padding: 7px 14px; }
-  .ps-sm { font-size: 10px; padding: 3px 8px; font-weight: 600; border-radius: 5px; }
-  .ps-edit { background: rgba(74,124,89,0.15); color: var(--accent-2); border: 1px solid var(--accent) !important; }
-  .ps-del { background: rgba(200,74,74,0.1); color: var(--danger); border: 1px solid rgba(200,74,74,0.3) !important; }
-  .ps-inp { width: 100%; background: var(--surface-2); border: 1px solid var(--border-2);
-    border-radius: 8px; color: var(--text); font-family: 'Inter',sans-serif;
-    font-size: 13px; padding: 8px 10px; box-sizing: border-box; }
-  .ps-inp:focus { outline: none; border-color: var(--accent); }
-  .ps-lbl { font-size: 11px; color: var(--text-2); display: block; margin-bottom: 4px; }
-  .ps-select { width: 100%; background: var(--surface-2); border: 1px solid var(--border-2);
-    border-radius: 8px; color: var(--text); font-family: 'Inter',sans-serif;
-    font-size: 13px; padding: 8px 10px; box-sizing: border-box; cursor: pointer; }
-  .ps-select:focus { outline: none; border-color: var(--accent); }
-  .ps-days-inp { width: 50px; font-size: 12px; padding: 3px 6px; text-align: center;
-    border-radius: 4px; border: 1px solid var(--border-2); background: var(--surface-2);
-    color: var(--text); font-family: monospace; }
-  .ps-days-inp:focus { outline: none; border-color: var(--accent); }
-  .ps-exp { background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 8px;
-    color: var(--text-2); font-size: 12px; font-weight: 600; padding: 7px 14px; cursor: pointer;
-    font-family: 'Inter',sans-serif; transition: border-color 0.15s; }
-  .ps-exp:hover { border-color: var(--accent-2); color: var(--accent-2); }
-  .ps-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 16px; }
-  .ps-table th { text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 700;
-    letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3);
-    border-bottom: 1px solid var(--border); background: var(--surface-2); }
-  .ps-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-2);
-    vertical-align: middle; }
-  .ps-table tr:last-child td { border-bottom: none; }
-  .status-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
-  .status-active { background: rgba(74,124,89,0.2); color: var(--accent-2); }
-  .status-upcoming { background: rgba(200,150,58,0.15); color: var(--amber); }
-  .status-complete { background: rgba(100,100,100,0.15); color: var(--text-3); }
+  .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
+  .ps-outer{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .ps-row{display:flex;border-bottom:1px solid var(--border);}
+  .ps-row:last-child{border-bottom:none;}
+  .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;
+    background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;
+    display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
+  .ps-tl{position:relative;flex:1;}
+  .ps-btn{border:none;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;
+    font-weight:600;transition:opacity 0.15s;}
+  .ps-btn:hover{opacity:0.85;}
+  .ps-primary{background:var(--accent);color:#fff;font-size:12px;padding:7px 14px;}
+  .ps-secondary{background:var(--surface-2);border:1px solid var(--border-2)!important;
+    color:var(--text-2);font-size:12px;padding:7px 14px;}
+  .ps-sm{font-size:10px;padding:3px 8px;font-weight:600;border-radius:5px;}
+  .ps-edit{background:rgba(74,124,89,0.15);color:var(--accent-2);border:1px solid var(--accent)!important;}
+  .ps-del{background:rgba(200,74,74,0.1);color:var(--danger);border:1px solid rgba(200,74,74,0.3)!important;}
+  .ps-inp{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;box-sizing:border-box;}
+  .ps-inp:focus{outline:none;border-color:var(--accent);}
+  .ps-lbl{font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;}
+  .ps-sel{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;
+    box-sizing:border-box;cursor:pointer;}
+  .ps-sel:focus{outline:none;border-color:var(--accent);}
+  .ps-days{width:50px;font-size:12px;padding:3px 6px;text-align:center;border-radius:4px;
+    border:1px solid var(--border-2);background:var(--surface-2);color:var(--text);font-family:monospace;}
+  .ps-days:focus{outline:none;border-color:var(--accent);}
+  .ps-exp{background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
+    color:var(--text-2);font-size:12px;font-weight:600;padding:7px 14px;cursor:pointer;
+    font-family:'Inter',sans-serif;transition:border-color 0.15s;}
+  .ps-exp:hover{border-color:var(--accent-2);color:var(--accent-2);}
+  .ps-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px;}
+  .ps-tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:0.06em;
+    text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .ps-tbl td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-2);vertical-align:middle;}
+  .ps-tbl tr:last-child td{border-bottom:none;}
+  .sp{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;}
+  .sp-a{background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .sp-u{background:rgba(200,150,58,0.15);color:var(--amber);}
+  .sp-c{background:rgba(100,100,100,0.15);color:var(--text-3);}
+  .ps-box{background:var(--surface-2);border-radius:8px;padding:12px 14px;margin-bottom:12px;}
+  .ps-box-title{font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.08em;
+    text-transform:uppercase;margin-bottom:10px;}
+  .ps-yield{background:rgba(74,124,89,0.15);border:1px solid var(--accent);border-radius:8px;
+    padding:8px 12px;width:100%;box-sizing:border-box;}
 `;
 
-const EMPTY = { name:"", cat:"whole_flower", sub:"", strains:"", d:"", inputLbs:"", pkgIdx:2, steps:null };
+const EMPTY = {
+  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputLbs:"",pkgIdx:2,steps:null,
+  stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",
+  coneWeight:"1",packSize:"5",
+  stateDefault:"NY",overfillG:"0.1",
+  vapeInputType:"distillate",
+  extractInputType:"distillate",inputPotencyPct:"80",
+  s2s_barcode:"",actual_yield:"",
+};
 
 export default function ProductionScheduler() {
   const [batches, setBatches] = useState(() => {
     try { return JSON.parse(localStorage.getItem("resinops_prod") || "[]"); }
     catch { return []; }
   });
-  const [form, setForm]       = useState(EMPTY);
+  const [form, setForm]         = useState(EMPTY);
   const [formMode, setFormMode] = useState(null);
-  const [editId, setEditId]   = useState(null);
-  const [formErr, setFormErr] = useState("");
+  const [editId, setEditId]     = useState(null);
+  const [formErr, setFormErr]   = useState("");
 
-  useEffect(() => {
-    localStorage.setItem("resinops_prod", JSON.stringify(batches));
-  }, [batches]);
+  useEffect(() => { localStorage.setItem("resinops_prod", JSON.stringify(batches)); }, [batches]);
 
   const today = new Date();
   const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  // Derived form values
-  const pkgOpts  = getPkgOpts(form.cat, form.sub);
+  const pkgOpts  = getPkg(form.cat, form.sub);
   const pkgIdx   = Math.min(form.pkgIdx, pkgOpts.length - 1);
   const pkgSel   = pkgOpts[pkgIdx];
-  const stepsKey = getStepKey(form.cat, form.sub);
-  const defSteps = STEPS[stepsKey] || [];
-  const formSteps = form.steps || defSteps.map(s => ({ n: s.n, days: s.days }));
-  const totalDays = formSteps.reduce((a, s) => a + (parseInt(s.days) || 0), 0);
-  const yieldEst = calcYield(form.cat, form.sub, form.inputLbs, pkgSel.v, pkgSel.l);
   const subOpts  = SUBS[form.cat] || [];
+  const formSteps = form.steps || (STEPS[getStepKey(form.cat, form.sub)] || []).map(s => ({n:s.n,days:s.days}));
+  const totalDays = formSteps.reduce((a,s) => a + (parseInt(s.days)||0), 0);
 
-  function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  const yieldEst = calcYield(form.cat, form.sub, form.inputLbs, pkgSel?.v, pkgSel?.l, {
+    stemWastePct: form.stemWastePct, moistureLossPct: form.moistureLossPct,
+    fillWastePct: form.fillWastePct, coneWeight: form.coneWeight, packSize: form.packSize,
+    overfillG: form.overfillG, vapeInputType: form.vapeInputType,
+    extractInputType: form.extractInputType, inputPotencyPct: form.inputPotencyPct,
+  });
+
+  function setF(k,v) { setForm(f => ({...f,[k]:v})); }
 
   function changeCat(cat) {
-    const sub = SUBS[cat] ? SUBS[cat][0].v : "";
+    const sub = SUBS[cat]?.[0]?.v || "";
     const key = getStepKey(cat, sub);
-    const steps = (STEPS[key] || []).map(s => ({ n: s.n, days: s.days }));
-    setForm(f => ({ ...f, cat, sub, steps, pkgIdx: 0 }));
+    const steps = (STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));
+    setForm(f => ({...f, cat, sub, steps, pkgIdx:0}));
   }
 
   function changeSub(sub) {
     const key = getStepKey(form.cat, sub);
-    const steps = (STEPS[key] || []).map(s => ({ n: s.n, days: s.days }));
-    setForm(f => ({ ...f, sub, steps, pkgIdx: 0 }));
+    const steps = (STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));
+    setForm(f => ({...f, sub, steps, pkgIdx:0}));
   }
 
-  function updateStepDays(i, v) {
-    const steps = formSteps.map((s, idx) => idx === i ? { ...s, days: parseInt(v) || 0 } : s);
-    setForm(f => ({ ...f, steps }));
+  function updateStep(i,v) {
+    const steps = formSteps.map((s,idx) => idx===i ? {...s,days:parseInt(v)||0} : s);
+    setForm(f => ({...f, steps}));
   }
 
   function openAdd() {
     const d = new Date().toISOString().split("T")[0];
-    const steps = defSteps.map(s => ({ n: s.n, days: s.days }));
-    setForm({ ...EMPTY, d, steps, cat: "whole_flower", sub: "", pkgIdx: 2 });
-    setFormMode("add"); setFormErr("");
+    const steps = (STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));
+    setForm({...EMPTY, d, steps}); setFormMode("add"); setFormErr("");
   }
 
   function openEdit(b) {
-    setForm({ name: b.name, cat: b.cat, sub: b.sub, strains: b.strains,
-              d: b.d, inputLbs: String(b.inputLbs), pkgIdx: b.pkgIdx,
-              steps: b.steps.map(s => ({ n: s.n, days: s.days })) });
+    setForm({
+      name:b.name, cat:b.cat, sub:b.sub||"", strains:b.strains||"",
+      d:b.d, inputLbs:String(b.inputLbs), pkgIdx:b.pkgIdx||0,
+      steps:b.steps.map(s=>({n:s.n,days:s.days})),
+      stemWastePct:String(b.stemWastePct||30), moistureLossPct:String(b.moistureLossPct||2),
+      fillWastePct:String(b.fillWastePct||3), coneWeight:String(b.coneWeight||1),
+      packSize:String(b.packSize||5), stateDefault:b.stateDefault||"NY",
+      overfillG:String(b.overfillG||0.1), vapeInputType:b.vapeInputType||"distillate",
+      extractInputType:b.extractInputType||"distillate", inputPotencyPct:String(b.inputPotencyPct||80),
+      s2s_barcode:b.s2s_barcode||"", actual_yield:b.actual_yield||"",
+    });
     setEditId(b.id); setFormMode("edit"); setFormErr("");
   }
 
@@ -324,233 +342,326 @@ export default function ProductionScheduler() {
   function validate() {
     if (!form.name.trim()) { setFormErr("Enter a batch name."); return false; }
     if (!form.d)           { setFormErr("Select a start date."); return false; }
-    if (!form.inputLbs || parseFloat(form.inputLbs) <= 0) { setFormErr("Enter a valid input quantity."); return false; }
+    if (!form.inputLbs || parseFloat(form.inputLbs)<=0) { setFormErr("Enter a valid input quantity."); return false; }
     return true;
   }
 
   function saveBatch() {
     if (!validate()) return;
-    const steps = formSteps.map(s => ({ n: s.n, days: parseInt(s.days) || 0 }));
-    const batch = { id: Date.now(), name: form.name.trim(), cat: form.cat, sub: form.sub,
-                    strains: form.strains.trim(), d: form.d, inputLbs: parseFloat(form.inputLbs),
-                    pkgIdx, steps, yieldEst, pkgLabel: pkgSel.l,
-                    catLabel: CATS.find(c => c.v === form.cat)?.l || form.cat,
-                    subLabel: subOpts.find(s => s.v === form.sub)?.l || "" };
-    if (formMode === "edit") {
-      setBatches(prev => prev.map(b => b.id === editId ? { ...batch, id: editId } : b));
-    } else {
-      setBatches(prev => [...prev, batch]);
-    }
+    const steps = formSteps.map(s => ({n:s.n, days:parseInt(s.days)||0}));
+    const sub = subOpts.find(s => s.v === form.sub);
+    const batch = {
+      id:formMode==="edit"?editId:Date.now(),
+      name:form.name.trim(), cat:form.cat, sub:form.sub, strains:form.strains.trim(),
+      d:form.d, inputLbs:parseFloat(form.inputLbs), pkgIdx, steps, yieldEst, pkgLabel:pkgSel?.l,
+      catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat, subLabel:sub?.l||"",
+      stemWastePct:parseFloat(form.stemWastePct)||0, moistureLossPct:parseFloat(form.moistureLossPct)||0,
+      fillWastePct:parseFloat(form.fillWastePct)||0, coneWeight:parseFloat(form.coneWeight)||1,
+      packSize:parseInt(form.packSize)||5, stateDefault:form.stateDefault,
+      overfillG:parseFloat(form.overfillG)||0, vapeInputType:form.vapeInputType,
+      extractInputType:form.extractInputType, inputPotencyPct:parseFloat(form.inputPotencyPct)||80,
+      s2s_barcode:form.s2s_barcode.trim(), actual_yield:form.actual_yield.trim(),
+    };
+    if (formMode==="edit") setBatches(p=>p.map(b=>b.id===editId?batch:b));
+    else setBatches(p=>[...p,batch]);
     closeForm();
   }
 
-  function removeBatch(id) { setBatches(prev => prev.filter(b => b.id !== id)); }
+  function removeBatch(id) { setBatches(p=>p.filter(b=>b.id!==id)); }
 
-  // ── Compute timelines ────────────────────────────────────────────────────
   const timelines = batches.map(b => buildTimeline(b.d, b.steps));
 
-  // ── Export ───────────────────────────────────────────────────────────────
   function exportProd() {
     if (!batches.length) return;
     const date = new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-
-    const rows = batches.map((b, idx) => {
+    const rows = batches.map((b,idx) => {
       const tl = timelines[idx];
-      const end = tl[tl.length - 1]?.end;
+      const end = tl[tl.length-1]?.end;
       const stepRows = tl.map(s =>
         '<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">' + s.name +
-        '</td><td style="padding:4px 14px 4px 0;font-size:13px;color:#1a1a1a;">' + fmtF(s.start) + ' → ' + fmtF(s.end) +
+        '</td><td style="padding:4px 14px 4px 0;font-size:13px;color:#1a1a1a;">' + fmtF(s.start) + ' \u2192 ' + fmtF(s.end) +
         '</td><td style="padding:4px 0;font-size:13px;color:#666;">' + s.days + ' days</td></tr>'
       ).join("");
       return '<div style="margin-bottom:32px;page-break-inside:avoid;">'
         + '<div style="background:#f6faf7;border-left:4px solid #2d5a3d;padding:12px 16px;margin-bottom:12px;border-radius:0 6px 6px 0;">'
         + '<h2 style="font-size:16px;font-weight:700;color:#1a1a1a;margin:0 0 3px;">' + b.name + '</h2>'
         + '<p style="font-size:13px;color:#444;margin:0;">'
-        + b.catLabel + (b.subLabel ? ' — ' + b.subLabel : '') + (b.strains ? ' &nbsp;·&nbsp; ' + b.strains : '')
-        + '&nbsp;·&nbsp;' + b.inputLbs + ' lbs input</p>'
+        + b.catLabel + (b.subLabel?' \u2014 '+b.subLabel:'') + (b.strains?' &nbsp;\u00b7&nbsp; '+b.strains:'')
+        + ' &nbsp;\u00b7&nbsp; ' + b.inputLbs + ' lbs input' + (b.s2s_barcode?' &nbsp;\u00b7&nbsp; S2S: '+b.s2s_barcode:'') + '</p>'
         + '</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">'
-        + '<div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Production steps</h3>'
+        + '<div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Steps</h3>'
         + '<table style="border-collapse:collapse;">' + stepRows + '</table></div>'
-        + '<div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Batch summary</h3>'
+        + '<div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Summary</h3>'
         + '<table style="border-collapse:collapse;">'
-        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Start</td><td style="padding:3px 0;font-size:13px;color:#1a1a1a;">' + fmtF(new Date(b.d + 'T12:00:00')) + '</td></tr>'
-        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Completion</td><td style="padding:3px 0;font-size:13px;color:#1a1a1a;">' + fmtF(end) + '</td></tr>'
-        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Total days</td><td style="padding:3px 0;font-size:13px;color:#1a1a1a;">' + b.steps.reduce((a,s)=>a+s.days,0) + '</td></tr>'
-        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Est. output</td><td style="padding:3px 0;font-size:13px;color:#1a1a1a;">' + (b.yieldEst || '—') + '</td></tr>'
+        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Start</td><td style="padding:3px 0;font-size:13px;">' + fmtF(new Date(b.d+'T12:00:00')) + '</td></tr>'
+        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Completion</td><td style="padding:3px 0;font-size:13px;">' + (end?fmtF(end):'—') + '</td></tr>'
+        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Est. output</td><td style="padding:3px 0;font-size:13px;">' + (b.yieldEst||'—') + '</td></tr>'
+        + '<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Actual yield</td><td style="padding:3px 0;font-size:13px;">' + (b.actual_yield||'—') + '</td></tr>'
         + '</table></div></div></div>';
     }).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;">');
-
     const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title>'
       + '<style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}'
       + 'h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;'
       + 'padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body>'
-      + '<h1>ResinOps — Production Schedule</h1>'
-      + '<div class="meta">Exported ' + date + ' &nbsp;·&nbsp; ' + batches.length + ' batch' + (batches.length>1?'es':'')
-      + '<br><small>Ctrl+P → Save as PDF &nbsp;|&nbsp; File → Open in Word</small></div>'
+      + '<h1>ResinOps \u2014 Production Schedule</h1>'
+      + '<div class="meta">Exported ' + date + ' &nbsp;\u00b7&nbsp; ' + batches.length + ' batch' + (batches.length>1?'es':'')
+      + '<br><small>Ctrl+P \u2192 Save as PDF &nbsp;|&nbsp; File \u2192 Open in Word</small></div>'
       + rows + '</body></html>';
-
-    const blob = new Blob([html], {type:"text/html"});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url;
-    a.download = "ResinOps-Production-" + new Date().toISOString().slice(0,10) + ".html";
+    const blob = new Blob([html],{type:"text/html"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="ResinOps-Production-"+new Date().toISOString().slice(0,10)+".html";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  // ── Gantt setup ───────────────────────────────────────────────────────────
   const hasBatches = batches.length > 0;
   let gStart, total, twPx, todayOff, months, weeks;
-
   if (hasBatches) {
-    const allStarts = timelines.map(tl => tl[0]?.start).filter(Boolean);
-    const allEnds   = timelines.map(tl => tl[tl.length-1]?.end).filter(Boolean);
-    gStart   = new Date(Math.min(...allStarts));
-    const gEnd = new Date(Math.max(...allEnds));
-    total    = dDiff(gStart, gEnd) + 10;
-    twPx     = total * PX;
+    const allS = timelines.map(tl=>tl[0]?.start).filter(Boolean);
+    const allE = timelines.map(tl=>tl[tl.length-1]?.end).filter(Boolean);
+    gStart = new Date(Math.min(...allS));
+    total  = dDiff(gStart, new Date(Math.max(...allE))) + 10;
+    twPx   = total * PX;
     todayOff = dDiff(gStart, today);
-
-    months = [];
-    let mo = "", moX = 0;
-    for (let day = 0; day <= total; day++) {
-      const ml = dAdd(gStart, day).toLocaleDateString("en-US", {month:"short",year:"2-digit"});
-      if (ml !== mo) {
-        if (mo) months.push({label:mo, x:moX, w:day*PX-moX});
-        mo = ml; moX = day * PX;
-      }
+    months = []; let mo="",moX=0;
+    for (let day=0;day<=total;day++) {
+      const ml = dAdd(gStart,day).toLocaleDateString("en-US",{month:"short",year:"2-digit"});
+      if (ml!==mo){if(mo)months.push({label:mo,x:moX,w:day*PX-moX});mo=ml;moX=day*PX;}
     }
-    months.push({label:mo, x:moX, w:total*PX-moX});
-    weeks = [];
-    for (let day = 0; day <= total; day += 7)
-      weeks.push({x:day*PX, wn:Math.floor(day/7)+1, date:fmtS(dAdd(gStart,day))});
+    months.push({label:mo,x:moX,w:total*PX-moX});
+    weeks=[];
+    for(let day=0;day<=total;day+=7) weeks.push({x:day*PX,wn:Math.floor(day/7)+1,date:fmtS(dAdd(gStart,day))});
   }
 
-  // ── Status helper ─────────────────────────────────────────────────────────
-  function batchStatus(b, tl) {
-    const start = new Date(b.d + "T00:00:00");
-    const end   = tl[tl.length-1]?.end;
-    if (!end) return { label:"—", cls:"status-upcoming" };
-    if (end < today0) return { label:"Complete", cls:"status-complete" };
-    if (start > today0) return { label:"Upcoming", cls:"status-upcoming" };
-    return { label:"In Progress", cls:"status-active" };
+  function batchStatus(b,tl) {
+    const start = new Date(b.d+"T00:00:00");
+    const end = tl[tl.length-1]?.end;
+    if (!end) return {label:"—",cls:"sp-u"};
+    if (end<today0) return {label:"Complete",cls:"sp-c"};
+    if (start>today0) return {label:"Upcoming",cls:"sp-u"};
+    return {label:"In Progress",cls:"sp-a"};
   }
 
-  // ── Form panel ────────────────────────────────────────────────────────────
+  // ── Form ──────────────────────────────────────────────────────────────────
   const FormPanel = () => (
     <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:10,padding:18,marginBottom:20}}>
       <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:14}}>
-        {formMode === "edit" ? "Edit Batch" : "New Production Batch"}
+        {formMode==="edit" ? "Edit Batch" : "New Production Batch"}
       </div>
 
-      {/* Row 1 */}
+      {/* Basic info */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
         <div>
           <label className="ps-lbl">Batch name</label>
           <input className="ps-inp" placeholder="Batch 2026-001" value={form.name}
-            onChange={e => setF("name",e.target.value)} />
+            onChange={e=>setF("name",e.target.value)} />
         </div>
         <div>
           <label className="ps-lbl">Product category</label>
-          <select className="ps-select" value={form.cat} onChange={e => changeCat(e.target.value)}>
-            {CATS.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
+          <select className="ps-sel" value={form.cat} onChange={e=>changeCat(e.target.value)}>
+            {CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}
           </select>
         </div>
-      </div>
-
-      {/* Row 2 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        {subOpts.length > 0 && (
+          <div>
+            <label className="ps-lbl">Product type</label>
+            <select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>
+              {subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+            </select>
+          </div>
+        )}
         <div>
-          {subOpts.length > 0 ? (
-            <>
-              <label className="ps-lbl">Product type</label>
-              <select className="ps-select" value={form.sub} onChange={e => changeSub(e.target.value)}>
-                {subOpts.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
-              </select>
-            </>
-          ) : <div />}
-        </div>
-        <div>
-          <label className="ps-lbl">Strain(s) — separate blends with commas</label>
+          <label className="ps-lbl">Strain(s) — comma-separate blends</label>
           <input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains}
-            onChange={e => setF("strains",e.target.value)} />
+            onChange={e=>setF("strains",e.target.value)} />
         </div>
-      </div>
-
-      {/* Row 3 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
         <div>
           <label className="ps-lbl">Batch start date</label>
-          <input type="date" className="ps-inp" value={form.d} onChange={e => setF("d",e.target.value)} />
+          <input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} />
         </div>
         <div>
           <label className="ps-lbl">{getInputLabel(form.cat)}</label>
           <input type="number" min="0" step="0.1" className="ps-inp" placeholder="10"
-            value={form.inputLbs} onChange={e => setF("inputLbs",e.target.value)} />
+            value={form.inputLbs} onChange={e=>setF("inputLbs",e.target.value)} />
         </div>
-      </div>
-
-      {/* Row 4 */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         <div>
           <label className="ps-lbl">Package / unit size</label>
-          <select className="ps-select" value={pkgIdx}
-            onChange={e => setF("pkgIdx", parseInt(e.target.value))}>
-            {pkgOpts.map((p,i) => <option key={i} value={i}>{p.l}</option>)}
+          <select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>
+            {pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}
           </select>
         </div>
         <div style={{display:"flex",alignItems:"center"}}>
           {yieldEst ? (
-            <div style={{background:"rgba(74,124,89,0.15)",border:"1px solid var(--accent)",
-              borderRadius:8,padding:"8px 12px",width:"100%",boxSizing:"border-box"}}>
-              <div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,
-                letterSpacing:"0.06em",textTransform:"uppercase"}}>Estimated Output</div>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--accent-2)",lineHeight:1.4}}>{yieldEst}</div>
+            <div className="ps-yield">
+              <div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>Estimated Output</div>
+              <div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",lineHeight:1.5}}>{yieldEst}</div>
             </div>
-          ) : (
-            <div style={{fontSize:12,color:"var(--text-3)"}}>Enter input quantity to see yield estimate</div>
-          )}
+          ) : <div style={{fontSize:12,color:"var(--text-3)"}}>Enter input quantity to see yield estimate</div>}
         </div>
       </div>
 
-      {/* Steps */}
-      <div style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-        <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",
-          textTransform:"uppercase",marginBottom:10}}>
-          Production Steps — {totalDays} days total
+      {/* Vape input type */}
+      {form.cat === "vape" && (
+        <div className="ps-box" style={{marginBottom:12}}>
+          <div className="ps-box-title">Vape — Input Material</div>
+          <div style={{maxWidth:280}}>
+            <label className="ps-lbl">Input material type</label>
+            <select className="ps-sel" value={form.vapeInputType}
+              onChange={e=>setF("vapeInputType",e.target.value)}>
+              <option value="distillate">Distillate</option>
+              <option value="live_resin">Live Resin</option>
+              <option value="rosin">Rosin</option>
+            </select>
+          </div>
         </div>
+      )}
+
+      {/* Edible input type */}
+      {form.cat === "edible" && form.sub !== "beverage" && (
+        <div className="ps-box" style={{marginBottom:12}}>
+          <div className="ps-box-title">Edible — Input Material</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div>
+              <label className="ps-lbl">Input material type</label>
+              <select className="ps-sel" value={form.extractInputType}
+                onChange={e=>setF("extractInputType",e.target.value)}>
+                <option value="distillate">Distillate</option>
+                <option value="rosin">Rosin</option>
+              </select>
+            </div>
+            <div>
+              <label className="ps-lbl">Input potency (% THC) — ignored for rosin</label>
+              <input type="number" min="1" max="100" className="ps-inp"
+                value={form.inputPotencyPct} onChange={e=>setF("inputPotencyPct",e.target.value)}
+                disabled={form.extractInputType === "rosin"} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Whole flower overfill */}
+      {form.cat === "whole_flower" && (
+        <div className="ps-box" style={{marginBottom:12}}>
+          <div className="ps-box-title">State Variance — Overfill per Unit</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div>
+              <label className="ps-lbl">State default</label>
+              <select className="ps-sel" value={form.stateDefault}
+                onChange={e=>{setF("stateDefault",e.target.value);setF("overfillG",String(STATE_DEFAULTS[e.target.value]||0.1));}}>
+                {Object.keys(STATE_DEFAULTS).map(k=><option key={k} value={k}>{k==="Custom"?"Custom":k+" (default +"+STATE_DEFAULTS[k]+"g)"}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="ps-lbl">Overfill per unit (g) — override here</label>
+              <input type="number" min="0" max="2" step="0.05" className="ps-inp"
+                value={form.overfillG} onChange={e=>setF("overfillG",e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-roll waste */}
+      {form.cat === "pre_roll" && (
+        <div className="ps-box" style={{marginBottom:12}}>
+          <div className="ps-box-title">Pre-Roll — Waste Factors & Pack Settings</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+            <div>
+              <label className="ps-lbl">Stem waste %</label>
+              <input type="number" min="0" max="60" step="1" className="ps-inp"
+                value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} />
+            </div>
+            <div>
+              <label className="ps-lbl">Moisture loss %</label>
+              <input type="number" min="0" max="10" step="0.5" className="ps-inp"
+                value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} />
+            </div>
+            <div>
+              <label className="ps-lbl">Fill waste %</label>
+              <input type="number" min="0" max="20" step="0.5" className="ps-inp"
+                value={form.fillWastePct} onChange={e=>setF("fillWastePct",e.target.value)} />
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div>
+              <label className="ps-lbl">Cone weight (g per unit)</label>
+              <input type="number" min="0.1" max="5" step="0.1" className="ps-inp"
+                value={form.coneWeight} onChange={e=>setF("coneWeight",e.target.value)} />
+            </div>
+            <div>
+              <label className="ps-lbl">Units per pack</label>
+              <input type="number" min="1" max="100" step="1" className="ps-inp"
+                value={form.packSize} onChange={e=>setF("packSize",e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ground flower waste */}
+      {form.cat === "ground_flower" && (
+        <div className="ps-box" style={{marginBottom:12}}>
+          <div className="ps-box-title">Ground Flower — Waste Factors</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div>
+              <label className="ps-lbl">Stem waste %</label>
+              <input type="number" min="0" max="60" step="1" className="ps-inp"
+                value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} />
+            </div>
+            <div>
+              <label className="ps-lbl">Moisture loss %</label>
+              <input type="number" min="0" max="10" step="0.5" className="ps-inp"
+                value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Steps */}
+      <div className="ps-box" style={{marginBottom:12}}>
+        <div className="ps-box-title">Production Steps — {totalDays} days total</div>
         <div style={{display:"grid",gap:6}}>
-          {formSteps.map((s, i) => (
+          {formSteps.map((s,i) => (
             <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:10,height:10,borderRadius:2,background:SBG[s.n]||"#333",
                 border:"1px solid rgba(255,255,255,0.15)",flexShrink:0}} />
               <span style={{fontSize:12,color:"var(--text-2)",flex:1,minWidth:0}}>{s.n}</span>
-              <input className="ps-days-inp" type="number" min="1" max="365" value={s.days}
-                onChange={e => updateStepDays(i, e.target.value)} />
+              <input className="ps-days" type="number" min="1" max="365" value={s.days}
+                onChange={e=>updateStep(i,e.target.value)} />
               <span style={{fontSize:11,color:"var(--text-3)",width:28}}>days</span>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Compliance & tracking */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+        <div>
+          <label className="ps-lbl">S2S / METRC Tag</label>
+          <input className="ps-inp" placeholder="1A400000000000000000000"
+            value={form.s2s_barcode} onChange={e=>setF("s2s_barcode",e.target.value)} />
+        </div>
+        <div>
+          <label className="ps-lbl">Actual yield — enter after completion</label>
+          <input className="ps-inp" placeholder="e.g. 1,180 units / 32.4g"
+            value={form.actual_yield} onChange={e=>setF("actual_yield",e.target.value)} />
+        </div>
+      </div>
+
       {formErr && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{formErr}</div>}
       <div style={{display:"flex",gap:8}}>
         <button className="ps-btn ps-primary" onClick={saveBatch}>
-          {formMode === "edit" ? "Save Changes" : "Add Batch"}
+          {formMode==="edit" ? "Save Changes" : "Add Batch"}
         </button>
         <button className="ps-btn ps-secondary" onClick={closeForm}>Cancel</button>
       </div>
     </div>
   );
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <style>{CSS}</style>
       <div className="ps-wrap">
-
-        {/* Header */}
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
           <div>
             <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Production Scheduler</div>
@@ -575,22 +686,19 @@ export default function ProductionScheduler() {
         {hasBatches && (
           <>
             <div className="ps-outer">
-
-              {/* Header row */}
+              {/* Header */}
               <div className="ps-row" style={{height:HH,background:"var(--surface-2)"}}>
                 <div className="ps-left" style={{height:HH,background:"var(--surface-2)"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",
-                    letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span>
+                  <span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span>
                 </div>
                 <div className="ps-tl" style={{minWidth:twPx,height:HH,overflow:"hidden"}}>
-                  {months.map((m,i) => (
+                  {months.map((m,i)=>(
                     <div key={i} style={{position:"absolute",left:m.x,top:0,width:m.w,height:24,
-                      borderRight:"1px solid var(--border)",padding:"0 8px",
-                      display:"flex",alignItems:"center",overflow:"hidden"}}>
+                      borderRight:"1px solid var(--border)",padding:"0 8px",display:"flex",alignItems:"center",overflow:"hidden"}}>
                       <span style={{fontSize:11,fontWeight:600,color:"var(--text-2)",whiteSpace:"nowrap"}}>{m.label}</span>
                     </div>
                   ))}
-                  {weeks.map((w,i) => (
+                  {weeks.map((w,i)=>(
                     <div key={i} style={{position:"absolute",left:w.x,top:24,bottom:0,
                       borderLeft:"1px solid var(--border)",paddingLeft:4,
                       display:"flex",flexDirection:"column",justifyContent:"center"}}>
@@ -601,54 +709,43 @@ export default function ProductionScheduler() {
                 </div>
               </div>
 
-              {/* Batch rows */}
-              {batches.map((b, idx) => {
+              {/* Rows */}
+              {batches.map((b,idx)=>{
                 const tl = timelines[idx];
-                const endDate = tl[tl.length-1]?.end;
-                const sub = SUBS[b.cat]?.find(s => s.v === b.sub);
+                const sub = SUBS[b.cat]?.find(s=>s.v===b.sub);
                 return (
                   <div key={b.id} className="ps-row" style={{height:RH}}>
-
                     <div className="ps-left" style={{height:RH}}>
-                      <div style={{fontSize:12,fontWeight:600,color:"var(--text)",
-                        whiteSpace:"normal",wordBreak:"break-word",lineHeight:1.3}}>{b.name}</div>
-                      <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>
-                        {b.catLabel}{sub ? " — " + sub.l : ""}
-                      </div>
+                      <div style={{fontSize:12,fontWeight:600,color:"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.name}</div>
+                      <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
                       {b.strains && <div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
-                      <div style={{fontSize:10,color:"var(--text-3)"}}>{b.inputLbs} lbs → {b.yieldEst || "—"}</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{b.inputLbs} lbs → {b.yieldEst||"—"}</div>
+                      {b.s2s_barcode && <div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace"}}>{b.s2s_barcode}</div>}
                       <div style={{display:"flex",gap:6,marginTop:5}}>
-                        <button className="ps-btn ps-sm ps-edit" onClick={() => openEdit(b)}>Edit</button>
-                        <button className="ps-btn ps-sm ps-del" onClick={() => removeBatch(b.id)}>✕</button>
+                        <button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>
+                        <button className="ps-btn ps-sm ps-del" onClick={()=>removeBatch(b.id)}>✕</button>
                       </div>
                     </div>
-
                     <div className="ps-tl" style={{minWidth:twPx,height:RH}}>
-                      {weeks.map((w,i) => (
-                        <div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,
-                          width:1,background:"var(--border)",opacity:0.4}} />
+                      {weeks.map((w,i)=>(
+                        <div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />
                       ))}
-
-                      {/* Step segments */}
-                      {tl.map((step, si) => {
-                        const x = dDiff(gStart, step.start) * PX;
-                        const w = Math.max(dDiff(step.start, step.end) * PX, 2);
-                        const bg = SBG[step.name] || "#333";
-                        const fg = SFG[step.name] || "#fff";
+                      {tl.map((step,si)=>{
+                        const x = dDiff(gStart,step.start)*PX;
+                        const w = Math.max(dDiff(step.start,step.end)*PX,2);
                         return (
-                          <div key={si} title={step.name + " — " + fmtF(step.start) + " → " + fmtF(step.end) + " (" + step.days + " days)"}
+                          <div key={si} title={step.name+" — "+fmtF(step.start)+" → "+fmtF(step.end)+" ("+step.days+" days)"}
                             style={{position:"absolute",left:x,top:12,width:w,height:RH-24,
-                              background:bg,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",
+                              background:SBG[step.name]||"#333",
+                              borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",
                               borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",
                               display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>
-                            {w > 24 && <span style={{fontSize:9,fontWeight:700,color:fg,
+                            {w>30 && <span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",
                               whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}
                           </div>
                         );
                       })}
-
-                      {/* Today line */}
-                      {todayOff >= 0 && todayOff <= total && (
+                      {todayOff>=0 && todayOff<=total && (
                         <div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,
                           width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />
                       )}
@@ -658,12 +755,11 @@ export default function ProductionScheduler() {
               })}
             </div>
 
-            {/* Step color legend */}
+            {/* Legend */}
             <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",marginBottom:20}}>
-              {Object.entries(SBG).map(([name, bg]) => (
+              {Object.entries(SBG).map(([name,bg])=>(
                 <div key={name} style={{display:"flex",alignItems:"center",gap:5}}>
-                  <div style={{width:12,height:10,borderRadius:2,background:bg,
-                    border:"1px solid rgba(255,255,255,0.12)"}} />
+                  <div style={{width:12,height:10,borderRadius:2,background:bg,border:"1px solid rgba(255,255,255,0.12)"}} />
                   <span style={{fontSize:10,color:"var(--text-3)"}}>{name}</span>
                 </div>
               ))}
@@ -677,30 +773,32 @@ export default function ProductionScheduler() {
             <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",
               textTransform:"uppercase",marginBottom:8}}>Batch Summary</div>
             <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:10}}>
-              <table className="ps-table">
+              <table className="ps-tbl">
                 <thead>
                   <tr>
-                    <th>Batch</th><th>Product</th><th>Strains</th>
-                    <th>Input</th><th>Est. Output</th>
-                    <th>Start</th><th>Completion</th><th>Status</th>
+                    <th>Batch</th><th>Product</th><th>Strains</th><th>Input</th>
+                    <th>Est. Output</th><th>Actual Yield</th>
+                    <th>Start</th><th>Completion</th><th>S2S Tag</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.map((b, idx) => {
+                  {batches.map((b,idx)=>{
                     const tl = timelines[idx];
                     const end = tl[tl.length-1]?.end;
-                    const st = batchStatus(b, tl);
-                    const sub = SUBS[b.cat]?.find(s => s.v === b.sub);
+                    const st = batchStatus(b,tl);
+                    const sub = SUBS[b.cat]?.find(s=>s.v===b.sub);
                     return (
                       <tr key={b.id}>
-                        <td style={{color:"var(--text)",fontWeight:500}}>{b.name}</td>
-                        <td>{b.catLabel}{sub ? " — " + sub.l : ""}</td>
-                        <td>{b.strains || "—"}</td>
-                        <td>{b.inputLbs} lbs</td>
-                        <td style={{fontSize:11}}>{b.yieldEst || "—"}</td>
-                        <td>{fmtS(new Date(b.d + "T12:00:00"))}</td>
-                        <td>{end ? fmtS(end) : "—"}</td>
-                        <td><span className={"status-pill " + st.cls}>{st.label}</span></td>
+                        <td style={{color:"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.name}</td>
+                        <td style={{whiteSpace:"nowrap"}}>{b.catLabel}{sub?" — "+sub.l:""}</td>
+                        <td>{b.strains||"—"}</td>
+                        <td style={{whiteSpace:"nowrap"}}>{b.inputLbs} lbs</td>
+                        <td style={{fontSize:11}}>{b.yieldEst||"—"}</td>
+                        <td style={{fontSize:11,color:b.actual_yield?"var(--accent-2)":"var(--text-3)"}}>{b.actual_yield||"—"}</td>
+                        <td style={{whiteSpace:"nowrap"}}>{fmtS(new Date(b.d+"T12:00:00"))}</td>
+                        <td style={{whiteSpace:"nowrap"}}>{end?fmtS(end):"—"}</td>
+                        <td style={{fontFamily:"monospace",fontSize:10}}>{b.s2s_barcode||"—"}</td>
+                        <td><span className={"sp "+st.cls}>{st.label}</span></td>
                       </tr>
                     );
                   })}
