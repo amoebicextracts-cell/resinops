@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Scheduler from "./Scheduler.jsx";
+import ProductionScheduler from "./ProductionScheduler.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -184,6 +185,14 @@ const MODULES = [
     icon: "📅",
     available: true,
     description: "Plan timelines from clone cut to inventory",
+    isScheduler: true,
+  },
+  {
+    id: "production",
+    label: "Production Scheduler",
+    icon: "🏭",
+    available: true,
+    description: "Batch scheduling from intake to inventory",
     isScheduler: true,
   },
 ];
@@ -860,7 +869,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = activeModule === "scheduler";
+  const isSchedulerActive = activeModule === "scheduler" || activeModule === "production";
 
   const showWelcome = messages.length === 0;
 
@@ -931,9 +940,8 @@ export default function ResinOps() {
             </div>
           </div>
 
-          {isSchedulerActive ? (
-            <Scheduler />
-          ) : null}
+          {activeModule === "scheduler" ? <Scheduler /> : null}
+          {activeModule === "production" ? <ProductionScheduler /> : null}
 
           <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (
