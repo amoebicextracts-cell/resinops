@@ -1,42 +1,90 @@
 import { useState, useEffect } from "react";
 
-// ── Constants ──────────────────────────────────────────────────────────────
 const LW=280, RH=96, HH=56, PX=11;
-const UNIT_TO_G = { g:1, lbs:453.592, kg:1000 };
-const CANNABINOIDS = ["THC","THCa","CBD","CBDa","CBG","CBN","CBC","THCV"];
+const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
+const CANNABINOIDS=["THC","THCa","CBD","CBDa","CBG","CBN","CBC","THCV"];
 
-const SBG = {
+// ── Machine trimmer specs (lbs/day) ────────────────────────────────────────
+const TRIMMERS={
+  greenboz_215:{l:"GreenBroz 215",t:215},
+  twister_t4:{l:"Twister T4",t:100},
+  twister_t6:{l:"Twister T6",t:150},
+  mobius_m108:{l:"Mobius M108S",t:400},
+  dbt_twister:{l:"Twister DBT (BatchOne)",t:200},
+  dbt_centurion:{l:"Centurion Pro DBT",t:250},
+  custom:{l:"Custom / Other",t:100},
+};
+
+// ── Vape terpene sources ───────────────────────────────────────────────────
+const TERP_SRCS={
+  pure:{l:"100% Cannabis-derived Terpenes",purity:1.00,thc:0.00},
+  hte:{l:"High Terpene Extract (HTE) ~60% terps",purity:0.60,thc:0.25},
+  rosin:{l:"Rosin Terps ~65% terps",purity:0.65,thc:0.20},
+  r134a:{l:"R-134a Terp Liquid ~50% terps (10% THC, 38% flavonoids)",purity:0.50,thc:0.10},
+};
+
+const SBG={
   "Intake / Prep":"#1e3248","Drying":"#1e4420","Bucking":"#2e5010","Trimming":"#3a5e14",
   "Curing":"#143810","Grinding":"#504810","Rolling / Filling":"#583c0e","Extraction":"#582208",
   "Pressing":"#4a2008","Washing":"#143848","Lyophilization":"#0e2848","Purge / Process":"#3e1414",
-  "Winterization":"#221438","Decarb":"#481c0e","Distillation":"#200e48","Formulation":"#0e3848",
+  "Winterization":"#221438","Extensive Winterization":"#281448","CRC Remediation":"#301838",
+  "Decarb":"#481c0e","Distillation":"#200e48","Formulation":"#0e3848",
   "Sauce Separation":"#3a1838","Filling":"#183040","Production":"#104038","Dose QC":"#0e2838",
-  "QC / Testing":"#0a1848","Packaging":"#2e0e48","Inventory":"#0e3030",
+  "THCa Crystallization":"#0e2848","Crystal Filtration":"#182848","Crystal Wash":"#102040",
+  "Residual Purge":"#3e1814","Material Decarb 125C":"#582808",
+  "R-134a Terp Cut":"#1e3858","R-134a Cannabinoid Cut":"#1a2e58",
+  "Crude Extraction":"#482010",
+  "Cold Hydrocarbon Extraction":"#502010",
+  "Controlled Crash Crystallization":"#102858",
+  "HTE Removal (Butane Fraction)":"#104048",
+  "HTE Removal / Pour-off":"#104048",
+  "Warm Gas Redissolution":"#181848",
+  "Initial Solvent Recovery":"#301828",
+  "Diamond Mining / Jar Crystallization":"#082048",
+  "Recrystallization":"#0a1e58",
+  "Cold Solvent Wash":"#083038",
+  "Final Solvent Purge":"#381010","QC / Testing":"#0a1848","Packaging":"#2e0e48","Inventory":"#0e3030",
 };
-const SFG = {
+const SFG={
   "Intake / Prep":"#90c0f0","Drying":"#90f0a0","Bucking":"#b0e080","Trimming":"#c0f090",
   "Curing":"#80d080","Grinding":"#f0e060","Rolling / Filling":"#f0b860","Extraction":"#f8a870",
   "Pressing":"#f09870","Washing":"#80d0f0","Lyophilization":"#78b0f0","Purge / Process":"#f09090",
-  "Winterization":"#b090f8","Decarb":"#f0a870","Distillation":"#c090ff","Formulation":"#70d0f0",
+  "Winterization":"#b090f8","Extensive Winterization":"#c0a0ff","CRC Remediation":"#d090e0",
+  "Decarb":"#f0a870","Distillation":"#c090ff","Formulation":"#70d0f0",
   "Sauce Separation":"#d080e0","Filling":"#80c0f0","Production":"#70e0c8","Dose QC":"#80c0f0",
-  "QC / Testing":"#7090f8","Packaging":"#c080f8","Inventory":"#70d0d0",
+  "THCa Crystallization":"#80c0f8","Crystal Filtration":"#90d0f8","Crystal Wash":"#78c0f0",
+  "Residual Purge":"#f0b090","Material Decarb 125C":"#f8b870",
+  "R-134a Terp Cut":"#80c8f8","R-134a Cannabinoid Cut":"#78b8f8",
+  "Crude Extraction":"#f0a060",
+  "Cold Hydrocarbon Extraction":"#f0a060",
+  "Controlled Crash Crystallization":"#70b0f8",
+  "HTE Removal (Butane Fraction)":"#70d8e8",
+  "HTE Removal / Pour-off":"#70d8e8",
+  "Warm Gas Redissolution":"#9090f8",
+  "Initial Solvent Recovery":"#d090b0",
+  "Diamond Mining / Jar Crystallization":"#6090f0",
+  "Recrystallization":"#7090f8",
+  "Cold Solvent Wash":"#70d0e8",
+  "Final Solvent Purge":"#f09090","QC / Testing":"#7090f8","Packaging":"#c080f8","Inventory":"#70d0d0",
 };
 
-// ── Product catalog ────────────────────────────────────────────────────────
-const CATS = [
+const CATS=[
   {v:"whole_flower",l:"Whole Flower"},{v:"ground_flower",l:"Ground Flower"},
   {v:"pre_roll",l:"Pre-Roll"},{v:"extract",l:"Extract / Concentrate"},
   {v:"vape",l:"Vape"},{v:"tincture",l:"Tincture"},
   {v:"topical",l:"Topical"},{v:"edible",l:"Edible"},
 ];
-
-const SUBS = {
+const SUBS={
   extract:[
     {v:"shatter",l:"BHO — Shatter / Wax"},{v:"badder",l:"BHO — Badder / Budder"},
     {v:"live_resin",l:"BHO — Live Resin"},{v:"sugar",l:"BHO — Sugar"},
     {v:"diamonds",l:"BHO — Diamonds & Sauce"},{v:"rosin_fl",l:"Rosin — Flower Press"},
     {v:"rosin_hash",l:"Rosin — Hash Press"},{v:"hash",l:"Ice Water Hash"},
-    {v:"co2",l:"CO2 Extract"},{v:"distillate",l:"Distillate"},
+    {v:"co2",l:"CO2 Extract"},{v:"distillate",l:"Distillate (Ethanol or Hydrocarbon)"},
+    {v:"thca_ff",l:"THCa Isolate — Fresh Frozen Input"},
+    {v:"thca_trim",l:"THCa Isolate — Dry Trim Input"},
+    {v:"r134a_20l",l:"R-134a Extraction — 20L Machine"},
+    {v:"r134a_50l",l:"R-134a Extraction — 50L Machine"},
   ],
   vape:[
     {v:"cartridge",l:"510-Thread Cartridge"},{v:"disposable",l:"AIO / Disposable"},
@@ -48,178 +96,133 @@ const SUBS = {
   ],
 };
 
-// ── Step configs ───────────────────────────────────────────────────────────
-const STEPS = {
-  whole_flower:  [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:21},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  ground_flower: [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  pre_roll:      [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:14},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  shatter:       [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  badder:        [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  live_resin:    [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  sugar:         [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  diamonds:      [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:21},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  rosin_fl:      [{n:"Intake / Prep",days:1},{n:"Pressing",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  rosin_hash:    [{n:"Intake / Prep",days:1},{n:"Pressing",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  hash:          [{n:"Intake / Prep",days:1},{n:"Washing",days:2},{n:"Lyophilization",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  co2:           [{n:"Intake / Prep",days:1},{n:"Extraction",days:3},{n:"Winterization",days:2},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  distillate:    [{n:"Intake / Prep",days:1},{n:"Winterization",days:2},{n:"Decarb",days:1},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  cartridge:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  disposable:    [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  oil_rosin:     [{n:"Intake / Prep",days:1},{n:"Sauce Separation",days:2},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+const STEPS={
+  whole_flower: [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  ground_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  pre_roll:     [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  shatter:      [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  badder:       [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  live_resin:   [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  sugar:        [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  diamonds:     [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:21},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  rosin_fl:     [{n:"Intake / Prep",days:1},{n:"Pressing",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  rosin_hash:   [{n:"Intake / Prep",days:1},{n:"Pressing",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  hash:         [{n:"Intake / Prep",days:1},{n:"Washing",days:2},{n:"Lyophilization",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  co2:          [{n:"Intake / Prep",days:1},{n:"Extraction",days:3},{n:"Winterization",days:2},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  distillate:   [{n:"Intake / Prep",days:1},{n:"Crude Extraction",days:3},{n:"Winterization",days:2},{n:"Decarb",days:1},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  // thca_ff and thca_trim use getThcaSteps() dynamically
+
+  r134a_20l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  r134a_50l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  cartridge:    [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  disposable:   [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  oil_rosin:    [{n:"Intake / Prep",days:1},{n:"Sauce Separation",days:2},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   oil_live_resin:[{n:"Intake / Prep",days:1},{n:"Sauce Separation",days:2},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  tincture:      [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  topical:       [{n:"Intake / Prep",days:1},{n:"Formulation",days:3},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  gummies:       [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:2},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  chocolate:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:3},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  capsules:      [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  beverage:      [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:2},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  other:         [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  tincture:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  topical:      [{n:"Intake / Prep",days:1},{n:"Formulation",days:3},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  gummies:      [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:2},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  chocolate:    [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:3},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  capsules:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  beverage:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:2},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  other:        [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
 };
 
-// ── Package sizes ──────────────────────────────────────────────────────────
-const PKG = {
-  whole_flower:   [{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7},{l:"14g",v:14},{l:"28g",v:28},{l:"112g (QP)",v:112},{l:"224g (HP)",v:224},{l:"448g (lb)",v:448}],
-  ground_flower:  [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
-  pre_roll:       [{l:"0.5g",v:0.5},{l:"0.75g",v:0.75},{l:"1g",v:1},{l:"1.5g",v:1.5},{l:"2g",v:2}],
-  extract_solid:  [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
-  extract_bulk:   [{l:"bulk (g)",v:1}],
-  vape_cart:      [{l:"0.3g",v:0.3},{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2}],
-  vape_aio:       [{l:"1g",v:1},{l:"1.75g",v:1.75},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
-  vape_oil:       [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
-  tincture_bot:   [{l:"15ml",v:15},{l:"30ml",v:30},{l:"60ml",v:60}],
-  tincture_pot:   [{l:"25mg/ml",v:25},{l:"33mg/ml",v:33},{l:"50mg/ml",v:50},{l:"100mg/ml",v:100}],
-  topical:        [{l:"1 oz",v:1},{l:"2 oz",v:2},{l:"4 oz",v:4}],
-  edible_dose:    [{l:"1mg",v:1},{l:"2mg",v:2},{l:"2.5mg",v:2.5},{l:"5mg",v:5},{l:"10mg",v:10},{l:"20mg",v:20},{l:"25mg",v:25},{l:"50mg",v:50},{l:"100mg",v:100}],
-  edible_bev:     [{l:"100ml",v:100},{l:"200ml",v:200},{l:"355ml",v:355}],
+const PKG={
+  whole_flower:  [{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7},{l:"14g",v:14},{l:"28g",v:28},{l:"112g (QP)",v:112},{l:"448g (lb)",v:448}],
+  ground_flower: [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
+  pre_roll:      [{l:"0.5g",v:0.5},{l:"0.75g",v:0.75},{l:"1g",v:1},{l:"1.5g",v:1.5},{l:"2g",v:2}],
+  extract_solid: [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
+  extract_bulk:  [{l:"bulk (g)",v:1}],
+  vape_cart:     [{l:"0.3g",v:0.3},{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2}],
+  vape_aio:      [{l:"1g",v:1},{l:"1.75g",v:1.75},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
+  vape_oil:      [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
+  tincture_bot:  [{l:"15ml",v:15},{l:"30ml",v:30},{l:"60ml",v:60}],
+  topical:       [{l:"1 oz",v:1},{l:"2 oz",v:2},{l:"4 oz",v:4}],
+  edible_dose:   [{l:"1mg",v:1},{l:"2mg",v:2},{l:"2.5mg",v:2.5},{l:"5mg",v:5},{l:"10mg",v:10},{l:"20mg",v:20},{l:"25mg",v:25},{l:"50mg",v:50},{l:"100mg",v:100}],
+  edible_bev:    [{l:"100ml",v:100},{l:"200ml",v:200},{l:"355ml",v:355}],
 };
 
-function getPkg(cat,sub) {
-  if (cat==="whole_flower") return PKG.whole_flower;
-  if (cat==="ground_flower") return PKG.ground_flower;
-  if (cat==="pre_roll") return PKG.pre_roll;
-  if (cat==="extract") return sub==="distillate"?PKG.extract_bulk:PKG.extract_solid;
-  if (cat==="vape") {
-    if (sub==="disposable") return PKG.vape_aio;
-    if (sub==="oil_rosin"||sub==="oil_live_resin") return PKG.vape_oil;
-    return PKG.vape_cart;
-  }
-  if (cat==="tincture") return PKG.tincture_bot;
-  if (cat==="topical") return PKG.topical;
-  if (cat==="edible") return sub==="beverage"?PKG.edible_bev:PKG.edible_dose;
-  return [{l:"unit",v:1}];
+function getPkg(cat,sub){
+  if(cat==="whole_flower")return PKG.whole_flower;
+  if(cat==="ground_flower")return PKG.ground_flower;
+  if(cat==="pre_roll")return PKG.pre_roll;
+  if(cat==="extract")return["distillate","thca_ff","thca_trim","r134a_20l","r134a_50l"].includes(sub)?PKG.extract_bulk:PKG.extract_solid;
+  if(cat==="vape"){if(sub==="disposable")return PKG.vape_aio;if(sub==="oil_rosin"||sub==="oil_live_resin")return PKG.vape_oil;return PKG.vape_cart;}
+  if(cat==="tincture")return PKG.tincture_bot;
+  if(cat==="topical")return PKG.topical;
+  if(cat==="edible")return sub==="beverage"?PKG.edible_bev:PKG.edible_dose;
+  return[{l:"unit",v:1}];
 }
-
-function getStepKey(cat,sub) {
-  if (["whole_flower","ground_flower","pre_roll","tincture","topical"].includes(cat)) return cat;
-  if (cat==="extract") return sub||"shatter";
-  if (cat==="vape") return sub||"cartridge";
-  if (cat==="edible") return sub||"gummies";
+function getStepKey(cat,sub){
+  if(["whole_flower","ground_flower","pre_roll","tincture","topical"].includes(cat))return cat;
+  if(cat==="extract")return sub||"shatter";
+  if(cat==="vape")return sub||"cartridge";
+  if(cat==="edible")return sub||"gummies";
   return cat;
 }
-
-function getInputLabel(cat) {
-  return ({
-    whole_flower:"Input — dry flower",ground_flower:"Input — dry flower",
-    pre_roll:"Input — dry flower or trim",extract:"Input — biomass / trim",
+function getInputLabel(cat){
+  return({whole_flower:"Input — dry flower",ground_flower:"Input — dry flower",
+    pre_roll:"Input — dry flower or trim",extract:"Input — biomass / trim / crude",
     vape:"Input — oil / distillate",tincture:"Input — extract",
-    topical:"Batch size",edible:"Input — extract / distillate",
-  })[cat]||"Input";
+    topical:"Batch size",edible:"Input — extract / distillate"})[cat]||"Input";
 }
 
 // ── Yield calculation ──────────────────────────────────────────────────────
-function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts) {
-  const amt = parseFloat(inputAmt);
-  if (!amt||amt<=0||!pkgV) return null;
-  const g = amt * (UNIT_TO_G[unit]||1);
-  const {
-    stemWastePct=0,moistureLossPct=0,fillWastePct=0,
-    coneWeight=1,packSize=5,inputMaterial="flower",
-    overfillG=0,vapeInputType="distillate",sauceSepMethod="pour_off",
-    extractInputType="distillate",inputPotencyPct=80,
-    tincBottleSize=30,tincPotencyMgPerMl=33,
-    kiefSift=false,kief40Pct=12,kief100Pct=8,
-  }=opts;
-
-  if (cat==="whole_flower") {
-    const eff=pkgV+(parseFloat(overfillG)||0);
-    const units=Math.floor(g/eff*0.95);
-    const ovNote=parseFloat(overfillG)>0?` +${overfillG}g overfill/unit`:"";
-    return `${g.toFixed(0)}g input · ${units.toLocaleString()} × ${pkgL} units${ovNote}`;
+function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
+  const amt=parseFloat(inputAmt);if(!amt||amt<=0||!pkgV)return null;
+  const g=amt*(UNIT_TO_G[unit]||1);
+  const{stemWastePct=0,moistureLossPct=0,fillWastePct=0,coneWeight=1,packSize=5,
+    inputMaterial="flower",overfillG=0,vapeInputType="distillate",sauceSepMethod="pour_off",
+    extractInputType="distillate",inputPotencyPct=80,tincBottleSize=30,tincPotencyMgPerMl=33,
+    kiefSift=false,kief40Pct=12,kief100Pct=8}=opts;
+  if(cat==="whole_flower"){const eff=pkgV+(parseFloat(overfillG)||0);const units=Math.floor(g/eff*0.95);return`${g.toFixed(0)}g · ${units.toLocaleString()} × ${pkgL} units`+(parseFloat(overfillG)>0?` (+${overfillG}g overfill/unit)`:"");}
+  if(cat==="ground_flower"){const sw=parseFloat(stemWastePct)/100||0;const ml=parseFloat(moistureLossPct)/100||0;const u=g*(1-sw)*(1-ml);const units=Math.floor(u/pkgV*0.98);let k="";if(kiefSift){k=` · Kief: ${(u*(parseFloat(kief40Pct)/100)).toFixed(1)}g (40-mesh), ${(u*(parseFloat(kief100Pct)/100)).toFixed(1)}g (100-mesh)`;}return`${u.toFixed(0)}g usable · ${units.toLocaleString()} × ${pkgL}${k}`;}
+  if(cat==="pre_roll"){const sw=inputMaterial==="trim"?0.05:(parseFloat(stemWastePct)/100||0);const ml=parseFloat(moistureLossPct)/100||0;const fw=parseFloat(fillWastePct)/100||0;const u=g*(1-sw)*(1-ml)*(1-fw);const coneG=parseFloat(coneWeight)||1;const units=Math.floor(u/coneG);const packs=Math.floor(units/(parseInt(packSize)||1));let k="";if(kiefSift){k=` · Kief: ${(g*sw*(parseFloat(kief40Pct)/100)).toFixed(1)}g / ${(g*sw*(parseFloat(kief100Pct)/100)).toFixed(1)}g`;}return`${units.toLocaleString()} cones · ${packs.toLocaleString()} × ${packSize}-packs${k}`;}
+  if(cat==="extract"){
+    const ym={shatter:0.15,badder:0.15,live_resin:0.10,sugar:0.15,diamonds:0.08,rosin_fl:0.15,rosin_hash:0.60,hash:0.05,co2:0.10};
+    if(sub==="distillate"){const crude=g*0.18;const total=crude*0.70;const main=total*0.80;const ht=total*0.20;return`Crude: ${crude.toFixed(0)}g → Distillate: ${total.toFixed(0)}g total | Main body: ${main.toFixed(0)}g (retail) + ${ht.toFixed(0)}g heads/tails (edibles grade) — 2 batches created`;}
+    if(sub==="thca_ff"){const thca=g*0.08;const hte=g*0.06;const units=Math.floor(thca/pkgV*0.97);return`THCa: ~${thca.toFixed(0)}g (~8% of biomass) · ${units.toLocaleString()} × ${pkgL} | HTE co-product: ~${hte.toFixed(0)}g (linked batch auto-created)`;}
+    if(sub==="thca_trim"){const thca=g*0.04;const hte=g*0.03;const units=Math.floor(thca/pkgV*0.97);return`THCa: ~${thca.toFixed(0)}g (~4% of trim) · ${units.toLocaleString()} × ${pkgL} | HTE co-product: ~${hte.toFixed(0)}g (linked batch auto-created)`;}
+    if(sub==="r134a_20l"||sub==="r134a_50l"){const cap=sub==="r134a_50l"?5000:2500;const cycles=Math.ceil(g/cap);const terp=g*0.05;const cannab=g*0.145;return`${cycles} cycle${cycles>1?"s":""} · Terp liquid: ~${terp.toFixed(0)}g (50% terps) · Cannabinoid cut: ~${cannab.toFixed(0)}g (est. 14.5%)`;}
+    const out=g*(ym[sub]||0.15);const units=Math.floor(out/pkgV*0.97);return`~${out.toFixed(1)}g · ${units.toLocaleString()} × ${pkgL} units`;
   }
-  if (cat==="ground_flower") {
-    const sw=parseFloat(stemWastePct)/100||0;
-    const ml=parseFloat(moistureLossPct)/100||0;
-    const usable=g*(1-sw)*(1-ml);
-    const units=Math.floor(usable/pkgV*0.98);
-    let kiefNote="";
-    if (kiefSift) {
-      const k40=usable*(parseFloat(kief40Pct)/100);
-      const k100=usable*(parseFloat(kief100Pct)/100);
-      kiefNote=` · +${k40.toFixed(1)}g 40-mesh kief, +${k100.toFixed(1)}g 100-mesh kief`;
-    }
-    return `${usable.toFixed(0)}g usable · ${units.toLocaleString()} × ${pkgL} (${stemWastePct}% stem, ${moistureLossPct}% moisture)${kiefNote}`;
-  }
-  if (cat==="pre_roll") {
-    const isTrim=inputMaterial==="trim";
-    const sw=isTrim?5:(parseFloat(stemWastePct)/100||0)*100;
-    const swf=isTrim?0.05:(parseFloat(stemWastePct)/100||0);
-    const ml=parseFloat(moistureLossPct)/100||0;
-    const fw=parseFloat(fillWastePct)/100||0;
-    const usable=g*(1-swf)*(1-ml)*(1-fw);
-    const coneG=parseFloat(coneWeight)||1;
-    const units=Math.floor(usable/coneG);
-    const packs=Math.floor(units/(parseInt(packSize)||1));
-    let kiefNote="";
-    if (kiefSift) {
-      const siftBase=g*swf;
-      const k40=siftBase*(parseFloat(kief40Pct)/100);
-      const k100=siftBase*(parseFloat(kief100Pct)/100);
-      kiefNote=` · Sifted kief: ${k40.toFixed(1)}g (40-mesh), ${k100.toFixed(1)}g (100-mesh)`;
-    }
-    return `${units.toLocaleString()} cones · ${packs.toLocaleString()} × ${packSize}-packs from ${usable.toFixed(0)}g usable${kiefNote}`;
-  }
-  if (cat==="extract") {
-    const yldMap={shatter:0.15,badder:0.15,live_resin:0.10,sugar:0.15,diamonds:0.08,rosin_fl:0.15,rosin_hash:0.60,hash:0.05,co2:0.10,distillate:0.70};
-    const outG=g*(yldMap[sub]||0.15);
-    const units=Math.floor(outG/pkgV*0.97);
-    return `~${outG.toFixed(1)}g extract · ${units.toLocaleString()} × ${pkgL} units`;
-  }
-  if (cat==="vape") {
-    const isOil=sub==="oil_rosin"||sub==="oil_live_resin";
-    const sepNote=isOil?(sauceSepMethod==="centrifuge"?" (centrifuge sep)":" (pour-off sep)"):"";
-    const fillEff=vapeInputType==="live_resin"||sub==="oil_live_resin"?0.95:
-                  vapeInputType==="rosin"||sub==="oil_rosin"?0.93:0.97;
-    const units=Math.floor(g*fillEff/pkgV);
-    const unitL=sub==="disposable"?"AIOs":isOil?"oil units":"carts";
-    return `~${units.toLocaleString()} × ${pkgL} ${unitL}${sepNote} (${(fillEff*100).toFixed(0)}% fill eff.)`;
-  }
-  if (cat==="tincture") {
-    const botSizeML=parseFloat(tincBottleSize)||30;
-    const mgPerMl=parseFloat(tincPotencyMgPerMl)||33;
-    const potency=extractInputType==="rso"?0.60:extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);
-    const totalMg=g*potency*1000;
-    const totalMl=totalMg/mgPerMl;
-    const bottles=Math.floor(totalMl/botSizeML*0.98);
-    const mgPerBot=(botSizeML*mgPerMl).toFixed(0);
-    return `~${totalMg.toFixed(0)}mg THC · ${totalMl.toFixed(0)}ml total · ${bottles.toLocaleString()} × ${botSizeML}ml (${mgPerBot}mg/bottle)`;
-  }
-  if (cat==="topical") {
-    const oz=amt*(unit==="lbs"?16:unit==="kg"?35.274:0.035274);
-    const units=Math.floor(oz/pkgV*0.97);
-    return `~${oz.toFixed(1)} oz total · ${units.toLocaleString()} × ${pkgL} units`;
-  }
-  if (cat==="edible") {
-    if (sub==="beverage") {
-      const units=Math.floor(g/pkgV*0.97);
-      return `~${g.toFixed(0)}ml · ${units.toLocaleString()} × ${pkgL} bottles`;
-    }
-    const potency=extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);
-    const totalMg=g*potency*1000;
-    const units=Math.floor(totalMg/pkgV*0.95);
-    const src=extractInputType==="rosin"?"rosin ~55%":`${(potency*100).toFixed(0)}% THC`;
-    return `~${totalMg.toFixed(0)}mg total (${src}) · ${units.toLocaleString()} × ${pkgL} units`;
-  }
+  if(cat==="vape"){const isOil=sub==="oil_rosin"||sub==="oil_live_resin";const fillEff=vapeInputType==="live_resin"||sub==="oil_live_resin"?0.95:vapeInputType==="rosin"||sub==="oil_rosin"?0.93:0.97;const units=Math.floor(g*fillEff/pkgV);return`~${units.toLocaleString()} × ${pkgL} ${sub==="disposable"?"AIOs":isOil?"oil units":"carts"}${isOil?" ("+sauceSepMethod.replace("_"," ")+" sep)":""}`;}
+  if(cat==="tincture"){const potency=extractInputType==="rso"?0.60:extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);const totalMg=g*potency*1000;const mgPerMl=parseFloat(tincPotencyMgPerMl)||33;const totalMl=totalMg/mgPerMl;const bottles=Math.floor(totalMl/(parseFloat(tincBottleSize)||30)*0.98);return`~${totalMg.toFixed(0)}mg THC · ${totalMl.toFixed(0)}ml · ${bottles.toLocaleString()} × ${tincBottleSize}ml bottles`;}
+  if(cat==="topical"){const oz=amt*(unit==="lbs"?16:unit==="kg"?35.274:0.035274);const units=Math.floor(oz/pkgV*0.97);return`~${oz.toFixed(1)} oz · ${units.toLocaleString()} × ${pkgL} units`;}
+  if(cat==="edible"){if(sub==="beverage"){return`~${g.toFixed(0)}ml · ${Math.floor(g/pkgV*0.97).toLocaleString()} × ${pkgL} bottles`;}const potency=extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);const totalMg=g*potency*1000;const units=Math.floor(totalMg/pkgV*0.95);return`~${totalMg.toFixed(0)}mg (${(potency*100).toFixed(0)}% THC) · ${units.toLocaleString()} × ${pkgL} units`;}
   return null;
+}
+
+// ── Vape formulation calculator ────────────────────────────────────────────
+function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV){
+  const D=parseFloat(distG)||0;const P=(parseFloat(startPotPct)||85)/100;const T=(parseFloat(targetTerpPct)||10)/100;
+  const src=TERP_SRCS[terpSrc]||TERP_SRCS.pure;
+  if(src.purity<=T)return{error:"Cannot reach this terp% with selected source — purity too low"};
+  const terpAdd=D*T/(src.purity-T);const total=D+terpAdd;
+  const thcTotal=D*P+terpAdd*src.thc;const finalPot=(thcTotal/total*100).toFixed(1);
+  const carts=pkgV>0?Math.floor(total/pkgV*0.97):0;
+  return{terpAdd:terpAdd.toFixed(2),total:total.toFixed(1),finalPot,carts,src:src.l};
+}
+
+// ── Trim time calculator ───────────────────────────────────────────────────
+function calcTrimDays(inputG,trimType,machine,throughput,trimmerCount,gramsPerDay){
+  const lbs=inputG/453.592;
+  if(trimType==="machine"){const t=parseFloat(throughput)||100;return{days:Math.max(1,Math.ceil(lbs/t)),note:`${lbs.toFixed(1)} lbs ÷ ${t} lbs/day (${machine})`};}
+  const tc=parseInt(trimmerCount)||1;const gpd=parseFloat(gramsPerDay)||350;
+  return{days:Math.max(1,Math.ceil(inputG/(tc*gpd))),note:`${inputG.toFixed(0)}g ÷ (${tc} trimmers × ${gpd}g/day)`};
+}
+
+// ── Packaging time calculator ──────────────────────────────────────────────
+function calcPkgDays(totalUnits,staffCount,baselineRate,pkgSize,pkgType){
+  const rate=(parseFloat(baselineRate)||150)*Math.sqrt(3.5/(pkgSize||3.5))*(pkgType==="mylar"?1.3:1.0);
+  const staff=parseInt(staffCount)||1;const hours=totalUnits/(staff*rate);
+  return{days:Math.max(1,Math.ceil(hours/8)),hours:hours.toFixed(1),rate:rate.toFixed(0)};
+}
+
+// ── R-134a step calculator ─────────────────────────────────────────────────
+function r134aCalcDays(inputG,machineType){
+  const cap=machineType==="r134a_50l"?5000:2500;const cycles=Math.ceil(inputG/cap);
+  return{cycles,terpDays:Math.max(1,Math.ceil(cycles*4/8)),decarbDays:Math.max(1,Math.ceil(cycles*2/8)),cannabDays:Math.max(1,Math.ceil(cycles*14/8))};
 }
 
 // ── Date helpers ───────────────────────────────────────────────────────────
@@ -229,15 +232,12 @@ function fmtS(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",
 function fmtF(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{name:s.n,days:s.days,start:s0,end:e};});}
 
-// ── CSS ────────────────────────────────────────────────────────────────────
 const CSS=`
   .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
   .ps-outer{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
   .ps-row{display:flex;border-bottom:1px solid var(--border);}
   .ps-row:last-child{border-bottom:none;}
-  .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;
-    background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;
-    display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
+  .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
   .ps-tl{position:relative;flex:1;}
   .ps-btn{border:none;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;transition:opacity 0.15s;}
   .ps-btn:hover{opacity:0.85;}
@@ -246,56 +246,55 @@ const CSS=`
   .ps-sm{font-size:10px;padding:3px 8px;font-weight:600;border-radius:5px;}
   .ps-edit{background:rgba(74,124,89,0.15);color:var(--accent-2);border:1px solid var(--accent)!important;}
   .ps-del{background:rgba(200,74,74,0.1);color:var(--danger);border:1px solid rgba(200,74,74,0.3)!important;}
-  .ps-inp{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
-    color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;box-sizing:border-box;}
+  .ps-inp{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;box-sizing:border-box;}
   .ps-inp:focus{outline:none;border-color:var(--accent);}
   .ps-lbl{font-size:11px;color:var(--text-2);display:block;margin-bottom:4px;}
-  .ps-sel{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
-    color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;box-sizing:border-box;cursor:pointer;}
+  .ps-sel{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:8px 10px;box-sizing:border-box;cursor:pointer;}
   .ps-sel:focus{outline:none;border-color:var(--accent);}
-  .ps-days{width:50px;font-size:12px;padding:3px 6px;text-align:center;border-radius:4px;
-    border:1px solid var(--border-2);background:var(--surface-2);color:var(--text);font-family:monospace;}
+  .ps-days{width:50px;font-size:12px;padding:3px 6px;text-align:center;border-radius:4px;border:1px solid var(--border-2);background:var(--surface-2);color:var(--text);font-family:monospace;}
   .ps-days:focus{outline:none;border-color:var(--accent);}
-  .ps-exp{background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;
-    color:var(--text-2);font-size:12px;font-weight:600;padding:7px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s;}
+  .ps-exp{background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;color:var(--text-2);font-size:12px;font-weight:600;padding:7px 14px;cursor:pointer;font-family:'Inter',sans-serif;transition:border-color 0.15s;}
   .ps-exp:hover{border-color:var(--accent-2);color:var(--accent-2);}
   .ps-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px;}
-  .ps-tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:0.06em;
-    text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);}
+  .ps-tbl th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);border-bottom:1px solid var(--border);background:var(--surface-2);}
   .ps-tbl td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-2);vertical-align:middle;}
   .ps-tbl tr:last-child td{border-bottom:none;}
   .sp{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;}
   .sp-a{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .sp-u{background:rgba(200,150,58,0.15);color:var(--amber);}
   .sp-c{background:rgba(100,100,100,0.15);color:var(--text-3);}
+  .sp-l{background:rgba(90,120,200,0.15);color:#7090f0;}
   .ps-box{background:var(--surface-2);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
   .ps-box-t{font-size:10px;font-weight:700;color:var(--text-2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;}
   .ps-yield{background:rgba(74,124,89,0.15);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;width:100%;box-sizing:border-box;}
+  .ps-form-out{background:rgba(74,100,180,0.12);border:1px solid rgba(90,130,220,0.4);border-radius:8px;padding:10px 14px;margin-top:8px;}
+  .ps-calc-note{font-size:11px;color:var(--accent-2);background:rgba(74,124,89,0.1);border-radius:5px;padding:4px 8px;margin-top:6px;}
   .cb-row{display:flex;flex-wrap:wrap;gap:6px;}
-  .cb-pill{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border-2);
-    border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--text-2);transition:all 0.15s;}
+  .cb-pill{display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border-2);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;color:var(--text-2);transition:all 0.15s;}
   .cb-pill.on{background:rgba(74,124,89,0.2);border-color:var(--accent);color:var(--accent-2);}
+  .linked-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(90,120,200,0.2);color:#7090f0;margin-left:4px;}
 `;
 
 const EMPTY={
   name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,
-  stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",
-  coneWeight:"1",packSize:"5",inputMaterial:"flower",
-  overfillG:"0.1",
-  vapeInputType:"distillate",sauceSepMethod:"pour_off",
-  extractInputType:"distillate",inputPotencyPct:"80",
-  tincBottleSize:"30",tincPotencyMgPerMl:"33",
-  kiefSift:false,kief40Pct:"12",kief100Pct:"8",
-  cannabinoids:["THC"],
+  stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
+  overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",
+  extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
+  kiefSift:false,kief40Pct:"12",kief100Pct:"8",cannabinoids:["THC"],
+  trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
+  trimmerCount:"4",gramsPerTrimmerDay:"350",
+  packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",
+  vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",
+  thcaMethod:"controlled",thcaRecrystCycles:"1",
   s2s_barcode:"",actual_yield:"",
 };
 
-export default function ProductionScheduler() {
-  const [batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return [];}});
-  const [form,setForm]=useState(EMPTY);
-  const [formMode,setFormMode]=useState(null);
-  const [editId,setEditId]=useState(null);
-  const [formErr,setFormErr]=useState("");
+export default function ProductionScheduler(){
+  const[batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];}});
+  const[form,setForm]=useState(EMPTY);
+  const[formMode,setFormMode]=useState(null);
+  const[editId,setEditId]=useState(null);
+  const[formErr,setFormErr]=useState("");
 
   useEffect(()=>{localStorage.setItem("resinops_prod",JSON.stringify(batches));},[batches]);
 
@@ -308,46 +307,64 @@ export default function ProductionScheduler() {
   const formSteps=form.steps||(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days}));
   const totalDays=formSteps.reduce((a,s)=>a+(parseInt(s.days)||0),0);
   const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,form);
+  const inputG=(parseFloat(form.inputAmt)||0)*(UNIT_TO_G[form.unit]||1);
+  const isFlower=["whole_flower","ground_flower","pre_roll"].includes(form.cat);
+  const isVape=form.cat==="vape";
+  const isVapeFormulable=isVape&&(form.sub==="cartridge"||form.sub==="disposable");
+  const isVapeOil=form.sub==="oil_rosin"||form.sub==="oil_live_resin";
+  const isDistillate=form.cat==="extract"&&form.sub==="distillate";
+  const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
+  const isThca=form.cat==="extract"&&(form.sub==="thca_ff"||form.sub==="thca_trim");
+  const showCb=["tincture","edible","topical"].includes(form.cat);
 
-  // ── KEY FIX: use functional updater, never recreate handlers ──────────────
+  // Trim calculator
+  const trimCalc=isFlower&&inputG>0?calcTrimDays(inputG,form.trimType,TRIMMERS[form.trimMachine]?.l||"Custom",form.trimThroughput,form.trimmerCount,form.gramsPerTrimmerDay):null;
+
+  // Packaging calculator
+  const estUnits=inputG&&pkgSel?Math.floor(inputG/pkgSel.v*0.90):0;
+  const pkgCalc=isFlower&&estUnits>0?calcPkgDays(estUnits,form.packagingStaff,form.packagingBaseline,pkgSel?.v,form.packagingType):null;
+
+  // Vape formulation
+  const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v):null;
+
+  // R-134a cycle info
+  const r134aInfo=isR134a&&inputG>0?r134aCalcDays(inputG,form.sub):null;
+
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
-
   const toggleCb=(cb)=>setForm(f=>({...f,cannabinoids:f.cannabinoids.includes(cb)?f.cannabinoids.filter(x=>x!==cb):[...f.cannabinoids,cb]}));
 
-  function changeCat(cat){
-    const sub=SUBS[cat]?.[0]?.v||"";
-    const key=getStepKey(cat,sub);
-    const steps=(STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));
-    setForm(f=>({...f,cat,sub,steps,pkgIdx:0}));
-  }
+  function changeCat(cat){const sub=SUBS[cat]?.[0]?.v||"";const key=getStepKey(cat,sub);const steps=(STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));setForm(f=>({...f,cat,sub,steps,pkgIdx:0}));}
   function changeSub(sub){
-    const key=getStepKey(form.cat,sub);
-    const steps=(STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));
+    const isThca=sub==="thca_ff"||sub==="thca_trim";
+    let steps;
+    if(isThca){steps=getThcaSteps(sub,form.thcaMethod||"controlled",form.thcaRecrystCycles||1);}
+    else{const key=getStepKey(form.cat,sub);steps=(STEPS[key]||[]).map(s=>({n:s.n,days:s.days}));}
     setForm(f=>({...f,sub,steps,pkgIdx:0}));
   }
-  function updateStep(i,v){setForm(f=>({...f,steps:formSteps.map((s,idx)=>idx===i?{...s,days:parseInt(v)||0}:s)}));}
-
-  function openAdd(){
-    const d=new Date().toISOString().split("T")[0];
-    const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));
-    setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");
+  function changeThcaMethod(method){
+    const steps=getThcaSteps(form.sub,method,form.thcaRecrystCycles||1);
+    setForm(f=>({...f,thcaMethod:method,steps}));
   }
+  function changeThcaCycles(cycles){
+    const steps=getThcaSteps(form.sub,form.thcaMethod||"controlled",cycles);
+    setForm(f=>({...f,thcaRecrystCycles:cycles,steps}));
+  }
+  function updateStep(i,v){setForm(f=>({...f,steps:formSteps.map((s,idx)=>idx===i?{...s,days:parseInt(v)||0}:s)}));}
+  function applyTrimDays(){if(!trimCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Trimming"?{...s,days:trimCalc.days}:s)}));}
+  function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
+  function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};return s;})}));}
+
+  function openAdd(){const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
   function openEdit(b){
-    setForm({
-      name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",
-      d:b.d,inputAmt:String(b.inputAmt||b.inputLbs||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,
-      steps:b.steps.map(s=>({n:s.n,days:s.days})),
-      stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),
-      fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),
-      packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
-      overfillG:String(b.overfillG||0.1),
-      vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",
-      extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
-      tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),
-      kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),
-      cannabinoids:b.cannabinoids||["THC"],
-      s2s_barcode:b.s2s_barcode||"",actual_yield:b.actual_yield||"",
-    });
+    setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:b.steps.map(s=>({n:s.n,days:s.days})),
+      stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
+      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
+      tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
+      trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),
+      packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
+      vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",
+      thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
+      s2s_barcode:b.s2s_barcode||"",actual_yield:b.actual_yield||""});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){setFormMode(null);setEditId(null);}
@@ -358,49 +375,41 @@ export default function ProductionScheduler() {
     if(!form.inputAmt||parseFloat(form.inputAmt)<=0){setFormErr("Enter a valid input quantity.");return false;}
     return true;
   }
+
   function saveBatch(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const batch={
-      id:formMode==="edit"?editId:Date.now(),
-      name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),
-      d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,
-      yieldEst,pkgLabel:pkgSel?.l,
-      catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",
-      stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,
-      fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,
-      packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,
-      overfillG:parseFloat(form.overfillG)||0,
-      vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,
-      extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,
-      tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,
-      kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,
-      cannabinoids:form.cannabinoids,
-      s2s_barcode:form.s2s_barcode.trim(),actual_yield:form.actual_yield.trim(),
-    };
-    if(formMode==="edit")setBatches(p=>p.map(b=>b.id===editId?batch:b));
-    else setBatches(p=>[...p,batch]);
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,formulationResult:formCalc,s2s_barcode:form.s2s_barcode.trim(),actual_yield:form.actual_yield.trim()};
+
+    const mainId=formMode==="edit"?editId:Date.now();
+    const mainBatch={...base,id:mainId};
+
+    if(formMode==="edit"){
+      setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,mainBatch];});
+    } else {
+      const newBatches=[mainBatch];
+      // Auto-create HTE linked batch for THCa isolate
+      if(form.cat==="extract"&&(form.sub==="thca_ff"||form.sub==="thca_trim")){
+        const isFf=form.sub==="thca_ff";
+        const htePct=isFf?0.06:0.03;const hteG=inputG*htePct;
+        const hteBatch={...base,id:Date.now()+2,name:form.name.trim()+" — HTE (Terpene Fraction)",isLinked:true,linkedTo:mainId,yieldEst:`~${hteG.toFixed(1)}g HTE (${isFf?"~6% of fresh frozen biomass":"~3% of dry trim"})`,actual_yield:"",s2s_barcode:""};
+        newBatches.push(hteBatch);
+      }
+      // Auto-create linked heads/tails batch for distillate
+      if(form.cat==="extract"&&form.sub==="distillate"){
+        const crude=inputG*0.18;const total=crude*0.70;const ht=total*0.20;
+        const htBatch={...base,id:Date.now()+1,name:form.name.trim()+" — Heads/Tails (Edibles Grade)",isLinked:true,linkedTo:mainId,yieldEst:`~${ht.toFixed(0)}g edibles-grade oil`,actual_yield:"",s2s_barcode:""};
+        newBatches.push(htBatch);
+      }
+      setBatches(p=>[...p,...newBatches]);
+    }
     closeForm();
   }
-  function removeBatch(id){setBatches(p=>p.filter(b=>b.id!==id));}
+
+  function removeBatch(id){setBatches(p=>p.filter(b=>b.id!==id&&b.linkedTo!==id));}
 
   const timelines=batches.map(b=>buildTimeline(b.d,b.steps));
-
-  function exportProd(){
-    if(!batches.length)return;
-    const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-    const rows=batches.map((b,idx)=>{
-      const tl=timelines[idx];const end=tl[tl.length-1]?.end;
-      const stepRows=tl.map(s=>'<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">'+s.name+'</td><td style="padding:4px 14px 4px 0;font-size:13px;color:#1a1a1a;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="padding:4px 0;font-size:13px;color:#666;">'+s.days+' days</td></tr>').join("");
-      return '<div style="margin-bottom:32px;page-break-inside:avoid;"><div style="background:#f6faf7;border-left:4px solid #2d5a3d;padding:12px 16px;margin-bottom:12px;border-radius:0 6px 6px 0;"><h2 style="font-size:16px;font-weight:700;color:#1a1a1a;margin:0 0 3px;">'+b.name+'</h2><p style="font-size:13px;color:#444;margin:0;">'+b.catLabel+(b.subLabel?' \u2014 '+b.subLabel:'')+(b.strains?' &nbsp;\u00b7&nbsp; '+b.strains:'')+'&nbsp;\u00b7&nbsp;'+b.inputAmt+' '+b.unit+' input'+(b.s2s_barcode?' &nbsp;\u00b7&nbsp; S2S: '+b.s2s_barcode:'')+'</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;"><div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Steps</h3><table style="border-collapse:collapse;">'+stepRows+'</table></div><div><h3 style="font-size:11px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Summary</h3><table style="border-collapse:collapse;"><tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Start</td><td style="padding:3px 0;font-size:13px;">'+fmtF(new Date(b.d+'T12:00:00'))+'</td></tr><tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Completion</td><td style="padding:3px 0;font-size:13px;">'+(end?fmtF(end):'—')+'</td></tr><tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Est. output</td><td style="padding:3px 0;font-size:13px;">'+(b.yieldEst||'—')+'</td></tr><tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Actual yield</td><td style="padding:3px 0;font-size:13px;">'+(b.actual_yield||'—')+'</td></tr>'+(b.cannabinoids?.length?'<tr><td style="padding:3px 12px 3px 0;color:#555;font-size:13px;">Cannabinoids</td><td style="padding:3px 0;font-size:13px;">'+b.cannabinoids.join(', ')+'</td></tr>':'')+'</table></div></div></div>';
-    }).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:24px 0;">');
-    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body><h1>ResinOps \u2014 Production Schedule</h1><div class="meta">Exported '+date+' &nbsp;\u00b7&nbsp; '+batches.length+' batch'+(batches.length>1?'es':'')+'<br><small>Ctrl+P \u2192 Save as PDF &nbsp;|&nbsp; File \u2192 Open in Word</small></div>'+rows+'</body></html>';
-    const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download="ResinOps-Production-"+new Date().toISOString().slice(0,10)+".html";
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-  }
-
   const hasBatches=batches.length>0;
   let gStart,total,twPx,todayOff,months,weeks;
   if(hasBatches){
@@ -415,276 +424,228 @@ export default function ProductionScheduler() {
   }
   function batchStatus(b,tl){const start=new Date(b.d+"T00:00:00");const end=tl[tl.length-1]?.end;if(!end)return{label:"—",cls:"sp-u"};if(end<today0)return{label:"Complete",cls:"sp-c"};if(start>today0)return{label:"Upcoming",cls:"sp-u"};return{label:"In Progress",cls:"sp-a"};}
 
-  // Cannabinoid picker (used for tincture, edible, topical)
-  const showCb=["tincture","edible","topical"].includes(form.cat);
-  // Show vape oil sauce sep option
-  const isVapeOil=form.sub==="oil_rosin"||form.sub==="oil_live_resin";
+  function exportProd(){
+    if(!batches.length)return;
+    const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+    const rows=batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const stepRows=tl.map(s=>'<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">'+s.name+'</td><td style="padding:4px 14px 4px 0;font-size:13px;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");return'<div style="margin-bottom:28px;page-break-inside:avoid;border-left:4px solid '+(b.isLinked?"#5a78cc":"#2d5a3d")+';padding-left:14px;"><h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">'+b.name+(b.isLinked?' <span style="font-size:11px;color:#5a78cc;">[Linked Batch]</span>':'')+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.catLabel+(b.subLabel?' \u2014 '+b.subLabel:'')+' &nbsp;\u00b7&nbsp; '+b.inputAmt+b.unit+(b.strains?' &nbsp;\u00b7&nbsp; '+b.strains:'')+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;color:#333;margin:6px 0 0;"><strong>Est. output:</strong> '+(b.yieldEst||'—')+(b.actual_yield?' &nbsp;\u00b7&nbsp; <strong>Actual:</strong> '+b.actual_yield:'')+(b.cannabinoids?.length?' &nbsp;\u00b7&nbsp; '+b.cannabinoids.join(', '):'')+(b.s2s_barcode?' &nbsp;\u00b7&nbsp; S2S: '+b.s2s_barcode:'')+'</p></div>';}).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
+    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body><h1>ResinOps \u2014 Production Schedule</h1><div class="meta">Exported '+date+' &nbsp;\u00b7&nbsp; '+batches.filter(b=>!b.isLinked).length+' batches<br><small>Ctrl+P \u2192 Save as PDF &nbsp;|&nbsp; File \u2192 Open in Word</small></div>'+rows+'</body></html>';
+    const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Production-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  }
 
   return(
     <>
       <style>{CSS}</style>
       <div className="ps-wrap">
-        {/* Header */}
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
           <div>
             <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Production Scheduler</div>
             <div style={{fontSize:12,color:"var(--text-3)"}}>Track every batch from intake to live inventory</div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            {hasBatches&&<button className="ps-exp" onClick={exportProd}>↓ Export schedule</button>}
+            {hasBatches&&<button className="ps-exp" onClick={exportProd}>↓ Export</button>}
             {!formMode&&<button className="ps-btn ps-primary" onClick={openAdd}>+ Add Batch</button>}
           </div>
         </div>
 
-        {/* ── FORM (inlined — no sub-component, fixes the input focus bug) ── */}
-        {formMode && (
+        {/* ── FORM (inlined - no sub-component) ── */}
+        {formMode&&(
           <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:10,padding:18,marginBottom:20}}>
-            <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:14}}>
-              {formMode==="edit"?"Edit Batch":"New Production Batch"}
-            </div>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:14}}>{formMode==="edit"?"Edit Batch":"New Production Batch"}</div>
 
-            {/* Row 1: name, category */}
+            {/* Basic fields */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div>
-                <label className="ps-lbl">Batch name</label>
-                <input className="ps-inp" placeholder="Batch 2026-001" value={form.name} onChange={e=>setF("name",e.target.value)} />
-              </div>
-              <div>
-                <label className="ps-lbl">Product category</label>
-                <select className="ps-sel" value={form.cat} onChange={e=>changeCat(e.target.value)}>
-                  {CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}
-                </select>
-              </div>
-              {subOpts.length>0&&<div>
-                <label className="ps-lbl">Product type</label>
-                <select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>
-                  {subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
-                </select>
-              </div>}
-              <div>
-                <label className="ps-lbl">Strain(s) — comma-separate blends</label>
-                <input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} />
-              </div>
-              <div>
-                <label className="ps-lbl">Batch start date</label>
-                <input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} />
-              </div>
-              <div>
-                <label className="ps-lbl">{getInputLabel(form.cat)}</label>
+              <div><label className="ps-lbl">Batch name</label><input className="ps-inp" placeholder="Batch 2026-001" value={form.name} onChange={e=>setF("name",e.target.value)} /></div>
+              <div><label className="ps-lbl">Product category</label><select className="ps-sel" value={form.cat} onChange={e=>changeCat(e.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></div>
+              {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
+              <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
+              <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
+              <div><label className="ps-lbl">{getInputLabel(form.cat)}</label>
                 <div style={{display:"flex",gap:6}}>
-                  <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000"
-                    value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} />
-                  <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}}>
-                    <option value="g">g</option>
-                    <option value="lbs">lbs</option>
-                    <option value="kg">kg</option>
-                  </select>
+                  <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000" value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} />
+                  <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
                 </div>
               </div>
-              <div>
-                <label className="ps-lbl">Package / unit size</label>
-                <select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>
-                  {pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}
-                </select>
-              </div>
+              <div><label className="ps-lbl">Package / unit size</label><select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>{pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}</select></div>
               <div style={{display:"flex",alignItems:"center"}}>
-                {yieldEst?(<div className="ps-yield">
-                  <div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>Estimated Output</div>
-                  <div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",lineHeight:1.5}}>{yieldEst}</div>
-                </div>):<div style={{fontSize:12,color:"var(--text-3)"}}>Enter input quantity to see yield estimate</div>}
+                {yieldEst?(<div className="ps-yield"><div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>Estimated Output</div><div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",lineHeight:1.5}}>{yieldEst}</div></div>):<div style={{fontSize:12,color:"var(--text-3)"}}>Enter quantity to see yield estimate</div>}
               </div>
             </div>
+
+            {/* Distillate note */}
+            {isDistillate&&<div style={{background:"rgba(90,120,200,0.1)",border:"1px solid rgba(90,120,200,0.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#8090e0"}}>
+              Saving this batch will automatically create a linked Heads/Tails batch (20% of distillate yield) for edibles-grade oil.
+            </div>}
+
+
+            {/* THCa crystallization method */}
+            {isThca&&<div className="ps-box">
+              <div className="ps-box-t">THCa Crystallization Method</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div>
+                  <label className="ps-lbl">Crystallization method</label>
+                  <select className="ps-sel" value={form.thcaMethod} onChange={e=>changeThcaMethod(e.target.value)}>
+                    <option value="controlled">Controlled Crash — Genome Crystallizer (4-8 hrs/cycle)</option>
+                    <option value="traditional">Traditional — Jar Tech / Diamond Miner (2-4 weeks)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="ps-lbl">Recrystallization cycles (default 1, add for higher purity)</label>
+                  <input type="number" min="1" max="5" className="ps-inp"
+                    value={form.thcaRecrystCycles} onChange={e=>changeThcaCycles(e.target.value)} />
+                </div>
+              </div>
+              <div style={{fontSize:11,color:"var(--text-3)",lineHeight:1.6}}>
+                {form.thcaMethod==="controlled"
+                  ? "Workflow: Cold BHO extraction → Controlled Crash crystallization → HTE removed with butane fraction (auto-tracked as linked batch) → Warm gas redissolution → Recrystallization → Cold solvent wash → Final purge → >99% THCa"
+                  : "Workflow: Cold BHO extraction → Initial solvent recovery → Diamond miner / jar crystallization → HTE pour-off (auto-tracked as linked batch) → Warm gas redissolution → Recrystallization → Cold solvent wash → Final purge → >99% THCa"}
+              </div>
+              <div style={{fontSize:11,color:"var(--accent-2)",marginTop:8,background:"rgba(74,124,89,0.1)",borderRadius:6,padding:"6px 10px"}}>
+                HTE terpene fraction will be auto-created as a linked batch. Estimated yields: THCa ~{form.sub==="thca_ff"?"8%":"4%"} · HTE ~{form.sub==="thca_ff"?"6%":"3%"} of input biomass.
+              </div>
+            </div>}
+
+            {/* R-134a cycle info */}
+            {isR134a&&r134aInfo&&<div className="ps-box">
+              <div className="ps-box-t">R-134a Machine Schedule</div>
+              <div style={{fontSize:12,color:"var(--text-2)",marginBottom:8}}>
+                Machine: {form.sub==="r134a_50l"?"50L (5,000g capacity)":"20L (2,500g capacity)"} · {r134aInfo.cycles} cycle{r134aInfo.cycles>1?"s":""} needed for {inputG.toFixed(0)}g input
+              </div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:8}}>
+                Terp cut: {r134aInfo.terpDays} day{r134aInfo.terpDays>1?"s":""} · Decarb 125°C: {r134aInfo.decarbDays} day{r134aInfo.decarbDays>1?"s":""} · Cannabinoid cut: {r134aInfo.cannabDays} day{r134aInfo.cannabDays>1?"s":""}
+              </div>
+              <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"4px 10px"}} onClick={applyR134aDays}>Apply calculated days to steps</button>
+            </div>}
 
             {/* Whole flower overfill */}
             {form.cat==="whole_flower"&&<div className="ps-box">
               <div className="ps-box-t">Overfill Variance per Unit</div>
-              <div style={{maxWidth:240}}>
-                <label className="ps-lbl">Grams overfill per unit (e.g. 0.1)</label>
-                <input type="number" min="0" max="2" step="0.05" className="ps-inp"
-                  value={form.overfillG} onChange={e=>setF("overfillG",e.target.value)} />
-              </div>
+              <div style={{maxWidth:240}}><label className="ps-lbl">Grams overfill per unit (e.g. 0.1)</label><input type="number" min="0" max="2" step="0.05" className="ps-inp" value={form.overfillG} onChange={e=>setF("overfillG",e.target.value)} /></div>
             </div>}
 
             {/* Pre-roll specific */}
             {form.cat==="pre_roll"&&<div className="ps-box">
-              <div className="ps-box-t">Pre-Roll — Input, Waste & Pack Settings</div>
+              <div className="ps-box-t">Pre-Roll — Input, Waste & Pack</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div>
-                  <label className="ps-lbl">Input material</label>
-                  <select className="ps-sel" value={form.inputMaterial} onChange={e=>setF("inputMaterial",e.target.value)}>
-                    <option value="flower">Whole / Ground Flower</option>
-                    <option value="trim">Trim</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="ps-lbl">Cone weight (g)</label>
-                  <input type="number" min="0.1" max="5" step="0.1" className="ps-inp"
-                    value={form.coneWeight} onChange={e=>setF("coneWeight",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">Input material</label><select className="ps-sel" value={form.inputMaterial} onChange={e=>setF("inputMaterial",e.target.value)}><option value="flower">Whole / Ground Flower</option><option value="trim">Trim</option></select></div>
+                <div><label className="ps-lbl">Cone weight (g)</label><input type="number" min="0.1" max="5" step="0.1" className="ps-inp" value={form.coneWeight} onChange={e=>setF("coneWeight",e.target.value)} /></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
-                <div>
-                  <label className="ps-lbl">Stem waste %</label>
-                  <input type="number" min="0" max="60" step="1" className="ps-inp"
-                    value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">Moisture loss %</label>
-                  <input type="number" min="0" max="10" step="0.5" className="ps-inp"
-                    value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">Fill waste %</label>
-                  <input type="number" min="0" max="20" step="0.5" className="ps-inp"
-                    value={form.fillWastePct} onChange={e=>setF("fillWastePct",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">Stem waste %</label><input type="number" min="0" max="60" step="1" className="ps-inp" value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} /></div>
+                <div><label className="ps-lbl">Moisture loss %</label><input type="number" min="0" max="10" step="0.5" className="ps-inp" value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} /></div>
+                <div><label className="ps-lbl">Fill waste %</label><input type="number" min="0" max="20" step="0.5" className="ps-inp" value={form.fillWastePct} onChange={e=>setF("fillWastePct",e.target.value)} /></div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div>
-                  <label className="ps-lbl">Units per pack</label>
-                  <input type="number" min="1" max="100" step="1" className="ps-inp"
-                    value={form.packSize} onChange={e=>setF("packSize",e.target.value)} />
-                </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:8,marginBottom:10}}>
+                <div><label className="ps-lbl">Units per pack</label><input type="number" min="1" max="100" step="1" className="ps-inp" value={form.packSize} onChange={e=>setF("packSize",e.target.value)} /></div>
               </div>
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12,color:"var(--text-2)"}}>
                 <input type="checkbox" checked={form.kiefSift} onChange={e=>setF("kiefSift",e.target.checked)} />
                 Include kief sifting from stem material
               </label>
               {form.kiefSift&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-                <div>
-                  <label className="ps-lbl">40-mesh kief % of stem material</label>
-                  <input type="number" min="0" max="30" step="0.5" className="ps-inp"
-                    value={form.kief40Pct} onChange={e=>setF("kief40Pct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">100-mesh kief % of stem material</label>
-                  <input type="number" min="0" max="20" step="0.5" className="ps-inp"
-                    value={form.kief100Pct} onChange={e=>setF("kief100Pct",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">40-mesh kief % of stems</label><input type="number" min="0" max="30" step="0.5" className="ps-inp" value={form.kief40Pct} onChange={e=>setF("kief40Pct",e.target.value)} /></div>
+                <div><label className="ps-lbl">100-mesh kief % of stems</label><input type="number" min="0" max="20" step="0.5" className="ps-inp" value={form.kief100Pct} onChange={e=>setF("kief100Pct",e.target.value)} /></div>
               </div>}
             </div>}
 
-            {/* Ground flower specific */}
+            {/* Ground flower */}
             {form.cat==="ground_flower"&&<div className="ps-box">
               <div className="ps-box-t">Ground Flower — Waste Factors</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div>
-                  <label className="ps-lbl">Stem waste %</label>
-                  <input type="number" min="0" max="60" step="1" className="ps-inp"
-                    value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">Moisture loss %</label>
-                  <input type="number" min="0" max="10" step="0.5" className="ps-inp"
-                    value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">Stem waste %</label><input type="number" min="0" max="60" step="1" className="ps-inp" value={form.stemWastePct} onChange={e=>setF("stemWastePct",e.target.value)} /></div>
+                <div><label className="ps-lbl">Moisture loss %</label><input type="number" min="0" max="10" step="0.5" className="ps-inp" value={form.moistureLossPct} onChange={e=>setF("moistureLossPct",e.target.value)} /></div>
               </div>
               <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12,color:"var(--text-2)"}}>
-                <input type="checkbox" checked={form.kiefSift} onChange={e=>setF("kiefSift",e.target.checked)} />
-                Include kief sifting from stem material
+                <input type="checkbox" checked={form.kiefSift} onChange={e=>setF("kiefSift",e.target.checked)} />Include kief sifting from stem material
               </label>
               {form.kiefSift&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10}}>
-                <div>
-                  <label className="ps-lbl">40-mesh kief %</label>
-                  <input type="number" min="0" max="30" step="0.5" className="ps-inp"
-                    value={form.kief40Pct} onChange={e=>setF("kief40Pct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">100-mesh kief %</label>
-                  <input type="number" min="0" max="20" step="0.5" className="ps-inp"
-                    value={form.kief100Pct} onChange={e=>setF("kief100Pct",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">40-mesh kief %</label><input type="number" min="0" max="30" step="0.5" className="ps-inp" value={form.kief40Pct} onChange={e=>setF("kief40Pct",e.target.value)} /></div>
+                <div><label className="ps-lbl">100-mesh kief %</label><input type="number" min="0" max="20" step="0.5" className="ps-inp" value={form.kief100Pct} onChange={e=>setF("kief100Pct",e.target.value)} /></div>
               </div>}
             </div>}
 
-            {/* Vape input / sauce sep */}
-            {form.cat==="vape"&&<div className="ps-box">
-              <div className="ps-box-t">Vape — Input Material{isVapeOil?" & Separation Method":""}</div>
-              <div style={{display:"grid",gridTemplateColumns:isVapeOil?"1fr 1fr":"1fr",gap:10}}>
-                {!isVapeOil&&<div>
-                  <label className="ps-lbl">Input material type</label>
-                  <select className="ps-sel" value={form.vapeInputType} onChange={e=>setF("vapeInputType",e.target.value)}>
-                    <option value="distillate">Distillate</option>
-                    <option value="live_resin">Live Resin</option>
-                    <option value="rosin">Rosin</option>
-                  </select>
-                </div>}
-                {isVapeOil&&<div>
-                  <label className="ps-lbl">Sauce separation method</label>
-                  <select className="ps-sel" value={form.sauceSepMethod} onChange={e=>setF("sauceSepMethod",e.target.value)}>
-                    <option value="pour_off">Pour Off</option>
-                    <option value="centrifuge">Centrifuge</option>
-                  </select>
-                </div>}
+            {/* Trim method calculator */}
+            {isFlower&&<div className="ps-box">
+              <div className="ps-box-t">Trim Method Calculator</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="ps-lbl">Trim method</label><select className="ps-sel" value={form.trimType} onChange={e=>setF("trimType",e.target.value)}><option value="machine">Machine Trim</option><option value="hand">Hand Trim</option></select></div>
+                {form.trimType==="machine"&&<div><label className="ps-lbl">Machine</label><select className="ps-sel" value={form.trimMachine} onChange={e=>{setF("trimMachine",e.target.value);setF("trimThroughput",String(TRIMMERS[e.target.value]?.t||100));}}>{Object.entries(TRIMMERS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>}
+                {form.trimType==="machine"&&<div><label className="ps-lbl">Throughput (lbs/day) — editable</label><input type="number" min="1" className="ps-inp" value={form.trimThroughput} onChange={e=>setF("trimThroughput",e.target.value)} /></div>}
+                {form.trimType==="hand"&&<div><label className="ps-lbl">Number of trimmers</label><input type="number" min="1" className="ps-inp" value={form.trimmerCount} onChange={e=>setF("trimmerCount",e.target.value)} /></div>}
+                {form.trimType==="hand"&&<div><label className="ps-lbl">Grams per trimmer per day</label><input type="number" min="1" className="ps-inp" value={form.gramsPerTrimmerDay} onChange={e=>setF("gramsPerTrimmerDay",e.target.value)} /></div>}
               </div>
+              {trimCalc&&<div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div className="ps-calc-note">Trim calc: {trimCalc.days} day{trimCalc.days>1?"s":""} — {trimCalc.note}</div>
+                <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyTrimDays}>Apply to step</button>
+              </div>}
+            </div>}
+
+            {/* Packaging calculator */}
+            {isFlower&&<div className="ps-box">
+              <div className="ps-box-t">Packaging Calculator</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="ps-lbl">Package type</label><select className="ps-sel" value={form.packagingType} onChange={e=>setF("packagingType",e.target.value)}><option value="jar">Jar (childproof)</option><option value="mylar">Mylar bag</option></select></div>
+                <div><label className="ps-lbl">Packaging staff</label><input type="number" min="1" className="ps-inp" value={form.packagingStaff} onChange={e=>setF("packagingStaff",e.target.value)} /></div>
+                <div><label className="ps-lbl">Baseline rate (units/person/hr for 3.5g)</label><input type="number" min="1" className="ps-inp" value={form.packagingBaseline} onChange={e=>setF("packagingBaseline",e.target.value)} /></div>
+              </div>
+              {pkgCalc&&<div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div className="ps-calc-note">Packaging calc: {pkgCalc.days} day{pkgCalc.days>1?"s":""} / ~{pkgCalc.hours} hrs ({pkgCalc.rate} units/person/hr adjusted for {pkgSel?.l} {form.packagingType})</div>
+                <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyPkgDays}>Apply to step</button>
+              </div>}
+            </div>}
+
+            {/* Vape options */}
+            {isVape&&!isVapeOil&&<div className="ps-box">
+              <div className="ps-box-t">Vape — Input Material</div>
+              <div style={{maxWidth:320}}><label className="ps-lbl">Input material type</label><select className="ps-sel" value={form.vapeInputType} onChange={e=>setF("vapeInputType",e.target.value)}><option value="distillate">Distillate</option><option value="live_resin">Live Resin</option><option value="rosin">Rosin</option></select></div>
+            </div>}
+            {isVapeOil&&<div className="ps-box">
+              <div className="ps-box-t">Vape Oil — Sauce Separation Method</div>
+              <div style={{maxWidth:320}}><label className="ps-lbl">Separation method</label><select className="ps-sel" value={form.sauceSepMethod} onChange={e=>setF("sauceSepMethod",e.target.value)}><option value="pour_off">Pour Off</option><option value="centrifuge">Centrifuge</option></select></div>
+            </div>}
+
+            {/* Vape formulation calculator */}
+            {isVapeFormulable&&<div className="ps-box">
+              <div className="ps-box-t">Vape Formulation Calculator</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="ps-lbl">Distillate starting potency (% THC)</label><input type="number" min="1" max="99" className="ps-inp" value={form.vapeStartPotency} onChange={e=>setF("vapeStartPotency",e.target.value)} /></div>
+                <div><label className="ps-lbl">Target terpene % in final product</label><input type="number" min="1" max="50" step="0.5" className="ps-inp" value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)} /></div>
+                <div style={{gridColumn:"span 2"}}><label className="ps-lbl">Terpene source</label><select className="ps-sel" value={form.vapeTerpSource} onChange={e=>setF("vapeTerpSource",e.target.value)}>{Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+              </div>
+              {formCalc&&!formCalc.error&&<div className="ps-form-out">
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Terp additive needed</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.terpAdd}g</div><div style={{fontSize:10,color:"#7080c0"}}>of selected source</div></div>
+                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Total volume</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.total}g</div></div>
+                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Est. final potency</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.finalPot}% THC</div></div>
+                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Est. cart count</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.carts.toLocaleString()}</div><div style={{fontSize:10,color:"#7080c0"}}>× {pkgSel?.l} @ 97% fill eff.</div></div>
+                </div>
+              </div>}
+              {formCalc?.error&&<div style={{fontSize:12,color:"var(--danger)",marginTop:6}}>{formCalc.error}</div>}
             </div>}
 
             {/* Tincture */}
             {form.cat==="tincture"&&<div className="ps-box">
               <div className="ps-box-t">Tincture — Extract, Potency & Format</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div>
-                  <label className="ps-lbl">Extract type</label>
-                  <select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}>
-                    <option value="distillate">Distillate</option>
-                    <option value="rosin">Rosin</option>
-                    <option value="rso">RSO (Rick Simpson Oil)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="ps-lbl">Input potency % THC {form.extractInputType!=="distillate"?"(auto-set)":""}</label>
-                  <input type="number" min="1" max="100" className="ps-inp"
-                    value={form.extractInputType==="rosin"?"55":form.extractInputType==="rso"?"60":form.inputPotencyPct}
-                    disabled={form.extractInputType!=="distillate"}
-                    onChange={e=>setF("inputPotencyPct",e.target.value)} />
-                </div>
-                <div>
-                  <label className="ps-lbl">Bottle size (ml)</label>
-                  <select className="ps-sel" value={form.tincBottleSize} onChange={e=>setF("tincBottleSize",e.target.value)}>
-                    {["15","30","60"].map(v=><option key={v} value={v}>{v}ml</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="ps-lbl">Target potency (mg/ml)</label>
-                  <select className="ps-sel" value={form.tincPotencyMgPerMl} onChange={e=>setF("tincPotencyMgPerMl",e.target.value)}>
-                    {["10","25","33","50","100"].map(v=><option key={v} value={v}>{v} mg/ml ({Number(v)*30}mg per 30ml)</option>)}
-                  </select>
-                </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label className="ps-lbl">Extract type</label><select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}><option value="distillate">Distillate</option><option value="rosin">Rosin</option><option value="rso">RSO (Rick Simpson Oil)</option></select></div>
+                <div><label className="ps-lbl">Input potency % THC</label><input type="number" min="1" max="100" className="ps-inp" value={form.extractInputType==="rosin"?"55":form.extractInputType==="rso"?"60":form.inputPotencyPct} disabled={form.extractInputType!=="distillate"} onChange={e=>setF("inputPotencyPct",e.target.value)} /></div>
+                <div><label className="ps-lbl">Bottle size (ml)</label><select className="ps-sel" value={form.tincBottleSize} onChange={e=>setF("tincBottleSize",e.target.value)}>{["15","30","60"].map(v=><option key={v} value={v}>{v}ml</option>)}</select></div>
+                <div><label className="ps-lbl">Target potency (mg/ml)</label><select className="ps-sel" value={form.tincPotencyMgPerMl} onChange={e=>setF("tincPotencyMgPerMl",e.target.value)}>{["10","25","33","50","100"].map(v=><option key={v} value={v}>{v} mg/ml</option>)}</select></div>
               </div>
             </div>}
 
-            {/* Edible input type */}
+            {/* Edible input */}
             {form.cat==="edible"&&form.sub!=="beverage"&&<div className="ps-box">
               <div className="ps-box-t">Edible — Extract Input</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div>
-                  <label className="ps-lbl">Extract type</label>
-                  <select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}>
-                    <option value="distillate">Distillate</option>
-                    <option value="rosin">Rosin</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="ps-lbl">Input potency % THC</label>
-                  <input type="number" min="1" max="100" className="ps-inp"
-                    value={form.extractInputType==="rosin"?"55":form.inputPotencyPct}
-                    disabled={form.extractInputType==="rosin"}
-                    onChange={e=>setF("inputPotencyPct",e.target.value)} />
-                </div>
+                <div><label className="ps-lbl">Extract type</label><select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}><option value="distillate">Distillate</option><option value="rosin">Rosin</option></select></div>
+                <div><label className="ps-lbl">Input potency % THC</label><input type="number" min="1" max="100" className="ps-inp" value={form.extractInputType==="rosin"?"55":form.inputPotencyPct} disabled={form.extractInputType==="rosin"} onChange={e=>setF("inputPotencyPct",e.target.value)} /></div>
               </div>
             </div>}
 
-            {/* Cannabinoid selector */}
+            {/* Cannabinoid picker */}
             {showCb&&<div className="ps-box">
               <div className="ps-box-t">Cannabinoid Profile</div>
-              <div className="cb-row">
-                {CANNABINOIDS.map(cb=>(
-                  <div key={cb} className={"cb-pill"+(form.cannabinoids.includes(cb)?" on":"")}
-                    onClick={()=>toggleCb(cb)}>
-                    <span>{cb}</span>
-                  </div>
-                ))}
-              </div>
+              <div className="cb-row">{CANNABINOIDS.map(cb=><div key={cb} className={"cb-pill"+(form.cannabinoids.includes(cb)?" on":"")} onClick={()=>toggleCb(cb)}>{cb}</div>)}</div>
             </div>}
 
             {/* Steps */}
@@ -695,8 +656,7 @@ export default function ProductionScheduler() {
                   <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
                     <div style={{width:10,height:10,borderRadius:2,background:SBG[s.n]||"#333",border:"1px solid rgba(255,255,255,0.15)",flexShrink:0}} />
                     <span style={{fontSize:12,color:"var(--text-2)",flex:1,minWidth:0}}>{s.n}</span>
-                    <input className="ps-days" type="number" min="1" max="365" value={s.days}
-                      onChange={e=>updateStep(i,e.target.value)} />
+                    <input className="ps-days" type="number" min="1" max="365" value={s.days} onChange={e=>updateStep(i,e.target.value)} />
                     <span style={{fontSize:11,color:"var(--text-3)",width:28}}>days</span>
                   </div>
                 ))}
@@ -705,23 +665,13 @@ export default function ProductionScheduler() {
 
             {/* Compliance */}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-              <div>
-                <label className="ps-lbl">S2S / METRC Tag</label>
-                <input className="ps-inp" placeholder="1A400000000000000000000"
-                  value={form.s2s_barcode} onChange={e=>setF("s2s_barcode",e.target.value)} />
-              </div>
-              <div>
-                <label className="ps-lbl">Actual yield — enter after completion</label>
-                <input className="ps-inp" placeholder="e.g. 1,180 units / 32.4g"
-                  value={form.actual_yield} onChange={e=>setF("actual_yield",e.target.value)} />
-              </div>
+              <div><label className="ps-lbl">S2S / METRC Tag</label><input className="ps-inp" placeholder="1A400000000000000000000" value={form.s2s_barcode} onChange={e=>setF("s2s_barcode",e.target.value)} /></div>
+              <div><label className="ps-lbl">Actual yield — enter after completion</label><input className="ps-inp" placeholder="e.g. 1,180 units / 32.4g" value={form.actual_yield} onChange={e=>setF("actual_yield",e.target.value)} /></div>
             </div>
 
             {formErr&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{formErr}</div>}
             <div style={{display:"flex",gap:8}}>
-              <button className="ps-btn ps-primary" onClick={saveBatch}>
-                {formMode==="edit"?"Save Changes":"Add Batch"}
-              </button>
+              <button className="ps-btn ps-primary" onClick={saveBatch}>{formMode==="edit"?"Save Changes":"Add Batch"}</button>
               <button className="ps-btn ps-secondary" onClick={closeForm}>Cancel</button>
             </div>
           </div>
@@ -738,53 +688,30 @@ export default function ProductionScheduler() {
         {hasBatches&&(<>
           <div className="ps-outer">
             <div className="ps-row" style={{height:HH,background:"var(--surface-2)"}}>
-              <div className="ps-left" style={{height:HH,background:"var(--surface-2)"}}>
-                <span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span>
-              </div>
+              <div className="ps-left" style={{height:HH,background:"var(--surface-2)"}}><span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span></div>
               <div className="ps-tl" style={{minWidth:twPx,height:HH,overflow:"hidden"}}>
-                {months.map((m,i)=>(
-                  <div key={i} style={{position:"absolute",left:m.x,top:0,width:m.w,height:24,borderRight:"1px solid var(--border)",padding:"0 8px",display:"flex",alignItems:"center",overflow:"hidden"}}>
-                    <span style={{fontSize:11,fontWeight:600,color:"var(--text-2)",whiteSpace:"nowrap"}}>{m.label}</span>
-                  </div>
-                ))}
-                {weeks.map((w,i)=>(
-                  <div key={i} style={{position:"absolute",left:w.x,top:24,bottom:0,borderLeft:"1px solid var(--border)",paddingLeft:4,display:"flex",flexDirection:"column",justifyContent:"center"}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",lineHeight:1.2}}>W{w.wn}</div>
-                    <div style={{fontSize:9,color:"var(--text-3)",lineHeight:1.2}}>{w.date}</div>
-                  </div>
-                ))}
+                {months.map((m,i)=><div key={i} style={{position:"absolute",left:m.x,top:0,width:m.w,height:24,borderRight:"1px solid var(--border)",padding:"0 8px",display:"flex",alignItems:"center",overflow:"hidden"}}><span style={{fontSize:11,fontWeight:600,color:"var(--text-2)",whiteSpace:"nowrap"}}>{m.label}</span></div>)}
+                {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:24,bottom:0,borderLeft:"1px solid var(--border)",paddingLeft:4,display:"flex",flexDirection:"column",justifyContent:"center"}}><div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",lineHeight:1.2}}>W{w.wn}</div><div style={{fontSize:9,color:"var(--text-3)",lineHeight:1.2}}>{w.date}</div></div>)}
               </div>
             </div>
             {batches.map((b,idx)=>{
-              const tl=timelines[idx];
-              const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
+              const tl=timelines[idx];const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
               return(
-                <div key={b.id} className="ps-row" style={{height:RH}}>
-                  <div className="ps-left" style={{height:RH}}>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.name}</div>
+                <div key={b.id} className="ps-row" style={{height:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
+                  <div className="ps-left" style={{height:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
+                    <div style={{fontSize:12,fontWeight:600,color:b.isLinked?"#8090d0":"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.isLinked?"↳ ":""}{b.name}</div>
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
                     {b.strains&&<div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
-                    <div style={{fontSize:10,color:"var(--text-3)"}}>{b.inputAmt}{b.unit} → {b.yieldEst||"—"}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{b.yieldEst||"—"}</div>
                     {b.s2s_barcode&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace"}}>{b.s2s_barcode}</div>}
                     <div style={{display:"flex",gap:6,marginTop:5}}>
-                      <button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>
+                      {!b.isLinked&&<button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>}
                       <button className="ps-btn ps-sm ps-del" onClick={()=>removeBatch(b.id)}>✕</button>
                     </div>
                   </div>
                   <div className="ps-tl" style={{minWidth:twPx,height:RH}}>
-                    {weeks.map((w,i)=>(<div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />))}
-                    {tl.map((step,si)=>{
-                      const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);
-                      return(
-                        <div key={si} title={step.name+" — "+fmtF(step.start)+" \u2192 "+fmtF(step.end)+" ("+step.days+" days)"}
-                          style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",
-                            borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",
-                            borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",
-                            display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>
-                          {w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}
-                        </div>
-                      );
-                    })}
+                    {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />)}
+                    {tl.map((step,si)=>{const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" \u2192 "+fmtF(step.end)+" ("+step.days+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
                     {todayOff>=0&&todayOff<=total&&<div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />}
                   </div>
                 </div>
@@ -793,49 +720,28 @@ export default function ProductionScheduler() {
           </div>
 
           <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",marginBottom:20}}>
-            {Object.entries(SBG).map(([name,bg])=>(
-              <div key={name} style={{display:"flex",alignItems:"center",gap:5}}>
-                <div style={{width:12,height:10,borderRadius:2,background:bg,border:"1px solid rgba(255,255,255,0.12)"}} />
-                <span style={{fontSize:10,color:"var(--text-3)"}}>{name}</span>
-              </div>
-            ))}
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <div style={{width:2,height:12,background:"var(--danger)",borderRadius:1}} />
-              <span style={{fontSize:10,color:"var(--text-3)"}}>Today</span>
-            </div>
+            {Object.entries(SBG).map(([name,bg])=><div key={name} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:12,height:10,borderRadius:2,background:bg,border:"1px solid rgba(255,255,255,0.12)"}} /><span style={{fontSize:10,color:"var(--text-3)"}}>{name}</span></div>)}
+            <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:2,height:12,background:"var(--danger)",borderRadius:1}} /><span style={{fontSize:10,color:"var(--text-3)"}}>Today</span></div>
           </div>
 
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Batch Summary</div>
           <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:10}}>
             <table className="ps-tbl">
-              <thead>
-                <tr>
-                  <th>Batch</th><th>Product</th><th>Strains</th><th>Input</th>
-                  <th>Est. Output</th><th>Actual Yield</th>
-                  <th>Cannabinoids</th><th>Start</th><th>Completion</th>
-                  <th>S2S Tag</th><th>Status</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Batch</th><th>Product</th><th>Strains</th><th>Input</th><th>Est. Output</th><th>Actual Yield</th><th>Cannabinoids</th><th>Start</th><th>Completion</th><th>S2S Tag</th><th>Status</th></tr></thead>
               <tbody>
-                {batches.map((b,idx)=>{
-                  const tl=timelines[idx];const end=tl[tl.length-1]?.end;
-                  const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
-                  return(
-                    <tr key={b.id}>
-                      <td style={{color:"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.name}</td>
-                      <td style={{whiteSpace:"nowrap"}}>{b.catLabel}{sub?" — "+sub.l:""}</td>
-                      <td>{b.strains||"—"}</td>
-                      <td style={{whiteSpace:"nowrap"}}>{b.inputAmt}{b.unit}</td>
-                      <td style={{fontSize:11}}>{b.yieldEst||"—"}</td>
-                      <td style={{fontSize:11,color:b.actual_yield?"var(--accent-2)":"var(--text-3)"}}>{b.actual_yield||"—"}</td>
-                      <td style={{fontSize:10}}>{b.cannabinoids?.join(", ")||"—"}</td>
-                      <td style={{whiteSpace:"nowrap"}}>{fmtS(new Date(b.d+"T12:00:00"))}</td>
-                      <td style={{whiteSpace:"nowrap"}}>{end?fmtS(end):"—"}</td>
-                      <td style={{fontFamily:"monospace",fontSize:10}}>{b.s2s_barcode||"—"}</td>
-                      <td><span className={"sp "+st.cls}>{st.label}</span></td>
-                    </tr>
-                  );
-                })}
+                {batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
+                  <td style={{color:b.isLinked?"#8090d0":"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.isLinked?"↳ ":""}{b.name}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{b.catLabel}{sub?" — "+sub.l:""}</td>
+                  <td>{b.strains||"—"}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{b.isLinked?"(auto)":b.inputAmt+b.unit}</td>
+                  <td style={{fontSize:11}}>{b.yieldEst||"—"}</td>
+                  <td style={{fontSize:11,color:b.actual_yield?"var(--accent-2)":"var(--text-3)"}}>{b.actual_yield||"—"}</td>
+                  <td style={{fontSize:10}}>{b.cannabinoids?.join(", ")||"—"}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{fmtS(new Date(b.d+"T12:00:00"))}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{end?fmtS(end):"—"}</td>
+                  <td style={{fontFamily:"monospace",fontSize:10}}>{b.s2s_barcode||"—"}</td>
+                  <td><span className={"sp "+(b.isLinked?"sp-l":st.cls)}>{b.isLinked?"Linked":st.label}</span></td>
+                </tr>);})}
               </tbody>
             </table>
           </div>
