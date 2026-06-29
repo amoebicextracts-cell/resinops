@@ -755,54 +755,45 @@ export default function ResinOps() {
     const mod = MODULES.find(m => m.id === activeModule);
     const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
-    const inlineMd = (text) => text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^### (.+)$/gm, '<h4>$1</h4>')
-      .replace(/^## (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>\n?)+/g, s => '<ul>' + s + '</ul>')
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\n/g, '<br>');
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const fmtText = (raw) => {
+      const lines = raw.split('\n');
+      let out = '';
+      let inList = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isBullet = line.startsWith('- ') || line.startsWith('* ');
+        if (isBullet) {
+          if (!inList) { out += '<ul>'; inList = true; }
+          const inner = esc(line.slice(2)).split('**').map((s, j) => j % 2 === 1 ? '<strong>' + s + '</strong>' : s).join('');
+          out += '<li>' + inner + '</li>';
+        } else {
+          if (inList) { out += '</ul>'; inList = false; }
+          if (line.startsWith('### ')) { out += '<h4>' + esc(line.slice(4)) + '</h4>'; }
+          else if (line.startsWith('## ')) { out += '<h3>' + esc(line.slice(3)) + '</h3>'; }
+          else if (line.trim() === '') { out += '<br>'; }
+          else {
+            const inner = esc(line).split('**').map((s, j) => j % 2 === 1 ? '<strong>' + s + '</strong>' : s).join('');
+            out += '<p>' + inner + '</p>';
+          }
+        }
+      }
+      if (inList) out += '</ul>';
+      return out;
+    };
 
     const rows = messages.map(msg => {
       const isUser = msg.role === 'user';
       const text = typeof msg.content === 'string' ? msg.content : (msg.displayText || '');
       const imgTag = msg.preview ? '<p><em>[Image attached]</em></p>' : '';
-      return '<div class="msg">'
-        + '<div class="who ' + (isUser ? 'user' : 'ai') + '">' + (isUser ? 'You' : 'ResinOps AI') + '</div>'
-        + '<div class="body"><p>' + imgTag + inlineMd(text) + '</p></div>'
-        + '</div>';
+      const body = imgTag + (isUser ? '<p>' + esc(text) + '</p>' : fmtText(text));
+      return '<div class="msg"><div class="who ' + (isUser ? 'user' : 'ai') + '">'
+        + (isUser ? 'You' : 'ResinOps AI')
+        + '</div><div class="body">' + body + '</div></div>';
     }).join('<hr>');
 
-    const html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
-      + '<title>ResinOps — ' + mod?.label + ' — ' + date + '</title>'
-      + '<style>'
-      + 'body{font-family:Arial,sans-serif;max-width:820px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.7;}'
-      + 'h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}'
-      + '.meta{font-size:13px;color:#666;margin-bottom:32px;padding-bottom:16px;border-bottom:2px solid #e0e0e0;}'
-      + 'hr{border:none;border-top:1px solid #eee;margin:24px 0;}'
-      + '.msg{margin:0;}'
-      + '.who{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;}'
-      + '.who.user{color:#2d5a3d;}'
-      + '.who.ai{color:#555;}'
-      + '.body{font-size:14px;}'
-      + '.body p{margin:0 0 10px;}'
-      + '.body p:last-child{margin:0;}'
-      + '.body h3{font-size:14px;font-weight:700;color:#2d5a3d;margin:12px 0 6px;text-transform:uppercase;letter-spacing:0.04em;}'
-      + '.body h4{font-size:13px;font-weight:700;margin:10px 0 4px;}'
-      + '.body ul{margin:6px 0 10px 20px;padding:0;}'
-      + '.body li{margin-bottom:4px;}'
-      + '.body strong{font-weight:700;}'
-      + '@media print{body{margin:24px;}.meta{border-color:#ccc;}}'
-      + '</style></head><body>'
-      + '<h1>ResinOps — ' + (mod?.label || '') + ' Module</h1>'
-      + '<div class="meta">Exported ' + date + ' · ' + messages.length + ' messages<br>'
-      + '<small>To save as PDF: File → Print → Save as PDF &nbsp;|&nbsp; To open in Word: File → Open this .html file</small></div>'
-      + rows
-      + '</body></html>';
-
-    const blob = new Blob([html], { type: 'text/html' });
+        const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
