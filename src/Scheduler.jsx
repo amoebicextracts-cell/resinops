@@ -290,67 +290,7 @@ export default function Scheduler() {
       weeks.push({ x: day * PX, wn: Math.floor(day / 7) + 1, date: fmtShort(dAdd(gStart, day)) });
   }
 
-  // ── Form panel (shared for add + edit) ───────────────────────────────────
-  const FormPanel = () => (
-    <div className="sch-form-panel">
-      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "14px" }}>
-        {formMode === "edit" ? "Edit Grow Space" : "New Grow Space"}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-        <div>
-          <label className="sch-label">Space name</label>
-          <input className="sch-input" placeholder="Indoor Room 1"
-            value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-        </div>
-        <div>
-          <label className="sch-label">Strain / cultivar</label>
-          <input className="sch-input" placeholder="Blue Dream"
-            value={form.strain} onChange={e => setForm(f => ({ ...f, strain: e.target.value }))} />
-        </div>
-        <div>
-          <label className="sch-label">Clone cut date</label>
-          <input type="date" className="sch-input"
-            value={form.d} onChange={e => setForm(f => ({ ...f, d: e.target.value }))} />
-        </div>
-        <div>
-          <label className="sch-label">Plants in space</label>
-          <input type="number" min="1" className="sch-input" placeholder="100"
-            value={form.plants} onChange={e => setForm(f => ({ ...f, plants: e.target.value }))} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-          <div>
-            <label className="sch-label">Veg weeks</label>
-            <input type="number" min="1" max="24" className="sch-input"
-              value={form.veg} onChange={e => setForm(f => ({ ...f, veg: e.target.value }))} />
-          </div>
-          <div>
-            <label className="sch-label">Flower weeks</label>
-            <input type="number" min="1" max="24" className="sch-input"
-              value={form.flw} onChange={e => setForm(f => ({ ...f, flw: e.target.value }))} />
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {clones ? (
-            <div className="sch-clone-box">
-              <div style={{ fontSize: "10px", color: "var(--accent-2)", fontWeight: 600, marginBottom: "2px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Clone Target</div>
-              <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--accent-2)", lineHeight: 1.1 }}>{clones}</div>
-              <div style={{ fontSize: "10px", color: "var(--text-2)", marginTop: "2px" }}>{parseInt(form.plants)} plants + 10% buffer</div>
-            </div>
-          ) : (
-            <div style={{ fontSize: "12px", color: "var(--text-3)" }}>Enter plant count to see clone target</div>
-          )}
-        </div>
-      </div>
-      {formErr && <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>{formErr}</div>}
-      <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
-        <button className="sch-btn sch-btn-primary"
-          onClick={formMode === "edit" ? saveEdit : saveAdd}>
-          {formMode === "edit" ? "Save Changes" : "Add Space"}
-        </button>
-        <button className="sch-btn sch-btn-secondary" onClick={closeForm}>Cancel</button>
-      </div>
-    </div>
-  );
+
 
   return (
     <>
@@ -375,8 +315,67 @@ export default function Scheduler() {
           </div>
         </div>
 
-        {/* Form panel */}
-        {formMode && <FormPanel />}
+        {/* Form panel — inlined to prevent React unmounting on re-render */}
+        {formMode && (
+      <div className="sch-form-panel">
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "14px" }}>
+          {formMode === "edit" ? "Edit Grow Space" : "New Grow Space"}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div>
+            <label className="sch-label">Space name</label>
+            <input className="sch-input" placeholder="Indoor Room 1"
+              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="sch-label">Strain / cultivar</label>
+            <input className="sch-input" placeholder="Blue Dream"
+              value={form.strain} onChange={e => setForm(f => ({ ...f, strain: e.target.value }))} />
+          </div>
+          <div>
+            <label className="sch-label">Clone cut date</label>
+            <input type="date" className="sch-input"
+              value={form.d} onChange={e => setForm(f => ({ ...f, d: e.target.value }))} />
+          </div>
+          <div>
+            <label className="sch-label">Plants in space</label>
+            <input type="number" min="1" className="sch-input" placeholder="100"
+              value={form.plants} onChange={e => setForm(f => ({ ...f, plants: e.target.value }))} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+            <div>
+              <label className="sch-label">Veg weeks</label>
+              <input type="number" min="1" max="24" className="sch-input"
+                value={form.veg} onChange={e => setForm(f => ({ ...f, veg: e.target.value }))} />
+            </div>
+            <div>
+              <label className="sch-label">Flower weeks</label>
+              <input type="number" min="1" max="24" className="sch-input"
+                value={form.flw} onChange={e => setForm(f => ({ ...f, flw: e.target.value }))} />
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {clones ? (
+              <div className="sch-clone-box">
+                <div style={{ fontSize: "10px", color: "var(--accent-2)", fontWeight: 600, marginBottom: "2px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Clone Target</div>
+                <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--accent-2)", lineHeight: 1.1 }}>{clones}</div>
+                <div style={{ fontSize: "10px", color: "var(--text-2)", marginTop: "2px" }}>{parseInt(form.plants)} plants + 10% buffer</div>
+              </div>
+            ) : (
+              <div style={{ fontSize: "12px", color: "var(--text-3)" }}>Enter plant count to see clone target</div>
+            )}
+          </div>
+        </div>
+        {formErr && <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>{formErr}</div>}
+        <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+          <button className="sch-btn sch-btn-primary"
+            onClick={formMode === "edit" ? saveEdit : saveAdd}>
+            {formMode === "edit" ? "Save Changes" : "Add Space"}
+          </button>
+          <button className="sch-btn sch-btn-secondary" onClick={closeForm}>Cancel</button>
+        </div>
+      </div>
+        )}
 
         {/* Empty state */}
         {!hasSpaces && !formMode && (
