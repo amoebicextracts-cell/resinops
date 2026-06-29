@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import Scheduler from "./Scheduler.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -176,6 +177,14 @@ const MODULES = [
     icon: "🏗️",
     available: true,
     description: "HVAC, electrical, dehumidification, water",
+  },
+  {
+    id: "scheduler",
+    label: "Grow Scheduler",
+    icon: "📅",
+    available: true,
+    description: "Plan timelines from clone cut to inventory",
+    isScheduler: true,
   },
 ];
 
@@ -603,6 +612,11 @@ const css = `
     margin: 8px auto 0;
   }
   .input-hint { font-size: 11px; color: var(--text-3); }
+  .export-hint {
+    font-size: 10px;
+    color: var(--text-3);
+    font-style: italic;
+  }
   .clear-btn {
     font-size: 11px;
     color: var(--text-3);
@@ -736,6 +750,71 @@ export default function ResinOps() {
 
   const removeImage = () => setImage(null);
 
+  const exportChat = () => {
+    if (messages.length === 0) return;
+    const mod = MODULES.find(m => m.id === activeModule);
+    const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    const inlineMd = (text) => text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+      .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, s => '<ul>' + s + '</ul>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>');
+
+    const rows = messages.map(msg => {
+      const isUser = msg.role === 'user';
+      const text = typeof msg.content === 'string' ? msg.content : (msg.displayText || '');
+      const imgTag = msg.preview ? '<p><em>[Image attached]</em></p>' : '';
+      return '<div class="msg">'
+        + '<div class="who ' + (isUser ? 'user' : 'ai') + '">' + (isUser ? 'You' : 'ResinOps AI') + '</div>'
+        + '<div class="body"><p>' + imgTag + inlineMd(text) + '</p></div>'
+        + '</div>';
+    }).join('<hr>');
+
+    const html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+      + '<title>ResinOps — ' + mod?.label + ' — ' + date + '</title>'
+      + '<style>'
+      + 'body{font-family:Arial,sans-serif;max-width:820px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.7;}'
+      + 'h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}'
+      + '.meta{font-size:13px;color:#666;margin-bottom:32px;padding-bottom:16px;border-bottom:2px solid #e0e0e0;}'
+      + 'hr{border:none;border-top:1px solid #eee;margin:24px 0;}'
+      + '.msg{margin:0;}'
+      + '.who{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;}'
+      + '.who.user{color:#2d5a3d;}'
+      + '.who.ai{color:#555;}'
+      + '.body{font-size:14px;}'
+      + '.body p{margin:0 0 10px;}'
+      + '.body p:last-child{margin:0;}'
+      + '.body h3{font-size:14px;font-weight:700;color:#2d5a3d;margin:12px 0 6px;text-transform:uppercase;letter-spacing:0.04em;}'
+      + '.body h4{font-size:13px;font-weight:700;margin:10px 0 4px;}'
+      + '.body ul{margin:6px 0 10px 20px;padding:0;}'
+      + '.body li{margin-bottom:4px;}'
+      + '.body strong{font-weight:700;}'
+      + '@media print{body{margin:24px;}.meta{border-color:#ccc;}}'
+      + '</style></head><body>'
+      + '<h1>ResinOps — ' + (mod?.label || '') + ' Module</h1>'
+      + '<div class="meta">Exported ' + date + ' · ' + messages.length + ' messages<br>'
+      + '<small>To save as PDF: File → Print → Save as PDF &nbsp;|&nbsp; To open in Word: File → Open this .html file</small></div>'
+      + rows
+      + '</body></html>';
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ResinOps-' + (mod?.label || 'Chat').replace(/\s+/g, '-') + '-' + new Date().toISOString().slice(0,10) + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+
+
   const send = async (text) => {
     const query = (text || input).trim();
     if ((!query && !image) || loading) return;
@@ -790,6 +869,8 @@ export default function ResinOps() {
     setImage(null);
   };
 
+  const isSchedulerActive = activeModule === "scheduler";
+
   const showWelcome = messages.length === 0;
 
   return (
@@ -805,7 +886,7 @@ export default function ResinOps() {
 
           <div className="sidebar-section-label">Modules</div>
 
-          {MODULES.map((mod) => (
+          {MODULES.filter(m => !m.isScheduler).map((mod) => (
             <button
               key={mod.id}
               className={`module-btn ${activeModule === mod.id ? "active" : ""} ${!mod.available ? "locked" : ""}`}
@@ -822,9 +903,26 @@ export default function ResinOps() {
             </button>
           ))}
 
+          <div style={{margin:"8px 0",borderTop:"1px solid var(--border)"}}/>
+          <div className="sidebar-section-label">Tools</div>
+
+          {MODULES.filter(m => m.isScheduler).map((mod) => (
+            <button
+              key={mod.id}
+              className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
+              onClick={() => switchModule(mod.id)}
+            >
+              <span className="module-icon">{mod.icon}</span>
+              <span className="module-info">
+                <span className="module-name">{mod.label}</span>
+                <span className="module-desc">{mod.description}</span>
+              </span>
+            </button>
+          ))}
+
           <div className="sidebar-footer">
             <div className="plan-badge">Beta</div>
-            <div className="plan-text">More modules coming soon. Cultivation module is live.</div>
+            <div className="plan-text">Compliance module coming in v2.</div>
           </div>
         </aside>
 
@@ -842,7 +940,11 @@ export default function ResinOps() {
             </div>
           </div>
 
-          <div className="chat-area">
+          {isSchedulerActive ? (
+            <Scheduler />
+          ) : null}
+
+          <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (
               <div className="welcome">
                 <div className="welcome-heading">
@@ -896,7 +998,7 @@ export default function ResinOps() {
             )}
           </div>
 
-          <div className="input-area">
+          {!isSchedulerActive && <div className="input-area">
             {image && (
               <div className="image-preview-bar">
                 <div className="image-preview-wrap">
@@ -933,7 +1035,12 @@ export default function ResinOps() {
             <div className="input-meta">
               <span className="input-hint">Enter to send · Shift+Enter for new line</span>
               {messages.length > 0 && (
-                <button className="clear-btn" onClick={() => { setMessages([]); setImage(null); }}>Clear conversation</button>
+                <div style={{display:'flex',gap:'10px',alignItems:'center'}}>
+                  <button className="clear-btn" onClick={exportChat} title="Download as HTML — open in Word or print to PDF">
+                    ↓ Save chat
+                  </button>
+                  <button className="clear-btn" onClick={() => { setMessages([]); setImage(null); }}>Clear conversation</button>
+                </div>
               )}
             </div>
           </div>
