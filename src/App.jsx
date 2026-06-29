@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
+import LaborManager from "./LaborManager.jsx";
+import LaborDashboard from "./LaborDashboard.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -193,6 +195,22 @@ const MODULES = [
     icon: "🏭",
     available: true,
     description: "Batch scheduling from intake to inventory",
+    isScheduler: true,
+  },
+  {
+    id: "labor-setup",
+    label: "Labor Setup",
+    icon: "👥",
+    available: true,
+    description: "Roles, headcount, hourly rates",
+    isScheduler: true,
+  },
+  {
+    id: "labor-dash",
+    label: "Labor Dashboard",
+    icon: "📊",
+    available: true,
+    description: "Daily demand, capacity, cost planning",
     isScheduler: true,
   },
 ];
@@ -869,7 +887,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = activeModule === "scheduler" || activeModule === "production";
+  const isSchedulerActive = ["scheduler","production","labor-setup","labor-dash"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -942,6 +960,8 @@ export default function ResinOps() {
 
           {activeModule === "scheduler" ? <Scheduler /> : null}
           {activeModule === "production" ? <ProductionScheduler /> : null}
+          {activeModule === "labor-setup" ? <LaborManager /> : null}
+          {activeModule === "labor-dash" ? <LaborDashboard /> : null}
 
           <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (
