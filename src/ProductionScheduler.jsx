@@ -23,6 +23,48 @@ const TERP_SRCS={
   r134a:{l:"R-134a Terp Liquid ~50% terps (10% THC, 38% flavonoids)",purity:0.50,thc:0.10},
 };
 
+
+function getThcaSteps(sub, method, cycles) {
+  const isFf = sub === "thca_ff";
+  const n = Math.max(1, parseInt(cycles) || 1);
+  const extraClean = isFf ? [] : [
+    {n:"Extensive Winterization",days:3},
+    {n:"CRC Remediation",days:1},
+  ];
+  if (method === "controlled") {
+    return [
+      {n:"Intake / Prep",days:1},
+      {n:"Cold Hydrocarbon Extraction",days:2},
+      ...extraClean,
+      {n:"Controlled Crash Crystallization",days:1},
+      {n:"HTE Removal (Butane Fraction)",days:1},
+      {n:"Warm Gas Redissolution",days:1},
+      {n:"Recrystallization",days:n},
+      {n:"Cold Solvent Wash",days:1},
+      {n:"Residual Purge",days:1},
+      {n:"QC / Testing",days:10},
+      {n:"Packaging",days:1},
+      {n:"Inventory",days:1},
+    ];
+  } else {
+    return [
+      {n:"Intake / Prep",days:1},
+      {n:"Cold Hydrocarbon Extraction",days:2},
+      ...extraClean,
+      {n:"Initial Solvent Recovery",days:1},
+      {n:"Diamond Mining / Jar Crystallization",days:21},
+      {n:"HTE Removal / Pour-off",days:1},
+      {n:"Warm Gas Redissolution",days:1},
+      {n:"Recrystallization",days:n*7},
+      {n:"Cold Solvent Wash",days:1},
+      {n:"Final Solvent Purge",days:2},
+      {n:"QC / Testing",days:10},
+      {n:"Packaging",days:1},
+      {n:"Inventory",days:1},
+    ];
+  }
+}
+
 const SBG={
   "Intake / Prep":"#1e3248","Drying":"#1e4420","Bucking":"#2e5010","Trimming":"#3a5e14",
   "Curing":"#143810","Grinding":"#504810","Rolling / Filling":"#583c0e","Extraction":"#582208",
@@ -304,7 +346,8 @@ export default function ProductionScheduler(){
   const pkgIdx=Math.min(form.pkgIdx,pkgOpts.length-1);
   const pkgSel=pkgOpts[pkgIdx];
   const subOpts=SUBS[form.cat]||[];
-  const formSteps=form.steps||(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days}));
+  const isThcaSub=form.sub==="thca_ff"||form.sub==="thca_trim";
+  const formSteps=form.steps||(isThcaSub?getThcaSteps(form.sub,form.thcaMethod||"controlled",form.thcaRecrystCycles||1):(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days})));
   const totalDays=formSteps.reduce((a,s)=>a+(parseInt(s.days)||0),0);
   const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,form);
   const inputG=(parseFloat(form.inputAmt)||0)*(UNIT_TO_G[form.unit]||1);
@@ -314,7 +357,7 @@ export default function ProductionScheduler(){
   const isVapeOil=form.sub==="oil_rosin"||form.sub==="oil_live_resin";
   const isDistillate=form.cat==="extract"&&form.sub==="distillate";
   const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
-  const isThca=form.cat==="extract"&&(form.sub==="thca_ff"||form.sub==="thca_trim");
+  const isThca=form.cat==="extract"&&isThcaSub;
   const showCb=["tincture","edible","topical"].includes(form.cat);
 
   // Trim calculator
