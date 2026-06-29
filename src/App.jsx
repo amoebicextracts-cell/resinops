@@ -1034,7 +1034,7 @@ export default function ResinOps() {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
         </main>
       </div>
     </>
