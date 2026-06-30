@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
 import HarvestBatches from "./HarvestBatches.jsx";
+import Remediation from "./Remediation.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
@@ -209,6 +210,14 @@ const MODULES = [
     icon: "🌿",
     available: true,
     description: "Drying, trim, cure & graded final weights",
+    isScheduler: true,
+  },
+  {
+    id: "remediation",
+    label: "Microbial Remediation",
+    icon: "☢️",
+    available: true,
+    description: "Radiation dose calc after failed lab tests",
     isScheduler: true,
   },
   {
@@ -955,7 +964,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","remediation","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1033,6 +1042,7 @@ export default function ResinOps() {
           {activeModule === "scheduler" ? <Scheduler /> : null}
           {activeModule === "production" ? <ProductionScheduler /> : null}
           {activeModule === "harvest" ? <HarvestBatches /> : null}
+          {activeModule === "remediation" ? <Remediation /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
