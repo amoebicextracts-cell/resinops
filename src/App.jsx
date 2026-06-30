@@ -6,6 +6,8 @@ import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
 import Finance from "./Finance.jsx";
+import Equipment from "./Equipment.jsx";
+import Maintenance from "./Maintenance.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -239,6 +241,23 @@ const MODULES = [
     icon: "💰",
     available: true,
     description: "COGS, BOM, 280E-structured P&L",
+    isScheduler: true,
+  },
+  {
+    id: "equipment",
+    label: "Equipment Registry",
+    icon: "🔧",
+    available: true,
+    description: "Assets, PM schedules, warranty, service history",
+    isScheduler: true,
+    sectionBreak: "Facilities",
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance & Facilities",
+    icon: "🏗️",
+    available: true,
+    description: "Work orders, downtime, LOTO log",
     isScheduler: true,
   },
 ];
@@ -926,7 +945,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance","equipment","maintenance"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1008,6 +1027,8 @@ export default function ResinOps() {
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
           {activeModule === "finance" ? <Finance /> : null}
+          {activeModule === "equipment" ? <Equipment /> : null}
+          {activeModule === "maintenance" ? <Maintenance /> : null}
 
           <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (

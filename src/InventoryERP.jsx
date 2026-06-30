@@ -136,7 +136,7 @@ const CSS = `
 `;
 
 const EMPTY_ITEM = {n:"",cat:"Packaging",uom:"each",reorderAt:"100",reorderQty:"500",vm:"average",notes:""};
-const EMPTY_VENDOR = {n:"",contact:"",phone:"",email:"",leadDays:"7",notes:""};
+const EMPTY_VENDOR = {n:"",vendorType:"supply",contact:"",phone:"",email:"",leadDays:"7",notes:""};
 const EMPTY_PO = {vendorId:"",date:"",items:[],notes:""};
 
 export default function InventoryERP() {
@@ -391,6 +391,7 @@ export default function InventoryERP() {
               <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="erp-lbl">Company name</label><input className="erp-inp" value={vendorForm.n} onChange={e=>setVF("n",e.target.value)} placeholder="Precision Packaging Co." /></div>
+                  <div><label className="erp-lbl">Vendor type</label><select className="erp-sel" value={vendorForm.vendorType||"supply"} onChange={e=>setVF("vendorType",e.target.value)}><option value="supply">Supply Vendor</option><option value="equipment_service">Equipment Service / Repair</option><option value="both">Both</option></select></div>
                   <div><label className="erp-lbl">Contact name</label><input className="erp-inp" value={vendorForm.contact||""} onChange={e=>setVF("contact",e.target.value)} /></div>
                   <div><label className="erp-lbl">Phone</label><input className="erp-inp" value={vendorForm.phone||""} onChange={e=>setVF("phone",e.target.value)} /></div>
                   <div><label className="erp-lbl">Email</label><input className="erp-inp" value={vendorForm.email||""} onChange={e=>setVF("email",e.target.value)} /></div>
@@ -409,11 +410,12 @@ export default function InventoryERP() {
             ) : (
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="erp-tbl">
-                  <thead><tr><th>Vendor</th><th>Contact</th><th>Phone</th><th>Email</th><th>Lead Time</th><th></th></tr></thead>
+                  <thead><tr><th>Vendor</th><th>Type</th><th>Contact</th><th>Phone</th><th>Email</th><th>Lead Time</th><th></th></tr></thead>
                   <tbody>
                     {vendors.map(v=>(
                       <tr key={v.id}>
                         <td style={{fontWeight:500,color:"var(--text)"}}>{v.n}</td>
+                        <td><span className="pill" style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:v.vendorType==="equipment_service"?"rgba(90,120,200,0.15)":v.vendorType==="both"?"rgba(200,150,58,0.15)":"rgba(74,124,89,0.2)",color:v.vendorType==="equipment_service"?"#7090f0":v.vendorType==="both"?"var(--amber)":"var(--accent-2)"}}>{v.vendorType==="equipment_service"?"Service":v.vendorType==="both"?"Both":"Supply"}</span></td>
                         <td>{v.contact||"—"}</td><td>{v.phone||"—"}</td><td>{v.email||"—"}</td>
                         <td>{v.leadDays||"—"} days</td>
                         <td><div style={{display:"flex",gap:6}}>
