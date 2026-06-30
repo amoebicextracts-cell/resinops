@@ -3,6 +3,8 @@ import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
+import InventoryERP from "./InventoryERP.jsx";
+import Finance from "./Finance.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -211,6 +213,23 @@ const MODULES = [
     icon: "📊",
     available: true,
     description: "Daily demand, capacity, cost planning",
+    isScheduler: true,
+  },
+  {
+    id: "inventory",
+    label: "Inventory",
+    icon: "📦",
+    available: true,
+    description: "Stock, vendors, purchase orders",
+    isScheduler: true,
+    sectionBreak: "Finance",
+  },
+  {
+    id: "finance",
+    label: "Cost & P&L",
+    icon: "💰",
+    available: true,
+    description: "COGS, BOM, 280E-structured P&L",
     isScheduler: true,
   },
 ];
@@ -887,7 +906,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","labor-setup","labor-dash"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","labor-setup","labor-dash","inventory","finance"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -925,17 +944,21 @@ export default function ResinOps() {
           <div className="sidebar-section-label">Tools</div>
 
           {MODULES.filter(m => m.isScheduler).map((mod) => (
-            <button
-              key={mod.id}
-              className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
-              onClick={() => switchModule(mod.id)}
-            >
-              <span className="module-icon">{mod.icon}</span>
-              <span className="module-info">
-                <span className="module-name">{mod.label}</span>
-                <span className="module-desc">{mod.description}</span>
-              </span>
-            </button>
+            <div key={mod.id}>
+              {mod.sectionBreak && (
+                <div className="sidebar-section-label" style={{marginTop:10}}>{mod.sectionBreak}</div>
+              )}
+              <button
+                className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
+                onClick={() => switchModule(mod.id)}
+              >
+                <span className="module-icon">{mod.icon}</span>
+                <span className="module-info">
+                  <span className="module-name">{mod.label}</span>
+                  <span className="module-desc">{mod.description}</span>
+                </span>
+              </button>
+            </div>
           ))}
 
           <div className="sidebar-footer">
@@ -962,6 +985,8 @@ export default function ResinOps() {
           {activeModule === "production" ? <ProductionScheduler /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
+          {activeModule === "inventory" ? <InventoryERP /> : null}
+          {activeModule === "finance" ? <Finance /> : null}
 
           <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (

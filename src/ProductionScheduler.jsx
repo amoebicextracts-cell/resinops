@@ -328,7 +328,7 @@ const EMPTY={
   packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",
   vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",
   thcaMethod:"controlled",thcaRecrystCycles:"1",
-  s2s_barcode:"",actual_yield:"",
+  s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
 };
 
 export default function ProductionScheduler(){
@@ -407,7 +407,7 @@ export default function ProductionScheduler(){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2s_barcode:b.s2s_barcode||"",actual_yield:b.actual_yield||""});
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||""});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){setFormMode(null);setEditId(null);}
@@ -423,7 +423,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,formulationResult:formCalc,s2s_barcode:form.s2s_barcode.trim(),actual_yield:form.actual_yield.trim()};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim()};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -706,10 +706,44 @@ export default function ProductionScheduler(){
               </div>
             </div>
 
-            {/* Compliance */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-              <div><label className="ps-lbl">S2S / METRC Tag</label><input className="ps-inp" placeholder="1A400000000000000000000" value={form.s2s_barcode} onChange={e=>setF("s2s_barcode",e.target.value)} /></div>
-              <div><label className="ps-lbl">Actual yield — enter after completion</label><input className="ps-inp" placeholder="e.g. 1,180 units / 32.4g" value={form.actual_yield} onChange={e=>setF("actual_yield",e.target.value)} /></div>
+            {/* S2S Chain of Custody */}
+            <div className="ps-box">
+              <div className="ps-box-t">Seed-to-Sale Chain of Custody</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10,lineHeight:1.6}}>
+                Tag data stored here will enable direct S2S API integration in v2 for automated verification and compliance reporting.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10}}>
+                <div>
+                  <label className="ps-lbl">S2S / Compliance system</label>
+                  <select className="ps-sel" value={form.s2sSystem} onChange={e=>setF("s2sSystem",e.target.value)}>
+                    <option value="metrc">METRC</option>
+                    <option value="biotrack">BioTrackTHC</option>
+                    <option value="leaf">Leaf Data Systems</option>
+                    <option value="mj_freeway">MJ Freeway / Proteus</option>
+                    <option value="flourish">Flourish Software</option>
+                    <option value="cova">COVA</option>
+                    <option value="other">Other / Custom</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div>
+                  <label className="ps-lbl">Source / input package tags — comma-separate multiple</label>
+                  <textarea className="ps-inp" rows={2} placeholder={form.s2sSystem==="metrc"?"1A4FF0200000022000000001, 1A4FF0200000022000000002":"Enter source package tags, comma-separated"} value={form.s2sSourceTags} onChange={e=>setF("s2sSourceTags",e.target.value)} style={{resize:"vertical",minHeight:56}} />
+                  <div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>Cannabis material received / input to this batch</div>
+                </div>
+                <div>
+                  <label className="ps-lbl">Output / created package tags — comma-separate multiple</label>
+                  <textarea className="ps-inp" rows={2} placeholder={form.s2sSystem==="metrc"?"1A4FF0200000022000000010, 1A4FF0200000022000000011":"Enter output package tags, comma-separated"} value={form.s2sOutputTags} onChange={e=>setF("s2sOutputTags",e.target.value)} style={{resize:"vertical",minHeight:56}} />
+                  <div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>New packages created from this batch</div>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+                <div>
+                  <label className="ps-lbl">Actual yield — enter after completion</label>
+                  <input className="ps-inp" placeholder="e.g. 1,180 units / 32.4g" value={form.actual_yield} onChange={e=>setF("actual_yield",e.target.value)} />
+                </div>
+              </div>
             </div>
 
             {formErr&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{formErr}</div>}
@@ -746,7 +780,7 @@ export default function ProductionScheduler(){
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
                     {b.strains&&<div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
                     <div style={{fontSize:10,color:"var(--text-3)"}}>{b.yieldEst||"—"}</div>
-                    {b.s2s_barcode&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace"}}>{b.s2s_barcode}</div>}
+                    {(b.s2sOutputTags||b.s2s_barcode)&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏷 {(b.s2sOutputTags||b.s2s_barcode||'').split(',')[0].trim()}</div>}
                     <div style={{display:"flex",gap:6,marginTop:5}}>
                       {!b.isLinked&&<button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>}
                       <button className="ps-btn ps-sm ps-del" onClick={()=>removeBatch(b.id)}>✕</button>
@@ -770,7 +804,7 @@ export default function ProductionScheduler(){
           <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Batch Summary</div>
           <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:10}}>
             <table className="ps-tbl">
-              <thead><tr><th>Batch</th><th>Product</th><th>Strains</th><th>Input</th><th>Est. Output</th><th>Actual Yield</th><th>Cannabinoids</th><th>Start</th><th>Completion</th><th>S2S Tag</th><th>Status</th></tr></thead>
+              <thead><tr><th>Batch</th><th>Product</th><th>Strains</th><th>Input</th><th>Est. Output</th><th>Actual Yield</th><th>Cannabinoids</th><th>Start</th><th>Completion</th><th>S2S Tags (out/in)</th><th>Status</th></tr></thead>
               <tbody>
                 {batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
                   <td style={{color:b.isLinked?"#8090d0":"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.isLinked?"↳ ":""}{b.name}</td>
@@ -782,7 +816,7 @@ export default function ProductionScheduler(){
                   <td style={{fontSize:10}}>{b.cannabinoids?.join(", ")||"—"}</td>
                   <td style={{whiteSpace:"nowrap"}}>{fmtS(new Date(b.d+"T12:00:00"))}</td>
                   <td style={{whiteSpace:"nowrap"}}>{end?fmtS(end):"—"}</td>
-                  <td style={{fontFamily:"monospace",fontSize:10}}>{b.s2s_barcode||"—"}</td>
+                  <td style={{fontFamily:"monospace",fontSize:9}}><div>{b.s2sOutputTags?b.s2sOutputTags.split(",").map(t=>t.trim()).filter(Boolean).map((t,i)=><div key={i}>{t}</div>):b.s2s_barcode||"—"}</div><div style={{color:"var(--text-3)",marginTop:1}}>{b.s2sSourceTags?"← "+b.s2sSourceTags.split(",").length+" src":""}</div></td>
                   <td><span className={"sp "+(b.isLinked?"sp-l":st.cls)}>{b.isLinked?"Linked":st.label}</span></td>
                 </tr>);})}
               </tbody>
