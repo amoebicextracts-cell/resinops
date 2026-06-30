@@ -127,7 +127,11 @@ const CSS = `
   .sch-export-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
 `;
 
-const EMPTY_FORM = { name: "", strain: "", d: "", plants: "", veg: "4", flw: "9" };
+function totalPlants(sp) { return (sp.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0) || sp.plants || 0; }
+function strainSummary(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name+" ("+s.plants+")").join(", ") || sp.strain || ""; }
+function strainNames(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name).join(", ") || sp.strain || ""; }
+
+const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }] };
 
 export default function Scheduler() {
   const [spaces, setSpaces] = useState(() => {
@@ -143,18 +147,22 @@ export default function Scheduler() {
     localStorage.setItem("resinops_spaces", JSON.stringify(spaces));
   }, [spaces]);
 
-  const clones = parseInt(form.plants) > 0 ? cloneTarget(parseInt(form.plants)) : null;
+  const formTotalPlants = (form.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0);
+  const clones = formTotalPlants > 0 ? cloneTarget(formTotalPlants) : null;
+  function setStrainField(i, k, v) { setForm(f => ({ ...f, strains: f.strains.map((s,idx)=>idx===i?{...s,[k]:v}:s) })); }
+  function addStrainRow() { setForm(f => ({ ...f, strains: [...f.strains, { id: Date.now(), name: "", plants: "" }] })); }
+  function removeStrainRow(i) { setForm(f => ({ ...f, strains: f.strains.filter((_,idx)=>idx!==i) })); }
 
   function openAdd() {
     const today = new Date().toISOString().split("T")[0];
-    setForm({ ...EMPTY_FORM, d: today });
+    setForm({ ...EMPTY_FORM, d: today, strains: [{ id: Date.now(), name: "", plants: "" }] });
     setFormMode("add");
     setFormErr("");
   }
 
   function openEdit(sp) {
-    setForm({ name: sp.name, strain: sp.strain, d: sp.d,
-              plants: String(sp.plants), veg: String(sp.veg), flw: String(sp.flw) });
+    const strains = (sp.strains&&sp.strains.length) ? sp.strains.map(s=>({id:s.id,name:s.name,plants:String(s.plants)})) : [{ id: Date.now(), name: sp.strain||"", plants: String(sp.plants||"") }];
+    setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains });
     setEditId(sp.id);
     setFormMode("edit");
     setFormErr("");
@@ -164,10 +172,9 @@ export default function Scheduler() {
 
   function validateForm() {
     if (!form.name.trim())   { setFormErr("Enter a space name."); return false; }
-    if (!form.strain.trim()) { setFormErr("Enter a strain or cultivar."); return false; }
     if (!form.d)             { setFormErr("Select a clone cut date."); return false; }
-    const n = parseInt(form.plants);
-    if (!n || n < 1)         { setFormErr("Enter the number of plants."); return false; }
+    const validStrains = (form.strains||[]).filter(s=>s.name.trim() && parseInt(s.plants)>0);
+    if (!validStrains.length){ setFormErr("Add at least one strain with a plant count."); return false; }
     return true;
   }
 
@@ -175,9 +182,11 @@ export default function Scheduler() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
+    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
+    const totalP = strains.reduce((a,s)=>a+s.plants,0);
     setSpaces(prev => [...prev, {
-      id: Date.now(), name: form.name.trim(), strain: form.strain.trim(),
-      d: form.d, plants: parseInt(form.plants), veg, flw
+      id: Date.now(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
+      d: form.d, plants: totalP, veg, flw, harvested: false
     }]);
     closeForm();
   }
@@ -186,9 +195,11 @@ export default function Scheduler() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
+    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
+    const totalP = strains.reduce((a,s)=>a+s.plants,0);
     setSpaces(prev => prev.map(sp => sp.id === editId
-      ? { ...sp, name: form.name.trim(), strain: form.strain.trim(),
-          d: form.d, plants: parseInt(form.plants), veg, flw }
+      ? { ...sp, name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
+          d: form.d, plants: totalP, veg, flw }
       : sp
     ));
     closeForm();
@@ -226,7 +237,7 @@ export default function Scheduler() {
       return '<div style="margin-bottom:36px;page-break-inside:avoid;">'
         + '<div style="background:#f6faf7;border-left:4px solid #2d5a3d;padding:12px 16px;margin-bottom:14px;border-radius:0 6px 6px 0;">'
         + '<h2 style="font-size:17px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">' + sp.name + '</h2>'
-        + '<p style="font-size:13px;color:#444;margin:0;">' + sp.strain
+        + '<p style="font-size:13px;color:#444;margin:0;">' + strainSummary(sp)
         + ' &nbsp;·&nbsp; ' + sp.plants + ' plants &nbsp;·&nbsp; ' + cloneTarget(sp.plants) + ' clones'
         + ' &nbsp;·&nbsp; ' + sp.veg + ' wk veg / ' + sp.flw + ' wk flower</p>'
         + '</div>'
@@ -328,20 +339,37 @@ export default function Scheduler() {
               value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
           <div>
-            <label className="sch-label">Strain / cultivar</label>
-            <input className="sch-input" placeholder="Blue Dream"
-              value={form.strain} onChange={e => setForm(f => ({ ...f, strain: e.target.value }))} />
-          </div>
-          <div>
             <label className="sch-label">Clone cut date</label>
             <input type="date" className="sch-input"
               value={form.d} onChange={e => setForm(f => ({ ...f, d: e.target.value }))} />
           </div>
-          <div>
-            <label className="sch-label">Plants in space</label>
-            <input type="number" min="1" className="sch-input" placeholder="100"
-              value={form.plants} onChange={e => setForm(f => ({ ...f, plants: e.target.value }))} />
+        </div>
+
+        <div style={{ background: "var(--surface-2)", borderRadius: 8, padding: "12px 14px", margin: "12px 0" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-2)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10 }}>
+            Strains in this space — {formTotalPlants} total plants
           </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {form.strains.map((s, i) => (
+              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8 }}>
+                <input className="sch-input" placeholder="Blue Dream" value={s.name}
+                  onChange={e => setStrainField(i, "name", e.target.value)} />
+                <input type="number" min="1" className="sch-input" placeholder="Plants"
+                  value={s.plants} onChange={e => setStrainField(i, "plants", e.target.value)} />
+                {form.strains.length > 1 && (
+                  <button type="button" className="sch-icon-btn" onClick={() => removeStrainRow(i)}
+                    style={{ background: "rgba(200,74,74,0.1)", border: "1px solid rgba(200,74,74,0.3)", color: "var(--danger)", borderRadius: 6, padding: "0 10px", cursor: "pointer" }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button type="button" className="sch-add-strain-btn" onClick={addStrainRow}
+            style={{ marginTop: 8, background: "var(--surface)", border: "1px solid var(--border-2)", borderRadius: 6, padding: "5px 10px", fontSize: 11, color: "var(--accent-2)", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>
+            + Add another strain to this space
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
             <div>
               <label className="sch-label">Veg weeks</label>
@@ -359,7 +387,7 @@ export default function Scheduler() {
               <div className="sch-clone-box">
                 <div style={{ fontSize: "10px", color: "var(--accent-2)", fontWeight: 600, marginBottom: "2px", letterSpacing: "0.06em", textTransform: "uppercase" }}>Clone Target</div>
                 <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--accent-2)", lineHeight: 1.1 }}>{clones}</div>
-                <div style={{ fontSize: "10px", color: "var(--text-2)", marginTop: "2px" }}>{parseInt(form.plants)} plants + 10% buffer</div>
+                <div style={{ fontSize: "10px", color: "var(--text-2)", marginTop: "2px" }}>{formTotalPlants} plants + 10% buffer</div>
               </div>
             ) : (
               <div style={{ fontSize: "12px", color: "var(--text-3)" }}>Enter plant count to see clone target</div>
@@ -424,7 +452,7 @@ export default function Scheduler() {
                     {/* Left cell */}
                     <div className="sch-left" style={{ height: RH }}>
                       <div className="sch-space-name">{sp.name}</div>
-                      <div className="sch-space-strain">{sp.strain}</div>
+                      <div className="sch-space-strain">{strainSummary(sp)}</div>
                       <div style={{ fontSize: "10px", color: "var(--text-3)", marginTop: "1px" }}>
                         {sp.plants} plants · {cloneTarget(sp.plants)} clones
                       </div>

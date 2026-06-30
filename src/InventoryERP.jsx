@@ -13,6 +13,44 @@ const VAL_METHODS = [
   {v:"last",   l:"Last Purchase Price"},
 ];
 
+
+// ── CSV import/export helpers ───────────────────────────────────────────────
+const CSV_HEADERS = ["Item Name","Category","Unit of Measure","Current Stock","Unit Cost","Reorder At","Reorder Qty","Valuation Method"];
+
+function downloadTemplate() {
+  const sample = [
+    CSV_HEADERS.join(","),
+    'n-Butane (Extraction Grade),Extraction Solvents,lb,50,12.50,50,200,fifo',
+    'Child-Resistant Jar — 3.5g,Packaging,each,1000,0.45,500,2000,average',
+  ].join("\n");
+  const blob = new Blob([sample], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ResinOps-Inventory-Template.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { rows: [], errors: ["File appears empty or has no data rows."] };
+  const headerLine = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g,""));
+  const rows = []; const errors = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",").map(c => c.trim().replace(/^"|"$/g,""));
+    if (cols.length < 3 || !cols[0]) continue;
+    const [name, cat, uom, stock, cost, reorderAt, reorderQty, vm] = cols;
+    rows.push({
+      n: name, cat: cat || "Other", uom: uom || "each",
+      stock: parseFloat(stock) || 0, cost: parseFloat(cost) || 0,
+      reorderAt: parseFloat(reorderAt) || 0, reorderQty: parseFloat(reorderQty) || 0,
+      vm: ["fifo","average","last"].includes((vm||"").toLowerCase()) ? vm.toLowerCase() : "average",
+    });
+  }
+  if (!rows.length) errors.push("No valid rows found. Check that columns match the template.");
+  return { rows, errors };
+}
+
 const DEFAULT_ITEMS = [
   {id:"i1",  n:"Child-Resistant Jar — 3.5g", cat:"Packaging",              uom:"each", stock:0, reorderAt:500,  reorderQty:2000, vm:"average", lots:[]},
   {id:"i2",  n:"Child-Resistant Jar — 7g",   cat:"Packaging",              uom:"each", stock:0, reorderAt:250,  reorderQty:1000, vm:"average", lots:[]},
@@ -113,6 +151,31 @@ export default function InventoryERP() {
   const [adjustModal, setAdjustModal] = useState(null); // {item}
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
+  const [csvPreview, setCsvPreview] = useState(null); // {rows, errors}
+  const [csvFileName, setCsvFileName] = useState("");
+
+  function handleCSVFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const { rows, errors } = parseCSV(ev.target.result);
+      setCsvPreview({ rows, errors });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function confirmCSVImport() {
+    if (!csvPreview || !csvPreview.rows.length) return;
+    const newItems = csvPreview.rows.map(r => {
+      const lot = r.stock > 0 ? [{ id:"lot"+Date.now()+Math.random(), date:new Date().toISOString().split("T")[0], qty:r.stock, remaining:r.stock, costPerUnit:r.cost, poId:"csv_import" }] : [];
+      return { id:"i"+Date.now()+Math.random(), n:r.n, cat:r.cat, uom:r.uom, reorderAt:r.reorderAt, reorderQty:r.reorderQty, vm:r.vm, notes:"Imported from CSV", lots:lot, lastCost:r.cost };
+    });
+    setItems(p => [...p, ...newItems]);
+    setCsvPreview(null); setCsvFileName("");
+  }
 
   useEffect(() => { localStorage.setItem("resinops_inventory", JSON.stringify(items)); }, [items]);
   useEffect(() => { localStorage.setItem("resinops_vendors", JSON.stringify(vendors)); }, [vendors]);
@@ -231,7 +294,13 @@ export default function InventoryERP() {
           <div className="erp-card">
             <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
               <input className="erp-inp" placeholder="Search items..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:260}} />
+              <div style={{fontSize:10,color:"var(--text-3)",fontStyle:"italic"}}>QuickBooks / accounting software API bridge coming in v2</div>
               <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setItems(DEFAULT_ITEMS)}>Reset defaults</button>
+              <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={downloadTemplate}>↓ Download CSV template</button>
+              <label className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px",cursor:"pointer",margin:0}}>
+                ↑ Upload CSV
+                <input type="file" accept=".csv" style={{display:"none"}} onChange={handleCSVFile} />
+              </label>
               {!itemForm && <button className="erp-btn erp-primary" style={{marginLeft:"auto"}} onClick={()=>{setItemForm({...EMPTY_ITEM});setErr("");}}>+ Add item</button>}
             </div>
 
@@ -483,6 +552,40 @@ export default function InventoryERP() {
               <div style={{display:"flex",gap:8,marginTop:14}}>
                 <button className="erp-btn erp-primary" onClick={confirmReceive}>Confirm Receipt</button>
                 <button className="erp-btn erp-secondary" onClick={()=>setReceiveModal(null)}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV import preview modal */}
+        {csvPreview && (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:12,padding:24,width:640,maxHeight:"80vh",overflowY:"auto"}}>
+              <div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:4}}>Import Preview — {csvFileName}</div>
+              {csvPreview.errors.length>0 && (
+                <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>
+                  {csvPreview.errors.map((e,i)=><div key={i}>⚠ {e}</div>)}
+                </div>
+              )}
+              {csvPreview.rows.length>0 && (
+                <>
+                  <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>{csvPreview.rows.length} item{csvPreview.rows.length!==1?"s":""} ready to import as new inventory items with opening stock lots.</div>
+                  <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden",marginBottom:14}}>
+                    <table className="erp-tbl">
+                      <thead><tr><th>Item</th><th>Category</th><th>UoM</th><th>Stock</th><th>Cost</th><th>Reorder At</th></tr></thead>
+                      <tbody>
+                        {csvPreview.rows.slice(0,50).map((r,i)=>(
+                          <tr key={i}><td>{r.n}</td><td>{r.cat}</td><td>{r.uom}</td><td>{fmtN(r.stock)}</td><td>{fmtC(r.cost)}</td><td>{fmtN(r.reorderAt)}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {csvPreview.rows.length>50 && <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>Showing first 50 of {csvPreview.rows.length} rows.</div>}
+                </>
+              )}
+              <div style={{display:"flex",gap:8}}>
+                {csvPreview.rows.length>0 && <button className="erp-btn erp-primary" onClick={confirmCSVImport}>Import {csvPreview.rows.length} items</button>}
+                <button className="erp-btn erp-secondary" onClick={()=>{setCsvPreview(null);setCsvFileName("");}}>Cancel</button>
               </div>
             </div>
           </div>

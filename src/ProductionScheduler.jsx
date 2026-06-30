@@ -236,9 +236,11 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
 }
 
 // ── Vape formulation calculator ────────────────────────────────────────────
-function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV){
+function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV,terpSrcPotencyOverride){
   const D=parseFloat(distG)||0;const P=(parseFloat(startPotPct)||85)/100;const T=(parseFloat(targetTerpPct)||10)/100;
-  const src=TERP_SRCS[terpSrc]||TERP_SRCS.pure;
+  const baseSrc=TERP_SRCS[terpSrc]||TERP_SRCS.pure;
+  const overrideThc=terpSrcPotencyOverride!==undefined&&terpSrcPotencyOverride!==""?parseFloat(terpSrcPotencyOverride)/100:baseSrc.thc;
+  const src={...baseSrc,thc:overrideThc};
   if(src.purity<=T)return{error:"Cannot reach this terp% with selected source — purity too low"};
   const terpAdd=D*T/(src.purity-T);const total=D+terpAdd;
   const thcTotal=D*P+terpAdd*src.thc;const finalPot=(thcTotal/total*100).toFixed(1);
@@ -318,7 +320,7 @@ const CSS=`
 `;
 
 const EMPTY={
-  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,
+  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
   overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",
   extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
@@ -326,12 +328,25 @@ const EMPTY={
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
   packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",
-  vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",
+  vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",vapeTerpSrcPotency:String(TERP_SRCS.pure.thc*100),
   thcaMethod:"controlled",thcaRecrystCycles:"1",
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
 };
 
+function loadHarvestBatches(){ try{return JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");}catch{return[];} }
+const GRADE_LABELS={a:"A-Bud",b:"B-Bud",c:"C-Bud",trim:"Trim"};
+
 export default function ProductionScheduler(){
+  const harvestBatches = loadHarvestBatches();
+  const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
+  const availableHarvest = harvestBatches.filter(hb => hb.status==="done" && Object.values(hb.grades||{}).some(g=>parseFloat(g.weight)>0));
+  function selectHarvestGrade(hbId, grade) {
+    const hb = harvestBatches.find(h=>h.id===parseInt(hbId));
+    if (!hb) return;
+    const g = hb.grades[grade];
+    if (!g) return;
+    setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
+  }
   const[batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];}});
   const[form,setForm]=useState(EMPTY);
   const[formMode,setFormMode]=useState(null);
@@ -368,7 +383,7 @@ export default function ProductionScheduler(){
   const pkgCalc=isFlower&&estUnits>0?calcPkgDays(estUnits,form.packagingStaff,form.packagingBaseline,pkgSel?.v,form.packagingType):null;
 
   // Vape formulation
-  const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v):null;
+  const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v,form.vapeTerpSrcPotency):null;
 
   // R-134a cycle info
   const r134aInfo=isR134a&&inputG>0?r134aCalcDays(inputG,form.sub):null;
@@ -405,7 +420,7 @@ export default function ProductionScheduler(){
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
-      vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",
+      vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
       s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||""});
     setEditId(b.id);setFormMode("edit");setFormErr("");
@@ -423,7 +438,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim()};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -502,9 +517,30 @@ export default function ProductionScheduler(){
               {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
               <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
               <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
+              {isFlowerCat(form.cat) && availableHarvest.length>0 && (
+                <div style={{gridColumn:"span 2"}}>
+                  <label className="ps-lbl">Input source</label>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="manual"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="manual"?"#fff":"var(--text-2)",border:form.inputSource==="manual"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"manual",harvestBatchId:"",harvestGrade:""}))}>Manual Entry</button>
+                    <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="harvest"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="harvest"?"#fff":"var(--text-2)",border:form.inputSource==="harvest"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"harvest"}))}>From Harvest Batch</button>
+                  </div>
+                  {form.inputSource==="harvest" && (
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+                      <select className="ps-sel" value={form.harvestBatchId} onChange={e=>setForm(f=>({...f,harvestBatchId:e.target.value}))}>
+                        <option value="">— Select harvest batch —</option>
+                        {availableHarvest.map(hb=><option key={hb.id} value={hb.id}>{hb.strainName} — {hb.spaceName||"manual"} ({fmtF(new Date(hb.d+"T12:00:00"))})</option>)}
+                      </select>
+                      <select className="ps-sel" value={form.harvestGrade} onChange={e=>selectHarvestGrade(form.harvestBatchId,e.target.value)} disabled={!form.harvestBatchId}>
+                        <option value="">— Grade —</option>
+                        {form.harvestBatchId && harvestBatches.find(h=>h.id===parseInt(form.harvestBatchId)) && Object.entries(harvestBatches.find(h=>h.id===parseInt(form.harvestBatchId)).grades).filter(([k,g])=>parseFloat(g.weight)>0).map(([k,g])=><option key={k} value={k}>{GRADE_LABELS[k]} ({g.weight}g)</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
               <div><label className="ps-lbl">{getInputLabel(form.cat)}</label>
                 <div style={{display:"flex",gap:6}}>
-                  <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000" value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} />
+                  <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000" value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} disabled={form.inputSource==="harvest"&&!!form.harvestGrade} />
                   <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
                 </div>
               </div>
@@ -652,7 +688,8 @@ export default function ProductionScheduler(){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="ps-lbl">Distillate starting potency (% THC)</label><input type="number" min="1" max="99" className="ps-inp" value={form.vapeStartPotency} onChange={e=>setF("vapeStartPotency",e.target.value)} /></div>
                 <div><label className="ps-lbl">Target terpene % in final product</label><input type="number" min="1" max="50" step="0.5" className="ps-inp" value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)} /></div>
-                <div style={{gridColumn:"span 2"}}><label className="ps-lbl">Terpene source</label><select className="ps-sel" value={form.vapeTerpSource} onChange={e=>setF("vapeTerpSource",e.target.value)}>{Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+                <div style={{gridColumn:"span 2"}}><label className="ps-lbl">Terpene source</label><select className="ps-sel" value={form.vapeTerpSource} onChange={e=>{const k=e.target.value;setForm(f=>({...f,vapeTerpSource:k,vapeTerpSrcPotency:String((TERP_SRCS[k]?.thc||0)*100)}));}}>{Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+                <div><label className="ps-lbl">Terp source THC % — editable (default shown, override with your COA)</label><input type="number" min="0" max="100" step="0.5" className="ps-inp" value={form.vapeTerpSrcPotency} onChange={e=>setF("vapeTerpSrcPotency",e.target.value)} /></div>
               </div>
               {formCalc&&!formCalc.error&&<div className="ps-form-out">
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>

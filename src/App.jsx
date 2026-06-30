@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
+import HarvestBatches from "./HarvestBatches.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
@@ -200,6 +201,14 @@ const MODULES = [
     isScheduler: true,
   },
   {
+    id: "harvest",
+    label: "Harvest Batches",
+    icon: "🌿",
+    available: true,
+    description: "Drying, trim, cure & graded final weights",
+    isScheduler: true,
+  },
+  {
     id: "labor-setup",
     label: "Labor Setup",
     icon: "👥",
@@ -309,6 +318,9 @@ const css = `
     display: flex;
     flex-direction: column;
     padding: 20px 0;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .logo {
@@ -420,6 +432,14 @@ const css = `
     flex-direction: column;
     min-width: 0;
     overflow: hidden;
+  }
+
+  /* Force every module's top-level wrapper to respect flex shrink + scroll
+     internally, rather than growing past the viewport and being clipped. */
+  .main > div:not(.header) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   /* ── Header ── */
@@ -906,7 +926,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","labor-setup","labor-dash","inventory","finance"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -983,6 +1003,7 @@ export default function ResinOps() {
 
           {activeModule === "scheduler" ? <Scheduler /> : null}
           {activeModule === "production" ? <ProductionScheduler /> : null}
+          {activeModule === "harvest" ? <HarvestBatches /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
