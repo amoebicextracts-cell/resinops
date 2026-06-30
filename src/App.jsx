@@ -8,6 +8,7 @@ import InventoryERP from "./InventoryERP.jsx";
 import Finance from "./Finance.jsx";
 import Equipment from "./Equipment.jsx";
 import Maintenance from "./Maintenance.jsx";
+import SalesOrders from "./SalesOrders.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -259,6 +260,15 @@ const MODULES = [
     available: true,
     description: "Work orders, downtime, LOTO log",
     isScheduler: true,
+  },
+  {
+    id: "sales",
+    label: "Sales & Pre-Orders",
+    icon: "🧾",
+    available: true,
+    description: "Availability board, orders & holds",
+    isScheduler: true,
+    sectionBreak: "Sales",
   },
 ];
 
@@ -945,7 +955,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance","equipment","maintenance"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1029,6 +1039,7 @@ export default function ResinOps() {
           {activeModule === "finance" ? <Finance /> : null}
           {activeModule === "equipment" ? <Equipment /> : null}
           {activeModule === "maintenance" ? <Maintenance /> : null}
+          {activeModule === "sales" ? <SalesOrders /> : null}
 
           <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
             {showWelcome && (
