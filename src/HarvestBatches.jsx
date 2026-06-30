@@ -2,6 +2,22 @@ import { useState, useEffect } from "react";
 
 const LBS_TO_G = 453.592;
 
+
+const BUCKERS = {
+  centp_hp_mini:  {l:"CenturionPro HP Mini Bucker (single)",         t:125},
+  centp_hp1:      {l:"CenturionPro HP1 (single workstation)",        t:175},
+  centp_hp3:      {l:"CenturionPro HP3 (triple workstation)",        t:500},
+  centp_gc1:      {l:"CenturionPro GC1 (single, gentle cut)",        t:40},
+  centp_gc3:      {l:"CenturionPro GC3 (triple, gentle cut)",        t:120},
+  centp_xl_mega:  {l:"CenturionPro XL MegaBucker (12-16 operator)",  t:2400},
+  mobius_mbx:     {l:"Mobius MBX",                                   t:150},
+  twister_b4:     {l:"Twister B4",                                   t:150},
+  buckmaster:     {l:"BuckMaster (single)",                          t:150},
+  buckmaster_pro: {l:"BuckMaster Pro (double)",                      t:300},
+  hand_single:    {l:"Hand bucking — single operator",               t:50},
+  custom:         {l:"Custom / Other",                               t:100},
+};
+
 const TRIMMERS = {
   greenboz_215:{l:"GreenBroz 215",t:215},
   twister_t4:{l:"Twister T4",t:100},
@@ -31,6 +47,11 @@ function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function fmtS(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 function fmtF(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{...s,start:s0,end:e};});}
+
+function calcBuckDays(wetWeightLbs, throughput) {
+  const t = parseFloat(throughput) || 100;
+  return Math.max(1, Math.ceil((parseFloat(wetWeightLbs)||0) / t / 8)); // throughput is lbs/hr, 8hr shift -> days
+}
 
 function calcTrimDays(inputG,trimType,throughput,trimmerCount,gramsPerDay){
   const lbs=inputG/LBS_TO_G;
@@ -81,7 +102,8 @@ export default function HarvestBatches() {
   function emptyForm() {
     return {
       spaceId:"", strainName:"", plants:"", d:new Date().toISOString().split("T")[0],
-      wetWeightLbs:"",
+      wetWeightG:"",
+      buckMachine:"centp_hp1", buckThroughput:"175",
       steps: STEPS_DEFAULT.map(s=>({...s})),
       trimType:"machine", trimMachine:"greenboz_215", trimThroughput:"215",
       trimmerCount:"4", gramsPerTrimmerDay:"350",
@@ -106,7 +128,9 @@ export default function HarvestBatches() {
     setForm(f=>({...f, strainName: strainObj.name, plants: String(strainObj.plants) }));
   }
 
-  const inputG = form ? (parseFloat(form.wetWeightLbs)||0)*LBS_TO_G : 0;
+  const inputG = form ? (parseFloat(form.wetWeightG)||0) : 0;
+  const buckCalc = inputG>0 ? calcBuckDays(inputG/LBS_TO_G, form.buckThroughput) : null;
+  function applyBuckDays() { if(!buckCalc) return; setForm(f=>({...f, steps:f.steps.map(s=>s.n==="Bucking"?{...s,days:buckCalc}:s)})); }
   const trimCalc = inputG>0 ? calcTrimDays(inputG, form.trimType, form.trimThroughput, form.trimmerCount, form.gramsPerTrimmerDay) : null;
   function applyTrimDays() { if(!trimCalc) return; setForm(f=>({...f, steps:f.steps.map(s=>s.n==="Trimming"?{...s,days:trimCalc}:s)})); }
 
@@ -115,14 +139,14 @@ export default function HarvestBatches() {
   function validate() {
     if (!form.strainName.trim()) { setErr("Enter or select a strain."); return false; }
     if (!form.d) { setErr("Select a harvest date."); return false; }
-    if (!form.wetWeightLbs || parseFloat(form.wetWeightLbs)<=0) { setErr("Enter wet weight."); return false; }
+    if (!form.wetWeightG || parseFloat(form.wetWeightG)<=0) { setErr("Enter wet weight."); return false; }
     return true;
   }
 
   function saveBatch() {
     if (!validate()) return;
     const batch = { ...form, id: formMode==="edit" ? form.id : Date.now(),
-      plants: parseInt(form.plants)||0, wetWeightLbs: parseFloat(form.wetWeightLbs)||0,
+      plants: parseInt(form.plants)||0, wetWeightG: parseFloat(form.wetWeightG)||0,
       spaceName: selSpace?.name||"", totalDryWeight,
       status: totalDryWeight>0 ? "done" : "open" };
     if (formMode==="edit") setBatches(p=>p.map(b=>b.id===batch.id?batch:b));
@@ -141,7 +165,7 @@ export default function HarvestBatches() {
       const tl = timelines[idx]; const end = tl[tl.length-1]?.end;
       const stepRows = tl.map(s=>'<tr><td style="padding:4px 12px 4px 0;color:#555;font-size:13px;">'+s.n+'</td><td style="font-size:13px;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");
       const gradeRows = GRADES.map(g=>{const gd=b.grades[g.k];return gd.weight?'<tr><td style="padding:3px 12px 3px 0;font-size:13px;">'+g.l+'</td><td style="font-size:13px;">'+gd.weight+'g</td><td style="font-size:12px;color:#666;">'+(gd.s2s||"—")+'</td></tr>':'';}).join("");
-      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+b.wetWeightLbs+' lbs wet \u00b7 Harvested '+fmtF(new Date(b.d+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+b.totalDryWeight.toFixed(1)+'g</p></div>';
+      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+b.wetWeightG+'g wet \u00b7 Harvested '+fmtF(new Date(b.d+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+b.totalDryWeight.toFixed(1)+'g</p></div>';
     }).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
     const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Harvest Batches</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;}h1{font-size:22px;color:#2d5a3d;}</style></head><body><h1>ResinOps — Harvest Batches</h1><p style="color:#666;font-size:13px;">Exported '+date+'</p>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Harvest-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
@@ -192,7 +216,22 @@ export default function HarvestBatches() {
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10}}>
-              <div><label className="hb-lbl">Wet weight at harvest (lbs)</label><input type="number" min="0" step="0.1" className="hb-inp" value={form.wetWeightLbs} onChange={e=>setF("wetWeightLbs",e.target.value)} placeholder="50" /></div>
+              <div><label className="hb-lbl">Wet weight at harvest (grams)</label><input type="number" min="0" step="1" className="hb-inp" value={form.wetWeightG} onChange={e=>setF("wetWeightG",e.target.value)} placeholder="22700" /><div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>{form.wetWeightG?((parseFloat(form.wetWeightG)||0)/LBS_TO_G).toFixed(1)+" lbs":""}</div></div>
+            </div>
+
+            {/* Bucking machine */}
+            <div className="hb-box">
+              <div className="hb-box-t">Bucking Machine</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+                <div><label className="hb-lbl">Machine</label><select className="hb-sel" value={form.buckMachine} onChange={e=>{setF("buckMachine",e.target.value);setF("buckThroughput",String(BUCKERS[e.target.value]?.t||100));}}>{Object.entries(BUCKERS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+                <div><label className="hb-lbl">Throughput (lbs/hr wet) — editable</label><input type="number" min="1" className="hb-inp" value={form.buckThroughput} onChange={e=>setF("buckThroughput",e.target.value)} /></div>
+              </div>
+              {buckCalc && (
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.1)",borderRadius:5,padding:"4px 8px"}}>Calculated bucking time: {buckCalc} day{buckCalc>1?"s":""} (8-hr shifts)</div>
+                  <button className="hb-btn hb-secondary" style={{fontSize:11,padding:"3px 10px"}} onClick={applyBuckDays}>Apply to step</button>
+                </div>
+              )}
             </div>
 
             {/* Trim method */}
@@ -274,7 +313,7 @@ export default function HarvestBatches() {
                       <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}</td>
                       <td>{b.spaceName||"—"}</td>
                       <td>{b.plants}</td>
-                      <td>{b.wetWeightLbs} lbs</td>
+                      <td>{b.wetWeightG}g <span style={{fontSize:10,color:"var(--text-3)"}}>({(b.wetWeightG/LBS_TO_G).toFixed(1)} lbs)</span></td>
                       <td>{b.grades.a.weight?b.grades.a.weight+"g":"—"}</td>
                       <td>{b.grades.b.weight?b.grades.b.weight+"g":"—"}</td>
                       <td>{b.grades.c.weight?b.grades.c.weight+"g":"—"}</td>

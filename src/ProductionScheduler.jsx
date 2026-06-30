@@ -5,6 +5,26 @@ const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
 const CANNABINOIDS=["THC","THCa","CBD","CBDa","CBG","CBN","CBC","THCV"];
 
 // ── Machine trimmer specs (lbs/day) ────────────────────────────────────────
+
+// ── Pre-roll machine specs (joints/hour, published manufacturer figures) ──
+const PREROLL_MACHINES = {
+  hand:           {l:"Hand-rolled / manual fill",                t:0},
+  knockbox_100:   {l:"Futurola Knockbox 100 (single op.)",        t:529},
+  knockbox_2op:   {l:"Futurola Knockbox (2-operator)",            t:1000},
+  kingkone_1op:   {l:"King Kone (single op.)",                    t:585},
+  kingkone_2op:   {l:"King Kone (2-operator)",                    t:1170},
+  filnfold_1op:   {l:"Fill N' Fold (single op.)",                 t:837},
+  filnfold_2op:   {l:"Fill N' Fold (2-operator)",                 t:1361},
+  blackbird:      {l:"RollPros Blackbird",                        t:900},
+  preroller_100:  {l:"PreRoll-Er 100",                            t:1000},
+  preroller_200:  {l:"PreRoll-Er 200",                            t:1300},
+  preroller_400:  {l:"PreRoll-Er 400",                            t:1400},
+  rocketbox_2:    {l:"STM RocketBox 2.0",                         t:2500},
+  rocketbox_pro:  {l:"STM RocketBox Pro",                         t:2500},
+  aurax:          {l:"Hefestus AuraX",                            t:2000},
+  custom:         {l:"Custom / Other",                            t:500},
+};
+
 const TRIMMERS={
   greenboz_215:{l:"GreenBroz 215",t:215},
   twister_t4:{l:"Twister T4",t:100},
@@ -257,6 +277,12 @@ function calcTrimDays(inputG,trimType,machine,throughput,trimmerCount,gramsPerDa
 }
 
 // ── Packaging time calculator ──────────────────────────────────────────────
+function calcPrerollDays(totalUnits, throughput) {
+  const t = parseFloat(throughput) || 500;
+  if (t<=0) return null;
+  return Math.max(1, Math.ceil(totalUnits / t / 8)); // throughput is units/hr, 8hr shift
+}
+
 function calcPkgDays(totalUnits,staffCount,baselineRate,pkgSize,pkgType){
   const rate=(parseFloat(baselineRate)||150)*Math.sqrt(3.5/(pkgSize||3.5))*(pkgType==="mylar"?1.3:1.0);
   const staff=parseInt(staffCount)||1;const hours=totalUnits/(staff*rate);
@@ -326,6 +352,7 @@ const EMPTY={
   extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
   kiefSift:false,kief40Pct:"12",kief100Pct:"8",cannabinoids:["THC"],
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
+  prerollMachine:"knockbox_100",prerollThroughput:"529",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
   packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",
   vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",vapeTerpSrcPotency:String(TERP_SRCS.pure.thc*100),
@@ -381,6 +408,11 @@ export default function ProductionScheduler(){
   // Packaging calculator
   const estUnits=inputG&&pkgSel?Math.floor(inputG/pkgSel.v*0.90):0;
   const pkgCalc=isFlower&&estUnits>0?calcPkgDays(estUnits,form.packagingStaff,form.packagingBaseline,pkgSel?.v,form.packagingType):null;
+  const isPreRoll = form.cat==="pre_roll";
+  const preRollUnitMatch = yieldEst?.match(/^([\d,]+)\s*cones/);
+  const preRollUnits = preRollUnitMatch ? parseInt(preRollUnitMatch[1].replace(/,/g,"")) : 0;
+  const prerollCalc = isPreRoll && preRollUnits>0 ? calcPrerollDays(preRollUnits, form.prerollThroughput) : null;
+  function applyPrerollDays(){ if(!prerollCalc) return; setForm(f=>({...f, steps:formSteps.map(s=>s.n==="Rolling / Filling"?{...s,days:prerollCalc}:s)})); }
 
   // Vape formulation
   const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v,form.vapeTerpSrcPotency):null;
@@ -418,7 +450,7 @@ export default function ProductionScheduler(){
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
       overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
-      trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),
+      trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
@@ -438,7 +470,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -624,6 +656,22 @@ export default function ProductionScheduler(){
                 <div><label className="ps-lbl">40-mesh kief % of stems</label><input type="number" min="0" max="30" step="0.5" className="ps-inp" value={form.kief40Pct} onChange={e=>setF("kief40Pct",e.target.value)} /></div>
                 <div><label className="ps-lbl">100-mesh kief % of stems</label><input type="number" min="0" max="20" step="0.5" className="ps-inp" value={form.kief100Pct} onChange={e=>setF("kief100Pct",e.target.value)} /></div>
               </div>}
+            </div>}
+
+            {/* Pre-roll machine throughput */}
+            {form.cat==="pre_roll"&&<div className="ps-box">
+              <div className="ps-box-t">Pre-Roll Machine</div>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:8}}>
+                <div><label className="ps-lbl">Machine</label><select className="ps-sel" value={form.prerollMachine} onChange={e=>{setF("prerollMachine",e.target.value);setF("prerollThroughput",String(PREROLL_MACHINES[e.target.value]?.t||500));}}>{Object.entries(PREROLL_MACHINES).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
+                <div><label className="ps-lbl">Throughput (joints/hr) — editable</label><input type="number" min="0" className="ps-inp" value={form.prerollThroughput} onChange={e=>setF("prerollThroughput",e.target.value)} disabled={form.prerollMachine==="hand"} /></div>
+              </div>
+              {prerollCalc && (
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div className="ps-calc-note">Calculated rolling/filling time: {prerollCalc} day{prerollCalc>1?"s":""} for ~{preRollUnits.toLocaleString()} cones (8-hr shifts)</div>
+                  <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyPrerollDays}>Apply to step</button>
+                </div>
+              )}
+              {form.prerollMachine==="hand" && <div style={{fontSize:11,color:"var(--text-3)"}}>Hand-rolled — set Rolling / Filling days manually below based on crew size.</div>}
             </div>}
 
             {/* Ground flower */}
