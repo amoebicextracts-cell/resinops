@@ -131,11 +131,15 @@ function totalPlants(sp) { return (sp.strains||[]).reduce((a,s)=>a+(parseInt(s.p
 function strainSummary(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name+" ("+s.plants+")").join(", ") || sp.strain || ""; }
 function strainNames(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name).join(", ") || sp.strain || ""; }
 
-const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }] };
+const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }], growMapId: "" };
 
 export default function Scheduler() {
   const [spaces, setSpaces] = useState(() => {
     try { return JSON.parse(localStorage.getItem("resinops_spaces") || "[]"); }
+    catch { return []; }
+  });
+  const [growMap, setGrowMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("resinops_grow_map") || "[]"); }
     catch { return []; }
   });
   const [form, setForm]         = useState(EMPTY_FORM);
@@ -147,6 +151,37 @@ export default function Scheduler() {
     localStorage.setItem("resinops_spaces", JSON.stringify(spaces));
   }, [spaces]);
 
+  // Keep a live read of grow map so changes made in GrowMap tab are reflected here
+  useEffect(() => {
+    function syncGrowMap() {
+      try { setGrowMap(JSON.parse(localStorage.getItem("resinops_grow_map") || "[]")); } catch {}
+    }
+    window.addEventListener("storage", syncGrowMap);
+    return () => window.removeEventListener("storage", syncGrowMap);
+  }, []);
+
+  // Write a new or updated room back to Grow Map if it doesn't already exist there
+  function syncToGrowMap(name, growMapId) {
+    const existing = growMap.find(g => g.id === growMapId || g.name === name);
+    if (existing) {
+      // Update status to active when a batch is scheduled into it
+      const updated = growMap.map(g => g.id === existing.id ? { ...g, status: "active" } : g);
+      setGrowMap(updated);
+      localStorage.setItem("resinops_grow_map", JSON.stringify(updated));
+    } else {
+      // Create a stub entry so the room appears in Grow Map
+      const stub = {
+        id: "gm_auto_" + Date.now(), name: name.trim(), type: "Indoor",
+        status: "active", sqft: "", canopy: "", maxPlants: "", lightType: "LED",
+        lightCount: "", lightWatts: "", resetDays: "7", lastHarvestDate: "",
+        sensorId: "", notes: "Auto-created from Cultivation Scheduler",
+      };
+      const updated = [...growMap, stub];
+      setGrowMap(updated);
+      localStorage.setItem("resinops_grow_map", JSON.stringify(updated));
+    }
+  }
+
   const formTotalPlants = (form.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0);
   const clones = formTotalPlants > 0 ? cloneTarget(formTotalPlants) : null;
   function setStrainField(i, k, v) { setForm(f => ({ ...f, strains: f.strains.map((s,idx)=>idx===i?{...s,[k]:v}:s) })); }
@@ -155,14 +190,14 @@ export default function Scheduler() {
 
   function openAdd() {
     const today = new Date().toISOString().split("T")[0];
-    setForm({ ...EMPTY_FORM, d: today, strains: [{ id: Date.now(), name: "", plants: "" }] });
+    setForm({ ...EMPTY_FORM, d: today, strains: [{ id: Date.now(), name: "", plants: "" }], growMapId: "" });
     setFormMode("add");
     setFormErr("");
   }
 
   function openEdit(sp) {
     const strains = (sp.strains&&sp.strains.length) ? sp.strains.map(s=>({id:s.id,name:s.name,plants:String(s.plants)})) : [{ id: Date.now(), name: sp.strain||"", plants: String(sp.plants||"") }];
-    setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains });
+    setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains, growMapId: sp.growMapId||"" });
     setEditId(sp.id);
     setFormMode("edit");
     setFormErr("");
@@ -186,8 +221,9 @@ export default function Scheduler() {
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     setSpaces(prev => [...prev, {
       id: Date.now(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
-      d: form.d, plants: totalP, veg, flw, harvested: false
+      d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||""
     }]);
+    syncToGrowMap(form.name.trim(), form.growMapId);
     closeForm();
   }
 
@@ -199,9 +235,10 @@ export default function Scheduler() {
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     setSpaces(prev => prev.map(sp => sp.id === editId
       ? { ...sp, name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
-          d: form.d, plants: totalP, veg, flw }
+          d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" }
       : sp
     ));
+    syncToGrowMap(form.name.trim(), form.growMapId);
     closeForm();
   }
 
@@ -334,9 +371,29 @@ export default function Scheduler() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div>
-            <label className="sch-label">Space name</label>
-            <input className="sch-input" placeholder="Indoor Room 1"
-              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            <label className="sch-label">Space — select from Grow Map or type new</label>
+            {growMap.length > 0 ? (
+              <>
+                <select className="sch-input" style={{cursor:"pointer",marginBottom:6}}
+                  value={form.growMapId}
+                  onChange={e => {
+                    const gm = growMap.find(g => g.id === e.target.value);
+                    setForm(f => ({ ...f, growMapId: e.target.value, name: gm ? gm.name : f.name }));
+                  }}>
+                  <option value="">— Select existing room —</option>
+                  {growMap.map(g => <option key={g.id} value={g.id}>{g.name} ({g.type}){g.status==="active"?" 🌱":g.status==="cleaning"?" 🧹":""}</option>)}
+                </select>
+                <input className="sch-input" placeholder="Or type a new space name"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value, growMapId: "" }))} />
+              </>
+            ) : (
+              <>
+                <input className="sch-input" placeholder="Indoor Room 1"
+                  value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                <div style={{fontSize:10,color:"var(--text-3)",marginTop:3}}>Add rooms to the Grow Map tab to select from a dropdown here</div>
+              </>
+            )}
           </div>
           <div>
             <label className="sch-label">Clone cut date</label>

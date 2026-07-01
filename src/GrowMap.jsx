@@ -52,6 +52,11 @@ const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED
 
 export default function GrowMap(){
   const [spaces,setSpaces]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");}catch{return[];}});
+  const cultSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
+
+  function getActiveBatch(roomName, roomId) {
+    return cultSpaces.find(s => s.name === roomName || s.growMapId === roomId);
+  }
   const [form,setForm]=useState(null);
   const [err,setErr]=useState("");
 
@@ -179,6 +184,7 @@ export default function GrowMap(){
                       {ready.diff>=0?`Ready in ${ready.diff}d — ${fmtD(ready.date)}`:`Reset overdue by ${Math.abs(ready.diff)}d`}
                     </div>}
                     {sp.sensorId&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>Sensor: {sp.sensorId}</div>}
+                    {(()=>{const ab=getActiveBatch(sp.name,sp.id);return ab?(<div style={{fontSize:11,color:"var(--accent-2)",fontWeight:500,marginTop:4,background:"rgba(74,124,89,0.1)",borderRadius:5,padding:"3px 7px",display:"inline-block"}}>🌱 Active batch: {(ab.strains||[]).map(s=>s.name).join(", ")||ab.strain||"—"}</div>):null;})()}
                     {sp.notes&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>{sp.notes}</div>}
                     <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
                       {sp.status!=="cleaning"&&<button className="gm-sm gm-secondary" onClick={()=>setStatus(sp.id,"cleaning")}>→ Cleaning</button>}
