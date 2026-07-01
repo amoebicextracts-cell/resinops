@@ -94,7 +94,7 @@ const SBG={
   "Sauce Separation":"#3a1838","Filling":"#183040","Production":"#104038","Dose QC":"#0e2838",
   "THCa Crystallization":"#0e2848","Crystal Filtration":"#182848","Crystal Wash":"#102040",
   "Residual Purge":"#3e1814","Material Decarb 125C":"#582808",
-  "R-134a Terp Cut":"#1e3858","R-134a Cannabinoid Cut":"#1a2e58",
+  "R-134a Terp Cut":"#1e3858","R-134a Cannabinoid Cut":"#1a2e58","Micron Filtration":"#163045","Vacuum Purge (12 hr)":"#102035","Intermediary Storage / QC Hold":"#2a3a2a",
   "Crude Extraction":"#482010",
   "Cold Hydrocarbon Extraction":"#502010",
   "Controlled Crash Crystallization":"#102858",
@@ -116,7 +116,7 @@ const SFG={
   "Sauce Separation":"#d080e0","Filling":"#80c0f0","Production":"#70e0c8","Dose QC":"#80c0f0",
   "THCa Crystallization":"#80c0f8","Crystal Filtration":"#90d0f8","Crystal Wash":"#78c0f0",
   "Residual Purge":"#f0b090","Material Decarb 125C":"#f8b870",
-  "R-134a Terp Cut":"#80c8f8","R-134a Cannabinoid Cut":"#78b8f8",
+  "R-134a Terp Cut":"#80c8f8","R-134a Cannabinoid Cut":"#78b8f8","Micron Filtration":"#60a8e8","Vacuum Purge (12 hr)":"#5090d8","Intermediary Storage / QC Hold":"#90b890",
   "Crude Extraction":"#f0a060",
   "Cold Hydrocarbon Extraction":"#f0a060",
   "Controlled Crash Crystallization":"#70b0f8",
@@ -174,8 +174,8 @@ const STEPS={
   distillate:   [{n:"Intake / Prep",days:1},{n:"Crude Extraction",days:3},{n:"Winterization",days:2},{n:"Decarb",days:1},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   // thca_ff and thca_trim use getThcaSteps() dynamically
 
-  r134a_20l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
-  r134a_50l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  r134a_20l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"Micron Filtration",days:1},{n:"Vacuum Purge (12 hr)",days:1},{n:"Intermediary Storage / QC Hold",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+  r134a_50l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"Micron Filtration",days:1},{n:"Vacuum Purge (12 hr)",days:1},{n:"Intermediary Storage / QC Hold",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   cartridge:    [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   disposable:   [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Filling",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   oil_rosin:    [{n:"Intake / Prep",days:1},{n:"Sauce Separation",days:2},{n:"Formulation",days:2},{n:"Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
@@ -245,7 +245,7 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
     if(sub==="distillate"){const crude=g*0.18;const total=crude*0.70;const main=total*0.80;const ht=total*0.20;return`Crude: ${crude.toFixed(0)}g → Distillate: ${total.toFixed(0)}g total | Main body: ${main.toFixed(0)}g (retail) + ${ht.toFixed(0)}g heads/tails (edibles grade) — 2 batches created`;}
     if(sub==="thca_ff"){const thca=g*0.08;const hte=g*0.06;const units=Math.floor(thca/pkgV*0.97);return`THCa: ~${thca.toFixed(0)}g (~8% of biomass) · ${units.toLocaleString()} × ${pkgL} | HTE co-product: ~${hte.toFixed(0)}g (linked batch auto-created)`;}
     if(sub==="thca_trim"){const thca=g*0.04;const hte=g*0.03;const units=Math.floor(thca/pkgV*0.97);return`THCa: ~${thca.toFixed(0)}g (~4% of trim) · ${units.toLocaleString()} × ${pkgL} | HTE co-product: ~${hte.toFixed(0)}g (linked batch auto-created)`;}
-    if(sub==="r134a_20l"||sub==="r134a_50l"){const cap=sub==="r134a_50l"?5000:2500;const cycles=Math.ceil(g/cap);const terp=g*0.05;const cannab=g*0.145;return`${cycles} cycle${cycles>1?"s":""} · Terp liquid: ~${terp.toFixed(0)}g (50% terps) · Cannabinoid cut: ~${cannab.toFixed(0)}g (est. 14.5%)`;}
+    if(sub==="r134a_20l"||sub==="r134a_50l"){const cap=sub==="r134a_50l"?5000:2500;const cycles=Math.ceil(g/cap);const terp=g*0.05;const cannab=g*0.145;return`${cycles} cycle${cycles>1?"s":""} · Terp liquid: ~${terp.toFixed(0)}g · Cannabinoid cut: ~${cannab.toFixed(0)}g — INTERMEDIARY PRODUCT (not finished good)`;}
     const out=g*(ym[sub]||0.15);const units=Math.floor(out/pkgV*0.97);return`~${out.toFixed(1)}g · ${units.toLocaleString()} × ${pkgL} units`;
   }
   if(cat==="vape"){const isOil=sub==="oil_rosin"||sub==="oil_live_resin";const fillEff=vapeInputType==="live_resin"||sub==="oil_live_resin"?0.95:vapeInputType==="rosin"||sub==="oil_rosin"?0.93:0.97;const units=Math.floor(g*fillEff/pkgV);return`~${units.toLocaleString()} × ${pkgL} ${sub==="disposable"?"AIOs":isOil?"oil units":"carts"}${isOil?" ("+sauceSepMethod.replace("_"," ")+" sep)":""}`;}
@@ -292,7 +292,11 @@ function calcPkgDays(totalUnits,staffCount,baselineRate,pkgSize,pkgType){
 // ── R-134a step calculator ─────────────────────────────────────────────────
 function r134aCalcDays(inputG,machineType){
   const cap=machineType==="r134a_50l"?5000:2500;const cycles=Math.ceil(inputG/cap);
-  return{cycles,terpDays:Math.max(1,Math.ceil(cycles*4/8)),decarbDays:Math.max(1,Math.ceil(cycles*2/8)),cannabDays:Math.max(1,Math.ceil(cycles*14/8))};
+  // Filtration: ~4 hrs per liter of cannabinoid cut output (14.5% yield, treat as ml≈g)
+  const cannabG=inputG*0.145;
+  const filterHrs=cannabG/1000*4; // 4 hrs per liter
+  const filterDays=Math.max(1,Math.ceil(filterHrs/8));
+  return{cycles,terpDays:Math.max(1,Math.ceil(cycles*4/8)),decarbDays:Math.max(1,Math.ceil(cycles*2/8)),cannabDays:Math.max(1,Math.ceil(cycles*14/8)),filterDays,purgeDays:1};
 }
 
 // ── Date helpers ───────────────────────────────────────────────────────────
@@ -442,7 +446,7 @@ export default function ProductionScheduler(){
   function updateStep(i,v){setForm(f=>({...f,steps:formSteps.map((s,idx)=>idx===i?{...s,days:parseInt(v)||0}:s)}));}
   function applyTrimDays(){if(!trimCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Trimming"?{...s,days:trimCalc.days}:s)}));}
   function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
-  function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};return s;})}));}
+  function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};if(s.n==="Micron Filtration")return{...s,days:r134aInfo.filterDays};if(s.n==="Vacuum Purge (12 hr)")return{...s,days:r134aInfo.purgeDays};return s;})}));}
 
   function openAdd(){const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
   function openEdit(b){
@@ -622,7 +626,7 @@ export default function ProductionScheduler(){
                 Machine: {form.sub==="r134a_50l"?"50L (5,000g capacity)":"20L (2,500g capacity)"} · {r134aInfo.cycles} cycle{r134aInfo.cycles>1?"s":""} needed for {inputG.toFixed(0)}g input
               </div>
               <div style={{fontSize:11,color:"var(--text-3)",marginBottom:8}}>
-                Terp cut: {r134aInfo.terpDays} day{r134aInfo.terpDays>1?"s":""} · Decarb 125°C: {r134aInfo.decarbDays} day{r134aInfo.decarbDays>1?"s":""} · Cannabinoid cut: {r134aInfo.cannabDays} day{r134aInfo.cannabDays>1?"s":""}
+                Terp cut: {r134aInfo.terpDays}d · Decarb 125°C: {r134aInfo.decarbDays}d · Cannabinoid cut: {r134aInfo.cannabDays}d · Filtration: {r134aInfo.filterDays}d · Vacuum purge: 1d
               </div>
               <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"4px 10px"}} onClick={applyR134aDays}>Apply calculated days to steps</button>
             </div>}

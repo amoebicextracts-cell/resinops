@@ -3,6 +3,10 @@ import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
 import HarvestBatches from "./HarvestBatches.jsx";
 import Remediation from "./Remediation.jsx";
+import GrowMap from "./GrowMap.jsx";
+import CloneScheduler from "./CloneScheduler.jsx";
+import PhenoHunt from "./PhenoHunt.jsx";
+import StrainDatabase from "./StrainDatabase.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
@@ -210,6 +214,39 @@ const MODULES = [
     icon: "🌿",
     available: true,
     description: "Drying, trim, cure & graded final weights",
+    isScheduler: true,
+  },
+  {
+    id: "grow-map",
+    label: "Grow Map",
+    icon: "🗺️",
+    available: true,
+    description: "Room & space repository with reset tracking",
+    isScheduler: true,
+  },
+  {
+    id: "clone-scheduler",
+    label: "Clone Scheduler",
+    icon: "✂️",
+    available: true,
+    description: "Auto back-calculates clone cut dates by room",
+    isScheduler: true,
+  },
+  {
+    id: "pheno-hunt",
+    label: "Pheno Hunt Tracker",
+    icon: "🌱",
+    available: true,
+    description: "Seed-by-seed tracking to keeper selection",
+    isScheduler: true,
+    sectionBreak: "Genetics",
+  },
+  {
+    id: "strain-db",
+    label: "Strain Database",
+    icon: "🧬",
+    available: true,
+    description: "Strain registry with parentage & AI descriptions",
     isScheduler: true,
   },
   {
@@ -964,7 +1001,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","remediation","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1043,6 +1080,10 @@ export default function ResinOps() {
           {activeModule === "production" ? <ProductionScheduler /> : null}
           {activeModule === "harvest" ? <HarvestBatches /> : null}
           {activeModule === "remediation" ? <Remediation /> : null}
+          {activeModule === "grow-map" ? <GrowMap /> : null}
+          {activeModule === "clone-scheduler" ? <CloneScheduler /> : null}
+          {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
+          {activeModule === "strain-db" ? <StrainDatabase /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
