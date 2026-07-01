@@ -12,6 +12,9 @@ import CultivationInputs from "./CultivationInputs.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
+import Dashboard from "./Dashboard.jsx";
+import DataManager from "./DataManager.jsx";
+import FacilitySettings from "./FacilitySettings.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
@@ -297,6 +300,23 @@ const MODULES = [
     isScheduler: true,
     sectionBreak: "Finance",
     removePrevSection: true,
+  },
+  {
+    id: "data-manager",
+    label: "Data & Imports",
+    icon: "✨",
+    available: true,
+    description: "AI import, backup & restore",
+    isScheduler: true,
+    sectionBreak: "Settings",
+  },
+  {
+    id: "facility-settings",
+    label: "Facility Settings",
+    icon: "⚙️",
+    available: true,
+    description: "License info, system settings",
+    isScheduler: true,
   },
   {
     id: "remediation",
@@ -1050,7 +1070,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","cult-inputs","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","cult-inputs","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1138,6 +1158,9 @@ export default function ResinOps() {
           {activeModule === "gmp-hub" ? <GMPHub /> : null}
           {activeModule === "employees" ? <Employees /> : null}
           {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
+          {activeModule === "dashboard" ? <Dashboard onNavigate={setActiveModule} /> : null}
+          {activeModule === "data-manager" ? <DataManager /> : null}
+          {activeModule === "facility-settings" ? <FacilitySettings /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
