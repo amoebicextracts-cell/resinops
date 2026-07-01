@@ -7,6 +7,11 @@ import GrowMap from "./GrowMap.jsx";
 import CloneScheduler from "./CloneScheduler.jsx";
 import PhenoHunt from "./PhenoHunt.jsx";
 import StrainDatabase from "./StrainDatabase.jsx";
+import Employees from "./Employees.jsx";
+import CultivationInputs from "./CultivationInputs.jsx";
+import QCTesting from "./QCTesting.jsx";
+import GMPHub from "./GMPHub.jsx";
+import BatchDashboard from "./BatchDashboard.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
@@ -248,6 +253,50 @@ const MODULES = [
     available: true,
     description: "Strain registry with parentage & AI descriptions",
     isScheduler: true,
+  },
+  {
+    id: "cult-inputs",
+    label: "Cultivation Inputs",
+    icon: "🌱",
+    available: true,
+    description: "Nutrient log, spray records, beneficial releases",
+    isScheduler: true,
+    sectionBreak: "Compliance",
+  },
+  {
+    id: "qc-testing",
+    label: "QC & Lab Testing",
+    icon: "🔬",
+    available: true,
+    description: "COA panel tracking with auto-remediation flags",
+    isScheduler: true,
+  },
+  {
+    id: "gmp-hub",
+    label: "GMP Hub",
+    icon: "📋",
+    available: true,
+    description: "SOPs, deviations, shift log & batch records",
+    isScheduler: true,
+  },
+  {
+    id: "employees",
+    label: "Employees",
+    icon: "👥",
+    available: true,
+    description: "Staff roster, licenses, certs & training records",
+    isScheduler: true,
+    sectionBreak: "People",
+  },
+  {
+    id: "batch-dashboard",
+    label: "Batch Margin Dashboard",
+    icon: "📊",
+    available: true,
+    description: "Live cost & margin view across all batches",
+    isScheduler: true,
+    sectionBreak: "Finance",
+    removePrevSection: true,
   },
   {
     id: "remediation",
@@ -1001,7 +1050,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
+  const isSchedulerActive = ["scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","cult-inputs","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales"].includes(activeModule);
 
   const showWelcome = messages.length === 0;
 
@@ -1084,6 +1133,11 @@ export default function ResinOps() {
           {activeModule === "clone-scheduler" ? <CloneScheduler /> : null}
           {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
           {activeModule === "strain-db" ? <StrainDatabase /> : null}
+          {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
+          {activeModule === "qc-testing" ? <QCTesting /> : null}
+          {activeModule === "gmp-hub" ? <GMPHub /> : null}
+          {activeModule === "employees" ? <Employees /> : null}
+          {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
           {activeModule === "labor-dash" ? <LaborDashboard /> : null}
           {activeModule === "inventory" ? <InventoryERP /> : null}
