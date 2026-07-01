@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import mammoth from "mammoth";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -182,6 +181,8 @@ export default function DataManager(){
         content="EXCEL FILE — Sheet: "+wb.SheetNames[0]+"\n"+XLSX.utils.sheet_to_csv(ws).slice(0,20000);
       }
       else if(ext==="docx"){
+        // Dynamically load mammoth browser build to avoid Vercel native-dep issues
+        const mammoth=(await import("mammoth/mammoth.browser.js")).default;
         const buf=await file.arrayBuffer();
         const result=await mammoth.extractRawText({arrayBuffer:buf});
         content="WORD DOCUMENT:\n"+result.value.slice(0,20000);
