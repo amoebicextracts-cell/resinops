@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import * as XLSX from "xlsx";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -175,17 +174,16 @@ export default function DataManager(){
         content=content.slice(0,30000);
       }
       else if(ext==="xlsx"||ext==="xls"){
-        const buf=await file.arrayBuffer();
-        const wb=XLSX.read(buf,{type:"array"});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        content="EXCEL FILE — Sheet: "+wb.SheetNames[0]+"\n"+XLSX.utils.sheet_to_csv(ws).slice(0,20000);
+        setImportErr("For Excel files, please open the file and use File → Save As → CSV (.csv), then upload the CSV here. CSV imports work perfectly and avoid browser compatibility issues with Excel's binary format.");
+        setImportState("error");
+        return;
       }
       else if(ext==="docx"){
-        // Dynamically load mammoth browser build to avoid Vercel native-dep issues
-        const mammoth=(await import("mammoth/mammoth.browser.js")).default;
-        const buf=await file.arrayBuffer();
-        const result=await mammoth.extractRawText({arrayBuffer:buf});
-        content="WORD DOCUMENT:\n"+result.value.slice(0,20000);
+        // DOCX: ask user to save as PDF or copy-paste text instead
+        // (mammoth native deps are not compatible with all build environments)
+        setImportErr("For Word documents (.docx), please save a copy as PDF, then upload the PDF — or copy and paste the text content into a .txt file and upload that instead. CSV and Excel exports work directly.");
+        setImportState("error");
+        return;
       }
       else if(ext==="pdf"){
         // Extract text via pdfjs loaded from CDN
