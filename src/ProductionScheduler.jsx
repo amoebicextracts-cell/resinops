@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { autoPopulateStrains } from "./strainUtils.js";
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -498,6 +499,7 @@ export default function ProductionScheduler(){
       }
       setBatches(p=>[...p,...newBatches]);
     }
+    autoPopulateStrains(form.strains, { source: "Production Scheduler" });
     closeForm();
   }
 

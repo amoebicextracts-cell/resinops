@@ -127,6 +127,8 @@ const CSS = `
   .sch-export-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
 `;
 
+import { autoPopulateStrains } from "./strainUtils.js";
+
 function totalPlants(sp) { return (sp.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0) || sp.plants || 0; }
 function strainSummary(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name+" ("+s.plants+")").join(", ") || sp.strain || ""; }
 function strainNames(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name).join(", ") || sp.strain || ""; }
@@ -223,6 +225,7 @@ export default function Scheduler() {
       id: Date.now(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
       d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||""
     }]);
+    autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
     syncToGrowMap(form.name.trim(), form.growMapId);
     closeForm();
   }
@@ -238,6 +241,7 @@ export default function Scheduler() {
           d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" }
       : sp
     ));
+    autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
     syncToGrowMap(form.name.trim(), form.growMapId);
     closeForm();
   }

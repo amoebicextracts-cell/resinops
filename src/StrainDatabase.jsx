@@ -122,7 +122,14 @@ export default function StrainDatabase(){
     });
   }
 
-  const filtered=strains.filter(s=>!search||s.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered=strains
+    .filter(s=>!search||s.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>{
+      const aAuto=a.notes?.startsWith("Auto-added from")?1:0;
+      const bAuto=b.notes?.startsWith("Auto-added from")?1:0;
+      if(aAuto!==bAuto) return aAuto-bAuto;
+      return a.name.localeCompare(b.name);
+    });
   const keeperPhenos=phenoHunts.flatMap(h=>(h.seeds||[]).filter(s=>s.isKeeper).map(s=>({hunt:h,seed:s})));
 
   return(
@@ -234,6 +241,7 @@ export default function StrainDatabase(){
                       {agg.harvestBatchCount>0&&<div><div style={{fontSize:9,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase"}}>Harvests</div><div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{agg.harvestBatchCount}</div></div>}
                     </div>
                     {s.dominantTerpenes&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>{s.dominantTerpenes}</div>}
+                    {s.notes?.startsWith("Auto-added from")&&<div style={{fontSize:9,color:"var(--text-3)",fontStyle:"italic",marginTop:4}}>{s.notes}</div>}
                   </div>
                 );
               })}

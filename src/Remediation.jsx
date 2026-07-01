@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { autoPopulateStrains } from "./strainUtils.js";
 
 const LBS_TO_G = 453.592;
 
@@ -108,6 +109,7 @@ export default function Remediation() {
     const rec = { ...form, id: form.id || "rm"+Date.now(), dose };
     if (form.id) setRecords(p => p.map(x => x.id===rec.id ? rec : x));
     else setRecords(p => [...p, rec]);
+    autoPopulateStrains(form.strainName, { source: "Microbial Remediation" });
     closeForm();
   }
   function remove(id) { setRecords(p => p.filter(x => x.id !== id)); }

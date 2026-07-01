@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { autoPopulateStrains } from "./strainUtils.js";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function pct(n,t){return t?Math.round(n/t*100):0;}
@@ -67,6 +68,7 @@ export default function PhenoHunt(){
     const h={...huntForm,id:huntForm.id||"ph"+Date.now(),seeds:huntForm.seeds||seeds||[]};
     if(huntForm.id) setHunts(p=>p.map(x=>x.id===h.id?h:x));
     else setHunts(p=>[...p,h]);
+    autoPopulateStrains(huntForm.strainName, { breeder: huntForm.breeder, source: "Pheno Hunt Tracker" });
     setHuntForm(null);setErr("");
   }
   function removeHunt(id){setHunts(p=>p.filter(x=>x.id!==id));if(activeHuntId===id)setActiveHuntId(null);}

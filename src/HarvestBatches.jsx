@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-
+import { autoPopulateStrains } from "./strainUtils.js";
 const LBS_TO_G = 453.592;
 
 
@@ -151,6 +151,7 @@ export default function HarvestBatches() {
       status: totalDryWeight>0 ? "done" : "open" };
     if (formMode==="edit") setBatches(p=>p.map(b=>b.id===batch.id?batch:b));
     else setBatches(p=>[...p,batch]);
+    autoPopulateStrains(form.strainName, { source: "Harvest Batches" });
     closeForm();
   }
   function removeBatch(id) { setBatches(p=>p.filter(b=>b.id!==id)); }
