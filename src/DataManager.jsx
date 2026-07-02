@@ -28,7 +28,7 @@ function countRecords(data){
 // ── Import-target schemas for the AI to map to ──────────────────────────────
 const IMPORT_TARGETS = {
   employees:{ label:"Employee Roster", icon:"👥", key:"resinops_employees",
-    schema:"[{name, role, department, status, hireDate, phone, email, pestLicenseNum, pestLicenseCategory, pestLicenseExpiry}]" },
+    schema:"[{name, role, department, status (must be exactly 'active' or 'inactive'), hireDate (YYYY-MM-DD), phone, email, pestLicenseNum, pestLicenseCategory, pestLicenseExpiry (YYYY-MM-DD), certs (always empty array []), trainings (always empty array [])}]" },
   equipment:{ label:"Equipment Registry", icon:"🔧", key:"resinops_equipment",
     schema:"[{name, cat, make, model, serial, assetTag, location, purchaseDate, purchasePrice, warrantyExpires, pmFreqDays, status}]" },
   inventory:{ label:"Inventory Items", icon:"📦", key:"resinops_inventory",
@@ -347,7 +347,6 @@ Extract and map all records to the appropriate ResinOps schema. For cannabis COA
         ...r,
         id:r.id||"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)
       }));
-      // For COA/QC imports, normalize fields and apply batch links
       const newRecords=target==="qc_tests"
         ? rawRecords.map((r,i)=>{
             const linkedId=batchLinks[r.sampleId||i]||"";
@@ -359,6 +358,19 @@ Extract and map all records to the appropriate ResinOps schema. For cannabis COA
               batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",
             });
           })
+        : target==="employees"
+        ? rawRecords.map(r=>({
+            ...r,
+            id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",
+            certs:Array.isArray(r.certs)?r.certs:[],
+            trainings:Array.isArray(r.trainings)?r.trainings:[],
+            pestLicenseCategory:r.pestLicenseCategory||"None / Not Licensed",
+            role:r.role||"Other",
+            department:r.department||"Other",
+            hireDate:r.hireDate||"",
+            pestLicenseExpiry:r.pestLicenseExpiry||"",
+          }))
         : rawRecords;
 
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));

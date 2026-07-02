@@ -43,7 +43,21 @@ const EMPTY={name:"",role:"Cultivation Tech",department:"Cultivation",status:"ac
   certs:[],trainings:[],notes:""};
 
 export default function Employees(){
-  const [employees,setEmployees]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_employees")||"[]");}catch{return[];}});
+  const [employees,setEmployees]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
+      // Normalize imported records — ensure required array fields and status exist
+      return raw.map(e=>({
+        ...e,
+        status:["active","inactive"].includes(e.status?.toLowerCase())?e.status.toLowerCase():"active",
+        certs:Array.isArray(e.certs)?e.certs:[],
+        trainings:Array.isArray(e.trainings)?e.trainings:[],
+        pestLicenseCategory:e.pestLicenseCategory||"None / Not Licensed",
+        role:e.role||"Other",
+        department:e.department||"Other",
+      }));
+    }catch{return[];}
+  });
   const [form,setForm]=useState(null);
   const [detailId,setDetailId]=useState(null);
   const [formTab,setFormTab]=useState("basic");
