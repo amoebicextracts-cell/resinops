@@ -314,7 +314,7 @@ Rules:
                     <input
                       className="sd-inp"
                       style={{flex:1,fontSize:12}}
-                      placeholder='e.g. "Make it shorter" · "Fix the genetics — it\'s Mango x Haze, not Mango Haze" · "Add more about the terpene profile"'
+                      placeholder="e.g. Make it shorter · Fix the genetics · Add more about the terpene profile"
                       value={descInput}
                       onChange={e=>setDescInput(e.target.value)}
                       onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleDescChatSend()}
