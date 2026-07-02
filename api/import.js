@@ -15,6 +15,10 @@ export default async function handler(req, res) {
     { role: "user", content: prompt },
   ];
 
+  // Use higher token limit for import operations (large CSVs need room)
+  const isImport = !history.length && (prompt.includes("File contents:") || prompt.includes("File name:"));
+  const max_tokens = isImport ? 4000 : 1000;
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -25,7 +29,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1000,
+        max_tokens,
         system: system || "You are a helpful assistant.",
         messages,
       }),
@@ -37,8 +41,72 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+
+    // For import calls, attempt to repair truncated JSON before returning
+    if (isImport && data.content) {
+      const rawText = data.content.map(b => b.text || "").join("").trim();
+      const cleaned = rawText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```\s*$/i, "")
+        .trim();
+
+      // Try to parse as-is first
+      try {
+        JSON.parse(cleaned);
+        // Valid — replace content with cleaned text
+        data.content = [{ type: "text", text: cleaned }];
+        return res.status(200).json(data);
+      } catch(e) {
+        // JSON is broken — attempt repair by truncating to last complete record
+        try {
+          const repaired = repairJSON(cleaned);
+          data.content = [{ type: "text", text: repaired }];
+          return res.status(200).json(data);
+        } catch(e2) {
+          // Give up and return original — client will show the error
+          return res.status(200).json(data);
+        }
+      }
+    }
+
     return res.status(200).json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message || "Internal server error" });
   }
 }
+
+/**
+ * Attempts to repair truncated JSON by finding the last complete record
+ * and closing out the records array and wrapper object.
+ */
+function repairJSON(text) {
+  // Find the last complete record — look for last "}," or "}" before truncation
+  const recordsMatch = text.match(/"records"\s*:\s*\[/);
+  if (!recordsMatch) throw new Error("No records array found");
+
+  const recordsStart = recordsMatch.index + recordsMatch[0].length;
+  const prefix = text.slice(0, recordsStart);
+  const recordsBody = text.slice(recordsStart);
+
+  // Find the last complete object — last occurrence of "}," or "}" followed by whitespace/end
+  const lastCompleteRecord = recordsBody.lastIndexOf("},");
+  const lastSingleRecord = recordsBody.lastIndexOf("}");
+
+  let cutAt = -1;
+  if (lastCompleteRecord !== -1) {
+    cutAt = lastCompleteRecord + 1; // include the }
+  } else if (lastSingleRecord !== -1) {
+    cutAt = lastSingleRecord + 1;
+  }
+
+  if (cutAt === -1) throw new Error("Cannot find complete record");
+
+  const repairedRecords = recordsBody.slice(0, cutAt).replace(/,\s*$/, "");
+  const repaired = prefix + repairedRecords + "]}";
+
+  // Validate the repair worked
+  JSON.parse(repaired);
+  return repaired;
+}
+
