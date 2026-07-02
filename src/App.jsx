@@ -1083,7 +1083,7 @@ export default function ResinOps() {
         <aside className="sidebar">
           <div className="logo">
             <div className="logo-mark">ResinOps</div>
-            <div className="logo-sub">Cannabis Operations AI</div>
+            <div className="logo-sub">Built by operators. Powered by data.</div>
           </div>
 
           {/* ── Dashboard pinned at top ── */}
