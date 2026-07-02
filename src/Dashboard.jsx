@@ -137,7 +137,7 @@ export default function Dashboard({ onNavigate }){
   const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length+pendingCOAs.length+gmpCertAlerts.filter(c=>c.d<=14).length+trainingAlerts.filter(t=>t.d<=14).length;
 
   const greetingHour=today.getHours();
-  const greeting=greetingHour<12?"Good morning":"greetingHour"<17?"Good afternoon":"Good evening";
+  const greeting=greetingHour<12?"Good morning":greetingHour<17?"Good afternoon":"Good evening";
 
   return(
     <>
