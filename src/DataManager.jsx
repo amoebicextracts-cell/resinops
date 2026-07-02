@@ -127,58 +127,67 @@ const IMPORT_TARGETS = {
   applicatorName (who applied it — may be called "Applicator", "Applied By", "Licensed Applicator", "Operator", etc.)` },
 };
 
-async function callClaude(prompt, isCOA=false){
-  // Route through our Vercel proxy — never call Anthropic directly from the browser (CORS)
-  const coaInstructions = isCOA ? `
-For cannabis COA (Certificate of Analysis) PDFs from labs like Kaycha, SC Labs, Confident Cannabis, Steep Hill, etc:
-- strainName: the product/strain name on the COA
-- sampleId: the lab's sample ID or batch/lot number (e.g. "KY240501-001", "MIDS-2024-001")
-- labName: the testing laboratory name
-- submittedDate: date sample was submitted (YYYY-MM-DD format)
-- receivedDate: the report date or date results were issued (YYYY-MM-DD format)
-- thca: THCa percentage as a number WITHOUT the % sign (e.g. 22.4 not "22.4%")
-- thc: Delta-9 THC percentage as a number
-- cbda: CBDa percentage as a number
-- cbd: CBD percentage as a number  
-- cbg: CBG percentage as a number
-- cbn: CBN percentage as a number
-- thcv: THCv percentage as a number
-- cbc: CBC percentage as a number
-- totalCannabinoids: Total Cannabinoids percentage as a number (sometimes labeled "Total Active Cannabinoids" or "Total THC")
-- totalTerpenes: Total Terpenes percentage as a number
-- myrcene: Myrcene terpene percentage as a number
-- limonene: Limonene terpene percentage as a number
-- caryophyllene: Beta-Caryophyllene or Caryophyllene terpene percentage as a number
-- linalool: Linalool percentage as a number
-- pinene: Alpha-Pinene or Beta-Pinene percentage as a number (use the higher value if both present)
-- ocimene: Ocimene percentage as a number
-- terpinolene: Terpinolene percentage as a number
-- humulene: Alpha-Humulene or Humulene percentage as a number
-- tyam: Total Yeast and Mold CFU/g count as a number (microbial panel)
-- tab: Total Aerobic Bacteria CFU/g count as a number (microbial panel)
-- aspergillus: Aspergillus panel result as boolean true=pass, false=fail
-- salmonella: Salmonella panel result as boolean true=pass, false=fail
-- stec: STEC or E.coli O157 panel result as boolean true=pass, false=fail
-- ecoli: E.coli panel result as boolean true=pass, false=fail
-- microbialPass: overall microbial panel result as boolean true=pass, false=fail
-- pesticidesPass: pesticide residues panel result as boolean true=pass, false=fail
-- heavyMetalsPass: heavy metals panel result as boolean true=pass, false=fail
-- waterActivity: water activity Aw value as a number (e.g. 0.58)
-- moistureContent: moisture content percentage as a number
-- foreignMatterPass: foreign matter panel result as boolean true=pass, false=fail
-- overallPass: overall COA result — true if ALL panels passed, false if ANY panel failed
+async function callClaude(prompt, isCOA=false, fieldSchema=""){
+  const mappingRule = fieldSchema ? `
+CRITICAL FIELD MAPPING RULE:
+You MUST rename every field in every record to use the exact target field names listed below.
+Do NOT use the source column names as keys. Do NOT preserve original column headers.
+The source column names are different from the target field names — your job is to translate between them.
 
-IMPORTANT: All numeric values must be plain numbers (22.4), never strings with units ("22.4%"). All pass/fail values must be true or false booleans, never strings.` : `
-For employee lists: map job titles to roles and departments by context.
-For spray logs: extract EPA reg numbers, rates, applicator names, dates, target pests.`;
+Example of CORRECT behavior:
+  Source row: {"Full Name": "Jane Smith", "Employment Start": "2022-01-15", "Status": "Active"}
+  Target fields include: name, hireDate, status
+  Correct output record: {"name": "Jane Smith", "hireDate": "2022-01-15", "status": "active"}
+
+Example of WRONG behavior (do not do this):
+  Wrong output record: {"Full Name": "Jane Smith", "Employment Start": "2022-01-15", "Status": "Active"}
+
+TARGET FIELD NAMES AND WHAT THEY MAP FROM:
+${fieldSchema}` : "";
+
+  const coaInstructions = isCOA ? `
+CRITICAL: For COA PDFs, output records using these EXACT field names (not the lab's column headers):
+  strainName → product/strain name on the COA
+  sampleId → lab sample ID or lot number
+  labName → testing laboratory name
+  submittedDate → date submitted (YYYY-MM-DD)
+  receivedDate → report date / results issued (YYYY-MM-DD)
+  thca → THCa % as plain number (21.4 not "21.4%")
+  thc → Delta-9 THC % as plain number
+  cbda → CBDa % as plain number
+  cbd → CBD % as plain number
+  cbg → CBG % as plain number
+  cbn → CBN % as plain number
+  thcv → THCv % as plain number
+  cbc → CBC % as plain number
+  totalCannabinoids → Total Cannabinoids % as plain number
+  totalTerpenes → Total Terpenes % as plain number
+  myrcene → Myrcene % as plain number
+  limonene → Limonene % as plain number
+  caryophyllene → Beta-Caryophyllene % as plain number
+  linalool → Linalool % as plain number
+  pinene → Alpha-Pinene % as plain number
+  ocimene → Ocimene % as plain number
+  terpinolene → Terpinolene % as plain number
+  humulene → Humulene % as plain number
+  tyam → Total Yeast & Mold CFU/g as plain number
+  tab → Total Aerobic Bacteria CFU/g as plain number
+  aspergillus → boolean true=pass false=fail
+  salmonella → boolean true=pass false=fail
+  stec → boolean true=pass false=fail
+  ecoli → boolean true=pass false=fail
+  microbialPass → boolean true=pass false=fail
+  pesticidesPass → boolean true=pass false=fail
+  heavyMetalsPass → boolean true=pass false=fail
+  waterActivity → Aw value as plain number (0.562)
+  moistureContent → moisture % as plain number
+  foreignMatterPass → boolean true=pass false=fail
+  overallPass → true if ALL panels passed, false if ANY failed` : "";
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
-When given file contents you must:
-1. Identify what type of cannabis operations data it contains
-2. Map and extract the data into the specified JSON schema using EXACT field names provided
-3. Return ONLY valid JSON - no markdown, no explanation, no backticks
-Always return: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line description", "records": [...] }
-Only include fields that have actual values — omit fields with no data rather than using null or empty string.
+Return ONLY valid JSON with no markdown, no backticks, no explanation.
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+${mappingRule}
 ${coaInstructions}`;
 
   const resp = await fetch("/api/import", {
@@ -357,7 +366,8 @@ ${content}
 Return every row as a record. Do not skip rows. Map all columns you can identify — leave out columns that have no clear match.`;
 
       const isCOA = (importTarget==="qc_tests") || (!importTarget && ext==="pdf");
-      const result=await callClaude(prompt, isCOA);
+      const fieldSchema = !isCOA && targetInfo ? targetInfo.schema : "";
+      const result=await callClaude(prompt, isCOA, fieldSchema);
       setImportResult({...result,fileName:file.name,fileType:ext,isCOA:isCOA||result.detectedType==="qc_tests"});
       setImportState("preview");
     }catch(e){
