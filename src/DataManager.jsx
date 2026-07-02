@@ -504,7 +504,33 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               notes: r.notes || r["Notes"] || "",
             };
           })
-        : rawRecords;
+        : target==="inventory"
+        ? rawRecords.map(r=>{
+            const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
+            const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
+            const ITEM_CATS_LIST = ["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
+            const ICAT_MAP = {"packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","solvent":"Extraction Solvents","butane":"Extraction Solvents","ethanol":"Extraction Solvents","filter":"Extraction Consumables","trim":"Post-Harvest Supplies","pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","vape":"Vape Hardware","cartridge":"Vape Hardware","nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","ipm":"IPM Products","pesticide":"IPM Products","cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","lab":"Lab Supplies"};
+            let cat = ITEM_CATS_LIST.includes(rawCat) ? rawCat : "Other";
+            if(cat==="Other"){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(ICAT_MAP)){ if(lower.includes(k)){cat=v;break;} } }
+            const stock = parseFloat(r.stock ?? r.current_stock ?? r.qty ?? r["Current Stock"] ?? 0) || 0;
+            const cost = parseFloat(r.cost ?? r.unit_cost ?? r["Unit Cost"] ?? 0) || 0;
+            const lots = Array.isArray(r.lots) ? r.lots :
+              (stock > 0 ? [{ id:"lot_imp_"+Date.now()+Math.random(), date:new Date().toISOString().split("T")[0], qty:stock, remaining:stock, costPerUnit:cost, poId:"ai_import" }] : []);
+            return {
+              ...r,
+              id: r.id||"inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+              n: name,
+              cat,
+              uom: r.uom || r.unit || r.unit_of_measure || r["Unit of Measure"] || "each",
+              reorderAt: parseFloat(r.reorderAt ?? r.reorder_at ?? r.reorder_point ?? r["Reorder At"] ?? 0) || 0,
+              reorderQty: parseFloat(r.reorderQty ?? r.reorder_qty ?? r["Reorder Qty"] ?? 0) || 0,
+              vm: ["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())
+                ? (r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase() : "average",
+              lots,
+              lastCost: cost || 0,
+              notes: r.notes || r["Notes"] || "",
+            };
+          })
 
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
 
