@@ -1071,6 +1071,7 @@ export default function ResinOps() {
   };
 
   const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","cult-inputs","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
 
@@ -1085,32 +1086,26 @@ export default function ResinOps() {
             <div className="logo-sub">Cannabis Operations AI</div>
           </div>
 
-          <div className="sidebar-section-label">Modules</div>
+          {/* ── Dashboard pinned at top ── */}
+          <button
+            className={`module-btn ${activeModule === "dashboard" ? "active" : ""}`}
+            onClick={() => switchModule("dashboard")}
+            style={{marginBottom:4}}
+          >
+            <span className="module-icon">🏠</span>
+            <span className="module-info">
+              <span className="module-name">Dashboard</span>
+              <span className="module-desc">Today's alerts & activity</span>
+            </span>
+          </button>
 
-          {MODULES.filter(m => !m.isScheduler).map((mod) => (
-            <button
-              key={mod.id}
-              className={`module-btn ${activeModule === mod.id ? "active" : ""} ${!mod.available ? "locked" : ""}`}
-              onClick={() => switchModule(mod.id)}
-            >
-              <span className="module-icon">{mod.icon}</span>
-              <span className="module-info">
-                <span className="module-name">
-                  {mod.label}
-                  {!mod.available && <span className="badge-soon">Soon</span>}
-                </span>
-                <span className="module-desc">{mod.description}</span>
-              </span>
-            </button>
-          ))}
+          <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
 
-          <div style={{margin:"8px 0",borderTop:"1px solid var(--border)"}}/>
-          <div className="sidebar-section-label">Tools</div>
-
-          {MODULES.filter(m => m.isScheduler).map((mod) => (
+          {/* ── All operational modules in order ── */}
+          {MODULES.filter(m => m.isScheduler && m.id !== "dashboard" && m.id !== "data-manager" && m.id !== "facility-settings").map((mod) => (
             <div key={mod.id}>
               {mod.sectionBreak && (
-                <div className="sidebar-section-label" style={{marginTop:10}}>{mod.sectionBreak}</div>
+                <div className="sidebar-section-label" style={{marginTop:8}}>{mod.sectionBreak}</div>
               )}
               <button
                 className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
@@ -1125,9 +1120,39 @@ export default function ResinOps() {
             </div>
           ))}
 
+          {/* ── AI Assistant collapsed to single button ── */}
+          <div style={{margin:"8px 0",borderTop:"1px solid var(--border)"}}/>
+          <button
+            className={`module-btn ${isAIChat || !isSchedulerActive && activeModule !== "dashboard" ? "active" : ""}`}
+            onClick={() => { setActiveModule("ai-chat"); setMessages([]); setImage(null); }}
+          >
+            <span className="module-icon">🤖</span>
+            <span className="module-info">
+              <span className="module-name">AI Assistant</span>
+              <span className="module-desc">Cannabis operations expert</span>
+            </span>
+          </button>
+
+          {/* ── Settings at bottom ── */}
+          <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
+          <div className="sidebar-section-label">Settings</div>
+          {["data-manager","facility-settings"].map(id => {
+            const mod = MODULES.find(m => m.id === id);
+            if (!mod) return null;
+            return (
+              <button key={id} className={`module-btn ${activeModule === id ? "active" : ""}`} onClick={() => switchModule(id)}>
+                <span className="module-icon">{mod.icon}</span>
+                <span className="module-info">
+                  <span className="module-name">{mod.label}</span>
+                  <span className="module-desc">{mod.description}</span>
+                </span>
+              </button>
+            );
+          })}
+
           <div className="sidebar-footer">
             <div className="plan-badge">Beta</div>
-            <div className="plan-text">Compliance module coming in v2.</div>
+            <div className="plan-text">V2 — multi-user, cloud sync, METRC API</div>
           </div>
         </aside>
 
@@ -1169,7 +1194,7 @@ export default function ResinOps() {
           {activeModule === "maintenance" ? <Maintenance /> : null}
           {activeModule === "sales" ? <SalesOrders /> : null}
 
-          <div className="chat-area" style={{display: isSchedulerActive ? "none" : undefined}}>
+          <div className="chat-area" style={{display: (isSchedulerActive && !isAIChat) ? "none" : undefined}}>
             {showWelcome && (
               <div className="welcome">
                 <div className="welcome-heading">
@@ -1223,7 +1248,7 @@ export default function ResinOps() {
             )}
           </div>
 
-          {!isSchedulerActive && <div className="input-area">
+          {(!isSchedulerActive || isAIChat) && <div className="input-area">
             {image && (
               <div className="image-preview-bar">
                 <div className="image-preview-wrap">
