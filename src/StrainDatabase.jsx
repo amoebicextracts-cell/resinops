@@ -58,9 +58,48 @@ Additional Notes: ${strain.notes||"None"}
 
 Write the strain description now:`;
 
-  const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:400,messages:[{role:"user",content:prompt}]})});
+  const resp=await fetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:"You are an expert cannabis copywriter and strain analyst. Write compelling, professional strain descriptions for sales and marketing use. Be accurate and evocative. Do not invent data.",prompt})});
   const data=await resp.json();
   return data.content?.map(b=>b.text).join("")||"";
+}
+
+const VALID_TYPES = ["Indica","Sativa","Hybrid","Indica-dominant","Sativa-dominant","Ruderalis"];
+function normalizeStrainType(raw){
+  if(!raw) return "Hybrid";
+  if(VALID_TYPES.includes(raw)) return raw;
+  const l = raw.toLowerCase();
+  if(l.includes("indica")&&l.includes("dom")) return "Indica-dominant";
+  if(l.includes("sativa")&&l.includes("dom")) return "Sativa-dominant";
+  if(l.includes("indica")) return "Indica";
+  if(l.includes("sativa")) return "Sativa";
+  if(l.includes("hybrid")) return "Hybrid";
+  return "Hybrid";
+}
+
+function normalizeStrain(r){
+  return {
+    ...r,
+    id: r.id || "str_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+    name: r.name || r.cultivar_name || r.strain_name || r.strain || r["Cultivar Name"] || r["Strain Name"] || "",
+    type: normalizeStrainType(r.type || r.strain_type || r["Strain Type"] || r["Type"] || ""),
+    parentage: r.parentage || r.genetic_cross || r.genetic_cross_lineage || r.lineage || r["Genetic Cross / Lineage"] || r["Lineage"] || r["Genetics"] || "",
+    breeder: r.breeder || r.original_breeder || r["Original Breeder"] || r["Breeder"] || r["Seed Company"] || "",
+    thcaAvg: r.thcaAvg || r.avg_thca || r.avg_thca_pct || r["Avg THCa %"] || r["Avg THCa"] || "",
+    thcAvg: r.thcAvg || r.avg_thc || r.avg_thc_pct || r["Avg THC %"] || r["Avg THC"] || "",
+    cbdAvg: r.cbdAvg || r.avg_cbd || r.avg_cbd_pct || r["Avg CBD %"] || r["Avg CBD"] || "",
+    terpsAvg: r.terpsAvg || r.avg_total_terpenes || r.avg_terpenes || r.avg_total_terpenes_pct || r["Avg Total Terpenes %"] || r["Avg Total Terpenes"] || "",
+    dominantTerpenes: r.dominantTerpenes || r.dominant_terpenes || r["Dominant Terpenes"] || r["Top Terpenes"] || "",
+    avgYieldGPerSqft: r.avgYieldGPerSqft || r.avg_yield || r.avg_yield_g_sqft || r["Avg Yield (g/sqft canopy)"] || r["Avg Yield"] || "",
+    avgFlowerWeeks: r.avgFlowerWeeks || r.flower_time_weeks || r.flower_time || r.flower_weeks || r["Flower Time (weeks)"] || r["Flower Weeks"] || "",
+    avgVegWeeks: r.avgVegWeeks || r.veg_time_weeks || r.veg_time || r["Veg Time (weeks)"] || r["Veg Weeks"] || "",
+    aroma: r.aroma || r.aroma_notes || r["Aroma Notes"] || r["Aroma"] || "",
+    flavor: r.flavor || r.flavor_profile || r["Flavor Profile"] || r["Flavor"] || "",
+    effectProfile: r.effectProfile || r.effect_description || r.effects || r["Effect Description"] || r["Effects"] || "",
+    notes: r.notes || r.internal_notes || r["Internal Notes"] || r["Notes"] || "",
+    status: r.status || "active",
+    salesDescription: r.salesDescription || r.sales_description || r["Sales Description"] || "",
+    linkedPhenoHuntId: r.linkedPhenoHuntId || "",
+  };
 }
 
 export default function StrainDatabase(){
@@ -68,7 +107,12 @@ export default function StrainDatabase(){
   const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
   const phenoHunts=JSON.parse(localStorage.getItem("resinops_pheno_hunts")||"[]");
 
-  const [strains,setStrains]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_strains")||"[]");}catch{return[];}});
+  const [strains,setStrains]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
+      return raw.map(normalizeStrain);
+    }catch{return[];}
+  });
   const [form,setForm]=useState(null);
   const [activeId,setActiveId]=useState(null);
   const [generating,setGenerating]=useState(false);
@@ -232,7 +276,7 @@ export default function StrainDatabase(){
                   <div key={s.id} className="sd-strain-card" onClick={()=>setActiveId(s.id)}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                       <div style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.name}</div>
-                      <span className={"sd-pill type-"+s.type.toLowerCase().split("-")[0]}>{s.type}</span>
+                      <span className={"sd-pill type-"+((s.type||"hybrid").toLowerCase().split("-")[0])}>{s.type||"Hybrid"}</span>
                     </div>
                     <div style={{fontSize:11,color:"var(--text-3)",marginBottom:8}}>{s.breeder||"Unknown breeder"}{s.parentage?" · "+s.parentage:""}</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
@@ -257,7 +301,7 @@ export default function StrainDatabase(){
             <div className="sd-card">
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
                 <div>
-                  <div style={{fontSize:18,fontWeight:700,color:"var(--text)"}}>{activeStrain.name} <span className={"sd-pill type-"+activeStrain.type.toLowerCase().split("-")[0]} style={{verticalAlign:"middle"}}>{activeStrain.type}</span></div>
+                  <div style={{fontSize:18,fontWeight:700,color:"var(--text)"}}>{activeStrain.name} <span className={"sd-pill type-"+((activeStrain.type||"hybrid").toLowerCase().split("-")[0])} style={{verticalAlign:"middle"}}>{activeStrain.type||"Hybrid"}</span></div>
                   <div style={{fontSize:12,color:"var(--text-3)",marginTop:2}}>{activeStrain.breeder||"Unknown breeder"}{activeStrain.parentage?" · "+activeStrain.parentage:""}</div>
                 </div>
                 <div style={{display:"flex",gap:8}}>
