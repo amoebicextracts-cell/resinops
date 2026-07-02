@@ -37,28 +37,8 @@ const EMPTY_STRAIN={
   linkedPhenoHuntId:"",status:"active",
 };
 
-async function generateDescription(strain){
-  const prompt=`You are an expert cannabis copywriter and strain analyst. Using the following data, write a compelling, professional strain description for sales and marketing use. Keep it accurate, evocative, and under 200 words. Do not invent data — only describe what is provided.
-
-Strain: ${strain.name}
-Type: ${strain.type}
-Parentage: ${strain.parentage||"Unknown"}
-Breeder: ${strain.breeder||"Unknown"}
-Average THCa: ${strain.thcaAvg||"N/A"}%
-Average THC: ${strain.thcAvg||"N/A"}%
-Average CBD: ${strain.cbdAvg||"N/A"}%
-Average Total Terpenes: ${strain.terpsAvg||"N/A"}%
-Dominant Terpenes: ${strain.dominantTerpenes||"Not specified"}
-Average Yield (g/sqft): ${strain.avgYieldGPerSqft||"N/A"}
-Average Flower Time: ${strain.avgFlowerWeeks||"N/A"} weeks
-Aroma Profile: ${strain.aroma||"Not specified"}
-Flavor Profile: ${strain.flavor||"Not specified"}
-Effect Profile: ${strain.effectProfile||"Not specified"}
-Additional Notes: ${strain.notes||"None"}
-
-Write the strain description now:`;
-
-  const resp=await fetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:"You are an expert cannabis copywriter and strain analyst. Write compelling, professional strain descriptions for sales and marketing use. Be accurate and evocative. Do not invent data.",prompt})});
+async function callDescriptionAPI(messages, systemPrompt){
+  const resp=await fetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:systemPrompt,prompt:messages[messages.length-1].content,history:messages.slice(0,-1)})});
   const data=await resp.json();
   return data.content?.map(b=>b.text).join("")||"";
 }
@@ -118,11 +98,15 @@ export default function StrainDatabase(){
   const [generating,setGenerating]=useState(false);
   const [search,setSearch]=useState("");
   const [err,setErr]=useState("");
+  const [descChat,setDescChat]=useState([]); // [{role:"user"|"assistant", content:"..."}]
+  const [descInput,setDescInput]=useState("");
+  const [showDescChat,setShowDescChat]=useState(false);
 
   useEffect(()=>{localStorage.setItem("resinops_strains",JSON.stringify(strains));},[strains]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const activeStrain=strains.find(s=>s.id===activeId);
+  function openForm(strain){ setForm(strain?{...strain}:{...EMPTY_STRAIN}); setDescChat([]); setDescInput(""); setShowDescChat(false); setErr(""); }
 
   // Pull harvest + production data for this strain
   function aggregateData(strainName){
@@ -133,13 +117,61 @@ export default function StrainDatabase(){
     return{harvestBatchCount:hbs.length,prodBatchCount:pbs.length,avgDryWeightG:avgDryG};
   }
 
+  const strainSystemPrompt = (strain) => `You are an expert cannabis copywriter and strain analyst working collaboratively with a licensed cannabis operator to craft the perfect strain description.
+
+Strain data on file:
+- Name: ${strain?.name||""}
+- Type: ${strain?.type||""}
+- Parentage / Genetics: ${strain?.parentage||"Unknown"}
+- Breeder: ${strain?.breeder||"Unknown"}
+- Average THCa: ${strain?.thcaAvg||"N/A"}%
+- Average THC: ${strain?.thcAvg||"N/A"}%
+- Average CBD: ${strain?.cbdAvg||"N/A"}%
+- Average Total Terpenes: ${strain?.terpsAvg||"N/A"}%
+- Dominant Terpenes: ${strain?.dominantTerpenes||"Not specified"}
+- Average Yield (g/sqft): ${strain?.avgYieldGPerSqft||"N/A"}
+- Average Flower Time: ${strain?.avgFlowerWeeks||"N/A"} weeks
+- Aroma: ${strain?.aroma||"Not specified"}
+- Flavor: ${strain?.flavor||"Not specified"}
+- Effects: ${strain?.effectProfile||"Not specified"}
+- Notes: ${strain?.notes||"None"}
+
+Rules:
+- Never invent cannabinoid percentages, genetics, or breeder info not provided above
+- Keep descriptions under 200 words unless asked for more
+- When the operator asks for revisions, apply them and return only the updated description
+- If genetics or lineage seems wrong, flag it and ask the operator to confirm before using it`;
+
   async function handleGenerateDescription(){
     if(!form) return;
     setGenerating(true);
+    setShowDescChat(true);
+    const initialPrompt=`Write a compelling, professional strain description for ${form.name} for sales and marketing use. Base it only on the data provided.`;
+    const newChat=[{role:"user",content:initialPrompt}];
+    setDescChat(newChat);
     try{
-      const desc=await generateDescription(form);
-      setForm(f=>({...f,salesDescription:desc}));
+      const reply=await callDescriptionAPI(newChat, strainSystemPrompt(form));
+      const updated=[...newChat,{role:"assistant",content:reply}];
+      setDescChat(updated);
+      setForm(f=>({...f,salesDescription:reply}));
     }catch(e){setErr("AI generation failed — check API connection.");}
+    finally{setGenerating(false);}
+  }
+
+  async function handleDescChatSend(){
+    if(!descInput.trim()||generating) return;
+    const userMsg={role:"user",content:descInput.trim()};
+    const newChat=[...descChat,userMsg];
+    setDescChat(newChat);
+    setDescInput("");
+    setGenerating(true);
+    try{
+      const reply=await callDescriptionAPI(newChat, strainSystemPrompt(form));
+      const updated=[...newChat,{role:"assistant",content:reply}];
+      setDescChat(updated);
+      // Auto-update the description field with the latest AI output
+      setForm(f=>({...f,salesDescription:reply}));
+    }catch(e){setErr("AI generation failed.");}
     finally{setGenerating(false);}
   }
 
@@ -187,7 +219,7 @@ export default function StrainDatabase(){
           </div>
           <div style={{display:"flex",gap:8}}>
             {activeId&&<button className="sd-btn sd-secondary" onClick={()=>{setActiveId(null);setForm(null);}}>← All strains</button>}
-            {!form&&!activeId&&<button className="sd-btn sd-primary" onClick={()=>setForm({...EMPTY_STRAIN})}>+ Add strain</button>}
+            {!form&&!activeId&&<button className="sd-btn sd-primary" onClick={()=>openForm(null)}>+ Add strain</button>}
           </div>
         </div>
 
@@ -246,8 +278,54 @@ export default function StrainDatabase(){
                   {generating?"✨ Generating…":"✨ Generate with AI"}
                 </button>
               </div>
-              {generating&&<div className="sd-ai-generating">Generating description from COA data and strain profile…</div>}
-              <textarea className="sd-inp" rows={5} style={{resize:"vertical"}} value={form.salesDescription} onChange={e=>setF("salesDescription",e.target.value)} placeholder="Enter manually or click Generate with AI to draft from your COA data and strain notes" />
+              {generating&&<div className="sd-ai-generating">Generating description…</div>}
+              <textarea className="sd-inp" rows={5} style={{resize:"vertical"}} value={form.salesDescription} onChange={e=>setF("salesDescription",e.target.value)} placeholder="Enter manually or click Generate with AI to draft from your strain data" />
+
+              {/* Collaborative refinement chat */}
+              {showDescChat&&descChat.length>0&&(
+                <div style={{marginTop:10,border:"1px solid rgba(90,63,160,0.3)",borderRadius:10,overflow:"hidden"}}>
+                  <div style={{background:"rgba(90,63,160,0.08)",padding:"8px 12px",fontSize:11,fontWeight:600,color:"#9080f0",borderBottom:"1px solid rgba(90,63,160,0.2)"}}>
+                    ✨ AI Description Workshop — refine with follow-up instructions
+                  </div>
+                  <div style={{maxHeight:220,overflowY:"auto",padding:"10px 12px",display:"flex",flexDirection:"column",gap:8}}>
+                    {descChat.map((m,i)=>(
+                      <div key={i} style={{
+                        alignSelf:m.role==="user"?"flex-end":"flex-start",
+                        maxWidth:"85%",
+                        background:m.role==="user"?"rgba(90,63,160,0.15)":"var(--surface-2)",
+                        border:`1px solid ${m.role==="user"?"rgba(90,63,160,0.3)":"var(--border-2)"}`,
+                        borderRadius:8,padding:"7px 10px",
+                        fontSize:12,color:"var(--text)",lineHeight:1.5,
+                      }}>
+                        {m.role==="assistant"&&<div style={{fontSize:9,fontWeight:700,color:"#9080f0",textTransform:"uppercase",marginBottom:3}}>AI Draft</div>}
+                        {m.role==="user"&&<div style={{fontSize:9,fontWeight:700,color:"var(--text-3)",textTransform:"uppercase",marginBottom:3}}>You</div>}
+                        <div style={{whiteSpace:"pre-wrap"}}>{m.content}</div>
+                        {m.role==="assistant"&&(
+                          <button onClick={()=>setForm(f=>({...f,salesDescription:m.content}))}
+                            style={{marginTop:6,fontSize:10,padding:"2px 8px",borderRadius:5,border:"1px solid var(--accent)",background:"rgba(74,124,89,0.1)",color:"var(--accent-2)",cursor:"pointer",fontWeight:600}}>
+                            Use this version
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {generating&&<div className="sd-ai-generating" style={{alignSelf:"flex-start"}}>✨ Writing…</div>}
+                  </div>
+                  <div style={{borderTop:"1px solid var(--border-2)",padding:"8px 10px",display:"flex",gap:6}}>
+                    <input
+                      className="sd-inp"
+                      style={{flex:1,fontSize:12}}
+                      placeholder='e.g. "Make it shorter" · "Fix the genetics — it\'s Mango x Haze, not Mango Haze" · "Add more about the terpene profile"'
+                      value={descInput}
+                      onChange={e=>setDescInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&handleDescChatSend()}
+                      disabled={generating}
+                    />
+                    <button className="sd-btn sd-ai" style={{fontSize:11,whiteSpace:"nowrap"}} onClick={handleDescChatSend} disabled={generating||!descInput.trim()}>
+                      Send
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
@@ -305,7 +383,7 @@ export default function StrainDatabase(){
                   <div style={{fontSize:12,color:"var(--text-3)",marginTop:2}}>{activeStrain.breeder||"Unknown breeder"}{activeStrain.parentage?" · "+activeStrain.parentage:""}</div>
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  <button className="sd-sm sd-edit" onClick={()=>setForm({...activeStrain})}>Edit</button>
+                  <button className="sd-sm sd-edit" onClick={()=>openForm(activeStrain)}>Edit</button>
                   <button className="sd-sm sd-del" onClick={()=>remove(activeStrain.id)}>Delete</button>
                 </div>
               </div>
@@ -325,7 +403,7 @@ export default function StrainDatabase(){
                 </div>
               )}
               {!activeStrain.salesDescription&&(
-                <button className="sd-btn sd-ai" onClick={()=>{setForm({...activeStrain});setTimeout(handleGenerateDescription,100);}}>✨ Generate description with AI</button>
+                <button className="sd-btn sd-ai" onClick={()=>{openForm(activeStrain);setTimeout(handleGenerateDescription,100);}}>✨ Generate description with AI</button>
               )}
               {linkedHunt&&<div style={{fontSize:11,color:"var(--text-3)",marginTop:10}}>Linked pheno hunt: {linkedHunt.strainName} ({linkedHunt.breeder})</div>}
             </div>
