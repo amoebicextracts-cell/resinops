@@ -46,15 +46,21 @@ export default function Employees(){
   const [employees,setEmployees]=useState(()=>{
     try{
       const raw=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
-      // Normalize imported records — ensure required array fields and status exist
       return raw.map(e=>({
         ...e,
-        status:["active","inactive"].includes(e.status?.toLowerCase())?e.status.toLowerCase():"active",
-        certs:Array.isArray(e.certs)?e.certs:[],
-        trainings:Array.isArray(e.trainings)?e.trainings:[],
-        pestLicenseCategory:e.pestLicenseCategory||"None / Not Licensed",
-        role:e.role||"Other",
-        department:e.department||"Other",
+        name: e.name || e["Full Name"] || e["Employee Name"] || e["Name"] || e["Staff Member"] || "",
+        role: e.role || e["Job Title"] || e["Title"] || e["Position"] || "Other",
+        department: e.department || e["Department / Area"] || e["Department"] || e["Area"] || "Other",
+        status: ["active","inactive"].includes((e.status||"").toLowerCase()) ? (e.status||"").toLowerCase() : "active",
+        hireDate: e.hireDate || e["Employment Start"] || e["Start Date"] || e["Hire Date"] || e["Date Hired"] || "",
+        phone: e.phone || e["Cell Phone"] || e["Phone"] || e["Mobile"] || "",
+        email: e.email || e["Work Email"] || e["Email"] || "",
+        pestLicenseNum: e.pestLicenseNum || e["Pesticide Cert #"] || e["License #"] || e["Cert Number"] || "",
+        pestLicenseCategory: e.pestLicenseCategory || e["Cert Category"] || e["License Type"] || "None / Not Licensed",
+        pestLicenseExpiry: e.pestLicenseExpiry || e["Cert Expiry Date"] || e["License Expires"] || e["Expiry Date"] || "",
+        certs: Array.isArray(e.certs) ? e.certs : [],
+        trainings: Array.isArray(e.trainings) ? e.trainings : [],
+        notes: e.notes || e["Notes"] || "",
       }));
     }catch{return[];}
   });

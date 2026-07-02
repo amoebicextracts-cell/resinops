@@ -56,8 +56,50 @@ const EMPTY = {
   status:"active", notes:"",
 };
 
+const CAT_MAP = {
+  "extraction":"Extraction","co2":"Extraction","bho":"Extraction","ethanol":"Extraction","solventless":"Extraction","rosin":"Extraction",
+  "trim":"Trimming & Bucking","bucking":"Trimming & Bucking","trimming":"Trimming & Bucking",
+  "dry":"Drying & Curing","cure":"Drying & Curing","drying":"Drying & Curing","curing":"Drying & Curing",
+  "pre-roll":"Pre-Roll & Packaging","packaging":"Pre-Roll & Packaging","preroll":"Pre-Roll & Packaging","filling":"Pre-Roll & Packaging",
+  "hvac":"HVAC & Dehumidification","dehumid":"HVAC & Dehumidification","climate":"HVAC & Dehumidification","air":"HVAC & Dehumidification",
+  "fertigation":"Fertigation & Irrigation","irrigation":"Fertigation & Irrigation","dosing":"Fertigation & Irrigation",
+  "light":"Lighting","lighting":"Lighting","fixture":"Lighting",
+  "lab":"Lab & Testing Instruments","testing":"Lab & Testing Instruments","instrument":"Lab & Testing Instruments","scale":"Lab & Testing Instruments","meter":"Lab & Testing Instruments",
+  "vehicle":"Vehicles & Material Handling","forklift":"Vehicles & Material Handling","lift":"Vehicles & Material Handling","transport":"Vehicles & Material Handling",
+  "facility":"Facility Systems","electrical":"Facility Systems","plumbing":"Facility Systems","security":"Facility Systems","generator":"Facility Systems",
+};
+
+function normalizeEquipCat(raw){
+  if(!raw) return "Other";
+  if(EQUIP_CATS.includes(raw)) return raw;
+  const lower = raw.toLowerCase();
+  for(const [k,v] of Object.entries(CAT_MAP)){ if(lower.includes(k)) return v; }
+  return "Other";
+}
+
 export default function Equipment() {
-  const [equipment, setEquipment] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_equipment")||"[]");}catch{return[];} });
+  const [equipment, setEquipment] = useState(() => {
+    try{
+      const raw = JSON.parse(localStorage.getItem("resinops_equipment")||"[]");
+      return raw.map(e=>({
+        ...e,
+        name: e.name || e["Asset Description"] || e["Equipment Name"] || e["Item"] || "",
+        cat: normalizeEquipCat(e.cat || e["Category"] || e["Category/Type"] || e["Type"] || ""),
+        make: e.make || e["Brand"] || e["Manufacturer"] || e["Brand / Manufacturer"] || "",
+        model: e.model || e["Model Number"] || e["Model"] || "",
+        serial: e.serial || e["Serial Number"] || e["Serial"] || "",
+        assetTag: e.assetTag || e["Asset Tag"] || "",
+        location: e.location || e["Room / Location"] || e["Location"] || "",
+        purchaseDate: e.purchaseDate || e["Purchase Date"] || "",
+        purchasePrice: e.purchasePrice || e["Cost (USD)"] || e["Cost"] || "",
+        warrantyExpires: e.warrantyExpires || e["Warranty Expiration"] || "",
+        pmFreqDays: e.pmFreqDays || e["Service Interval"] || "90",
+        lastServiceDate: e.lastServiceDate || e["Last Service"] || "",
+        status: e.status || "active",
+        notes: e.notes || e["Notes"] || "",
+      }));
+    }catch{return[];}
+  });
   const [serviceLog, setServiceLog] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_equipment_service")||"[]");}catch{return[];} });
   const vendors = (() => { try{return JSON.parse(localStorage.getItem("resinops_vendors")||"[]");}catch{return[];} })();
   const [form, setForm] = useState(null);

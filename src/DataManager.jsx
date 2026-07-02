@@ -452,15 +452,48 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         ? rawRecords.map(r=>({
             ...r,
             id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            name: r.name || r["Full Name"] || r["Employee Name"] || r["Name"] || "",
+            role: r.role || r["Job Title"] || r["Title"] || r["Position"] || "Other",
+            department: r.department || r["Department / Area"] || r["Department"] || r["Area"] || "Other",
             status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",
+            hireDate: r.hireDate || r["Employment Start"] || r["Start Date"] || r["Hire Date"] || "",
+            phone: r.phone || r["Cell Phone"] || r["Phone"] || r["Mobile"] || "",
+            email: r.email || r["Work Email"] || r["Email"] || "",
+            pestLicenseNum: r.pestLicenseNum || r["Pesticide Cert #"] || r["License #"] || "",
+            pestLicenseCategory: r.pestLicenseCategory || r["Cert Category"] || "None / Not Licensed",
+            pestLicenseExpiry: r.pestLicenseExpiry || r["Cert Expiry Date"] || r["License Expires"] || "",
             certs:Array.isArray(r.certs)?r.certs:[],
             trainings:Array.isArray(r.trainings)?r.trainings:[],
-            pestLicenseCategory:r.pestLicenseCategory||"None / Not Licensed",
-            role:r.role||"Other",
-            department:r.department||"Other",
-            hireDate:r.hireDate||"",
-            pestLicenseExpiry:r.pestLicenseExpiry||"",
+            notes: r.notes || r["Notes"] || "",
           }))
+        : target==="equipment"
+        ? rawRecords.map(r=>{
+            const rawCat = r.cat || r["Category"] || r["Category/Type"] || r["Type"] || "";
+            const EQUIP_CATS_LIST = ["Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging","HVAC & Dehumidification","Fertigation & Irrigation","Lighting","Lab & Testing Instruments","Vehicles & Material Handling","Facility Systems","Other"];
+            const CAT_MAP_IMP = {"extraction":"Extraction","co2":"Extraction","bho":"Extraction","ethanol":"Extraction","trim":"Trimming & Bucking","bucking":"Trimming & Bucking","dry":"Drying & Curing","cure":"Drying & Curing","pre-roll":"Pre-Roll & Packaging","packaging":"Pre-Roll & Packaging","hvac":"HVAC & Dehumidification","dehumid":"HVAC & Dehumidification","climate":"HVAC & Dehumidification","fertigation":"Fertigation & Irrigation","irrigation":"Fertigation & Irrigation","light":"Lighting","lighting":"Lighting","lab":"Lab & Testing Instruments","testing":"Lab & Testing Instruments","scale":"Lab & Testing Instruments","vehicle":"Vehicles & Material Handling","forklift":"Vehicles & Material Handling","facility":"Facility Systems","electrical":"Facility Systems","generator":"Facility Systems"};
+            let cat = EQUIP_CATS_LIST.includes(rawCat) ? rawCat : "Other";
+            if(cat==="Other"){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(CAT_MAP_IMP)){ if(lower.includes(k)){cat=v;break;} } }
+            const pmRaw = r.pmFreqDays || r["Service Interval"] || "90";
+            const pmDays = typeof pmRaw==="string" ? (pmRaw.toLowerCase().includes("annual")||pmRaw.includes("365")?"365":pmRaw.toLowerCase().includes("month")||pmRaw.includes("30")?"30":pmRaw.toLowerCase().includes("semi")||pmRaw.includes("180")?"180":parseInt(pmRaw)||"90") : pmRaw;
+            return {
+              ...r,
+              id:r.id||"eq_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+              name: r.name || r["Asset Description"] || r["Equipment Name"] || r["Item"] || "",
+              cat,
+              make: r.make || r["Brand"] || r["Manufacturer"] || r["Brand / Manufacturer"] || "",
+              model: r.model || r["Model Number"] || r["Model"] || "",
+              serial: r.serial || r["Serial Number"] || r["Serial"] || "",
+              assetTag: r.assetTag || r["Asset Tag"] || "",
+              location: r.location || r["Room / Location"] || r["Location"] || "",
+              purchaseDate: r.purchaseDate || r["Purchase Date"] || "",
+              purchasePrice: String(r.purchasePrice || r["Cost (USD)"] || r["Cost"] || "").replace(/[$,]/g,""),
+              warrantyExpires: r.warrantyExpires || r["Warranty Expiration"] || "",
+              pmFreqDays: String(pmDays),
+              lastServiceDate: r.lastServiceDate || r["Last Service"] || "",
+              status: "active",
+              notes: r.notes || r["Notes"] || "",
+            };
+          })
         : rawRecords;
 
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
