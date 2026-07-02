@@ -128,6 +128,7 @@ const CSS = `
 `;
 
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 
 function totalPlants(sp) { return (sp.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0) || sp.plants || 0; }
 function strainSummary(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name+" ("+s.plants+")").join(", ") || sp.strain || ""; }
@@ -413,8 +414,8 @@ export default function Scheduler() {
           <div style={{ display: "grid", gap: 8 }}>
             {form.strains.map((s, i) => (
               <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8 }}>
-                <input className="sch-input" placeholder="Blue Dream" value={s.name}
-                  onChange={e => setStrainField(i, "name", e.target.value)} />
+                <StrainCombo className="sch-input" placeholder="Blue Dream" value={s.name}
+                  onChange={(name) => setStrainField(i, "name", name)} />
                 <input type="number" min="1" className="sch-input" placeholder="Plants"
                   value={s.plants} onChange={e => setStrainField(i, "plants", e.target.value)} />
                 {form.strains.length > 1 && (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -553,7 +554,17 @@ export default function ProductionScheduler(){
               <div><label className="ps-lbl">Batch name</label><input className="ps-inp" placeholder="Batch 2026-001" value={form.name} onChange={e=>setF("name",e.target.value)} /></div>
               <div><label className="ps-lbl">Product category</label><select className="ps-sel" value={form.cat} onChange={e=>changeCat(e.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></div>
               {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
-              <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
+              <div><label className="ps-lbl">Strain(s) — pick from catalogue or type; comma-separate blends</label><StrainCombo className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains}
+                onChange={(name, obj) => {
+                  if(obj) {
+                    // Appending a catalogue pick to existing blend string
+                    const existing = form.strains.split(",").map(s=>s.trim()).filter(Boolean);
+                    if(!existing.map(s=>s.toLowerCase()).includes(name.toLowerCase())) existing.push(name);
+                    setF("strains", existing.join(", "));
+                  } else {
+                    setF("strains", name);
+                  }
+                }} /></div>
               <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
               {isFlowerCat(form.cat) && availableHarvest.length>0 && (
                 <div style={{gridColumn:"span 2"}}>
