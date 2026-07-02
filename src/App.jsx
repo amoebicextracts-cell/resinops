@@ -1090,7 +1090,7 @@ export default function ResinOps() {
         <aside className="sidebar">
           <div className="logo">
             <div className="logo-mark">ResinOps</div>
-            <div className="logo-sub">Cannabis Operations AI</div>
+            <div className="logo-sub">Built by operators. Powered by data.</div>
           </div>
 
           {/* ── Dashboard pinned at top ── */}
@@ -1103,6 +1103,19 @@ export default function ResinOps() {
             <span className="module-info">
               <span className="module-name">Dashboard</span>
               <span className="module-desc">Today's alerts & activity</span>
+            </span>
+          </button>
+
+          {/* ── AI Assistant pinned under Dashboard ── */}
+          <button
+            className={`module-btn ${isAIChat || (!isSchedulerActive && activeModule !== "dashboard") ? "active" : ""}`}
+            onClick={() => { setActiveModule("ai-chat"); setMessages([]); setImage(null); }}
+            style={{marginBottom:4}}
+          >
+            <span className="module-icon">🤖</span>
+            <span className="module-info">
+              <span className="module-name">AI Assistant</span>
+              <span className="module-desc">Cannabis operations expert</span>
             </span>
           </button>
 
@@ -1126,19 +1139,6 @@ export default function ResinOps() {
               </button>
             </div>
           ))}
-
-          {/* ── AI Assistant collapsed to single button ── */}
-          <div style={{margin:"8px 0",borderTop:"1px solid var(--border)"}}/>
-          <button
-            className={`module-btn ${isAIChat || !isSchedulerActive && activeModule !== "dashboard" ? "active" : ""}`}
-            onClick={() => { setActiveModule("ai-chat"); setMessages([]); setImage(null); }}
-          >
-            <span className="module-icon">🤖</span>
-            <span className="module-info">
-              <span className="module-name">AI Assistant</span>
-              <span className="module-desc">Cannabis operations expert</span>
-            </span>
-          </button>
 
           {/* ── Settings at bottom ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
