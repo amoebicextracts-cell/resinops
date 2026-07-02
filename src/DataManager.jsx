@@ -587,6 +587,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||"",
             notes: r.notes||r["Notes"]||"",
           }))
+        : target==="inventory"
         ? rawRecords.map(r=>{
             const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
             const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
