@@ -45,18 +45,59 @@ const IMPORT_TARGETS = {
     schema:"[{spaceName, date, type, product, manufacturer, epaRegNum, rate, rateUnit, volumeApplied, volumeUnit, areaApplied, rei, phi, applicationMethod, targetPest, weatherTemp, weatherWind, weatherHumidity, applicatorName}]" },
 };
 
-async function callClaude(prompt){
+async function callClaude(prompt, isCOA=false){
   // Route through our Vercel proxy — never call Anthropic directly from the browser (CORS)
+  const coaInstructions = isCOA ? `
+For cannabis COA (Certificate of Analysis) PDFs from labs like Kaycha, SC Labs, Confident Cannabis, Steep Hill, etc:
+- strainName: the product/strain name on the COA
+- sampleId: the lab's sample ID or batch/lot number (e.g. "KY240501-001", "MIDS-2024-001")
+- labName: the testing laboratory name
+- submittedDate: date sample was submitted (YYYY-MM-DD format)
+- receivedDate: the report date or date results were issued (YYYY-MM-DD format)
+- thca: THCa percentage as a number WITHOUT the % sign (e.g. 22.4 not "22.4%")
+- thc: Delta-9 THC percentage as a number
+- cbda: CBDa percentage as a number
+- cbd: CBD percentage as a number  
+- cbg: CBG percentage as a number
+- cbn: CBN percentage as a number
+- thcv: THCv percentage as a number
+- cbc: CBC percentage as a number
+- totalCannabinoids: Total Cannabinoids percentage as a number (sometimes labeled "Total Active Cannabinoids" or "Total THC")
+- totalTerpenes: Total Terpenes percentage as a number
+- myrcene: Myrcene terpene percentage as a number
+- limonene: Limonene terpene percentage as a number
+- caryophyllene: Beta-Caryophyllene or Caryophyllene terpene percentage as a number
+- linalool: Linalool percentage as a number
+- pinene: Alpha-Pinene or Beta-Pinene percentage as a number (use the higher value if both present)
+- ocimene: Ocimene percentage as a number
+- terpinolene: Terpinolene percentage as a number
+- humulene: Alpha-Humulene or Humulene percentage as a number
+- tyam: Total Yeast and Mold CFU/g count as a number (microbial panel)
+- tab: Total Aerobic Bacteria CFU/g count as a number (microbial panel)
+- aspergillus: Aspergillus panel result as boolean true=pass, false=fail
+- salmonella: Salmonella panel result as boolean true=pass, false=fail
+- stec: STEC or E.coli O157 panel result as boolean true=pass, false=fail
+- ecoli: E.coli panel result as boolean true=pass, false=fail
+- microbialPass: overall microbial panel result as boolean true=pass, false=fail
+- pesticidesPass: pesticide residues panel result as boolean true=pass, false=fail
+- heavyMetalsPass: heavy metals panel result as boolean true=pass, false=fail
+- waterActivity: water activity Aw value as a number (e.g. 0.58)
+- moistureContent: moisture content percentage as a number
+- foreignMatterPass: foreign matter panel result as boolean true=pass, false=fail
+- overallPass: overall COA result — true if ALL panels passed, false if ANY panel failed
+
+IMPORTANT: All numeric values must be plain numbers (22.4), never strings with units ("22.4%"). All pass/fail values must be true or false booleans, never strings.` : `
+For employee lists: map job titles to roles and departments by context.
+For spray logs: extract EPA reg numbers, rates, applicator names, dates, target pests.`;
+
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 When given file contents you must:
 1. Identify what type of cannabis operations data it contains
-2. Map and extract the data into the specified JSON schema
+2. Map and extract the data into the specified JSON schema using EXACT field names provided
 3. Return ONLY valid JSON - no markdown, no explanation, no backticks
 Always return: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line description", "records": [...] }
-Omit fields not found in the source rather than using null.
-For COA PDFs: extract all cannabinoid percentages (numbers without % sign), terpene percentages, microbial pass/fail as true/false, sample ID, lab name, dates.
-For employee lists: map job titles to roles and departments by context.
-For spray logs: extract EPA reg numbers, rates, applicator names, dates, target pests.`;
+Only include fields that have actual values — omit fields with no data rather than using null or empty string.
+${coaInstructions}`;
 
   const resp = await fetch("/api/import", {
     method: "POST",
@@ -105,10 +146,11 @@ const CSS=`
 export default function DataManager(){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
-  const [importState,setImportState]=useState("idle"); // idle|reading|analyzing|preview|done|error
+  const [importState,setImportState]=useState("idle"); // idle|reading|analyzing|preview|coamatch|done|error
   const [importResult,setImportResult]=useState(null);
   const [importErr,setImportErr]=useState("");
   const [importTarget,setImportTarget]=useState("");
+  const [coaBatchLinks,setCoaBatchLinks]=useState({}); // sampleId -> harvestBatchId
   const [restoreConfirm,setRestoreConfirm]=useState(false);
   const [statusMsg,setStatusMsg]=useState("");
   const fileRef=useRef();
@@ -224,8 +266,9 @@ ${content}
 
 Extract and map all records to the appropriate ResinOps schema. For cannabis COA lab reports, extract every cannabinoid and terpene percentage you can find. For employee/staff lists, extract all people. For spray logs or pesticide records, extract each application event as a separate record.`;
 
-      const result=await callClaude(prompt);
-      setImportResult({...result,fileName:file.name,fileType:ext});
+      const isCOA = (importTarget==="qc_tests") || (!importTarget && ext==="pdf");
+      const result=await callClaude(prompt, isCOA);
+      setImportResult({...result,fileName:file.name,fileType:ext,isCOA:isCOA||result.detectedType==="qc_tests"});
       setImportState("preview");
     }catch(e){
       console.error(e);
@@ -234,31 +277,150 @@ Extract and map all records to the appropriate ResinOps schema. For cannabis COA
     }
   }
 
-  function confirmImport(){
+  function normalizeQCRecord(r){
+    // Normalize boolean pass/fail fields — Claude may return strings "true"/"false"/"pass"/"fail"
+    const toBool=(v)=>{
+      if(v===true||v===false) return v;
+      if(typeof v==="string"){
+        const l=v.toLowerCase().trim();
+        if(l==="true"||l==="pass"||l==="yes") return true;
+        if(l==="false"||l==="fail"||l==="no") return false;
+      }
+      return null;
+    };
+    // Normalize numeric fields — strip % signs and convert to number strings
+    const toNum=(v)=>{
+      if(v===undefined||v===null||v==="") return "";
+      const n=parseFloat(String(v).replace(/%/g,""));
+      return isNaN(n)?"":String(n);
+    };
+    const norm={
+      ...r,
+      // Ensure identity fields exist
+      batchId: r.batchId||"",
+      batchName: r.batchName||r.strainName||"",
+      batchType: r.batchType||"harvest",
+      status: r.receivedDate?"complete":r.submittedDate?"submitted":"pending",
+      source:"coa_import",
+      // Normalize cannabinoids
+      thca:toNum(r.thca),thc:toNum(r.thc),cbda:toNum(r.cbda),cbd:toNum(r.cbd),
+      cbg:toNum(r.cbg),cbn:toNum(r.cbn),thcv:toNum(r.thcv),cbc:toNum(r.cbc),
+      totalCannabinoids:toNum(r.totalCannabinoids),
+      // Normalize terpenes
+      totalTerpenes:toNum(r.totalTerpenes),myrcene:toNum(r.myrcene),
+      limonene:toNum(r.limonene),caryophyllene:toNum(r.caryophyllene),
+      linalool:toNum(r.linalool),pinene:toNum(r.pinene),ocimene:toNum(r.ocimene),
+      terpinolene:toNum(r.terpinolene),humulene:toNum(r.humulene),
+      bisabolol:toNum(r.bisabolol),valencene:toNum(r.valencene),other_terps:toNum(r.other_terps),
+      tyam:toNum(r.tyam),tab:toNum(r.tab),
+      waterActivity:toNum(r.waterActivity),moistureContent:toNum(r.moistureContent),
+      // Normalize pass/fail booleans
+      microbialPass:toBool(r.microbialPass),
+      pesticidesPass:toBool(r.pesticidesPass),
+      heavyMetalsPass:toBool(r.heavyMetalsPass),
+      foreignMatterPass:toBool(r.foreignMatterPass),
+      aspergillus:toBool(r.aspergillus),
+      salmonella:toBool(r.salmonella),
+      stec:toBool(r.stec),
+      ecoli:toBool(r.ecoli),
+    };
+    // Derive overallPass if not explicitly set
+    if(norm.overallPass===undefined||norm.overallPass===null){
+      const bools=[norm.microbialPass,norm.pesticidesPass,norm.heavyMetalsPass,norm.foreignMatterPass,norm.aspergillus,norm.salmonella,norm.stec,norm.ecoli].filter(v=>v!==null);
+      if(bools.some(v=>v===false)) norm.overallPass=false;
+      else if(bools.length>0&&bools.every(v=>v===true)) norm.overallPass=true;
+      else norm.overallPass=toBool(r.overallPass);
+    } else {
+      norm.overallPass=toBool(r.overallPass);
+    }
+    return norm;
+  }
+
+  function confirmImport(batchLinks={}){
     if(!importResult?.records?.length) return;
     const target=importTarget||importResult.detectedType;
     const tgt=IMPORT_TARGETS[target];
     if(!tgt){ setImportErr("Cannot identify where to save this data. Please select a data type above and re-analyze."); return; }
     try{
       const existing=JSON.parse(localStorage.getItem(tgt.key)||"[]");
-      const newRecords=importResult.records.map(r=>({...r,id:r.id||"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)}));
+      const rawRecords=importResult.records.map(r=>({
+        ...r,
+        id:r.id||"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)
+      }));
+      // For COA/QC imports, normalize fields and apply batch links
+      const newRecords=target==="qc_tests"
+        ? rawRecords.map((r,i)=>{
+            const linkedId=batchLinks[r.sampleId||i]||"";
+            const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+            const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
+            return normalizeQCRecord({
+              ...r,
+              batchId:linkedId||"",
+              batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",
+            });
+          })
+        : rawRecords;
+
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
-      // Also populate strain database from COA imports
+
+      // Populate strain database from COA imports
       if(target==="qc_tests"){
         const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
         const strainNames=new Set(strains.map(s=>s.name.toLowerCase()));
-        const newStrains=newRecords.filter(r=>r.strainName&&!strainNames.has(r.strainName.toLowerCase())).map(r=>({id:"str_auto_"+Date.now()+Math.random(),name:r.strainName,type:"Hybrid",parentage:"",breeder:"",thcaAvg:r.thca||"",thcAvg:r.thc||"",cbdAvg:r.cbd||"",terpsAvg:r.totalTerpenes||"",dominantTerpenes:"",notes:"Auto-added from COA import",status:"active",salesDescription:""}));
+        const newStrains=newRecords
+          .filter(r=>r.strainName&&!strainNames.has(r.strainName.toLowerCase()))
+          .map(r=>({
+            id:"str_auto_"+Date.now()+Math.random(),
+            name:r.strainName,type:"Unknown",parentage:"",breeder:"",
+            thcaAvg:r.thca||"",thcAvg:r.thc||"",cbdAvg:r.cbd||"",
+            terpsAvg:r.totalTerpenes||"",
+            dominantTerpenes:[r.myrcene&&"Myrcene",r.limonene&&"Limonene",r.caryophyllene&&"Caryophyllene"].filter(Boolean).join(", "),
+            notes:"Auto-added from COA import",status:"active",salesDescription:"",
+          }));
         if(newStrains.length) localStorage.setItem("resinops_strains",JSON.stringify([...strains,...newStrains]));
+
+        // Auto-create completed harvest batches for passing COAs, or update linked ones
+        const passingRecords=newRecords.filter(r=>r.overallPass===true);
+        if(passingRecords.length){
+          const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+          const existingSampleIds=new Set(hb.map(b=>b.coaSampleId).filter(Boolean));
+          let updatedHb=[...hb];
+          const newBatches=[];
+          passingRecords.forEach((r,i)=>{
+            if(r.batchId){
+              // Update the linked batch to complete with COA data
+              updatedHb=updatedHb.map(b=>String(b.id)===String(r.batchId)?{
+                ...b,status:"complete",coaSampleId:r.sampleId,
+                thca:r.thca||b.thca,thc:r.thc||b.thc,totalTerpenes:r.totalTerpenes||b.totalTerpenes,
+                labName:r.labName||b.labName,coaReceivedDate:r.receivedDate,
+              }:b);
+            } else if(!existingSampleIds.has(r.sampleId)){
+              // No linked batch — create placeholder
+              newBatches.push({
+                id:"hb_coa_"+Date.now()+"_"+i,
+                strainName:r.strainName||"Unknown",
+                d:r.receivedDate||r.submittedDate||new Date().toISOString().split("T")[0],
+                status:"complete",coaSampleId:r.sampleId,labName:r.labName,
+                thca:r.thca,thc:r.thc,totalTerpenes:r.totalTerpenes,
+                notes:"Auto-created from passing COA import ("+(r.sampleId||"no sample ID")+")",
+                source:"coa_import",
+              });
+            }
+          });
+          localStorage.setItem("resinops_harvest_batches",JSON.stringify([...updatedHb,...newBatches]));
+        }
       }
+
       setImportState("done");
-      setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+" ✓");
+      const extras=target==="qc_tests"?` — strain catalogue & harvest batches updated`:"";
+      setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+" ✓");
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
-  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget(""); }
+  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({}); }
 
   const stepStatus=(step)=>{
-    const order=["idle","reading","analyzing","preview","done"];
+    const order=["idle","reading","analyzing","preview","coamatch","done"];
     const cur=order.indexOf(importState);
     const s=order.indexOf(step);
     if(s<cur) return "done";
@@ -291,7 +453,10 @@ Extract and map all records to the appropriate ResinOps schema. For cannabis COA
             {/* Progress steps */}
             {importState!=="idle"&&(
               <div style={{marginBottom:16}}>
-                {[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview — confirm before saving"],["done","✅ Import complete"]].map(([s,l])=>(
+                {(importResult?.isCOA||(importTarget||importResult?.detectedType)==="qc_tests"
+                  ?[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview COA data"],["coamatch","🔗 Link to harvest batches"],["done","✅ Import complete"]]
+                  :[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview — confirm before saving"],["done","✅ Import complete"]]
+                ).map(([s,l])=>(
                   <div key={s} className={"dm-step dm-step-"+(stepStatus(s))}>
                     <span style={{fontSize:16}}>{stepStatus(s)==="done"?"✓":stepStatus(s)==="active"?"⏳":"○"}</span>
                     <span style={{fontSize:12,fontWeight:stepStatus(s)==="active"?600:400,color:stepStatus(s)==="active"?"var(--text)":"var(--text-3)"}}>{l}</span>
@@ -370,8 +535,62 @@ Extract and map all records to the appropriate ResinOps schema. For cannabis COA
                 )}
 
                 <div style={{display:"flex",gap:8}}>
-                  <button className="dm-btn dm-primary" onClick={confirmImport}>Import {importResult.records?.length||0} records</button>
+                  <button className="dm-btn dm-primary" onClick={()=>{
+                    const isCOA=importResult.isCOA||(importTarget||importResult.detectedType)==="qc_tests";
+                    if(isCOA) setImportState("coamatch");
+                    else confirmImport();
+                  }}>
+                    {(importResult.isCOA||(importTarget||importResult.detectedType)==="qc_tests")
+                      ? "Next: Link to Batches →"
+                      : `Import ${importResult.records?.length||0} records`}
+                  </button>
                   <button className="dm-btn dm-secondary" onClick={reset}>Cancel / start over</button>
+                </div>
+              </div>
+            )}
+
+            {importState==="coamatch"&&importResult&&(
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Link COA results to existing harvest batches</div>
+                <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+                  Match each COA result to the harvest batch you created when you sent the sample to Kaycha.
+                  If you don't have a batch yet, leave it unlinked — ResinOps will create a placeholder batch automatically.
+                </div>
+                {importResult.records?.map((r,i)=>{
+                  const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+                  return(
+                    <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:10,border:"1px solid var(--border-2)"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{r.strainName||"Unknown Strain"}</div>
+                          <div style={{fontSize:11,color:"var(--text-3)"}}>Kaycha Sample ID: <span style={{fontFamily:"monospace",color:"var(--text-2)"}}>{r.sampleId||"—"}</span></div>
+                          <div style={{fontSize:11,color:"var(--text-3)"}}>
+                            {r.thca&&<span style={{marginRight:10}}>THCa: <strong style={{color:"var(--accent-2)"}}>{r.thca}%</strong></span>}
+                            {r.totalTerpenes&&<span>Terps: <strong style={{color:"var(--accent-2)"}}>{r.totalTerpenes}%</strong></span>}
+                            {r.overallPass===true&&<span style={{marginLeft:10,color:"var(--accent-2)",fontWeight:600}}>✓ PASS</span>}
+                            {r.overallPass===false&&<span style={{marginLeft:10,color:"var(--danger)",fontWeight:600}}>✗ FAIL</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="dm-lbl">Link to harvest batch in ResinOps</label>
+                        <select className="dm-inp" style={{cursor:"pointer"}}
+                          value={coaBatchLinks[r.sampleId||i]||""}
+                          onChange={e=>setCoaBatchLinks(prev=>({...prev,[r.sampleId||i]:e.target.value}))}>
+                          <option value="">— No match / create placeholder batch —</option>
+                          {hb.filter(b=>!b.source||b.source!=="coa_import").map(b=>(
+                            <option key={b.id} value={b.id}>
+                              {b.strainName} {b.d?`(${new Date(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.weightG?`— ${b.weightG}g`:""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{display:"flex",gap:8,marginTop:4}}>
+                  <button className="dm-btn dm-primary" onClick={()=>confirmImport(coaBatchLinks)}>Import & save COA results</button>
+                  <button className="dm-btn dm-secondary" onClick={()=>setImportState("preview")}>← Back to preview</button>
                 </div>
               </div>
             )}

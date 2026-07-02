@@ -96,21 +96,88 @@ export default function QCTesting(){
   }
 
   function save(){
-    if(!form.batchId&&!form.batchName){setErr("Select or name the batch being tested.");return;}
+    // Allow imported COA records that have no linked batch — they use strainName + sampleId as identity
+    const hasIdentity = form.batchId || form.batchName || form.strainName || form.sampleId;
+    if(!hasIdentity){setErr("Provide at least a strain name or sample ID to save this record.");return;}
     const overall=form.overallPass??calcOverall(form);
     const rec={...form,id:form.id||"qc"+Date.now(),overallPass:overall,
       status:form.receivedDate?"complete":form.submittedDate?"submitted":"pending"};
     if(form.id) setTests(p=>p.map(x=>x.id===rec.id?rec:x));
     else setTests(p=>[...p,rec]);
+
     // Auto-trigger remediation flag if microbial fail
     if(overall===false&&(form.microbialPass===false||form.aspergillus===false)){
       const existingRem=JSON.parse(localStorage.getItem("resinops_remediation")||"[]");
-      const alreadyFlagged=existingRem.some(r=>r.sourceId===String(form.batchId));
+      const alreadyFlagged=existingRem.some(r=>r.sourceId===String(form.batchId||form.sampleId));
       if(!alreadyFlagged){
-        const newRem={id:"rm_auto_"+Date.now(),sourceType:form.batchType,sourceId:String(form.batchId),strainName:form.strainName,weightG:"",labName:form.labName,labReportRef:form.sampleId,testDate:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],tyamCfu:form.tyam||"",tabCfu:form.tab||"",aspergillus:form.aspergillus===false,gyPerHour:"1000",turnRequired:true,status:"flagged",notes:"Auto-flagged from QC Testing — COA fail",dose:null};
+        const newRem={id:"rm_auto_"+Date.now(),sourceType:form.batchType||"harvest",sourceId:String(form.batchId||form.sampleId||rec.id),strainName:form.strainName,weightG:"",labName:form.labName,labReportRef:form.sampleId,testDate:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],tyamCfu:form.tyam||"",tabCfu:form.tab||"",aspergillus:form.aspergillus===false,gyPerHour:"1000",turnRequired:true,status:"flagged",notes:"Auto-flagged from QC Testing — COA fail",dose:null};
         localStorage.setItem("resinops_remediation",JSON.stringify([...existingRem,newRem]));
       }
     }
+
+    // ── Passing COA: auto-create completed harvest batch + update strain catalogue ──
+    if(overall===true){
+      // 1. Create a completed harvest batch if no existing batch is linked
+      if(!form.batchId){
+        const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+        const alreadyExists=hb.some(b=>b.coaSampleId===form.sampleId);
+        if(!alreadyExists){
+          const newBatch={
+            id:"hb_coa_"+Date.now(),
+            strainName:form.strainName||"Unknown",
+            d:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
+            status:"complete",
+            coaSampleId:form.sampleId,
+            labName:form.labName,
+            thca:form.thca,
+            thc:form.thc,
+            totalTerpenes:form.totalTerpenes,
+            notes:"Auto-created from passing COA import ("+( form.sampleId||"no sample ID")+")",
+            source:"coa_import",
+          };
+          localStorage.setItem("resinops_harvest_batches",JSON.stringify([...hb,newBatch]));
+        }
+      } else {
+        // Mark the linked harvest batch as complete
+        const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+        const updated=hb.map(b=>String(b.id)===String(form.batchId)?{...b,status:"complete",coaSampleId:form.sampleId,thca:form.thca||b.thca,thc:form.thc||b.thc,totalTerpenes:form.totalTerpenes||b.totalTerpenes}:b);
+        localStorage.setItem("resinops_harvest_batches",JSON.stringify(updated));
+      }
+
+      // 2. Update strain catalogue with COA averages
+      if(form.strainName){
+        const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
+        const idx=strains.findIndex(s=>s.name.toLowerCase()===form.strainName.toLowerCase());
+        if(idx>=0){
+          // Update averages on existing strain
+          const s=strains[idx];
+          strains[idx]={...s,
+            thcaAvg:form.thca||s.thcaAvg,
+            thcAvg:form.thc||s.thcAvg,
+            cbdAvg:form.cbd||s.cbdAvg,
+            terpsAvg:form.totalTerpenes||s.terpsAvg,
+            lastCoaDate:form.receivedDate||form.submittedDate,
+            lastCoaSampleId:form.sampleId,
+          };
+        } else {
+          // Add new strain entry from COA data
+          strains.push({
+            id:"str_coa_"+Date.now(),
+            name:form.strainName,
+            type:"Unknown",parentage:"",breeder:"",
+            thcaAvg:form.thca||"",thcAvg:form.thc||"",cbdAvg:form.cbd||"",
+            terpsAvg:form.totalTerpenes||"",
+            dominantTerpenes:[form.myrcene&&"Myrcene",form.limonene&&"Limonene",form.caryophyllene&&"Caryophyllene"].filter(Boolean).join(", "),
+            lastCoaDate:form.receivedDate||form.submittedDate,
+            lastCoaSampleId:form.sampleId,
+            notes:"Auto-added from passing COA import",
+            status:"active",salesDescription:"",
+          });
+        }
+        localStorage.setItem("resinops_strains",JSON.stringify(strains));
+      }
+    }
+
     autoPopulateStrains(form.strainName,{source:"QC Testing"});
     setForm(null);setFormSection("meta");setErr("");
   }
@@ -149,6 +216,11 @@ export default function QCTesting(){
 
             {formSection==="meta"&&(
               <>
+                {form.id&&!form.batchId&&(
+                  <div style={{background:"rgba(90,63,160,0.08)",border:"1px solid rgba(90,63,160,0.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#9080f0"}}>
+                    📥 <strong>COA Import</strong> — This record was imported from a lab PDF. Batch linkage is optional; cannabinoid and terpene data is on the next tabs. If a passing result is saved, a harvest batch will be auto-created and the strain catalogue updated.
+                  </div>
+                )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="qc-lbl">Source type</label><select className="qc-sel" value={form.batchType} onChange={e=>setForm(f=>({...f,batchType:e.target.value,batchId:"",batchName:"",strainName:""}))}>
                     <option value="harvest">Harvest Batch</option><option value="production">Production Batch</option>
@@ -254,7 +326,7 @@ export default function QCTesting(){
                         <td style={{color:pfColor(t.pesticidesPass)}}>{pf(t.pesticidesPass)}</td>
                         <td><span className={"qc-pill "+(t.overallPass===true?"qc-pass":t.overallPass===false?"qc-fail":"qc-pending")}>{t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</span></td>
                         <td><div style={{display:"flex",gap:5}}>
-                          <button className="qc-sm qc-edit" onClick={()=>{setForm({...t});setFormSection("meta");}}>Edit</button>
+                          <button className="qc-sm qc-edit" onClick={()=>{setForm({...t});setFormSection(t.batchId?"meta":"cannabinoids");}}>Edit</button>
                           <button className="qc-sm qc-del" onClick={()=>remove(t.id)}>✕</button>
                         </div></td>
                       </tr>
