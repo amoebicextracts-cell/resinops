@@ -871,9 +871,70 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           </div>
         )}
 
-        {/* ── BACKUP & RESTORE ── */}
+        {/* ── DEMO MODE ── */}
         {tab==="backup"&&(
           <>
+            <div className="dm-card" style={{border:"2px solid rgba(90,63,160,0.4)",background:"rgba(90,63,160,0.04)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <span style={{fontSize:20}}>🚀</span>
+                <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>Demo Mode — Cascade Peak Cannabis LLC</div>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(90,63,160,0.15)",color:"#9080f0"}}>INVESTOR DEMO</span>
+              </div>
+              <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+                One-click facility setup for demo sessions. Loads Cascade Peak Cannabis LLC (OCM-AUPR-007891) into Facility Settings instantly — no manual entry required. Use this before importing the numbered demo CSV files.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                {[
+                  ["Facility","Cascade Peak Cannabis LLC"],
+                  ["License","OCM-AUPR-007891 (Adult-Use Cultivator)"],
+                  ["Location","1220 Route 17M, Tuxedo, NY 10987"],
+                  ["Seed-to-Sale","METRC / Flourish"],
+                ].map(([l,v])=>(
+                  <div key={l} style={{background:"var(--surface-2)",borderRadius:7,padding:"8px 12px"}}>
+                    <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase"}}>{l}</div>
+                    <div style={{fontSize:12,color:"var(--text)",fontWeight:500}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} onClick={()=>{
+                  const demoSettings = {
+                    facilityName:"Cascade Peak Cannabis LLC",
+                    dbaName:"Cascade Peak",
+                    licenseNumber:"OCM-AUPR-007891",
+                    licenseType:"Adult-Use Cultivator",
+                    state:"NY",
+                    address:"1220 Route 17M",
+                    city:"Tuxedo",
+                    zip:"10987",
+                    phone:"(845) 555-0100",
+                    email:"ops@cascadepeak.co",
+                    website:"www.cascadepeak.co",
+                    ownerName:"Jordan Cascade",
+                    ownerEmail:"j.cascade@cascadepeak.co",
+                    ownerPhone:"(845) 555-0101",
+                    timezone:"America/New_York",
+                    tagSystem:"Flourish",
+                    fiscalYearStart:"01",
+                    metrcApiKey:"",
+                  };
+                  localStorage.setItem("resinops_facility_settings", JSON.stringify(demoSettings));
+                  setStatusMsg("✓ Cascade Peak Cannabis LLC loaded into Facility Settings — ready for demo");
+                }}>
+                  ✨ Load demo facility settings
+                </button>
+                <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} onClick={()=>{
+                  if(!window.confirm("This will permanently delete ALL data in ResinOps. Are you sure? This cannot be undone.")) return;
+                  const keys = Object.keys(localStorage).filter(k=>k.startsWith("resinops_"));
+                  keys.forEach(k=>localStorage.removeItem(k));
+                  setStatusMsg("All ResinOps data cleared — ready for fresh demo");
+                }}>
+                  🗑 Clear all data
+                </button>
+              </div>
+              {statusMsg&&<div style={{marginTop:10,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}
+            </div>
+
             <div className="dm-card">
               <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Export full data backup</div>
               <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Downloads all ResinOps data as a single JSON file. Store it somewhere safe — this is your only protection against browser data loss until the V2 cloud backend is live.</div>
