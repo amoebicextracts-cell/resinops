@@ -28,21 +28,103 @@ function countRecords(data){
 // ── Import-target schemas for the AI to map to ──────────────────────────────
 const IMPORT_TARGETS = {
   employees:{ label:"Employee Roster", icon:"👥", key:"resinops_employees",
-    schema:"[{name, role, department, status (must be exactly 'active' or 'inactive'), hireDate (YYYY-MM-DD), phone, email, pestLicenseNum, pestLicenseCategory, pestLicenseExpiry (YYYY-MM-DD), certs (always empty array []), trainings (always empty array [])}]" },
+    schema:`Each record must use these EXACT field names — map from whatever column names appear in the source:
+  name (the person's full name — may be called "Full Name", "Employee", "Staff Member", "Worker", etc.)
+  role (their job title — may be called "Job Title", "Position", "Title", "Role", etc.)
+  department (their department or area — may be called "Department", "Team", "Area", "Section", etc.)
+  status (employment status — must be exactly the string "active" or "inactive". Map "Active","Employed","Current" → "active"; "Inactive","Terminated","Former","Left" → "inactive")
+  hireDate (start date in YYYY-MM-DD — may be called "Start Date", "Hire Date", "Employment Start", "Date Hired", "Joined", etc.)
+  phone (cell or work phone — may be called "Phone", "Cell", "Mobile", "Contact Number", etc.)
+  email (work email — may be called "Email", "Work Email", "E-mail", etc.)
+  pestLicenseNum (pesticide license number — may be called "Pest. Cert #", "License #", "Cert Number", "Pesticide License", etc.)
+  pestLicenseCategory (pesticide license category — may be called "Cert Category", "License Type", "Category", etc. Copy the full text value)
+  pestLicenseExpiry (license expiry date in YYYY-MM-DD — may be called "Cert Expiry", "Expiry Date", "License Expires", etc.)
+  certs (always set to empty array [])
+  trainings (always set to empty array [])
+  notes (any notes, comments, or additional info field)` },
   equipment:{ label:"Equipment Registry", icon:"🔧", key:"resinops_equipment",
-    schema:"[{name, cat, make, model, serial, assetTag, location, purchaseDate, purchasePrice, warrantyExpires, pmFreqDays, status}]" },
+    schema:`Each record must use these EXACT field names:
+  name (equipment name or description — may be called "Asset Description", "Equipment Name", "Item", "Asset", etc.)
+  cat (category or type — may be called "Category", "Type", "Category/Type", "Asset Type", etc.)
+  make (manufacturer or brand — may be called "Brand", "Manufacturer", "Make", "Brand/Manufacturer", etc.)
+  model (model number or name — may be called "Model", "Model Number", "Model #", etc.)
+  serial (serial number — may be called "Serial", "Serial Number", "Serial #", "S/N", etc.)
+  assetTag (internal asset tag or ID — may be called "Asset Tag", "Tag", "Asset ID", "Internal ID", etc.)
+  location (where the equipment is located — may be called "Location", "Room", "Area", "Placed In", etc.)
+  purchaseDate (date purchased in YYYY-MM-DD — may be called "Purchase Date", "Date Purchased", "Acquired", etc.)
+  purchasePrice (cost in dollars as a number — may be called "Cost", "Price", "Purchase Price", "Cost (USD)", etc. Strip $ and commas)
+  warrantyExpires (warranty expiry date in YYYY-MM-DD — may be called "Warranty Expiration", "Warranty Expires", "Warranty End", etc.)
+  pmFreqDays (preventive maintenance interval as number of days — may be called "Service Interval", "PM Frequency", "Maintenance Interval". Convert "90 days" → 90, "quarterly" → 90, "annually" → 365, "monthly" → 30)
+  status (default to "active" unless the source indicates otherwise)` },
   inventory:{ label:"Inventory Items", icon:"📦", key:"resinops_inventory",
-    schema:"[{n, cat, uom, reorderAt, reorderQty, vm, notes}]" },
+    schema:`Each record must use these EXACT field names:
+  n (the item name or description — may be called "Item", "Description", "Item Description", "Product", "Supply", etc.)
+  cat (category — may be called "Category", "Type", "Supply Category", "Item Type", etc.)
+  uom (unit of measure — may be called "UOM", "Unit", "Unit of Measure", "Unit Type". Common values: each, lb, g, kg, oz, gal, L, mL, bag, box, roll, case)
+  reorderAt (reorder trigger quantity as a number — may be called "Reorder Point", "Reorder When Below", "Min Stock", "Low Stock Alert", etc.)
+  reorderQty (how many to order as a number — may be called "Reorder Quantity", "Order Qty", "Reorder Amount", etc.)
+  vm (primary vendor or supplier name — may be called "Vendor", "Supplier", "Primary Vendor", "Source", etc.)
+  notes (any notes or comments field)` },
   vendors:{ label:"Vendors", icon:"🏭", key:"resinops_vendors",
-    schema:"[{n, vendorType, contact, phone, email, leadDays, notes}]" },
+    schema:`Each record must use these EXACT field names:
+  n (vendor or company name — may be called "Vendor", "Company", "Supplier", "Business Name", etc.)
+  vendorType (type of vendor — may be called "Type", "Category", "Vendor Type", "Supplier Type", etc.)
+  contact (primary contact person name — may be called "Contact", "Contact Name", "Rep", "Sales Rep", etc.)
+  phone (phone number)
+  email (email address)
+  leadDays (lead time in days as a number — may be called "Lead Time", "Lead Days", "Delivery Time", etc.)
+  notes (any notes field)` },
   strains:{ label:"Strain Database", icon:"🧬", key:"resinops_strains",
-    schema:"[{name, type, parentage, breeder, thcaAvg, thcAvg, cbdAvg, terpsAvg, dominantTerpenes, avgYieldGPerSqft, avgFlowerWeeks, aroma, flavor, effectProfile, notes}]" },
+    schema:`Each record must use these EXACT field names:
+  name (strain or cultivar name — may be called "Strain", "Cultivar", "Cultivar Name", "Variety", etc.)
+  type (indica/sativa/hybrid — may be called "Type", "Strain Type", "Classification". Normalize to "Indica", "Sativa", "Hybrid", or "Indica-dominant"/"Sativa-dominant")
+  parentage (genetic cross or lineage — may be called "Genetics", "Lineage", "Cross", "Genetic Cross", "Parents", etc.)
+  breeder (who bred the strain — may be called "Breeder", "Seed Company", "Source", "Original Breeder", etc.)
+  thcaAvg (average THCa % as a number — may be called "Avg THCa", "THCa %", "THCa Average", etc. Strip % sign)
+  thcAvg (average THC % as a number)
+  cbdAvg (average CBD % as a number)
+  terpsAvg (average total terpenes % as a number — may be called "Avg Total Terpenes", "Terpenes %", etc.)
+  dominantTerpenes (top terpenes as comma-separated text — may be called "Dominant Terpenes", "Top Terps", "Primary Terpenes", etc.)
+  avgYieldGPerSqft (average yield in grams per square foot as a number — may be called "Avg Yield", "Yield g/sqft", "Yield per sqft", etc.)
+  avgFlowerWeeks (flower time in weeks as a number — may be called "Flower Time", "Flower Weeks", "Days to Harvest". Convert days to weeks)
+  aroma (aroma description text — may be called "Aroma", "Smell", "Nose", "Aroma Notes", etc.)
+  flavor (flavor description text — may be called "Flavor", "Taste", "Flavor Profile", etc.)
+  effectProfile (effects description — may be called "Effects", "Effect", "Effect Description", "High Profile", etc.)
+  notes (any internal notes or comments)` },
   spaces:{ label:"Grow Spaces / Rooms", icon:"🗺️", key:"resinops_grow_map",
-    schema:"[{name, type, sqft, canopy, maxPlants, lightType, lightCount, lightWatts, resetDays, status, sensorId}]" },
+    schema:`Each record must use these EXACT field names:
+  name (room or space name — may be called "Room", "Space", "Area", "Room Name", "Grow Room", etc.)
+  type (type of space — may be called "Type", "Room Type", "Environment". Common values: indoor, greenhouse, mixed-light, outdoor, veg, clone, dry, processing)
+  sqft (total square footage as a number)
+  canopy (canopy square footage as a number — may differ from total sqft)
+  maxPlants (maximum plant count as a number)
+  lightType (lighting type — LED, HPS, CMH, Mixed-light, Natural, etc.)
+  lightCount (number of lights as a number)
+  lightWatts (watts per light as a number)
+  status (default "active")` },
   qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
-    schema:"[{strainName, sampleId, labName, submittedDate, receivedDate, thca, thc, cbd, cbg, cbn, totalCannabinoids, totalTerpenes, myrcene, limonene, caryophyllene, tyam, tab, microbialPass, pesticidesPass, heavyMetalsPass, waterActivity, moistureContent, overallPass}]" },
+    schema:"See COA-specific instructions in the system prompt." },
   cult_inputs:{ label:"Cultivation Inputs / Spray Log", icon:"🌱", key:"resinops_cult_inputs",
-    schema:"[{spaceName, date, type, product, manufacturer, epaRegNum, rate, rateUnit, volumeApplied, volumeUnit, areaApplied, rei, phi, applicationMethod, targetPest, weatherTemp, weatherWind, weatherHumidity, applicatorName}]" },
+    schema:`Each record must use these EXACT field names:
+  spaceName (room or area where applied — may be called "Room", "Location", "Grow Space", "Area Treated", etc.)
+  date (application date in YYYY-MM-DD — may be called "Date", "Application Date", "Spray Date", etc.)
+  type (input type — map pesticide/insecticide/fungicide/herbicide → "Pesticide"; fertilizer/nutrient → "Fertilizer"; foliar feed → "Foliar"; bio-stimulant → "Bio-stimulant")
+  product (product name — may be called "Product", "Pesticide Name", "Chemical", "Input", etc.)
+  manufacturer (maker of the product — may be called "Manufacturer", "Brand", "Company", etc.)
+  epaRegNum (EPA registration number — may be called "EPA Reg #", "EPA Registration", "EPA Number", "Reg #", etc.)
+  rate (application rate value as a number — may be called "Rate", "Label Rate", "Application Rate", etc. Extract just the number)
+  rateUnit (unit for the rate — e.g. "oz/gal", "ml/L", "lb/acre", etc.)
+  volumeApplied (total volume mixed or applied as a number — may be called "Amount Mixed", "Volume Applied", "Total Mixed", etc.)
+  volumeUnit (unit for volume — "gal", "L", "mL", etc.)
+  areaApplied (area treated as a number in sq ft — may be called "Area Treated", "Sq Ft", "Area", etc.)
+  rei (re-entry interval in hours as a number — may be called "REI", "Re-Entry Interval", "Re-entry", etc.)
+  phi (pre-harvest interval in days as a number — may be called "PHI", "Pre-Harvest Interval", "Days to Harvest", etc.)
+  applicationMethod (how it was applied — may be called "Application Equipment", "Method", "Equipment Used", etc.)
+  targetPest (what it was targeting — may be called "Target Pest", "Target", "Pest/Disease", "Target Pest/Disease", etc.)
+  weatherTemp (temperature at application as a number — may be called "Temp", "Temperature", "Temp at Application", etc.)
+  weatherWind (wind speed as a number — may be called "Wind Speed", "Wind", "Wind mph", etc.)
+  weatherHumidity (relative humidity as a number — may be called "RH", "Humidity", "Relative Humidity", etc.)
+  applicatorName (who applied it — may be called "Applicator", "Applied By", "Licensed Applicator", "Operator", etc.)` },
 };
 
 async function callClaude(prompt, isCOA=false){
@@ -255,16 +337,24 @@ export default function DataManager(){
       }
 
       setImportState("analyzing");
-      const targetSchema=importTarget?IMPORT_TARGETS[importTarget]?.schema:"auto-detect";
+      const detectedTarget=importTarget||"";
+      const targetInfo=IMPORT_TARGETS[detectedTarget];
       const prompt=`File name: "${file.name}"
-${importTarget?`User specified data type: ${IMPORT_TARGETS[importTarget]?.label}\nTarget schema: ${targetSchema}`:"Auto-detect the data type from the content."}
+${targetInfo
+  ? `Target module: ${targetInfo.label}
+
+FIELD MAPPING INSTRUCTIONS — map the source columns to these exact field names:
+${targetInfo.schema}
+
+Your job is to read every row and map each source column to the correct target field name above, regardless of what the source calls it. Use context and meaning to map — do not require exact column name matches.`
+  : `Auto-detect which ResinOps module this data belongs to (employees, equipment, inventory, vendors, strains, spaces, qc_tests, or cult_inputs) from the content and structure.`}
 
 File contents:
 ---
 ${content}
 ---
 
-Extract and map all records to the appropriate ResinOps schema. For cannabis COA lab reports, extract every cannabinoid and terpene percentage you can find. For employee/staff lists, extract all people. For spray logs or pesticide records, extract each application event as a separate record.`;
+Return every row as a record. Do not skip rows. Map all columns you can identify — leave out columns that have no clear match.`;
 
       const isCOA = (importTarget==="qc_tests") || (!importTarget && ext==="pdf");
       const result=await callClaude(prompt, isCOA);
