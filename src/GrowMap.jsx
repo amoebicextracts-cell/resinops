@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Propagation","Veg","Nursery","Other"];
+const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
 const STATUSES = [
   {v:"active",l:"Active — plants in room"},

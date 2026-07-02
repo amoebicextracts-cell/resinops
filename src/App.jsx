@@ -10,6 +10,7 @@ import StrainDatabase from "./StrainDatabase.jsx";
 import Employees from "./Employees.jsx";
 import CultivationInputs from "./CultivationInputs.jsx";
 import SprayLog from "./SprayLog.jsx";
+import MotherPlantManager from "./MotherPlantManager.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
@@ -208,6 +209,14 @@ const MODULES = [
     icon: "✂️",
     available: true,
     description: "Auto back-calculates clone cut dates by room",
+    isScheduler: true,
+  },
+  {
+    id: "mother-plants",
+    label: "Mother Plant Manager",
+    icon: "🌿",
+    available: true,
+    description: "Track moms by strain, cycle timing & projected cuts",
     isScheduler: true,
   },
   {
@@ -1077,7 +1086,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1185,6 +1194,7 @@ export default function ResinOps() {
           {activeModule === "clone-scheduler" ? <CloneScheduler /> : null}
           {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
           {activeModule === "strain-db" ? <StrainDatabase /> : null}
+          {activeModule === "mother-plants" ? <MotherPlantManager /> : null}
           {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
           {activeModule === "spray-log" ? <SprayLog /> : null}
           {activeModule === "tc-tracker" ? (
