@@ -14,7 +14,6 @@ export default defineConfig({
             './src/GrowMap.jsx',
             './src/CloneScheduler.jsx',
             './src/HarvestBatches.jsx',
-            './src/CultivationInputs.jsx',
           ],
           'modules-production': [
             './src/ProductionScheduler.jsx',
