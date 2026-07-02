@@ -521,14 +521,38 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               notes: r.notes || r["Notes"] || "",
             };
           })
-        : target==="inventory"
+        : target==="strains"
+        ? rawRecords.map(r=>({
+            ...r,
+            id: r.id || "str_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            name: r.name || r.cultivar_name || r.strain_name || r.strain || r["Cultivar Name"] || r["Strain Name"] || r["Strain"] || "",
+            type: r.type || r.strain_type || r["Strain Type"] || r["Type"] || "Hybrid",
+            parentage: r.parentage || r.genetic_cross || r.genetic_cross_lineage || r.lineage || r["Genetic Cross / Lineage"] || r["Lineage"] || r["Genetics"] || "",
+            breeder: r.breeder || r.original_breeder || r["Original Breeder"] || r["Breeder"] || r["Seed Company"] || "",
+            thcaAvg: r.thcaAvg || r.avg_thca || r.avg_thca_pct || r.thca_avg || r["Avg THCa %"] || r["Avg THCa"] || "",
+            thcAvg: r.thcAvg || r.avg_thc || r.avg_thc_pct || r["Avg THC %"] || r["Avg THC"] || "",
+            cbdAvg: r.cbdAvg || r.avg_cbd || r.avg_cbd_pct || r["Avg CBD %"] || r["Avg CBD"] || "",
+            terpsAvg: r.terpsAvg || r.avg_total_terpenes || r.avg_terpenes || r.avg_total_terpenes_pct || r["Avg Total Terpenes %"] || r["Avg Total Terpenes"] || r["Terpenes %"] || "",
+            dominantTerpenes: r.dominantTerpenes || r.dominant_terpenes || r["Dominant Terpenes"] || r["Top Terpenes"] || "",
+            avgYieldGPerSqft: r.avgYieldGPerSqft || r.avg_yield || r.avg_yield_g_sqft || r["Avg Yield (g/sqft canopy)"] || r["Avg Yield"] || "",
+            avgFlowerWeeks: r.avgFlowerWeeks || r.flower_time_weeks || r.flower_time || r.flower_weeks || r["Flower Time (weeks)"] || r["Flower Weeks"] || "",
+            avgVegWeeks: r.avgVegWeeks || r.veg_time_weeks || r.veg_time || r["Veg Time (weeks)"] || r["Veg Weeks"] || "",
+            aroma: r.aroma || r.aroma_notes || r["Aroma Notes"] || r["Aroma"] || r["Smell"] || "",
+            flavor: r.flavor || r.flavor_profile || r["Flavor Profile"] || r["Flavor"] || r["Taste"] || "",
+            effectProfile: r.effectProfile || r.effect_description || r.effects || r["Effect Description"] || r["Effects"] || r["Effect Profile"] || "",
+            notes: r.notes || r.internal_notes || r["Internal Notes"] || r["Notes"] || "",
+            status: r.status || "active",
+            salesDescription: r.salesDescription || r.sales_description || r["Sales Description"] || "",
+          }))
         ? rawRecords.map(r=>{
             const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
             const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
             const ITEM_CATS_LIST = ["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
             const ICAT_MAP = {"packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","solvent":"Extraction Solvents","butane":"Extraction Solvents","ethanol":"Extraction Solvents","filter":"Extraction Consumables","trim":"Post-Harvest Supplies","pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","vape":"Vape Hardware","cartridge":"Vape Hardware","nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","ipm":"IPM Products","pesticide":"IPM Products","cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","lab":"Lab Supplies"};
-            let cat = ITEM_CATS_LIST.includes(rawCat) ? rawCat : "Other";
-            if(cat==="Other"){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(ICAT_MAP)){ if(lower.includes(k)){cat=v;break;} } }
+            // Trust Claude's value first — only fuzzy-match if it's not already a valid category
+            let cat = ITEM_CATS_LIST.includes(rawCat) ? rawCat : null;
+            if(!cat){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(ICAT_MAP)){ if(lower.includes(k)){cat=v;break;} } }
+            if(!cat) cat = "Other";
             const stock = parseFloat(r.stock ?? r.current_stock ?? r.qty ?? r["Current Stock"] ?? 0) || 0;
             const cost = parseFloat(r.cost ?? r.unit_cost ?? r["Unit Cost"] ?? 0) || 0;
             const lots = Array.isArray(r.lots) ? r.lots :

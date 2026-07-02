@@ -159,6 +159,9 @@ function normalizeItemCat(raw){
   if(!raw) return "Other";
   if(ITEM_CATS.includes(raw)) return raw;
   const lower = raw.toLowerCase();
+  // Check if Claude returned a close but not exact match (e.g. case difference)
+  const exactCI = ITEM_CATS.find(c => c.toLowerCase() === lower);
+  if(exactCI) return exactCI;
   for(const [k,v] of Object.entries(ITEM_CAT_MAP)){ if(lower.includes(k)) return v; }
   return "Other";
 }
