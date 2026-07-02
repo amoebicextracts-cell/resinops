@@ -11,6 +11,7 @@ import Employees from "./Employees.jsx";
 import CultivationInputs from "./CultivationInputs.jsx";
 import SprayLog from "./SprayLog.jsx";
 import MotherPlantManager from "./MotherPlantManager.jsx";
+import TCTracker from "./TCTracker.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
@@ -1197,13 +1198,7 @@ export default function ResinOps() {
           {activeModule === "mother-plants" ? <MotherPlantManager /> : null}
           {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
           {activeModule === "spray-log" ? <SprayLog /> : null}
-          {activeModule === "tc-tracker" ? (
-            <div style={{padding:40,textAlign:"center",color:"var(--text-3)"}}>
-              <div style={{fontSize:32,marginBottom:12}}>🧪</div>
-              <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:6}}>TC Tracker — Coming Next</div>
-              <div style={{fontSize:13,maxWidth:400,margin:"0 auto"}}>Full tissue culture tracking from explant selection through acclimatization, with per-vessel contamination logging, configurable media formulations, and output to Clone Scheduler.</div>
-            </div>
-          ) : null}
+          {activeModule === "tc-tracker" ? <TCTracker /> : null}
           {activeModule === "qc-testing" ? <QCTesting /> : null}
           {activeModule === "gmp-hub" ? <GMPHub /> : null}
           {activeModule === "employees" ? <Employees /> : null}
