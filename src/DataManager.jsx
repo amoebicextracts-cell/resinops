@@ -660,6 +660,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 </div>
 
                 {importResult.records?.length>0&&(
+                  <>
                   <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden",marginBottom:14,maxHeight:320,overflowY:"auto"}}>
                     <table className="dm-tbl">
                       <thead><tr>{Object.keys(importResult.records[0]||{}).slice(0,8).map(k=><th key={k}>{k}</th>)}</tr></thead>
@@ -671,6 +672,13 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                     </table>
                     {importResult.records.length>20&&<div style={{padding:"6px 10px",fontSize:11,color:"var(--text-3)"}}>Showing 20 of {importResult.records.length} records</div>}
                   </div>
+                  <details style={{marginBottom:14}}>
+                    <summary style={{fontSize:11,color:"var(--text-3)",cursor:"pointer",padding:"4px 0"}}>🔍 Debug: raw first record (copy and share if fields look wrong)</summary>
+                    <pre style={{fontSize:10,background:"var(--surface-2)",borderRadius:6,padding:"8px 10px",overflowX:"auto",color:"var(--text-2)",marginTop:6,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
+                      {JSON.stringify(importResult.records[0], null, 2)}
+                    </pre>
+                  </details>
+                  </>
                 )}
 
                 {importResult.confidence<60&&(
