@@ -9,6 +9,7 @@ import PhenoHunt from "./PhenoHunt.jsx";
 import StrainDatabase from "./StrainDatabase.jsx";
 import Employees from "./Employees.jsx";
 import CultivationInputs from "./CultivationInputs.jsx";
+import SprayLog from "./SprayLog.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
@@ -165,40 +166,33 @@ Be specific. Operators making post-harvest decisions balance quality, throughput
 
 // ── Module Config ─────────────────────────────────────────────────────────────
 const MODULES = [
+  // ── Operations Hub ──────────────────────────────────────────────────────────
   {
-    id: "cultivation",
-    label: "Cultivation",
-    icon: "🌿",
+    id: "dashboard",
+    label: "Dashboard",
+    icon: "🏠",
     available: true,
-    description: "Environment, IPM, nutrients, training, harvest timing",
+    description: "Alerts, action items & facility overview",
+    isScheduler: true,
+    sectionBreak: "Operations Hub",
   },
   {
-    id: "post-harvest",
-    label: "Post-Harvest",
-    icon: "✂️",
+    id: "ai-assistant",
+    label: "AI Assistant",
+    icon: "✨",
     available: true,
-    description: "Drying, curing, trimming, storage",
+    description: "Cannabis operations expert — cultivation, extraction, compliance",
+    isScheduler: false,
   },
+  // ── Cultivation ─────────────────────────────────────────────────────────────
   {
-    id: "extraction",
-    label: "Extraction",
-    icon: "⚗️",
+    id: "grow-map",
+    label: "Grow Map",
+    icon: "🗺️",
     available: true,
-    description: "Solventless, hydrocarbon, CO2, distillate",
-  },
-  {
-    id: "compliance",
-    label: "Compliance & QC",
-    icon: "📋",
-    available: false,
-    description: "Metrc, testing, contamination response",
-  },
-  {
-    id: "facility",
-    label: "Facility & Infra",
-    icon: "🏗️",
-    available: true,
-    description: "HVAC, electrical, dehumidification, water",
+    description: "Room & space repository with reset tracking",
+    isScheduler: true,
+    sectionBreak: "Cultivation",
   },
   {
     id: "scheduler",
@@ -206,30 +200,6 @@ const MODULES = [
     icon: "📅",
     available: true,
     description: "Plan timelines from clone cut to inventory",
-    isScheduler: true,
-  },
-  {
-    id: "production",
-    label: "Production Scheduler",
-    icon: "🏭",
-    available: true,
-    description: "Batch scheduling from intake to inventory",
-    isScheduler: true,
-  },
-  {
-    id: "harvest",
-    label: "Harvest Batches",
-    icon: "🌿",
-    available: true,
-    description: "Drying, trim, cure & graded final weights",
-    isScheduler: true,
-  },
-  {
-    id: "grow-map",
-    label: "Grow Map",
-    icon: "🗺️",
-    available: true,
-    description: "Room & space repository with reset tracking",
     isScheduler: true,
   },
   {
@@ -241,14 +211,32 @@ const MODULES = [
     isScheduler: true,
   },
   {
-    id: "pheno-hunt",
-    label: "Pheno Hunt Tracker",
-    icon: "🌱",
+    id: "harvest",
+    label: "Harvest Batches",
+    icon: "🌿",
     available: true,
-    description: "Seed-by-seed tracking to keeper selection",
+    description: "Drying, trim, cure & graded final weights",
     isScheduler: true,
-    sectionBreak: "Genetics",
   },
+  // ── Processing ──────────────────────────────────────────────────────────────
+  {
+    id: "production",
+    label: "Production Scheduler",
+    icon: "🏭",
+    available: true,
+    description: "Batch scheduling from intake to inventory",
+    isScheduler: true,
+    sectionBreak: "Processing",
+  },
+  {
+    id: "remediation",
+    label: "Remediation Calculator",
+    icon: "☢️",
+    available: true,
+    description: "Radiation dose calc after failed lab tests",
+    isScheduler: true,
+  },
+  // ── Genetics ────────────────────────────────────────────────────────────────
   {
     id: "strain-db",
     label: "Strain Database",
@@ -256,13 +244,31 @@ const MODULES = [
     available: true,
     description: "Strain registry with parentage & AI descriptions",
     isScheduler: true,
+    sectionBreak: "Genetics",
   },
   {
-    id: "cult-inputs",
-    label: "Cultivation Inputs",
-    icon: "🌱",
+    id: "pheno-hunt",
+    label: "Pheno Hunt Tracker",
+    icon: "🔭",
     available: true,
-    description: "Nutrient log, spray records, beneficial releases",
+    description: "Seed-by-seed tracking to keeper selection",
+    isScheduler: true,
+  },
+  {
+    id: "tc-tracker",
+    label: "TC Tracker",
+    icon: "🧪",
+    available: true,
+    description: "Tissue culture — explant to transfer, contamination tracking",
+    isScheduler: true,
+  },
+  // ── Compliance ──────────────────────────────────────────────────────────────
+  {
+    id: "gmp-hub",
+    label: "GMP Hub",
+    icon: "📋",
+    available: true,
+    description: "SOPs, deviations, shift log & batch records",
     isScheduler: true,
     sectionBreak: "Compliance",
   },
@@ -275,12 +281,30 @@ const MODULES = [
     isScheduler: true,
   },
   {
-    id: "gmp-hub",
-    label: "GMP Hub",
-    icon: "📋",
+    id: "cult-inputs",
+    label: "Cultivation Inputs",
+    icon: "🌱",
     available: true,
-    description: "SOPs, deviations, shift log & batch records",
+    description: "Nutrients, amendments & beneficial insect releases",
     isScheduler: true,
+  },
+  {
+    id: "spray-log",
+    label: "Pesticide Log",
+    icon: "🛡️",
+    available: true,
+    description: "NY DEC compliant pesticide application records",
+    isScheduler: true,
+  },
+  // ── People & Labor ──────────────────────────────────────────────────────────
+  {
+    id: "labor-dash",
+    label: "Labor Dashboard",
+    icon: "📊",
+    available: true,
+    description: "Daily demand, capacity & cost planning",
+    isScheduler: true,
+    sectionBreak: "People & Labor",
   },
   {
     id: "employees",
@@ -289,67 +313,32 @@ const MODULES = [
     available: true,
     description: "Staff roster, licenses, certs & training records",
     isScheduler: true,
-    sectionBreak: "People",
-  },
-  {
-    id: "batch-dashboard",
-    label: "Batch Margin Dashboard",
-    icon: "📊",
-    available: true,
-    description: "Live cost & margin view across all batches",
-    isScheduler: true,
-    sectionBreak: "Finance",
-    removePrevSection: true,
-  },
-  {
-    id: "data-manager",
-    label: "Data & Imports",
-    icon: "✨",
-    available: true,
-    description: "AI import, backup & restore",
-    isScheduler: true,
-    sectionBreak: "Settings",
-  },
-  {
-    id: "facility-settings",
-    label: "Facility Settings",
-    icon: "⚙️",
-    available: true,
-    description: "License info, system settings",
-    isScheduler: true,
-  },
-  {
-    id: "remediation",
-    label: "Microbial Remediation",
-    icon: "☢️",
-    available: true,
-    description: "Radiation dose calc after failed lab tests",
-    isScheduler: true,
   },
   {
     id: "labor-setup",
     label: "Labor Setup",
-    icon: "👥",
+    icon: "⚙️",
     available: true,
-    description: "Roles, headcount, hourly rates",
+    description: "Roles, headcount & hourly rates",
     isScheduler: true,
   },
-  {
-    id: "labor-dash",
-    label: "Labor Dashboard",
-    icon: "📊",
-    available: true,
-    description: "Daily demand, capacity, cost planning",
-    isScheduler: true,
-  },
+  // ── Business ────────────────────────────────────────────────────────────────
   {
     id: "inventory",
     label: "Inventory",
     icon: "📦",
     available: true,
-    description: "Stock, vendors, purchase orders",
+    description: "Stock, vendors & purchase orders",
     isScheduler: true,
-    sectionBreak: "Finance",
+    sectionBreak: "Business",
+  },
+  {
+    id: "sales",
+    label: "Sales & Pre-Orders",
+    icon: "🧾",
+    available: true,
+    description: "Availability board, orders & holds",
+    isScheduler: true,
   },
   {
     id: "finance",
@@ -360,30 +349,48 @@ const MODULES = [
     isScheduler: true,
   },
   {
-    id: "equipment",
-    label: "Equipment Registry",
-    icon: "🔧",
+    id: "batch-dashboard",
+    label: "Batch Margin Dashboard",
+    icon: "📈",
     available: true,
-    description: "Assets, PM schedules, warranty, service history",
+    description: "Live cost & margin view across all batches",
     isScheduler: true,
-    sectionBreak: "Facilities",
   },
+  // ── Facility ────────────────────────────────────────────────────────────────
   {
     id: "maintenance",
     label: "Maintenance & Facilities",
     icon: "🏗️",
     available: true,
-    description: "Work orders, downtime, LOTO log",
+    description: "Work orders, downtime & LOTO log",
     isScheduler: true,
+    sectionBreak: "Facility",
   },
   {
-    id: "sales",
-    label: "Sales & Pre-Orders",
-    icon: "🧾",
+    id: "equipment",
+    label: "Equipment Registry",
+    icon: "🔧",
     available: true,
-    description: "Availability board, orders & holds",
+    description: "Assets, PM schedules, warranty & service history",
     isScheduler: true,
-    sectionBreak: "Sales",
+  },
+  // ── Platform ────────────────────────────────────────────────────────────────
+  {
+    id: "data-manager",
+    label: "Data & Imports",
+    icon: "📥",
+    available: true,
+    description: "AI import, backup & restore",
+    isScheduler: true,
+    sectionBreak: "Platform",
+  },
+  {
+    id: "facility-settings",
+    label: "Facility Settings",
+    icon: "🏢",
+    available: true,
+    description: "License info & system settings",
+    isScheduler: true,
   },
 ];
 
@@ -925,7 +932,7 @@ function inlineFormat(text) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ResinOps() {
-  const [activeModule, setActiveModule] = useState("dashboard");
+  const [activeModule, setActiveModule] = useState("cultivation");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1070,7 +1077,7 @@ export default function ResinOps() {
     setImage(null);
   };
 
-  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","cult-inputs","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1083,7 +1090,7 @@ export default function ResinOps() {
         <aside className="sidebar">
           <div className="logo">
             <div className="logo-mark">ResinOps</div>
-            <div className="logo-sub">Built by operators. Powered by data.</div>
+            <div className="logo-sub">Cannabis Operations AI</div>
           </div>
 
           {/* ── Dashboard pinned at top ── */}
@@ -1179,6 +1186,14 @@ export default function ResinOps() {
           {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
           {activeModule === "strain-db" ? <StrainDatabase /> : null}
           {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
+          {activeModule === "spray-log" ? <SprayLog /> : null}
+          {activeModule === "tc-tracker" ? (
+            <div style={{padding:40,textAlign:"center",color:"var(--text-3)"}}>
+              <div style={{fontSize:32,marginBottom:12}}>🧪</div>
+              <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:6}}>TC Tracker — Coming Next</div>
+              <div style={{fontSize:13,maxWidth:400,margin:"0 auto"}}>Full tissue culture tracking from explant selection through acclimatization, with per-vessel contamination logging, configurable media formulations, and output to Clone Scheduler.</div>
+            </div>
+          ) : null}
           {activeModule === "qc-testing" ? <QCTesting /> : null}
           {activeModule === "gmp-hub" ? <GMPHub /> : null}
           {activeModule === "employees" ? <Employees /> : null}

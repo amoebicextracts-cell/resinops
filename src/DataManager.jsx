@@ -121,28 +121,44 @@ const IMPORT_TARGETS = {
   status (default "active")` },
   qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
     schema:"See COA-specific instructions in the system prompt." },
-  cult_inputs:{ label:"Cultivation Inputs / Spray Log", icon:"🌱", key:"resinops_cult_inputs",
+  cult_inputs:{ label:"Cultivation Inputs (Nutrients)", icon:"🌱", key:"resinops_cult_inputs",
     schema:`Each record must use these EXACT field names:
-  spaceName (room or area where applied — may be called "Room", "Location", "Grow Space", "Area Treated", etc.)
-  date (application date in YYYY-MM-DD — may be called "Date", "Application Date", "Spray Date", etc.)
-  type (input type — map pesticide/insecticide/fungicide/herbicide → "Pesticide"; fertilizer/nutrient → "Fertilizer"; foliar feed → "Foliar"; bio-stimulant → "Bio-stimulant")
-  product (product name — may be called "Product", "Pesticide Name", "Chemical", "Input", etc.)
-  manufacturer (maker of the product — may be called "Manufacturer", "Brand", "Company", etc.)
-  epaRegNum (EPA registration number — may be called "EPA Reg #", "EPA Registration", "EPA Number", "Reg #", etc.)
-  rate (application rate value as a number — may be called "Rate", "Label Rate", "Application Rate", etc. Extract just the number)
-  rateUnit (unit for the rate — e.g. "oz/gal", "ml/L", "lb/acre", etc.)
-  volumeApplied (total volume mixed or applied as a number — may be called "Amount Mixed", "Volume Applied", "Total Mixed", etc.)
-  volumeUnit (unit for volume — "gal", "L", "mL", etc.)
-  areaApplied (area treated as a number in sq ft — may be called "Area Treated", "Sq Ft", "Area", etc.)
-  rei (re-entry interval in hours as a number — may be called "REI", "Re-Entry Interval", "Re-entry", etc.)
-  phi (pre-harvest interval in days as a number — may be called "PHI", "Pre-Harvest Interval", "Days to Harvest", etc.)
-  applicationMethod (how it was applied — may be called "Application Equipment", "Method", "Equipment Used", etc.)
-  targetPest (what it was targeting — may be called "Target Pest", "Target", "Pest/Disease", "Target Pest/Disease", etc.)
-  weatherTemp (temperature at application as a number — may be called "Temp", "Temperature", "Temp at Application", etc.)
-  weatherWind (wind speed as a number — may be called "Wind Speed", "Wind", "Wind mph", etc.)
-  weatherHumidity (relative humidity as a number — may be called "RH", "Humidity", "Relative Humidity", etc.)
-  applicatorName (who applied it — may be called "Applicator", "Applied By", "Licensed Applicator", "Operator", etc.)` },
-};
+  spaceName (grow space or room name — may be called "Room", "Space", "Area", "Grow Space", etc.)
+  date (application date in YYYY-MM-DD — may be called "Date", "Application Date", etc.)
+  type (must be exactly one of: "nutrient", "amendment", "beneficial", "flush", "other")
+  product (product name — may be called "Product", "Input", "Material", etc.)
+  manufacturer (brand or maker — may be called "Manufacturer", "Brand", "Company", etc.)
+  rate (application rate as a number — extract just the number)
+  rateUnit (rate unit e.g. "oz/gal", "ml/L", "tsp/gal", "g/plant")
+  volumeApplied (total volume as a number — may be called "Amount Mixed", "Volume Applied", etc.)
+  volumeUnit (volume unit — "gal", "L", "ml", "oz")
+  areaApplied (area in sq ft as a number)
+  costPerUnit (cost per unit as a number — strip $ signs)
+  totalCost (total cost as a number — strip $ signs)
+  notes (any notes field)` },
+  spray_log:{ label:"Pesticide Spray Log (NY DEC)", icon:"🛡️", key:"resinops_spray_log",
+    schema:`Each record must use these EXACT field names (NY DEC compliant pesticide application log):
+  date (application date in YYYY-MM-DD — may be called "Application Date", "Date", "Spray Date", etc.)
+  spaceName (grow space or room — may be called "Grow Space / Room", "Room", "Space", "Area Treated", etc.)
+  type (default to "ipm_spray" unless clearly a fungicide → "fungicide", insecticide → "insecticide", herbicide → "herbicide")
+  product (product/pesticide name — may be called "Product / Pesticide Name", "Pesticide", "Product", "Chemical", etc.)
+  manufacturer (brand/manufacturer — may be called "Manufacturer", "Brand", etc.)
+  epaRegNum (EPA registration number — may be called "EPA Registration Number", "EPA Reg #", "EPA#", "Reg #", etc.)
+  rate (label rate as a number — extract just the numeric value from fields like "2 oz/gal")
+  rateUnit (rate unit — extract the unit portion e.g. "oz/gal", "ml/L", "lb/acre")
+  volumeApplied (amount mixed/applied as a number — may be called "Amount Mixed (gallons)", "Amount Mixed", "Volume Applied", etc.)
+  volumeUnit (volume unit, default "gal")
+  areaApplied (area treated as a number in sq ft — may be called "Area Treated (sq ft)", "Area Treated", "Area", etc.)
+  applicationMethod (how applied — may be called "Application Equipment", "Method", "Equipment Used", etc.)
+  targetPest (target pest or disease — may be called "Target Pest / Disease", "Target Pest", "Pest", etc.)
+  weatherTemp (temperature as a number — may be called "Temp at Application (F)", "Temp", "Temperature (F)", etc.)
+  weatherWind (wind speed as a number — may be called "Wind Speed (mph)", "Wind Speed", "Wind", etc.)
+  weatherHumidity (relative humidity as a number — may be called "Relative Humidity (%)", "RH", "Humidity", etc.)
+  rei (re-entry interval in hours as a number — may be called "Re-Entry Interval (hrs)", "REI", etc.)
+  phi (pre-harvest interval in days as a number — may be called "Pre-Harvest Interval (days)", "PHI", etc.)
+  applicatorName (licensed applicator full name — may be called "Licensed Applicator", "Applicator", "Applied By", etc.)
+  applicatorLicenseNum (pesticide license number — may be called "Pesticide License #", "License #", "Cert #", etc.)
+  notes (any notes field)` },
 
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
   const mappingRule = fieldSchema ? `
@@ -203,7 +219,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -373,7 +389,7 @@ FIELD MAPPING INSTRUCTIONS — map the source columns to these exact field names
 ${targetInfo.schema}
 
 Your job is to read every row and map each source column to the correct target field name above, regardless of what the source calls it. Use context and meaning to map — do not require exact column name matches.`
-  : `Auto-detect which ResinOps module this data belongs to (employees, equipment, inventory, vendors, strains, spaces, qc_tests, or cult_inputs) from the content and structure.`}
+  : `Auto-detect which ResinOps module this data belongs to (employees, equipment, inventory, vendors, strains, spaces, qc_tests, cult_inputs, spray_log, or unknown) from the content and structure. If the file contains EPA registration numbers, REI, PHI, licensed applicator fields, or pesticide application records, classify as spray_log.`}
 
 File contents:
 ---
@@ -544,7 +560,32 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             status: r.status || "active",
             salesDescription: r.salesDescription || r.sales_description || r["Sales Description"] || "",
           }))
-        : target==="inventory"
+        : target==="spray_log"
+        ? rawRecords.map(r=>({
+            ...r,
+            id: r.id||"sl_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            type: r.type||"ipm_spray",
+            date: r.date||r.application_date||r["Application Date"]||"",
+            spaceName: r.spaceName||r.space_name||r.grow_space_room||r["Grow Space / Room"]||r["Space"]||"",
+            product: r.product||r.product_pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"",
+            manufacturer: r.manufacturer||r["Manufacturer"]||"",
+            epaRegNum: r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
+            rate: String(r.rate||r.label_rate||r["Label Rate"]||""),
+            rateUnit: r.rateUnit||r.rate_unit||"oz/gal",
+            volumeApplied: String(r.volumeApplied||r.amount_mixed||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
+            volumeUnit: r.volumeUnit||"gal",
+            areaApplied: String(r.areaApplied||r.area_treated||r["Area Treated (sq ft)"]||r["Area Treated"]||""),
+            applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
+            targetPest: r.targetPest||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||"",
+            weatherTemp: String(r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||""),
+            weatherWind: String(r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||""),
+            weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||""),
+            rei: String(r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||""),
+            phi: String(r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||""),
+            applicatorName: r.applicatorName||r.licensed_applicator||r["Licensed Applicator"]||r["Applicator"]||"",
+            applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||"",
+            notes: r.notes||r["Notes"]||"",
+          }))
         ? rawRecords.map(r=>{
             const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
             const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";

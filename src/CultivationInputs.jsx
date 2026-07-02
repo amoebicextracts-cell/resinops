@@ -3,8 +3,6 @@ import { useState, useEffect } from "react";
 const INPUT_TYPES=[
   {v:"nutrient",l:"Nutrient Application"},
   {v:"amendment",l:"Soil / Media Amendment"},
-  {v:"ipm_spray",l:"IPM Spray Application"},
-  {v:"ipm_foliar",l:"Foliar Spray (non-pesticidal)"},
   {v:"beneficial",l:"Beneficial Insect Release"},
   {v:"flush",l:"Flush / Plain Water"},
   {v:"other",l:"Other"},
@@ -56,7 +54,45 @@ export default function CultivationInputs(){
   const employees=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
   const pestApplicators=employees.filter(e=>e.pestLicenseCategory!=="None / Not Licensed"&&e.status==="active");
 
-  const [records,setRecords]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]");}catch{return[];}});
+  const [records,setRecords]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]");
+      const allSpaces=[...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]")];
+      return raw.map(r=>{
+        // Normalize imported records — map snake_case and raw column names to schema fields
+        const product = r.product||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"";
+        const spaceName = r.spaceName||r.space_name||r.grow_space||r["Grow Space / Room"]||r["Space"]||"";
+        const spaceId = r.spaceId||(allSpaces.find(s=>s.name===spaceName)?.id||"");
+        const applicatorName = r.applicatorName||r.applicator_name||r.licensed_applicator||r["Licensed Applicator"]||r["Applicator"]||"";
+        const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||r["License #"]||"";
+        return {
+          ...r,
+          id: r.id||"ci_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+          type: r.type||"ipm_spray",
+          product,
+          spaceName,
+          spaceId,
+          applicatorName,
+          applicatorLicenseNum,
+          date: r.date||r.application_date||r["Application Date"]||"",
+          epaRegNum: r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
+          rate: r.rate||r.label_rate||r["Label Rate"]||"",
+          rateUnit: r.rateUnit||r.rate_unit||"oz/gal",
+          volumeApplied: r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||"",
+          volumeUnit: r.volumeUnit||r.volume_unit||"gal",
+          areaApplied: r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||"",
+          applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
+          targetPest: r.targetPest||r.target_pest||r.target_pest_disease||r["Target Pest / Disease"]||"",
+          weatherTemp: r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||"",
+          weatherWind: r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||"",
+          weatherHumidity: r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||"",
+          rei: r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||"",
+          phi: r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||"",
+          notes: r.notes||r["Notes"]||"",
+        };
+      });
+    }catch{return[];}
+  });
   const [form,setForm]=useState(null);
   const [filterSpace,setFilterSpace]=useState("");
   const [filterType,setFilterType]=useState("");
@@ -105,6 +141,7 @@ export default function CultivationInputs(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
             <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Cultivation Inputs</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Nutrients, amendments, and beneficial insect releases — see Pesticide Spray Log for IPM applications</div>
             <div style={{fontSize:12,color:"var(--text-3)"}}>Nutrients, IPM spray log, and beneficial insect releases per grow space — regulatory-grade records</div>
           </div>
           <div style={{display:"flex",gap:8}}>
