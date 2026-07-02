@@ -544,6 +544,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             status: r.status || "active",
             salesDescription: r.salesDescription || r.sales_description || r["Sales Description"] || "",
           }))
+        : target==="inventory"
         ? rawRecords.map(r=>{
             const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
             const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
