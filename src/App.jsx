@@ -925,7 +925,7 @@ function inlineFormat(text) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ResinOps() {
-  const [activeModule, setActiveModule] = useState("cultivation");
+  const [activeModule, setActiveModule] = useState("dashboard");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
