@@ -159,6 +159,7 @@ const IMPORT_TARGETS = {
   applicatorName (licensed applicator full name — may be called "Licensed Applicator", "Applicator", "Applied By", etc.)
   applicatorLicenseNum (pesticide license number — may be called "Pesticide License #", "License #", "Cert #", etc.)
   notes (any notes field)` },
+};
 
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
   const mappingRule = fieldSchema ? `
