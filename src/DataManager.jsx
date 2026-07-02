@@ -46,26 +46,29 @@ const IMPORT_TARGETS = {
 };
 
 async function callClaude(prompt){
-  const resp = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({
-      model:"claude-sonnet-4-6", max_tokens:4000,
-      system:`You are a data import assistant for ResinOps, a cannabis operations platform. 
-When given file contents, you must:
+  // Route through our Vercel proxy — never call Anthropic directly from the browser (CORS)
+  const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
+When given file contents you must:
 1. Identify what type of cannabis operations data it contains
 2. Map and extract the data into the specified JSON schema
 3. Return ONLY valid JSON - no markdown, no explanation, no backticks
-Always return an object: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line description of what you found", "records": [...mapped array of objects...] }
-If a field is not found in the source, omit it rather than using null.
-For COA PDFs: extract all cannabinoid percentages (as numbers without % sign), terpene percentages, microbial results (as true/false for pass), sample ID, lab name, and dates.
-For employee lists: map job titles to roles, departments based on context.
-For spray logs: extract EPA reg numbers, rates, applicator names, dates, and target pests.`,
-      messages:[{role:"user",content:prompt}]
-    })
+Always return: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|unknown", "confidence": 0-100, "summary": "one line description", "records": [...] }
+Omit fields not found in the source rather than using null.
+For COA PDFs: extract all cannabinoid percentages (numbers without % sign), terpene percentages, microbial pass/fail as true/false, sample ID, lab name, dates.
+For employee lists: map job titles to roles and departments by context.
+For spray logs: extract EPA reg numbers, rates, applicator names, dates, target pests.`;
+
+  const resp = await fetch("/api/import", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ system, prompt }),
   });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || "Server error " + resp.status);
+  }
   const data = await resp.json();
-  const text = data.content?.map(b=>b.text||"").join("").trim();
+  const text = data.content?.map(b => b.text || "").join("").trim();
   return JSON.parse(text);
 }
 
