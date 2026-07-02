@@ -58,12 +58,29 @@ const IMPORT_TARGETS = {
   status (default to "active" unless the source indicates otherwise)` },
   inventory:{ label:"Inventory Items", icon:"📦", key:"resinops_inventory",
     schema:`Each record must use these EXACT field names:
-  n (the item name or description — may be called "Item", "Description", "Item Description", "Product", "Supply", etc.)
-  cat (category — may be called "Category", "Type", "Supply Category", "Item Type", etc.)
-  uom (unit of measure — may be called "UOM", "Unit", "Unit of Measure", "Unit Type". Common values: each, lb, g, kg, oz, gal, L, mL, bag, box, roll, case)
-  reorderAt (reorder trigger quantity as a number — may be called "Reorder Point", "Reorder When Below", "Min Stock", "Low Stock Alert", etc.)
-  reorderQty (how many to order as a number — may be called "Reorder Quantity", "Order Qty", "Reorder Amount", etc.)
-  vm (primary vendor or supplier name — may be called "Vendor", "Supplier", "Primary Vendor", "Source", etc.)
+  n (the item name or description — may be called "Item", "Description", "Item Description", "Product", "Supply", "Item Name", etc.)
+  cat (category — you MUST classify each item into exactly one of these categories based on what the item is:
+    "Packaging" — jars, bags, mylar, labels, exit bags, containers, tubes, lids, boxes
+    "Extraction Solvents" — butane, propane, ethanol, CO2, alcohol used in extraction
+    "Extraction Consumables" — filter paper, filter discs, membranes, gaskets, winterization supplies
+    "Post-Harvest Supplies" — trim bags, harvest bins, turkey bags, drying nets, bucking supplies
+    "Pre-Roll Supplies" — cones, pre-roll tubes, filter tips, rolling papers, doob tubes
+    "Vape Hardware" — cartridges, batteries, disposables, pods, coils, 510 hardware
+    "Edible Ingredients" — distillate, isolate, food ingredients, MCT oil, gummies, cooking supplies
+    "Lab Supplies" — compliance sample bags, swabs, petri dishes, testing supplies, scales
+    "Nutrients & Amendments" — fertilizers, pH up, pH down, cal-mag, silica, microbes, compost teas
+    "Growing Media" — coco coir, perlite, soil, rockwool, hydroton, peat, vermiculite
+    "IPM Products" — pesticides, insecticides, fungicides, beneficials, neem oil, predatory insects
+    "Cultivation Supplies" — pots, trays, stakes, trellis, net cups, irrigation parts, sensors
+    "Cleaning & Sanitation" — isopropyl alcohol, bleach, hydrogen peroxide, cleaning agents, gloves, PPE
+    "Other" — only use this if the item genuinely does not fit any category above
+  )
+  uom (unit of measure — must be one of: each, g, kg, lb, oz, gal, L, ml, case, sheet, ft, roll)
+  stock (current quantity on hand as a number — may be called "Current Stock", "Qty", "On Hand", "Quantity", etc.)
+  cost (unit cost in dollars as a plain number — may be called "Unit Cost", "Cost", "Price", "Cost/Unit", etc. Strip $ signs)
+  reorderAt (reorder trigger quantity as a number — may be called "Reorder Point", "Reorder At", "Min Stock", "Low Stock Alert", etc.)
+  reorderQty (order quantity as a number — may be called "Reorder Qty", "Order Quantity", "Reorder Amount", etc.)
+  vm (valuation method — must be exactly "fifo", "average", or "last". Default to "average" if not specified)
   notes (any notes or comments field)` },
   vendors:{ label:"Vendors", icon:"🏭", key:"resinops_vendors",
     schema:`Each record must use these EXACT field names:
