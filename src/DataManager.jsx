@@ -531,6 +531,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               notes: r.notes || r["Notes"] || "",
             };
           })
+        : rawRecords;
 
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
 
