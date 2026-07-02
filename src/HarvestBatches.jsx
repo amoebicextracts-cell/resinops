@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 const LBS_TO_G = 453.592;
 
 
@@ -211,7 +212,7 @@ export default function HarvestBatches() {
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-              <div><label className="hb-lbl">Strain name</label><input className="hb-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} placeholder="Blue Dream" /></div>
+              <div><label className="hb-lbl">Strain name</label><StrainCombo className="hb-inp" value={form.strainName} onChange={(name,obj)=>{ setF("strainName",name); if(obj){ if(obj.avgFlowerWeeks) setF("flowerWeeks",obj.avgFlowerWeeks); } }} placeholder="Select or type strain name" /></div>
               <div><label className="hb-lbl">Plant count</label><input type="number" min="1" className="hb-inp" value={form.plants} onChange={e=>setF("plants",e.target.value)} /></div>
               <div><label className="hb-lbl">Harvest date</label><input type="date" className="hb-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
             </div>

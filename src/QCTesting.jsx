@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -231,7 +232,7 @@ export default function QCTesting(){
                   </select></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label className="qc-lbl">Strain</label><input className="qc-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} /></div>
+                  <div><label className="qc-lbl">Strain</label><StrainCombo className="qc-inp" value={form.strainName} onChange={(name)=>setF("strainName",name)} placeholder="Select or type strain" /></div>
                   <div><label className="qc-lbl">Sample ID / CoC #</label><input className="qc-inp" value={form.sampleId} onChange={e=>setF("sampleId",e.target.value)} placeholder="Lab sample reference" /></div>
                   <div><label className="qc-lbl">Lab name</label><input className="qc-inp" value={form.labName} onChange={e=>setF("labName",e.target.value)} placeholder="e.g. Kaycha Labs, Wurk" /></div>
                 </div>

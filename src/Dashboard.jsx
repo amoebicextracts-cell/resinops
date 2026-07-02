@@ -41,6 +41,7 @@ export default function Dashboard({ onNavigate }){
   const loto=JSON.parse(localStorage.getItem("resinops_loto")||"[]");
   const deviations=JSON.parse(localStorage.getItem("resinops_deviations")||"[]");
   const qcHolds=JSON.parse(localStorage.getItem("resinops_qc_holds")||"[]");
+  const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");
   const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
   const cloneSched=JSON.parse(localStorage.getItem("resinops_clone_sched")||"[]");
   const shifts=JSON.parse(localStorage.getItem("resinops_shifts")||"[]");
@@ -114,11 +115,26 @@ export default function Dashboard({ onNavigate }){
   const pm=pmAlerts();
   const licenses=licenseAlerts();
   const lowStock=lowStockItems();
+
+  // COAs submitted but not yet received (awaiting lab results)
+  const pendingCOAs = qcTests.filter(t => t.submittedDate && !t.receivedDate && t.overallPass===undefined);
+
+  // GMP cert expirations within 60 days across all employees
+  const gmpCertAlerts = employees.flatMap(e =>
+    (e.certs||[]).filter(c => c.expiry && daysFromNow(c.expiry) !== null && daysFromNow(c.expiry) <= 60)
+      .map(c => ({...c, employeeName: e.name, d: daysFromNow(c.expiry)}))
+  ).sort((a,b) => a.d - b.d);
+
+  // Training expirations within 60 days
+  const trainingAlerts = employees.flatMap(e =>
+    (e.trainings||[]).filter(t => t.expiry && daysFromNow(t.expiry) !== null && daysFromNow(t.expiry) <= 60)
+      .map(t => ({...t, employeeName: e.name, d: daysFromNow(t.expiry)}))
+  ).sort((a,b) => a.d - b.d);
   const openWOs=workOrders.filter(w=>w.status!=="resolved");
   const openLoto=loto.filter(l=>l.status==="open");
   const openDevs=deviations.filter(d=>d.status==="open");
 
-  const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
+  const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length+pendingCOAs.length+gmpCertAlerts.filter(c=>c.d<=14).length+trainingAlerts.filter(t=>t.d<=14).length;
 
   const greetingHour=today.getHours();
   const greeting=greetingHour<12?"Good morning":"greetingHour"<17?"Good afternoon":"Good evening";
@@ -203,6 +219,54 @@ export default function Dashboard({ onNavigate }){
               </div>
             ))}
           </div>
+
+          {/* Pending COAs */}
+          {pendingCOAs.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">🔬 COAs awaiting lab results ({pendingCOAs.length})</div>
+              {pendingCOAs.map((t,i)=>(
+                <div key={i} className="db-alert a-amber" style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("qc-testing")}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:500,color:"var(--text)"}}>{t.strainName||"Unknown strain"}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{t.labName||"Lab"} · Sample {t.sampleId||"—"}</div>
+                  </div>
+                  <div style={{textAlign:"right",fontSize:10,color:"var(--text-3)"}}>Submitted {fmtD(t.submittedDate)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* GMP cert expirations */}
+          {gmpCertAlerts.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">🏅 GMP certifications expiring (60 days)</div>
+              {gmpCertAlerts.map((c,i)=>(
+                <div key={i} className={"db-alert "+(c.d<=14?"a-red":"a-amber")} style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("employees")}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:500,color:"var(--text)"}}>{c.employeeName}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{c.name||c.cert||"Certification"}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:c.d<=14?"var(--danger)":"var(--amber)",fontSize:12}}>In {c.d}d</div><div style={{fontSize:10,color:"var(--text-3)"}}>{fmtD(c.expiry)}</div></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Training expirations */}
+          {trainingAlerts.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">📚 Trainings expiring (60 days)</div>
+              {trainingAlerts.map((t,i)=>(
+                <div key={i} className={"db-alert "+(t.d<=14?"a-red":"a-amber")} style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("employees")}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:500,color:"var(--text)"}}>{t.employeeName}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{t.name||t.training||"Training"}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:t.d<=14?"var(--danger)":"var(--amber)",fontSize:12}}>In {t.d}d</div><div style={{fontSize:10,color:"var(--text-3)"}}>{fmtD(t.expiry)}</div></div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* License expirations */}
           <div className="db-card">

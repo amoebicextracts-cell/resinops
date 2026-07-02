@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import StrainCombo from "./StrainCombo.jsx";
 
 const LBS_TO_G=453.592;
 function addDays(dt,n){const d=new Date(dt);d.setDate(d.getDate()+n);return d;}
@@ -152,7 +153,7 @@ export default function CloneScheduler(){
           <div className="cs-card" style={{border:"1px solid var(--accent)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:14}}>{form.id?"Edit Clone Schedule":"New Clone Schedule"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div><label className="cs-lbl">Strain</label><input className="cs-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} /></div>
+              <div><label className="cs-lbl">Strain</label><StrainCombo className="cs-inp" value={form.strainName} onChange={(name,obj)=>{ setF("strainName",name); if(obj&&obj.avgFlowerWeeks) setF("rootDays",String(Math.round((parseFloat(obj.avgFlowerWeeks)||8)*7))); }} placeholder="Select or type strain" /></div>
               <div><label className="cs-lbl">Target grow space (from Grow Map)</label>
                 <select className="cs-sel" value={form.spaceId} onChange={e=>setF("spaceId",e.target.value)}>
                   <option value="">— Select space —</option>

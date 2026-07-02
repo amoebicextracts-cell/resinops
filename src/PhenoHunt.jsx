@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function pct(n,t){return t?Math.round(n/t*100):0;}
@@ -114,7 +115,7 @@ export default function PhenoHunt(){
           <div className="ph-card" style={{border:"1px solid var(--accent)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>{huntForm.id?"Edit hunt":"New Pheno Hunt"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-              <div><label className="ph-lbl">Strain name</label><input className="ph-inp" value={huntForm.strainName} onChange={e=>setHuntForm(f=>({...f,strainName:e.target.value}))} /></div>
+              <div><label className="ph-lbl">Strain name</label><StrainCombo className="ph-inp" value={huntForm.strainName} onChange={(name)=>setHuntForm(f=>({...f,strainName:name}))} placeholder="Select or type strain" /></div>
               <div><label className="ph-lbl">Breeder / seed bank</label><input className="ph-inp" value={huntForm.breeder} onChange={e=>setHuntForm(f=>({...f,breeder:e.target.value}))} /></div>
               <div><label className="ph-lbl">Seed source / lot</label><input className="ph-inp" value={huntForm.seedSource} onChange={e=>setHuntForm(f=>({...f,seedSource:e.target.value}))} /></div>
             </div>

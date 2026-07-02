@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
+import StrainCombo from "./StrainCombo.jsx";
 
 const LBS_TO_G = 453.592;
 
@@ -161,7 +162,7 @@ export default function Remediation() {
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label className="rm-lbl">Strain</label><input className="rm-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} /></div>
+                <div><label className="rm-lbl">Strain</label><StrainCombo className="rm-inp" value={form.strainName} onChange={(name)=>setF("strainName",name)} placeholder="Select or type strain" /></div>
                 <div><label className="rm-lbl">Batch weight (grams)</label><input type="number" min="0" className="rm-inp" value={form.weightG} onChange={e=>setF("weightG",e.target.value)} /></div>
               </div>
             </div>
