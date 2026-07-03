@@ -432,7 +432,13 @@ FIELD MAPPING INSTRUCTIONS — map the source columns to these exact field names
 ${targetInfo.schema}
 
 Your job is to read every row and map each source column to the correct target field name above, regardless of what the source calls it. Use context and meaning to map — do not require exact column name matches.`
-  : `Auto-detect which ResinOps module this data belongs to (employees, equipment, inventory, vendors, strains, spaces, qc_tests, cult_inputs, spray_log, harvest_batches, sales_orders, or unknown) from the content and structure. If the file contains EPA registration numbers, REI, PHI, licensed applicator fields, or pesticide application records, classify as spray_log. If it contains nutrient, amendment, or beneficial insect applications WITHOUT EPA registration numbers, classify as cult_inputs. If it contains dispensary names, order totals, order dates, and product/strain data, classify as sales_orders.`}
+  : `Auto-detect which ResinOps module this data belongs to. Use these definitive rules in order:
+1. If the file has columns for EPA Registration Number AND Re-Entry Interval AND Licensed Applicator → classify as spray_log (pesticide applications)
+2. If the file has columns for Input Type AND products that are nutrients/amendments/beneficials (NO EPA reg numbers) → classify as cult_inputs
+3. If the file has columns for Dispensary Name AND Order Total AND Order Date → classify as sales_orders
+4. If the file has columns for Batch ID AND Harvest Date AND Wet Weight → classify as harvest_batches
+5. If the file has columns for Sample ID AND THCa % AND lab panel results (Pass/Fail) → classify as qc_tests
+6. Otherwise use: employees|equipment|inventory|vendors|strains|spaces|unknown`}
 
 File contents:
 ---
@@ -597,13 +603,13 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         newRecords = rawRecords.map(r=>({...r,id:r.id||"sp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",type:r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",sqft:r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",canopy:r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",maxPlants:r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",lightType:r.lightType||r.light_type||r["Light Type"]||"LED",lightCount:r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",lightWatts:r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",resetDays:r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",lastHarvestDate:r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",status:r.status||"active",notes:r.notes||r["Notes"]||"",}));
       } else if(target==="cult_inputs"){
         newRecords = rawRecords.map(r=>{
-          // Map input type — never default to ipm_spray
-          const rawType=(r.type||r.input_type||r["Input Type"]||r["Type"]||"").toLowerCase();
+          // Get the raw type from all possible column names
+          const rawType=(r.type||r.input_type||r.inputType||r["Input Type"]||r["Type"]||"").toLowerCase().trim();
           let type="other";
-          if(rawType.includes("nutrient")||rawType.includes("fertilizer")||rawType.includes("feed")||rawType.includes("foliar")||rawType.includes("supplement")) type="nutrient";
-          else if(rawType.includes("amendment")||rawType.includes("compost")||rawType.includes("worm")||rawType.includes("microbe")||rawType.includes("soil")) type="amendment";
-          else if(rawType.includes("beneficial")||rawType.includes("insect")||rawType.includes("mite")||rawType.includes("nematode")) type="beneficial";
-          else if(rawType.includes("flush")||rawType.includes("water")||rawType.includes("rinse")||rawType.includes("enzyme")) type="flush";
+          if(["nutrient","fertilizer","feed","supplement","foliar","booster","tonic","solution"].some(k=>rawType.includes(k))) type="nutrient";
+          else if(["amendment","compost","worm","casting","microbe","soil","media","topdress"].some(k=>rawType.includes(k))) type="amendment";
+          else if(["beneficial","insect","mite","predator","nematode","ladybug","lacewing","cucumeris","sachets"].some(k=>rawType.includes(k))) type="beneficial";
+          else if(["flush","plain water","ro water","rinse","enzyme","water"].some(k=>rawType.includes(k))) type="flush";
           else if(["nutrient","amendment","beneficial","flush","other"].includes(rawType)) type=rawType;
           return {
             ...r,
@@ -617,7 +623,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             rateUnit: r.rateUnit||r.rate_unit||r["Rate Unit"]||"",
             volumeApplied: r.volumeApplied||r.amount_mixed||r["Amount Mixed"]||"",
             volumeUnit: r.volumeUnit||r.volume_unit||r["Volume Unit"]||"gal",
-            areaApplied: r.areaApplied||r.area_sq_ft||r["Area Sq Ft"]||"",
+            areaApplied: r.areaApplied||r.area_sq_ft||r["Area Sq Ft"]||r["Area"]||"",
             costPerUnit: r.costPerUnit||r.cost_per_unit||r["Cost Per Unit"]||"",
             totalCost: r.totalCost||r.total_cost||r["Total Cost"]||"",
             notes: r.notes||r["Notes"]||"",
@@ -681,24 +687,31 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         });
       } else if(target==="sales_orders"){
         newRecords = rawRecords.map(r=>{
+          const dispensaryName=r.dispensaryName||r.dispensary_name||r["Dispensary Name"]||r["Account"]||r["Customer"]||"";
+          const licenseNum=r.licenseNum||r.license_num||r["License Number"]||r["License #"]||r["OCM License"]||"";
+          const units=parseFloat(r.units||r.units_ordered||r["Units Ordered"]||r["Quantity"]||r["Qty"]||0)||0;
+          const unitPrice=parseFloat(String(r.unitPrice||r.unit_price||r["Unit Price"]||r["Price"]||0).replace(/[$,]/g,""))||0;
+          const orderTotal=parseFloat(String(r.orderTotal||r.order_total||r["Order Total"]||r["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;
           const rawStatus=(r.status||r["Status"]||"").toLowerCase();
-          const status=rawStatus==="confirmed"?"confirmed":rawStatus==="waitlist"||rawStatus==="waitlisted"?"waitlist":"pending";
-          const orderTotal=parseFloat(String(r.orderTotal||r.order_total||r["Order Total"]||r["Total"]||0).replace(/[$,]/g,""))||
-            (parseFloat(r.units||r["Units Ordered"]||0)*parseFloat(String(r.unitPrice||r.unit_price||r["Unit Price"]||0).replace(/[$,]/g,"")))||0;
+          const status=rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
+          const product=r.product||r["Product"]||r["Item"]||"";
+          const strain=r.strain||r["Strain"]||r["Cultivar"]||"";
           return {
-            ...r,
             id: r.id||"ord_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            dispensaryName: r.dispensaryName||r.dispensary_name||r["Dispensary Name"]||r["Account"]||r["Customer"]||"",
-            licenseNum: r.licenseNum||r.license_num||r["License Number"]||r["License #"]||r["OCM License"]||"",
+            customerName: dispensaryName,
+            customerLicense: licenseNum,
             orderDate: r.orderDate||r.order_date||r["Order Date"]||r["Date"]||"",
             deliveryDate: r.deliveryDate||r.delivery_date||r.requested_delivery||r["Requested Delivery"]||r["Delivery Date"]||"",
-            product: r.product||r["Product"]||r["Item"]||"",
-            strain: r.strain||r["Strain"]||r["Cultivar"]||"",
-            units: parseFloat(r.units||r.units_ordered||r["Units Ordered"]||r["Quantity"]||r["Qty"]||0)||0,
-            unitPrice: parseFloat(String(r.unitPrice||r.unit_price||r["Unit Price"]||r["Price"]||0).replace(/[$,]/g,""))||0,
-            orderTotal,
             status,
-            notes: r.notes||r["Notes"]||"",
+            notes: (r.notes||r["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
+            lines: units>0?[{
+              id:"ln_imp_"+Date.now()+Math.random(),
+              batchId:"",
+              product: product+(strain?` (${strain})`:""),
+              qty: String(units),
+              unitPrice: String(unitPrice||0),
+              orderTotal,
+            }]:[],
           };
         });
       } else {
@@ -925,29 +938,38 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 </div>
                 {importResult.records?.map((r,i)=>{
                   const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+                  // Resolve display fields — Claude may use snake_case or CSV column names
+                  const strain=r.strainName||r.strain_name||r.sample_name||r["Sample Name"]||r["Strain"]||"Unknown Strain";
+                  const sampleId=r.sampleId||r.sample_id||r["Sample ID"]||r["Lab Sample ID"]||"—";
+                  const thca=r.thca||r.thca_percent||r["THCa %"]||r["THCa"]||"";
+                  const terps=r.totalTerpenes||r.total_terpenes||r.total_terpenes_percent||r["Total Terpenes %"]||"";
+                  const passed=r.overallPass??r.overall_pass??(
+                    (r["Overall Result"]||r.overall_result||"").toLowerCase()==="pass"?true:
+                    (r["Overall Result"]||r.overall_result||"").toLowerCase()==="fail"?false:undefined
+                  );
                   return(
                     <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:10,border:"1px solid var(--border-2)"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                         <div>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{r.strainName||"Unknown Strain"}</div>
-                          <div style={{fontSize:11,color:"var(--text-3)"}}>Kaycha Sample ID: <span style={{fontFamily:"monospace",color:"var(--text-2)"}}>{r.sampleId||"—"}</span></div>
+                          <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{strain}</div>
+                          <div style={{fontSize:11,color:"var(--text-3)"}}>Kaycha Sample ID: <span style={{fontFamily:"monospace",color:"var(--text-2)"}}>{sampleId}</span></div>
                           <div style={{fontSize:11,color:"var(--text-3)"}}>
-                            {r.thca&&<span style={{marginRight:10}}>THCa: <strong style={{color:"var(--accent-2)"}}>{r.thca}%</strong></span>}
-                            {r.totalTerpenes&&<span>Terps: <strong style={{color:"var(--accent-2)"}}>{r.totalTerpenes}%</strong></span>}
-                            {r.overallPass===true&&<span style={{marginLeft:10,color:"var(--accent-2)",fontWeight:600}}>✓ PASS</span>}
-                            {r.overallPass===false&&<span style={{marginLeft:10,color:"var(--danger)",fontWeight:600}}>✗ FAIL</span>}
+                            {thca&&<span style={{marginRight:10}}>THCa: <strong style={{color:"var(--accent-2)"}}>{thca}%</strong></span>}
+                            {terps&&<span>Terps: <strong style={{color:"var(--accent-2)"}}>{terps}%</strong></span>}
+                            {passed===true&&<span style={{marginLeft:10,color:"var(--accent-2)",fontWeight:600}}>✓ PASS</span>}
+                            {passed===false&&<span style={{marginLeft:10,color:"var(--danger)",fontWeight:600}}>✗ FAIL</span>}
                           </div>
                         </div>
                       </div>
                       <div>
                         <label className="dm-lbl">Link to harvest batch in ResinOps</label>
                         <select className="dm-inp" style={{cursor:"pointer"}}
-                          value={coaBatchLinks[r.sampleId||i]||""}
-                          onChange={e=>setCoaBatchLinks(prev=>({...prev,[r.sampleId||i]:e.target.value}))}>
+                          value={coaBatchLinks[sampleId!=="—"?sampleId:i]||""}
+                          onChange={e=>setCoaBatchLinks(prev=>({...prev,[sampleId!=="—"?sampleId:i]:e.target.value}))}>
                           <option value="">— No match / create placeholder batch —</option>
                           {hb.filter(b=>!b.source||b.source!=="coa_import").map(b=>(
                             <option key={b.id} value={b.id}>
-                              {b.strainName} {b.d?`(${new Date(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.weightG?`— ${b.weightG}g`:""}
+                              {b.strainName} {b.d?`(${new Date(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.coaSampleId?`— ${b.coaSampleId}`:""}
                             </option>
                           ))}
                         </select>

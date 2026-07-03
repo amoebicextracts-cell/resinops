@@ -57,7 +57,43 @@ export default function SalesOrders() {
 
   const [presellOverrides, setPresellOverrides] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_presell")||"{}");}catch{return{};} });
   const [defaultPct, setDefaultPct] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_presell_default")||"50");}catch{return 50;} });
-  const [orders, setOrders] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_orders")||"[]");}catch{return[];} });
+  const [orders, setOrders] = useState(() => {
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_orders")||"[]");
+      return raw.map(o=>{
+        // Already in correct format
+        if(Array.isArray(o.lines)) return o;
+        // Convert flat CSV import row to component schema
+        const dispensaryName=o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||o["Customer"]||o.customerName||"";
+        const licenseNum=o.licenseNum||o.license_num||o["License Number"]||o["License #"]||o["OCM License"]||o.customerLicense||"";
+        const orderDate=o.orderDate||o.order_date||o["Order Date"]||o["Date"]||new Date().toISOString().split("T")[0];
+        const units=parseFloat(o.units||o.units_ordered||o["Units Ordered"]||o["Quantity"]||o["Qty"]||0)||0;
+        const unitPrice=parseFloat(String(o.unitPrice||o.unit_price||o["Unit Price"]||o["Price"]||0).replace(/[$,]/g,""))||0;
+        const orderTotal=parseFloat(String(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;
+        const rawStatus=(o.status||"").toLowerCase();
+        const status=rawStatus==="confirmed"||rawStatus==="open"?"open":rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
+        const product=o.product||o["Product"]||o["Item"]||"";
+        const strain=o.strain||o["Strain"]||o["Cultivar"]||"";
+        return {
+          id: o.id||"ord_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+          customerName: dispensaryName,
+          customerLicense: licenseNum,
+          orderDate,
+          deliveryDate: o.deliveryDate||o.delivery_date||o.requested_delivery||o["Requested Delivery"]||o["Delivery Date"]||"",
+          status,
+          notes: (o.notes||o["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
+          lines: units>0?[{
+            id:"ln_imp_"+Date.now()+Math.random(),
+            batchId:"",
+            product: product+(strain?` (${strain})`:""),
+            qty: String(units),
+            unitPrice: String(unitPrice||0),
+            orderTotal,
+          }]:[],
+        };
+      });
+    }catch{return[];}
+  });
   const [orderForm, setOrderForm] = useState(null);
   const [err, setErr] = useState("");
 
