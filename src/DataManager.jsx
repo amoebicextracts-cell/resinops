@@ -668,7 +668,15 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               trim:{weight:r.trim||r["Trim (g)"]||"",s2s:""},
               waste:{weight:r.waste||r["Waste (g)"]||"",s2s:""},
             },
-            steps: [],
+            steps: (()=>{
+              const DS={
+                whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+                pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+                extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+              };
+              const cat=r.cat||"whole_flower";
+              return Array.isArray(r.steps)&&r.steps.length>0?r.steps:(DS[cat]||DS.whole_flower).map(s=>({...s}));
+            })(),
           };
         });
       } else if(target==="sales_orders"){
@@ -1116,16 +1124,19 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   ];
                   localStorage.setItem("resinops_deviations", JSON.stringify(deviations));
 
-                  // Production batches — pre-load so Batch Margin Dashboard shows real numbers
+                  // Production batches — pre-load so Batch Margin Dashboard and Gantt chart work
+                  const WF=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+                  const PR=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+                  const EX=[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
                   const prodBatches = [
-                    {id:"pb_001",name:"Mango Haze — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Mango Haze",d:"2026-06-11",inputAmt:5820,unit:"g",yieldEst:"5200 units",actual_yield:"5,186 units",harvestBatchId:"HB-2026-0312",status:"complete",steps:[]},
-                    {id:"pb_002",name:"Black Maple — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-05-27",inputAmt:5680,unit:"g",yieldEst:"5100 units",actual_yield:"5,092 units",harvestBatchId:"HB-2026-0298",status:"complete",steps:[]},
-                    {id:"pb_003",name:"Gorilla Cake — 1g Pre-Rolls",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Gorilla Cake",d:"2026-05-13",inputAmt:1440,unit:"g",yieldEst:"2800 units",actual_yield:"2,792 units",harvestBatchId:"HB-2026-0285",status:"complete",steps:[]},
-                    {id:"pb_004",name:"Gorilla Cake — Live Rosin",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-05-12",inputAmt:1800,unit:"g",yieldEst:"680g",actual_yield:"672g",harvestBatchId:"HB-2026-0285",status:"complete",steps:[]},
-                    {id:"pb_005",name:"Zaza Runtz — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Zaza Runtz",d:"2026-04-30",inputAmt:4820,unit:"g",yieldEst:"4500 units",actual_yield:"4,488 units",harvestBatchId:"HB-2026-0271",status:"complete",steps:[]},
-                    {id:"pb_006",name:"Black Maple — 3.5g Retail (Jul)",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-07-21",inputAmt:0,unit:"g",yieldEst:"~5000 units",actual_yield:"",harvestBatchId:"HB-2026-0401",status:"in_progress",steps:[]},
-                    {id:"pb_007",name:"Gorilla Cake — Live Rosin (Jul)",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-07-10",inputAmt:0,unit:"g",yieldEst:"~640g",actual_yield:"",harvestBatchId:"HB-2026-0402",status:"in_progress",steps:[]},
-                    {id:"pb_008",name:"Mango Haze — 1g Pre-Rolls (Jul)",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Mango Haze",d:"2026-07-01",inputAmt:1200,unit:"g",yieldEst:"1500 units",actual_yield:"",harvestBatchId:"HB-2026-0312",status:"in_progress",steps:[]},
+                    {id:"pb_001",name:"Mango Haze — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Mango Haze",d:"2026-06-11",inputAmt:5820,unit:"g",yieldEst:"5200 units",actual_yield:"5,186 units",harvestBatchId:"HB-2026-0312",status:"complete",steps:WF.map(s=>({...s}))},
+                    {id:"pb_002",name:"Black Maple — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-05-27",inputAmt:5680,unit:"g",yieldEst:"5100 units",actual_yield:"5,092 units",harvestBatchId:"HB-2026-0298",status:"complete",steps:WF.map(s=>({...s}))},
+                    {id:"pb_003",name:"Gorilla Cake — 1g Pre-Rolls",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Gorilla Cake",d:"2026-05-13",inputAmt:1440,unit:"g",yieldEst:"2800 units",actual_yield:"2,792 units",harvestBatchId:"HB-2026-0285",status:"complete",steps:PR.map(s=>({...s}))},
+                    {id:"pb_004",name:"Gorilla Cake — Live Rosin",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-05-12",inputAmt:1800,unit:"g",yieldEst:"680g",actual_yield:"672g",harvestBatchId:"HB-2026-0285",status:"complete",steps:EX.map(s=>({...s}))},
+                    {id:"pb_005",name:"Zaza Runtz — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Zaza Runtz",d:"2026-04-30",inputAmt:4820,unit:"g",yieldEst:"4500 units",actual_yield:"4,488 units",harvestBatchId:"HB-2026-0271",status:"complete",steps:WF.map(s=>({...s}))},
+                    {id:"pb_006",name:"Black Maple — 3.5g Retail (Jul)",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-07-21",inputAmt:0,unit:"g",yieldEst:"~5000 units",actual_yield:"",harvestBatchId:"HB-2026-0401",status:"in_progress",steps:WF.map(s=>({...s}))},
+                    {id:"pb_007",name:"Gorilla Cake — Live Rosin (Jul)",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-07-10",inputAmt:0,unit:"g",yieldEst:"~640g",actual_yield:"",harvestBatchId:"HB-2026-0402",status:"in_progress",steps:EX.map(s=>({...s}))},
+                    {id:"pb_008",name:"Mango Haze — 1g Pre-Rolls (Jul)",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Mango Haze",d:"2026-07-01",inputAmt:1200,unit:"g",yieldEst:"1500 units",actual_yield:"",harvestBatchId:"HB-2026-0312",status:"in_progress",steps:PR.map(s=>({...s}))},
                   ];
                   localStorage.setItem("resinops_prod", JSON.stringify(prodBatches));
                   setStatusMsg("✓ Demo ready — facility, SKUs, BOMs, production batches, GMP Hub SOPs, and license alerts all configured");
