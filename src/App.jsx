@@ -889,12 +889,19 @@ const css = `
   .image-preview-label { font-size: 12px; color: var(--text-2); }
 
   /* ── Responsive ── */
-  @media (max-width: 640px) {
-    .sidebar { display: none; }
+  @media (max-width: 768px) {
+    .sidebar { position:fixed;left:0;top:0;bottom:0;z-index:200;transform:translateX(-100%);transition:transform 0.25s ease;box-shadow:4px 0 20px rgba(0,0,0,0.3); }
+    .sidebar.mobile-open { transform:translateX(0); }
+    .main-content { margin-left:0!important; }
+    .mobile-overlay { display:block!important;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:199; }
+    .hamburger-btn { display:flex!important; }
     .chat-area { padding: 16px; }
     .input-area { padding: 12px 16px 16px; }
   }
+  .mobile-overlay { display:none; }
+  .hamburger-btn { display:none;align-items:center;justify-content:center;width:36px;height:36px;border:none;border-radius:8px;background:var(--surface-2);cursor:pointer;color:var(--text);font-size:18px; }
 `;
+
 
 // ── Markdown-lite renderer ────────────────────────────────────────────────────
 function renderMarkdown(text) {
@@ -942,7 +949,8 @@ function inlineFormat(text) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ResinOps() {
-  const [activeModule, setActiveModule] = useState("cultivation");
+  const [activeModule, setActiveModule] = useState("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1085,6 +1093,7 @@ export default function ResinOps() {
     setActiveModule(id);
     setMessages([]);
     setImage(null);
+    setSidebarOpen(false); // close on mobile
   };
 
   const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
@@ -1096,8 +1105,14 @@ export default function ResinOps() {
     <>
       <style>{css}</style>
       <div className="app">
+        {/* Mobile overlay */}
+        {sidebarOpen&&<div className="mobile-overlay" onClick={()=>setSidebarOpen(false)}/>}
+        {/* Hamburger button — only visible on mobile */}
+        <button className="hamburger-btn" style={{position:"fixed",top:14,left:14,zIndex:201}} onClick={()=>setSidebarOpen(o=>!o)}>
+          {sidebarOpen?"✕":"☰"}
+        </button>
         {/* ── Sidebar ── */}
-        <aside className="sidebar">
+        <aside className={`sidebar${sidebarOpen?" mobile-open":""}`}>
           <div className="logo">
             <div className="logo-mark">ResinOps</div>
             <div className="logo-sub">Built by operators. Powered by data.</div>

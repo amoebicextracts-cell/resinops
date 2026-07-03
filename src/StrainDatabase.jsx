@@ -106,6 +106,9 @@ export default function StrainDatabase(){
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const activeStrain=strains.find(s=>s.id===activeId);
+
+  // Reset chat when switching strains
+  useEffect(()=>{ setDescChat([]); setDescInput(""); setShowDescChat(false); },[activeId]);
   function openForm(strain){ setForm(strain?{...strain}:{...EMPTY_STRAIN}); setDescChat([]); setDescInput(""); setShowDescChat(false); setErr(""); }
 
   // Pull harvest + production data for this strain

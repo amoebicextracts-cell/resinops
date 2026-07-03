@@ -258,6 +258,7 @@ ${coaInstructions}`;
 }
 
 const CSS=`
+  @keyframes dm-progress{0%{transform:translateX(-100%)}50%{transform:translateX(100%)}100%{transform:translateX(-100%)}}
   .dm-wrap{padding:24px;flex:1;overflow-y:auto;}
   .dm-tabs{display:flex;gap:2px;background:var(--surface-2);border-radius:8px;padding:3px;margin-bottom:18px;}
   .dm-tab{flex:1;padding:7px 10px;border:none;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-2);background:none;}
@@ -290,6 +291,9 @@ const CSS=`
 export default function DataManager(){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
+  const [importHistory, setImportHistory] = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem("resinops_import_history")||"[]"); }catch{ return []; }
+  });
   const [importState,setImportState]=useState("idle"); // idle|reading|analyzing|preview|coamatch|done|error
   const [importResult,setImportResult]=useState(null);
   const [importErr,setImportErr]=useState("");
@@ -635,6 +639,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       setImportState("done");
       const extras=target==="qc_tests"?` — strain catalogue & harvest batches updated`:"";
       setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+" ✓");
+      // Log to import history
+      const histEntry={id:"h_"+Date.now(),ts:new Date().toISOString(),fileName:importResult?.fileName||"unknown",module:tgt.label,records:newRecords.length,target};
+      const newHistory=[histEntry,...importHistory].slice(0,50);
+      setImportHistory(newHistory);
+      localStorage.setItem("resinops_import_history",JSON.stringify(newHistory));
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
@@ -660,7 +669,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         {statusMsg&&<div style={{background:"rgba(74,124,89,0.1)",border:"1px solid rgba(74,124,89,0.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}
 
         <div className="dm-tabs">
-          {[["import","✨ AI Import"],["backup","💾 Backup & Restore"],["storage","📊 Storage"]].map(([v,l])=>(
+          {[["import","✨ AI Import"],["history","📋 Import History"],["backup","💾 Backup & Restore"],["storage","📊 Storage"]].map(([v,l])=>(
             <button key={v} className={"dm-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -717,7 +726,16 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               </div>
             )}
 
-            {importState==="preview"&&importResult&&(
+            {importState==="analyzing"&&(
+              <div style={{textAlign:"center",padding:32}}>
+                <div style={{fontSize:28,marginBottom:12}}>✨</div>
+                <div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:6}}>AI is analyzing your file...</div>
+                <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16}}>Reading column headers, mapping fields, extracting data — usually 5-15 seconds</div>
+                <div style={{width:200,height:4,background:"var(--surface-2)",borderRadius:2,margin:"0 auto",overflow:"hidden"}}>
+                  <div style={{height:4,background:"var(--accent)",borderRadius:2,animation:"dm-progress 1.5s ease-in-out infinite",width:"60%"}}/>
+                </div>
+              </div>
+            )}
               <div>
                 <div style={{display:"flex",gap:10,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
                   <div style={{background:"var(--surface-2)",borderRadius:8,padding:"8px 12px"}}>
@@ -836,6 +854,46 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         )}
 
         {/* ── DEMO MODE ── */}
+        {/* ── IMPORT HISTORY ── */}
+        {tab==="history"&&(
+          <div className="dm-card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:3}}>Import History</div>
+                <div style={{fontSize:12,color:"var(--text-3)"}}>Last {importHistory.length} imports — verify what data has been loaded and avoid duplicates</div>
+              </div>
+              {importHistory.length>0&&<button className="dm-btn dm-secondary" style={{fontSize:11}} onClick={()=>{
+                if(!window.confirm("Clear import history? This does not delete imported data.")) return;
+                setImportHistory([]);localStorage.removeItem("resinops_import_history");
+              }}>Clear history</button>}
+            </div>
+            {importHistory.length===0?(
+              <div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>
+                <div style={{fontSize:24,marginBottom:8}}>📋</div>
+                <div>No imports yet — history appears here after your first import</div>
+              </div>
+            ):(
+              <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                <table className="dm-tbl" style={{fontSize:12}}>
+                  <thead><tr><th>Date & Time</th><th>File</th><th>Module</th><th>Records</th></tr></thead>
+                  <tbody>
+                    {importHistory.map((h,i)=>(
+                      <tr key={h.id} style={{background:i%2===0?"transparent":"var(--surface-2)"}}>
+                        <td style={{whiteSpace:"nowrap",color:"var(--text-3)",fontSize:11}}>
+                          {new Date(h.ts).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} {new Date(h.ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+                        </td>
+                        <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-2)"}}>{h.fileName}</td>
+                        <td><span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>{h.module}</span></td>
+                        <td style={{fontWeight:600,color:"var(--accent-2)"}}>{h.records} records</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {tab==="backup"&&(
           <>
             <div className="dm-card" style={{border:"2px solid rgba(90,63,160,0.4)",background:"rgba(90,63,160,0.04)"}}>
@@ -862,28 +920,70 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} onClick={()=>{
+                  // Facility settings
                   const demoSettings = {
-                    facilityName:"Cascade Peak Cannabis LLC",
-                    dbaName:"Cascade Peak",
-                    licenseNumber:"OCM-AUPR-007891",
-                    licenseType:"Adult-Use Cultivator",
-                    state:"NY",
-                    address:"1220 Route 17M",
-                    city:"Tuxedo",
-                    zip:"10987",
-                    phone:"(845) 555-0100",
-                    email:"ops@cascadepeak.co",
-                    website:"www.cascadepeak.co",
-                    ownerName:"Jordan Cascade",
-                    ownerEmail:"j.cascade@cascadepeak.co",
-                    ownerPhone:"(845) 555-0101",
-                    timezone:"America/New_York",
-                    tagSystem:"Flourish",
-                    fiscalYearStart:"01",
-                    metrcApiKey:"",
+                    facilityName:"Cascade Peak Cannabis LLC",dbaName:"Cascade Peak",
+                    licenseNumber:"OCM-AUPR-007891",licenseType:"Adult-Use Cultivator",
+                    state:"NY",address:"1220 Route 17M",city:"Tuxedo",zip:"10987",
+                    phone:"(845) 555-0100",email:"ops@cascadepeak.co",website:"www.cascadepeak.co",
+                    ownerName:"Jordan Cascade",ownerEmail:"j.cascade@cascadepeak.co",ownerPhone:"(845) 555-0101",
+                    timezone:"America/New_York",tagSystem:"Flourish",fiscalYearStart:"01",metrcApiKey:"",
                   };
-                  localStorage.setItem("resinops_facility_settings", JSON.stringify(demoSettings));
-                  setStatusMsg("✓ Cascade Peak Cannabis LLC loaded into Facility Settings — ready for demo");
+                  localStorage.setItem("resinops_facility_settings",JSON.stringify(demoSettings));
+
+                  // SKU pricing — retail prices by product type
+                  const skus = [
+                    {id:"sku_wf35",product:"Whole Flower 3.5g",sku:"CP-WF-3.5",price:18.00,unit:"each",cat:"whole_flower",notes:"Standard retail 3.5g jar"},
+                    {id:"sku_wf7", product:"Whole Flower 7g",  sku:"CP-WF-7",  price:32.00,unit:"each",cat:"whole_flower",notes:""},
+                    {id:"sku_wf28",product:"Whole Flower 28g", sku:"CP-WF-28", price:110.00,unit:"each",cat:"whole_flower",notes:"Ounce — wholesale"},
+                    {id:"sku_pr1", product:"Pre-Roll 1g",      sku:"CP-PR-1",  price:8.00, unit:"each",cat:"pre_roll",   notes:"Single 1g cone"},
+                    {id:"sku_pr5", product:"Pre-Roll 5-pack",  sku:"CP-PR-5",  price:35.00,unit:"each",cat:"pre_roll",   notes:"5x0.5g pack"},
+                    {id:"sku_ros", product:"Live Rosin 1g",    sku:"CP-LR-1",  price:65.00,unit:"each",cat:"extract",    notes:"Solventless rosin"},
+                    {id:"sku_vape",product:"Vape Cartridge 0.5g",sku:"CP-VC-05",price:45.00,unit:"each",cat:"vape",     notes:"510 thread"},
+                  ];
+                  localStorage.setItem("resinops_skus",JSON.stringify(skus));
+
+                  // BOMs — material cost per unit by product type
+                  const boms = [
+                    {id:"bom_wf",product:"Whole Flower",cat:"whole_flower",
+                      items:[
+                        {name:"Child-Resistant Glass Jar 2oz",qty:1,unit:"each",unitCost:0.38},
+                        {name:"Tamper-Evident Label",qty:1,unit:"each",unitCost:0.08},
+                        {name:"Exit Bag",qty:0.1,unit:"each",unitCost:0.12},
+                      ],testFee:350,laborCostPerUnit:0.45,notes:""},
+                    {id:"bom_pr",product:"Pre-Roll",cat:"pre_roll",
+                      items:[
+                        {name:"Pre-Roll Cone 110mm",qty:1,unit:"each",unitCost:0.09},
+                        {name:"CR Tube 116mm",qty:1,unit:"each",unitCost:0.14},
+                      ],testFee:350,laborCostPerUnit:0.22,notes:""},
+                    {id:"bom_ros",product:"Live Rosin",cat:"extract",
+                      items:[
+                        {name:"Glass Jar",qty:1,unit:"each",unitCost:0.38},
+                        {name:"Label",qty:1,unit:"each",unitCost:0.08},
+                      ],testFee:450,laborCostPerUnit:8.50,notes:"Includes press labor estimate"},
+                    {id:"bom_vape",product:"Vape Cartridge",cat:"vape",
+                      items:[
+                        {name:"510 Cartridge Hardware",qty:1,unit:"each",unitCost:2.80},
+                        {name:"Label",qty:1,unit:"each",unitCost:0.08},
+                      ],testFee:400,laborCostPerUnit:1.20,notes:""},
+                  ];
+                  localStorage.setItem("resinops_boms",JSON.stringify(boms));
+
+                  // Fix license expiry dates — set Marcus Webb's Category 24 to 45 days from now for dashboard alert
+                  const employees = JSON.parse(localStorage.getItem("resinops_employees")||"[]");
+                  if(employees.length){
+                    const alertDate = new Date();
+                    alertDate.setDate(alertDate.getDate()+45);
+                    const alertDateStr = alertDate.toISOString().split("T")[0];
+                    const updated = employees.map(e=>
+                      e.name?.includes("Marcus Webb") || e.pestLicenseCategory?.includes("Category 24")
+                        ? {...e, pestLicenseExpiry: alertDateStr}
+                        : e
+                    );
+                    localStorage.setItem("resinops_employees",JSON.stringify(updated));
+                  }
+
+                  setStatusMsg("✓ Demo loaded — facility settings, SKU pricing, BOMs, and license alerts configured");
                 }}>
                   ✨ Load demo facility settings
                 </button>
