@@ -34,13 +34,41 @@ export default function BatchDashboard(){
   const cultInputs=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]");
   const [filter,setFilter]=useState("all");
 
-  function getSkuPrice(catLabel,subLabel){
-    const sku=skus.find(s=>s.product&&catLabel&&s.product.toLowerCase().includes((catLabel||"").toLowerCase().split(" ")[0]));
-    return sku?parseFloat(sku.price)||0:0;
+  function getSkuPrice(catLabel, subLabel) {
+    if(!catLabel) return 0;
+    const cat = catLabel.toLowerCase();
+    const sub = (subLabel||"").toLowerCase();
+    // Try exact cat match first, then partial
+    const sku = skus.find(s => {
+      const sp = (s.product||"").toLowerCase();
+      const sc = (s.cat||"").toLowerCase();
+      if(sc && cat.includes(sc)) return true;
+      if(sc && sc.includes(cat.split(" ")[0])) return true;
+      if(sp.includes("flower") && cat.includes("flower")) return true;
+      if(sp.includes("pre-roll") && (cat.includes("pre_roll")||cat.includes("pre-roll"))) return true;
+      if(sp.includes("rosin") && (cat.includes("extract")||cat.includes("concentrate"))) return true;
+      if(sp.includes("vape") && cat.includes("vape")) return true;
+      if(sp.includes("pre-roll") && cat.includes("pre")) return true;
+      return sp.includes(cat.split(" ")[0]);
+    });
+    return sku ? parseFloat(sku.price)||0 : 0;
   }
-  function getBomCost(catLabel){
-    const bom=boms.find(b=>b.product&&catLabel&&b.product.toLowerCase().includes((catLabel||"").toLowerCase().split(" ")[0]));
-    return bom?(bom.items||[]).reduce((a,i)=>a+(parseFloat(i.unitCost)||0)*(parseFloat(i.qty)||0),0):0;
+
+  function getBomCost(catLabel) {
+    if(!catLabel) return 0;
+    const cat = catLabel.toLowerCase();
+    const bom = boms.find(b => {
+      const bp = (b.product||"").toLowerCase();
+      const bc = (b.cat||"").toLowerCase();
+      if(bc && cat.includes(bc)) return true;
+      if(bc && bc.includes(cat.split(" ")[0])) return true;
+      if(bp.includes("flower") && cat.includes("flower")) return true;
+      if(bp.includes("pre-roll") && (cat.includes("pre_roll")||cat.includes("pre-roll")||cat.includes("pre"))) return true;
+      if(bp.includes("rosin") && (cat.includes("extract")||cat.includes("concentrate"))) return true;
+      if(bp.includes("vape") && cat.includes("vape")) return true;
+      return bp.includes(cat.split(" ")[0]);
+    });
+    return bom ? (bom.items||[]).reduce((a,i)=>a+(parseFloat(i.unitCost)||0)*(parseFloat(i.qty)||0),0) : 0;
   }
   function extractUnits(yieldEst){
     if(!yieldEst) return 0;

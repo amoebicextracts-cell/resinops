@@ -41,10 +41,12 @@ export default function Dashboard({ onNavigate }){
   const loto=JSON.parse(localStorage.getItem("resinops_loto")||"[]");
   const deviations=JSON.parse(localStorage.getItem("resinops_deviations")||"[]");
   const qcHolds=JSON.parse(localStorage.getItem("resinops_qc_holds")||"[]");
-  const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");
   const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
   const cloneSched=JSON.parse(localStorage.getItem("resinops_clone_sched")||"[]");
   const shifts=JSON.parse(localStorage.getItem("resinops_shifts")||"[]");
+  const salesOrders=JSON.parse(localStorage.getItem("resinops_sales_orders")||"[]");
+  const prodBatchesAll=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
+  const skus=JSON.parse(localStorage.getItem("resinops_skus")||"[]");
   const facilityVegWeeks=parseInt(localStorage.getItem("resinops_facility_veg_weeks")||"4");
   const facilityRootDays=parseInt(localStorage.getItem("resinops_facility_root_days")||"14");
 
@@ -115,26 +117,20 @@ export default function Dashboard({ onNavigate }){
   const pm=pmAlerts();
   const licenses=licenseAlerts();
   const lowStock=lowStockItems();
-
-  // COAs submitted but not yet received (awaiting lab results)
-  const pendingCOAs = qcTests.filter(t => t.submittedDate && !t.receivedDate && t.overallPass===undefined);
-
-  // GMP cert expirations within 60 days across all employees
-  const gmpCertAlerts = employees.flatMap(e =>
-    (e.certs||[]).filter(c => c.expiry && daysFromNow(c.expiry) !== null && daysFromNow(c.expiry) <= 60)
-      .map(c => ({...c, employeeName: e.name, d: daysFromNow(c.expiry)}))
-  ).sort((a,b) => a.d - b.d);
-
-  // Training expirations within 60 days
-  const trainingAlerts = employees.flatMap(e =>
-    (e.trainings||[]).filter(t => t.expiry && daysFromNow(t.expiry) !== null && daysFromNow(t.expiry) <= 60)
-      .map(t => ({...t, employeeName: e.name, d: daysFromNow(t.expiry)}))
-  ).sort((a,b) => a.d - b.d);
   const openWOs=workOrders.filter(w=>w.status!=="resolved");
   const openLoto=loto.filter(l=>l.status==="open");
   const openDevs=deviations.filter(d=>d.status==="open");
 
-  const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length+pendingCOAs.length+gmpCertAlerts.filter(c=>c.d<=14).length+trainingAlerts.filter(t=>t.d<=14).length;
+  // ── Sales pipeline calculations ───────────────────────────────────────────
+  const confirmedOrders=salesOrders.filter(o=>o.status==="confirmed"||o.status==="Confirmed");
+  const pendingOrders=salesOrders.filter(o=>o.status==="pending"||o.status==="Pending");
+  const waitlistOrders=salesOrders.filter(o=>o.status==="waitlist"||o.status==="Waitlisted");
+  const confirmedRevenue=confirmedOrders.reduce((a,o)=>a+(parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0)),0);
+  const pendingRevenue=pendingOrders.reduce((a,o)=>a+(parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0)),0);
+  const totalPipeline=confirmedRevenue+pendingRevenue;
+  const uniqueAccounts=new Set(salesOrders.map(o=>o.dispensary_name||o["Dispensary Name"]||o.dispensaryName||"")).size;
+
+  const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
 
   const greetingHour=today.getHours();
   const greeting=greetingHour<12?"Good morning":greetingHour<17?"Good afternoon":"Good evening";
@@ -154,11 +150,12 @@ export default function Dashboard({ onNavigate }){
         {/* Top stats row */}
         <div className="db-grid db-row3" style={{marginBottom:14}}>
           {[
-            {icon:"🌿",label:"Active grow spaces",value:spaces.length,sub:spaces.length+" scheduled",nav:"scheduler"},
-            {icon:"🏭",label:"Production batches",value:prodBatches.length,sub:qcHolds.length+" on QC hold",nav:"production",alert:qcHolds.length>0},
+            {icon:"💰",label:"Confirmed revenue",value:"$"+confirmedRevenue.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}),sub:confirmedOrders.length+" orders ready to fulfill",nav:"sales",alert:false},
+            {icon:"🧾",label:"Pending pipeline",value:"$"+pendingRevenue.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}),sub:waitlistOrders.length+" on waitlist",nav:"sales",alert:false},
+            {icon:"🏪",label:"Active accounts",value:uniqueAccounts||"—",sub:salesOrders.length+" total orders",nav:"sales",alert:false},
+            {icon:"🏭",label:"Production batches",value:prodBatchesAll.length,sub:qcHolds.length+" on QC hold",nav:"production",alert:qcHolds.length>0},
             {icon:"⛔",label:"QC holds",value:qcHolds.length,sub:"blocked from sales",nav:"qc-testing",alert:qcHolds.length>0},
             {icon:"🛠️",label:"Open work orders",value:openWOs.length,sub:openWOs.filter(w=>w.severity==="critical"||w.severity==="high").length+" critical/high",nav:"maintenance",alert:openWOs.some(w=>w.severity==="critical")},
-            {icon:"🔒",label:"Active LOTO",value:openLoto.length,sub:"equipment locked out",nav:"maintenance",alert:openLoto.length>0},
             {icon:"⚠",label:"Open deviations",value:openDevs.length,sub:"awaiting CAPA",nav:"gmp-hub",alert:openDevs.length>0},
           ].map((s,i)=>(
             <div key={i} className="db-card" style={{cursor:onNavigate?"pointer":"default",borderColor:s.alert?"rgba(200,74,74,0.4)":"var(--border-2)"}} onClick={()=>onNavigate&&onNavigate(s.nav)}>
@@ -175,6 +172,40 @@ export default function Dashboard({ onNavigate }){
         </div>
 
         <div className="db-grid db-row2">
+          {/* Sales pipeline */}
+          {salesOrders.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">🧾 Sales pipeline</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                <div style={{background:"rgba(74,124,89,0.08)",borderRadius:8,padding:"10px 12px",border:"1px solid rgba(74,124,89,0.2)"}}>
+                  <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Confirmed revenue</div>
+                  <div style={{fontSize:20,fontWeight:700,color:"var(--accent-2)"}}>${confirmedRevenue.toLocaleString(undefined,{minimumFractionDigits:0})}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)"}}>{confirmedOrders.length} orders</div>
+                </div>
+                <div style={{background:"rgba(200,150,58,0.08)",borderRadius:8,padding:"10px 12px",border:"1px solid rgba(200,150,58,0.2)"}}>
+                  <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Pending pipeline</div>
+                  <div style={{fontSize:20,fontWeight:700,color:"var(--amber)"}}>${pendingRevenue.toLocaleString(undefined,{minimumFractionDigits:0})}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)"}}>{pendingOrders.length} orders · {waitlistOrders.length} waitlisted</div>
+                </div>
+              </div>
+              {confirmedOrders.slice(0,4).map((o,i)=>{
+                const name=o.dispensary_name||o["Dispensary Name"]||o.dispensaryName||"Account";
+                const product=o.product||o["Product"]||o.strain||"";
+                const total=parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0);
+                return(
+                  <div key={i} className="db-alert a-green" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("sales")}>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:500,color:"var(--text)",fontSize:12}}>{name}</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{product}</div>
+                    </div>
+                    <div style={{fontWeight:700,color:"var(--accent-2)",fontSize:12}}>${total.toLocaleString()}</div>
+                  </div>
+                );
+              })}
+              {confirmedOrders.length>4&&<div style={{fontSize:11,color:"var(--text-3)",textAlign:"center",marginTop:4}}>+{confirmedOrders.length-4} more confirmed orders</div>}
+            </div>
+          )}
+
           {/* Clone cut alerts */}
           <div className="db-card">
             <div className="db-card-t">✂️ Upcoming clone cuts</div>
@@ -219,54 +250,6 @@ export default function Dashboard({ onNavigate }){
               </div>
             ))}
           </div>
-
-          {/* Pending COAs */}
-          {pendingCOAs.length>0&&(
-            <div className="db-card">
-              <div className="db-card-t">🔬 COAs awaiting lab results ({pendingCOAs.length})</div>
-              {pendingCOAs.map((t,i)=>(
-                <div key={i} className="db-alert a-amber" style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("qc-testing")}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:500,color:"var(--text)"}}>{t.strainName||"Unknown strain"}</div>
-                    <div style={{fontSize:10,color:"var(--text-3)"}}>{t.labName||"Lab"} · Sample {t.sampleId||"—"}</div>
-                  </div>
-                  <div style={{textAlign:"right",fontSize:10,color:"var(--text-3)"}}>Submitted {fmtD(t.submittedDate)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* GMP cert expirations */}
-          {gmpCertAlerts.length>0&&(
-            <div className="db-card">
-              <div className="db-card-t">🏅 GMP certifications expiring (60 days)</div>
-              {gmpCertAlerts.map((c,i)=>(
-                <div key={i} className={"db-alert "+(c.d<=14?"a-red":"a-amber")} style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("employees")}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:500,color:"var(--text)"}}>{c.employeeName}</div>
-                    <div style={{fontSize:10,color:"var(--text-3)"}}>{c.name||c.cert||"Certification"}</div>
-                  </div>
-                  <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:c.d<=14?"var(--danger)":"var(--amber)",fontSize:12}}>In {c.d}d</div><div style={{fontSize:10,color:"var(--text-3)"}}>{fmtD(c.expiry)}</div></div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Training expirations */}
-          {trainingAlerts.length>0&&(
-            <div className="db-card">
-              <div className="db-card-t">📚 Trainings expiring (60 days)</div>
-              {trainingAlerts.map((t,i)=>(
-                <div key={i} className={"db-alert "+(t.d<=14?"a-red":"a-amber")} style={{cursor:onNavigate?"pointer":"default"}} onClick={()=>onNavigate&&onNavigate("employees")}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:500,color:"var(--text)"}}>{t.employeeName}</div>
-                    <div style={{fontSize:10,color:"var(--text-3)"}}>{t.name||t.training||"Training"}</div>
-                  </div>
-                  <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:t.d<=14?"var(--danger)":"var(--amber)",fontSize:12}}>In {t.d}d</div><div style={{fontSize:10,color:"var(--text-3)"}}>{fmtD(t.expiry)}</div></div>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* License expirations */}
           <div className="db-card">
