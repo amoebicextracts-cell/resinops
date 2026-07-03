@@ -103,19 +103,18 @@ export default function HarvestBatches() {
         spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
         plants: r.plants||r.plant_count||r["Plant Count"]||"",
         d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
-        wetWeight: r.wetWeight||r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||"",
-        dryWeight: r.dryWeight||r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||"",
-        trimWeight: r.trimWeight||r.trim_weight_lbs||r["Trim Weight lbs"]||r["Trim Weight"]||"",
-        wasteWeight: r.wasteWeight||r.waste_lbs||r["Waste lbs"]||r["Waste"]||"",
-        cureStart: r.cureStart||r.cure_start_date||r["Cure Start Date"]||"",
-        cureEnd: r.cureEnd||r.cure_end_date||r["Cure End Date"]||"",
+        wetWeightG: r.wetWeightG||r.wet_weight_g||(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]?"":"")||0,
+        totalDryWeight: r.totalDryWeight||r.dry_weight_g||0,
         status: r.status||r["Status"]||"complete",
         coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
         labName: r.labName||r.lab_name||r["Lab Name"]||"",
         thca: r.thca||r["THCa %"]||r["THCa"]||"",
         notes: r.notes||r["Notes"]||"",
+        grades: Array.isArray(r.grades) ? r.grades : [],
         // Always ensure steps exists — imported batches won't have it
-        steps: Array.isArray(r.steps) ? r.steps : STEPS_DEFAULT.map(s=>({...s})),
+        steps: Array.isArray(r.steps) && r.steps.length > 0
+          ? r.steps
+          : STEPS_DEFAULT.map(s=>({...s})),
       }));
     } catch { return []; }
   });
@@ -182,7 +181,7 @@ export default function HarvestBatches() {
   }
   function removeBatch(id) { setBatches(p=>p.filter(b=>b.id!==id)); }
 
-  const timelines = batches.map(b=>buildTimeline(b.d,b.steps));
+  const timelines = batches.map(b=>buildTimeline(b.d||new Date().toISOString().split("T")[0], Array.isArray(b.steps)&&b.steps.length>0 ? b.steps : STEPS_DEFAULT.map(s=>({...s}))));
   const today = new Date();
 
   function exportHarvest() {
