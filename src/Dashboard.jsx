@@ -44,7 +44,7 @@ export default function Dashboard({ onNavigate }){
   const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
   const cloneSched=JSON.parse(localStorage.getItem("resinops_clone_sched")||"[]");
   const shifts=JSON.parse(localStorage.getItem("resinops_shifts")||"[]");
-  const salesOrders=JSON.parse(localStorage.getItem("resinops_sales_orders")||"[]");
+  const salesOrders=JSON.parse(localStorage.getItem("resinops_orders")||"[]");
   const prodBatchesAll=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
   const skus=JSON.parse(localStorage.getItem("resinops_skus")||"[]");
   const facilityVegWeeks=parseInt(localStorage.getItem("resinops_facility_veg_weeks")||"4");
@@ -122,13 +122,16 @@ export default function Dashboard({ onNavigate }){
   const openDevs=deviations.filter(d=>d.status==="open");
 
   // ── Sales pipeline calculations ───────────────────────────────────────────
-  const confirmedOrders=salesOrders.filter(o=>o.status==="confirmed"||o.status==="Confirmed");
-  const pendingOrders=salesOrders.filter(o=>o.status==="pending"||o.status==="Pending");
-  const waitlistOrders=salesOrders.filter(o=>o.status==="waitlist"||o.status==="Waitlisted");
-  const confirmedRevenue=confirmedOrders.reduce((a,o)=>a+(parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0)),0);
-  const pendingRevenue=pendingOrders.reduce((a,o)=>a+(parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0)),0);
+  const confirmedOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="confirmed");
+  const pendingOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="pending");
+  const waitlistOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="waitlist"||o.status==="Waitlisted");
+  const getTotal=(o)=>parseFloat(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0)||
+    (parseFloat(o.units||o["Units Ordered"]||0)*parseFloat(o.unitPrice||o.unit_price||o["Unit Price"]||0));
+  const confirmedRevenue=confirmedOrders.reduce((a,o)=>a+getTotal(o),0);
+  const pendingRevenue=pendingOrders.reduce((a,o)=>a+getTotal(o),0);
   const totalPipeline=confirmedRevenue+pendingRevenue;
-  const uniqueAccounts=new Set(salesOrders.map(o=>o.dispensary_name||o["Dispensary Name"]||o.dispensaryName||"")).size;
+  const getDispensaryName=(o)=>o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||"";
+  const uniqueAccounts=new Set(salesOrders.map(getDispensaryName).filter(Boolean)).size;
 
   const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
 
@@ -189,16 +192,16 @@ export default function Dashboard({ onNavigate }){
                 </div>
               </div>
               {confirmedOrders.slice(0,4).map((o,i)=>{
-                const name=o.dispensary_name||o["Dispensary Name"]||o.dispensaryName||"Account";
-                const product=o.product||o["Product"]||o.strain||"";
-                const total=parseFloat(o.order_total||o["Order Total"]||o.orderTotal||0);
+                const name=getDispensaryName(o);
+                const product=o.product||o["Product"]||o.strain||o["Strain"]||"";
+                const total=getTotal(o);
                 return(
                   <div key={i} className="db-alert a-green" style={{cursor:"pointer"}} onClick={()=>onNavigate&&onNavigate("sales")}>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:500,color:"var(--text)",fontSize:12}}>{name}</div>
                       <div style={{fontSize:10,color:"var(--text-3)"}}>{product}</div>
                     </div>
-                    <div style={{fontWeight:700,color:"var(--accent-2)",fontSize:12}}>${total.toLocaleString()}</div>
+                    <div style={{fontWeight:700,color:"var(--accent-2)",fontSize:12}}>${total.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
                   </div>
                 );
               })}

@@ -951,6 +951,7 @@ function inlineFormat(text) {
 export default function ResinOps() {
   const [activeModule, setActiveModule] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [dashboardVersion, setDashboardVersion] = useState(0);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1091,9 +1092,10 @@ export default function ResinOps() {
     const mod = MODULES.find((m) => m.id === id);
     if (!mod?.available) return;
     setActiveModule(id);
+    if(id==="dashboard") setDashboardVersion(v=>v+1);
     setMessages([]);
     setImage(null);
-    setSidebarOpen(false); // close on mobile
+    setSidebarOpen(false);
   };
 
   const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
@@ -1218,7 +1220,7 @@ export default function ResinOps() {
           {activeModule === "gmp-hub" ? <GMPHub /> : null}
           {activeModule === "employees" ? <Employees /> : null}
           {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
-          {activeModule === "dashboard" ? <Dashboard onNavigate={setActiveModule} /> : null}
+          {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}
           {activeModule === "data-manager" ? <DataManager /> : null}
           {activeModule === "facility-settings" ? <FacilitySettings /> : null}
           {activeModule === "labor-setup" ? <LaborManager /> : null}
