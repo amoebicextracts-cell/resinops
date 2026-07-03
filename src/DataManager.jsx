@@ -132,6 +132,7 @@ const IMPORT_TARGETS = {
   labName (testing lab name — may be called "Lab Name", "Lab", "Testing Lab", etc.)
   thca (THCa percentage as a plain number — may be called "THCa %", "THCa", "THCa Avg", etc. Strip % sign)
   notes (any notes field)` },
+  qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
     schema:"See COA-specific instructions in the system prompt." },
   cult_inputs:{ label:"Cultivation Inputs (Nutrients)", icon:"🌱", key:"resinops_cult_inputs",
     schema:`Each record must use these EXACT field names:
