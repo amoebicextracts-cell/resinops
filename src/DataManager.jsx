@@ -736,7 +736,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 </div>
               </div>
             )}
-              <div>
+
+            {importState==="preview"&&importResult&&(
                 <div style={{display:"flex",gap:10,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
                   <div style={{background:"var(--surface-2)",borderRadius:8,padding:"8px 12px"}}>
                     <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase"}}>Detected type</div>
