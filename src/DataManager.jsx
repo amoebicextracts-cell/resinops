@@ -587,7 +587,23 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||"",
             notes: r.notes||r["Notes"]||"",
           }))
-        : target==="inventory"
+        : target==="spaces"
+        ? rawRecords.map(r=>({
+            ...r,
+            id: r.id||"sp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            name: r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",
+            type: r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",
+            sqft: r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",
+            canopy: r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",
+            maxPlants: r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",
+            lightType: r.lightType||r.light_type||r["Light Type"]||"LED",
+            lightCount: r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",
+            lightWatts: r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",
+            resetDays: r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",
+            lastHarvestDate: r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",
+            status: r.status||"active",
+            notes: r.notes||r["Notes"]||"",
+          }))
         ? rawRecords.map(r=>{
             const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
             const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";

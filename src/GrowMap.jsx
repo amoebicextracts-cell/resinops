@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Other"];
+const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Propagation","Veg","Nursery","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
 const STATUSES = [
   {v:"active",l:"Active — plants in room"},
@@ -51,7 +51,27 @@ const CSS=`
 const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED",lightCount:"",lightWatts:"",resetDays:"7",status:"empty",lastHarvestDate:"",sensorId:"",notes:""};
 
 export default function GrowMap(){
-  const [spaces,setSpaces]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");}catch{return[];}});
+  const [spaces,setSpaces]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
+      return raw.map(r=>({
+        ...r,
+        id: r.id||"sp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+        name: r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",
+        type: r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",
+        sqft: r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||r["sqft"]||"",
+        canopy: r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||r["Canopy"]||"",
+        maxPlants: r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||r["Maximum Plants"]||"",
+        lightType: r.lightType||r.light_type||r["Light Type"]||r["Lights Type"]||"LED",
+        lightCount: r.lightCount||r.light_count||r.lights_count||r["Lights Count"]||r["Light Count"]||r["Number of Lights"]||"",
+        lightWatts: r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||r["Watts/Fixture"]||"",
+        resetDays: r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",
+        lastHarvestDate: r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",
+        status: r.status||"active",
+        notes: r.notes||r["Notes"]||"",
+      }));
+    }catch{return[];}
+  });
   const cultSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
 
   function getActiveBatch(roomName, roomId) {

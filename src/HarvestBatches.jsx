@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
-import StrainCombo from "./StrainCombo.jsx";
 const LBS_TO_G = 453.592;
 
 
@@ -93,7 +92,33 @@ const CSS = `
 
 export default function HarvestBatches() {
   const spaces = (() => { try { return JSON.parse(localStorage.getItem("resinops_spaces")||"[]"); } catch { return []; } })();
-  const [batches, setBatches] = useState(() => { try { return JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]"); } catch { return []; } });
+  const [batches, setBatches] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+      return raw.map(r => ({
+        ...r,
+        id: r.id||"hb_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+        strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+        spaceId: r.spaceId||r.space_id||"",
+        spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
+        plants: r.plants||r.plant_count||r["Plant Count"]||"",
+        d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+        wetWeight: r.wetWeight||r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||"",
+        dryWeight: r.dryWeight||r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||"",
+        trimWeight: r.trimWeight||r.trim_weight_lbs||r["Trim Weight lbs"]||r["Trim Weight"]||"",
+        wasteWeight: r.wasteWeight||r.waste_lbs||r["Waste lbs"]||r["Waste"]||"",
+        cureStart: r.cureStart||r.cure_start_date||r["Cure Start Date"]||"",
+        cureEnd: r.cureEnd||r.cure_end_date||r["Cure End Date"]||"",
+        status: r.status||r["Status"]||"complete",
+        coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
+        labName: r.labName||r.lab_name||r["Lab Name"]||"",
+        thca: r.thca||r["THCa %"]||r["THCa"]||"",
+        notes: r.notes||r["Notes"]||"",
+        // Always ensure steps exists — imported batches won't have it
+        steps: Array.isArray(r.steps) ? r.steps : STEPS_DEFAULT.map(s=>({...s})),
+      }));
+    } catch { return []; }
+  });
   const [form, setForm] = useState(null);
   const [formMode, setFormMode] = useState(null);
   const [err, setErr] = useState("");
@@ -212,7 +237,7 @@ export default function HarvestBatches() {
             </div>
 
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-              <div><label className="hb-lbl">Strain name</label><StrainCombo className="hb-inp" value={form.strainName} onChange={(name,obj)=>{ setF("strainName",name); if(obj){ if(obj.avgFlowerWeeks) setF("flowerWeeks",obj.avgFlowerWeeks); } }} placeholder="Select or type strain name" /></div>
+              <div><label className="hb-lbl">Strain name</label><input className="hb-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} placeholder="Blue Dream" /></div>
               <div><label className="hb-lbl">Plant count</label><input type="number" min="1" className="hb-inp" value={form.plants} onChange={e=>setF("plants",e.target.value)} /></div>
               <div><label className="hb-lbl">Harvest date</label><input type="date" className="hb-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
             </div>
