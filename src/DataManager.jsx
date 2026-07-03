@@ -688,7 +688,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       } else if(target==="sales_orders"){
         newRecords = rawRecords.map(r=>{
           const dispensaryName=r.dispensaryName||r.dispensary_name||r["Dispensary Name"]||r["Account"]||r["Customer"]||"";
-          const licenseNum=r.licenseNum||r.license_num||r["License Number"]||r["License #"]||r["OCM License"]||"";
+          const licenseNum=r.licenseNum||r.license_num||r.license_number||r["License Number"]||r["License #"]||r["OCM License"]||"";
           const units=parseFloat(r.units||r.units_ordered||r["Units Ordered"]||r["Quantity"]||r["Qty"]||0)||0;
           const unitPrice=parseFloat(String(r.unitPrice||r.unit_price||r["Unit Price"]||r["Price"]||0).replace(/[$,]/g,""))||0;
           const orderTotal=parseFloat(String(r.orderTotal||r.order_total||r["Order Total"]||r["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;

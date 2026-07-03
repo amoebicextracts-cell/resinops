@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
-import StrainCombo from "./StrainCombo.jsx";
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -380,7 +379,24 @@ export default function ProductionScheduler(){
     if (!g) return;
     setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
   }
-  const[batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];}});
+  const[batches,setBatches]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_prod")||"[]");
+      const DS={
+        whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        ground_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        vape:[{n:"Intake",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+      };
+      return raw.map(b=>({
+        ...b,
+        steps: Array.isArray(b.steps)&&b.steps.length>0
+          ? b.steps
+          : (DS[b.cat]||DS.whole_flower).map(s=>({...s})),
+      }));
+    }catch{return[];}
+  });
   const[form,setForm]=useState(EMPTY);
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
@@ -554,17 +570,7 @@ export default function ProductionScheduler(){
               <div><label className="ps-lbl">Batch name</label><input className="ps-inp" placeholder="Batch 2026-001" value={form.name} onChange={e=>setF("name",e.target.value)} /></div>
               <div><label className="ps-lbl">Product category</label><select className="ps-sel" value={form.cat} onChange={e=>changeCat(e.target.value)}>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></div>
               {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
-              <div><label className="ps-lbl">Strain(s) — pick from catalogue or type; comma-separate blends</label><StrainCombo className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains}
-                onChange={(name, obj) => {
-                  if(obj) {
-                    // Appending a catalogue pick to existing blend string
-                    const existing = form.strains.split(",").map(s=>s.trim()).filter(Boolean);
-                    if(!existing.map(s=>s.toLowerCase()).includes(name.toLowerCase())) existing.push(name);
-                    setF("strains", existing.join(", "));
-                  } else {
-                    setF("strains", name);
-                  }
-                }} /></div>
+              <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
               <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
               {isFlowerCat(form.cat) && availableHarvest.length>0 && (
                 <div style={{gridColumn:"span 2"}}>
