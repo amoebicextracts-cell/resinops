@@ -481,158 +481,52 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         ...r,
         id:r.id||"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)
       }));
-      const newRecords=target==="qc_tests"
-        ? rawRecords.map((r,i)=>{
-            const linkedId=batchLinks[r.sampleId||i]||"";
-            const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-            const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
-            return normalizeQCRecord({
-              ...r,
-              batchId:linkedId||"",
-              batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",
-            });
-          })
-        : target==="employees"
-        ? rawRecords.map(r=>({
-            ...r,
-            id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            name: r.name || r.full_name || r["Full Name"] || r["Employee Name"] || r["Name"] || "",
-            role: r.role || r.job_title || r["Job Title"] || r["Title"] || r["Position"] || "Other",
-            department: r.department || r["Department / Area"] || r["Department"] || r["Area"] || "Other",
-            status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",
-            hireDate: r.hireDate || r.employment_start || r["Employment Start"] || r["Start Date"] || r["Hire Date"] || "",
-            phone: r.phone || r.cell_phone || r["Cell Phone"] || r["Phone"] || r["Mobile"] || "",
-            email: r.email || r.work_email || r["Work Email"] || r["Email"] || "",
-            pestLicenseNum: r.pestLicenseNum || r.pesticide_cert_number || r.pesticide_cert_num || r.cert_number || r["Pesticide Cert #"] || r["License #"] || "",
-            pestLicenseCategory: r.pestLicenseCategory || r.pesticide_cert_category || r.cert_category || r["Cert Category"] || r["License Type"] || r["Pesticide License Category"] || "",
-            pestLicenseExpiry: r.pestLicenseExpiry || r.pesticide_cert_expiry || r.cert_expiry_date || r.cert_expiry || r["Cert Expiry Date"] || r["License Expires"] || r["Expiry Date"] || "",
-            certs:Array.isArray(r.certs)?r.certs:[],
-            trainings:Array.isArray(r.trainings)?r.trainings:[],
-            notes: r.notes || r["Notes"] || "",
-          }))
-        : target==="equipment"
-        ? rawRecords.map(r=>{
-            const rawCat = r.cat || r.category || r.category_type || r["Category"] || r["Category/Type"] || r["Type"] || "";
-            const EQUIP_CATS_LIST = ["Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging","HVAC & Dehumidification","Fertigation & Irrigation","Lighting","Lab & Testing Instruments","Vehicles & Material Handling","Facility Systems","Other"];
-            const CAT_MAP_IMP = {"extraction":"Extraction","co2":"Extraction","bho":"Extraction","ethanol":"Extraction","trim":"Trimming & Bucking","bucking":"Trimming & Bucking","dry":"Drying & Curing","cure":"Drying & Curing","pre-roll":"Pre-Roll & Packaging","packaging":"Pre-Roll & Packaging","hvac":"HVAC & Dehumidification","dehumid":"HVAC & Dehumidification","climate":"HVAC & Dehumidification","fertigation":"Fertigation & Irrigation","irrigation":"Fertigation & Irrigation","light":"Lighting","lighting":"Lighting","lab":"Lab & Testing Instruments","testing":"Lab & Testing Instruments","scale":"Lab & Testing Instruments","vehicle":"Vehicles & Material Handling","forklift":"Vehicles & Material Handling","facility":"Facility Systems","electrical":"Facility Systems","generator":"Facility Systems"};
-            let cat = EQUIP_CATS_LIST.includes(rawCat) ? rawCat : "Other";
-            if(cat==="Other"){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(CAT_MAP_IMP)){ if(lower.includes(k)){cat=v;break;} } }
-            const pmRaw = r.pmFreqDays || r.pm_freq_days || r.service_interval || r["Service Interval"] || "90";
-            const pmDays = typeof pmRaw==="string" ? (pmRaw.toLowerCase().includes("annual")||pmRaw.includes("365")?"365":pmRaw.toLowerCase().includes("month")||pmRaw.includes("30")?"30":pmRaw.toLowerCase().includes("semi")||pmRaw.includes("180")?"180":parseInt(pmRaw)||"90") : pmRaw;
-            return {
-              ...r,
-              id:r.id||"eq_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-              name: r.name || r.asset_description || r.equipment_name || r["Asset Description"] || r["Equipment Name"] || r["Item"] || "",
-              cat,
-              make: r.make || r.brand || r.manufacturer || r.brand_manufacturer || r["Brand"] || r["Manufacturer"] || r["Brand / Manufacturer"] || "",
-              model: r.model || r.model_number || r["Model Number"] || r["Model"] || "",
-              serial: r.serial || r.serial_number || r["Serial Number"] || r["Serial"] || "",
-              assetTag: r.assetTag || r.asset_tag || r["Asset Tag"] || "",
-              location: r.location || r.room_location || r["Room / Location"] || r["Location"] || "",
-              purchaseDate: r.purchaseDate || r.purchase_date || r["Purchase Date"] || "",
-              purchasePrice: String(r.purchasePrice || r.purchase_price || r.cost || r["Cost (USD)"] || r["Cost"] || "").replace(/[$,]/g,""),
-              warrantyExpires: r.warrantyExpires || r.warranty_expiration || r.warranty_expires || r["Warranty Expiration"] || "",
-              pmFreqDays: String(pmDays),
-              lastServiceDate: r.lastServiceDate || r.last_service || r.last_service_date || r["Last Service"] || "",
-              status: "active",
-              notes: r.notes || r["Notes"] || "",
-            };
-          })
-        : target==="strains"
-        ? rawRecords.map(r=>({
-            ...r,
-            id: r.id || "str_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            name: r.name || r.cultivar_name || r.strain_name || r.strain || r["Cultivar Name"] || r["Strain Name"] || r["Strain"] || "",
-            type: r.type || r.strain_type || r["Strain Type"] || r["Type"] || "Hybrid",
-            parentage: r.parentage || r.genetic_cross || r.genetic_cross_lineage || r.lineage || r["Genetic Cross / Lineage"] || r["Lineage"] || r["Genetics"] || "",
-            breeder: r.breeder || r.original_breeder || r["Original Breeder"] || r["Breeder"] || r["Seed Company"] || "",
-            thcaAvg: r.thcaAvg || r.avg_thca || r.avg_thca_pct || r.thca_avg || r["Avg THCa %"] || r["Avg THCa"] || "",
-            thcAvg: r.thcAvg || r.avg_thc || r.avg_thc_pct || r["Avg THC %"] || r["Avg THC"] || "",
-            cbdAvg: r.cbdAvg || r.avg_cbd || r.avg_cbd_pct || r["Avg CBD %"] || r["Avg CBD"] || "",
-            terpsAvg: r.terpsAvg || r.avg_total_terpenes || r.avg_terpenes || r.avg_total_terpenes_pct || r["Avg Total Terpenes %"] || r["Avg Total Terpenes"] || r["Terpenes %"] || "",
-            dominantTerpenes: r.dominantTerpenes || r.dominant_terpenes || r["Dominant Terpenes"] || r["Top Terpenes"] || "",
-            avgYieldGPerSqft: r.avgYieldGPerSqft || r.avg_yield || r.avg_yield_g_sqft || r["Avg Yield (g/sqft canopy)"] || r["Avg Yield"] || "",
-            avgFlowerWeeks: r.avgFlowerWeeks || r.flower_time_weeks || r.flower_time || r.flower_weeks || r["Flower Time (weeks)"] || r["Flower Weeks"] || "",
-            avgVegWeeks: r.avgVegWeeks || r.veg_time_weeks || r.veg_time || r["Veg Time (weeks)"] || r["Veg Weeks"] || "",
-            aroma: r.aroma || r.aroma_notes || r["Aroma Notes"] || r["Aroma"] || r["Smell"] || "",
-            flavor: r.flavor || r.flavor_profile || r["Flavor Profile"] || r["Flavor"] || r["Taste"] || "",
-            effectProfile: r.effectProfile || r.effect_description || r.effects || r["Effect Description"] || r["Effects"] || r["Effect Profile"] || "",
-            notes: r.notes || r.internal_notes || r["Internal Notes"] || r["Notes"] || "",
-            status: r.status || "active",
-            salesDescription: r.salesDescription || r.sales_description || r["Sales Description"] || "",
-          }))
-        : target==="spray_log"
-        ? rawRecords.map(r=>({
-            ...r,
-            id: r.id||"sl_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            type: r.type||"ipm_spray",
-            date: r.date||r.application_date||r["Application Date"]||"",
-            spaceName: r.spaceName||r.space_name||r.grow_space_room||r["Grow Space / Room"]||r["Space"]||"",
-            product: r.product||r.product_pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"",
-            manufacturer: r.manufacturer||r["Manufacturer"]||"",
-            epaRegNum: r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
-            rate: String(r.rate||r.label_rate||r["Label Rate"]||""),
-            rateUnit: r.rateUnit||r.rate_unit||"oz/gal",
-            volumeApplied: String(r.volumeApplied||r.amount_mixed||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
-            volumeUnit: r.volumeUnit||"gal",
-            areaApplied: String(r.areaApplied||r.area_treated||r["Area Treated (sq ft)"]||r["Area Treated"]||""),
-            applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
-            targetPest: r.targetPest||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||"",
-            weatherTemp: String(r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||""),
-            weatherWind: String(r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||""),
-            weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||""),
-            rei: String(r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||""),
-            phi: String(r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||""),
-            applicatorName: r.applicatorName||r.licensed_applicator||r["Licensed Applicator"]||r["Applicator"]||"",
-            applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||"",
-            notes: r.notes||r["Notes"]||"",
-          }))
-        : target==="spaces"
-        ? rawRecords.map(r=>({
-            ...r,
-            id: r.id||"sp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            name: r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",
-            type: r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",
-            sqft: r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",
-            canopy: r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",
-            maxPlants: r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",
-            lightType: r.lightType||r.light_type||r["Light Type"]||"LED",
-            lightCount: r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",
-            lightWatts: r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",
-            resetDays: r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",
-            lastHarvestDate: r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",
-            status: r.status||"active",
-            notes: r.notes||r["Notes"]||"",
-          }))
-        ? rawRecords.map(r=>{
-            const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
-            const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
-            const ITEM_CATS_LIST = ["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
-            const ICAT_MAP = {"packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","solvent":"Extraction Solvents","butane":"Extraction Solvents","ethanol":"Extraction Solvents","filter":"Extraction Consumables","trim":"Post-Harvest Supplies","pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","vape":"Vape Hardware","cartridge":"Vape Hardware","nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","ipm":"IPM Products","pesticide":"IPM Products","cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","lab":"Lab Supplies"};
-            // Trust Claude's value first — only fuzzy-match if it's not already a valid category
-            let cat = ITEM_CATS_LIST.includes(rawCat) ? rawCat : null;
-            if(!cat){ const lower=rawCat.toLowerCase(); for(const [k,v] of Object.entries(ICAT_MAP)){ if(lower.includes(k)){cat=v;break;} } }
-            if(!cat) cat = "Other";
-            const stock = parseFloat(r.stock ?? r.current_stock ?? r.qty ?? r["Current Stock"] ?? 0) || 0;
-            const cost = parseFloat(r.cost ?? r.unit_cost ?? r["Unit Cost"] ?? 0) || 0;
-            const lots = Array.isArray(r.lots) ? r.lots :
-              (stock > 0 ? [{ id:"lot_imp_"+Date.now()+Math.random(), date:new Date().toISOString().split("T")[0], qty:stock, remaining:stock, costPerUnit:cost, poId:"ai_import" }] : []);
-            return {
-              ...r,
-              id: r.id||"inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-              n: name,
-              cat,
-              uom: r.uom || r.unit || r.unit_of_measure || r["Unit of Measure"] || "each",
-              reorderAt: parseFloat(r.reorderAt ?? r.reorder_at ?? r.reorder_point ?? r["Reorder At"] ?? 0) || 0,
-              reorderQty: parseFloat(r.reorderQty ?? r.reorder_qty ?? r["Reorder Qty"] ?? 0) || 0,
-              vm: ["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())
-                ? (r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase() : "average",
-              lots,
-              lastCost: cost || 0,
-              notes: r.notes || r["Notes"] || "",
-            };
-          })
-        : rawRecords;
+      // ── Normalize records based on target type ──────────────────────────
+      let newRecords;
+      if(target==="qc_tests"){
+        newRecords = rawRecords.map((r,i)=>{
+          const linkedId=batchLinks[r.sampleId||i]||"";
+          const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+          const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
+          return normalizeQCRecord({...r,batchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
+        });
+      } else if(target==="employees"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.full_name||r["Full Name"]||r["Employee Name"]||"",role:r.role||r.job_title||r["Job Title"]||r["Title"]||r["Position"]||"Other",department:r.department||r["Department / Area"]||r["Department"]||r["Area"]||"Other",status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",hireDate:r.hireDate||r.employment_start||r["Employment Start"]||r["Start Date"]||r["Hire Date"]||"",phone:r.phone||r.cell_phone||r["Cell Phone"]||r["Phone"]||"",email:r.email||r.work_email||r["Work Email"]||r["Email"]||"",pestLicenseNum:r.pestLicenseNum||r.pesticide_cert_number||r.cert_number||r["Pesticide Cert #"]||r["License #"]||"",pestLicenseCategory:r.pestLicenseCategory||r.pesticide_cert_category||r.cert_category||r["Cert Category"]||r["License Type"]||"",pestLicenseExpiry:r.pestLicenseExpiry||r.pesticide_cert_expiry||r.cert_expiry_date||r["Cert Expiry Date"]||r["License Expires"]||"",certs:Array.isArray(r.certs)?r.certs:[],trainings:Array.isArray(r.trainings)?r.trainings:[],notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="equipment"){
+        newRecords = rawRecords.map(r=>{
+          const rawCat=r.cat||r.category||r.category_type||r["Category"]||r["Category/Type"]||r["Type"]||"";
+          const EQL=["Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging","HVAC & Dehumidification","Fertigation & Irrigation","Lighting","Lab & Testing Instruments","Vehicles & Material Handling","Facility Systems","Other"];
+          const ECM={"extraction":"Extraction","co2":"Extraction","bho":"Extraction","ethanol":"Extraction","trim":"Trimming & Bucking","bucking":"Trimming & Bucking","dry":"Drying & Curing","cure":"Drying & Curing","pre-roll":"Pre-Roll & Packaging","packaging":"Pre-Roll & Packaging","hvac":"HVAC & Dehumidification","dehumid":"HVAC & Dehumidification","climate":"HVAC & Dehumidification","fertigation":"Fertigation & Irrigation","irrigation":"Fertigation & Irrigation","light":"Lighting","lighting":"Lighting","lab":"Lab & Testing Instruments","testing":"Lab & Testing Instruments","scale":"Lab & Testing Instruments","vehicle":"Vehicles & Material Handling","forklift":"Vehicles & Material Handling","facility":"Facility Systems","electrical":"Facility Systems","generator":"Facility Systems"};
+          let cat=EQL.includes(rawCat)?rawCat:null;
+          if(!cat){const l=rawCat.toLowerCase();for(const [k,v] of Object.entries(ECM)){if(l.includes(k)){cat=v;break;}}}
+          if(!cat)cat="Other";
+          const pmRaw=r.pmFreqDays||r.pm_freq_days||r.service_interval||r["Service Interval"]||"90";
+          const pmDays=typeof pmRaw==="string"?(pmRaw.toLowerCase().includes("annual")||pmRaw.includes("365")?"365":pmRaw.toLowerCase().includes("month")||pmRaw.includes("30")?"30":pmRaw.toLowerCase().includes("semi")||pmRaw.includes("180")?"180":parseInt(pmRaw)||"90"):pmRaw;
+          return {...r,id:r.id||"eq_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.asset_description||r.equipment_name||r["Asset Description"]||r["Equipment Name"]||r["Item"]||"",cat,make:r.make||r.brand||r.manufacturer||r.brand_manufacturer||r["Brand"]||r["Manufacturer"]||r["Brand / Manufacturer"]||"",model:r.model||r.model_number||r["Model Number"]||r["Model"]||"",serial:r.serial||r.serial_number||r["Serial Number"]||r["Serial"]||"",assetTag:r.assetTag||r.asset_tag||r["Asset Tag"]||"",location:r.location||r.room_location||r["Room / Location"]||r["Location"]||"",purchaseDate:r.purchaseDate||r.purchase_date||r["Purchase Date"]||"",purchasePrice:String(r.purchasePrice||r.purchase_price||r.cost||r["Cost (USD)"]||r["Cost"]||"").replace(/[$,]/g,""),warrantyExpires:r.warrantyExpires||r.warranty_expiration||r.warranty_expires||r["Warranty Expiration"]||"",pmFreqDays:String(pmDays),lastServiceDate:r.lastServiceDate||r.last_service||r.last_service_date||r["Last Service"]||"",status:"active",notes:r.notes||r["Notes"]||"",};
+        });
+      } else if(target==="strains"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id||"str_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.cultivar_name||r.strain_name||r.strain||r["Cultivar Name"]||r["Strain Name"]||r["Strain"]||"",type:r.type||r.strain_type||r["Strain Type"]||r["Type"]||"Hybrid",parentage:r.parentage||r.genetic_cross||r.genetic_cross_lineage||r.lineage||r["Genetic Cross / Lineage"]||r["Lineage"]||r["Genetics"]||"",breeder:r.breeder||r.original_breeder||r["Original Breeder"]||r["Breeder"]||r["Seed Company"]||"",thcaAvg:r.thcaAvg||r.avg_thca||r.avg_thca_pct||r.thca_avg||r["Avg THCa %"]||r["Avg THCa"]||"",thcAvg:r.thcAvg||r.avg_thc||r.avg_thc_pct||r["Avg THC %"]||r["Avg THC"]||"",cbdAvg:r.cbdAvg||r.avg_cbd||r.avg_cbd_pct||r["Avg CBD %"]||r["Avg CBD"]||"",terpsAvg:r.terpsAvg||r.avg_total_terpenes||r.avg_terpenes||r.avg_total_terpenes_pct||r["Avg Total Terpenes %"]||r["Avg Total Terpenes"]||"",dominantTerpenes:r.dominantTerpenes||r.dominant_terpenes||r["Dominant Terpenes"]||r["Top Terpenes"]||"",avgYieldGPerSqft:r.avgYieldGPerSqft||r.avg_yield||r.avg_yield_g_sqft||r["Avg Yield (g/sqft canopy)"]||r["Avg Yield"]||"",avgFlowerWeeks:r.avgFlowerWeeks||r.flower_time_weeks||r.flower_time||r.flower_weeks||r["Flower Time (weeks)"]||r["Flower Weeks"]||"",avgVegWeeks:r.avgVegWeeks||r.veg_time_weeks||r.veg_time||r["Veg Time (weeks)"]||r["Veg Weeks"]||"",aroma:r.aroma||r.aroma_notes||r["Aroma Notes"]||r["Aroma"]||"",flavor:r.flavor||r.flavor_profile||r["Flavor Profile"]||r["Flavor"]||"",effectProfile:r.effectProfile||r.effect_description||r.effects||r["Effect Description"]||r["Effects"]||"",notes:r.notes||r.internal_notes||r["Internal Notes"]||r["Notes"]||"",status:r.status||"active",salesDescription:r.salesDescription||r.sales_description||r["Sales Description"]||"",}));
+      } else if(target==="spray_log"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id||"sl_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),type:r.type||"ipm_spray",date:r.date||r.application_date||r["Application Date"]||"",spaceName:r.spaceName||r.space_name||r.grow_space_room||r["Grow Space / Room"]||r["Space"]||"",product:r.product||r.product_pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"",manufacturer:r.manufacturer||r["Manufacturer"]||"",epaRegNum:r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",rate:String(r.rate||r.label_rate||r["Label Rate"]||""),rateUnit:r.rateUnit||r.rate_unit||"oz/gal",volumeApplied:String(r.volumeApplied||r.amount_mixed||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),volumeUnit:r.volumeUnit||"gal",areaApplied:String(r.areaApplied||r.area_treated||r["Area Treated (sq ft)"]||r["Area Treated"]||""),applicationMethod:r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",targetPest:r.targetPest||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||"",weatherTemp:String(r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||""),weatherWind:String(r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||""),weatherHumidity:String(r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||""),rei:String(r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||""),phi:String(r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||""),applicatorName:r.applicatorName||r.licensed_applicator||r["Licensed Applicator"]||r["Applicator"]||"",applicatorLicenseNum:r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||"",notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="spaces"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id||"sp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",type:r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",sqft:r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",canopy:r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",maxPlants:r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",lightType:r.lightType||r.light_type||r["Light Type"]||"LED",lightCount:r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",lightWatts:r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",resetDays:r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",lastHarvestDate:r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",status:r.status||"active",notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="inventory"){
+        newRecords = rawRecords.map(r=>{
+          const name=r.n||r.name||r.item_name||r.item||r.description||r.item_description||r["Item Name"]||r["Item"]||r["Description"]||"";
+          const rawCat=r.cat||r.category||r.item_category||r["Category"]||"";
+          const ICL=["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
+          const ICM={"packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","solvent":"Extraction Solvents","butane":"Extraction Solvents","ethanol":"Extraction Solvents","filter":"Extraction Consumables","trim":"Post-Harvest Supplies","pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","vape":"Vape Hardware","cartridge":"Vape Hardware","nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","ipm":"IPM Products","pesticide":"IPM Products","cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","lab":"Lab Supplies"};
+          let cat=ICL.includes(rawCat)?rawCat:null;
+          if(!cat){const l=rawCat.toLowerCase();for(const [k,v] of Object.entries(ICM)){if(l.includes(k)){cat=v;break;}}}
+          if(!cat)cat="Other";
+          const stock=parseFloat(r.stock??r.current_stock??r.qty??r["Current Stock"]??0)||0;
+          const cost=parseFloat(r.cost??r.unit_cost??r["Unit Cost"]??0)||0;
+          const lots=Array.isArray(r.lots)?r.lots:(stock>0?[{id:"lot_imp_"+Date.now()+Math.random(),date:new Date().toISOString().split("T")[0],qty:stock,remaining:stock,costPerUnit:cost,poId:"ai_import"}]:[]);
+          return {...r,id:r.id||"inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),n:name,cat,uom:r.uom||r.unit||r.unit_of_measure||r["Unit of Measure"]||"each",reorderAt:parseFloat(r.reorderAt??r.reorder_at??r.reorder_point??r["Reorder At"]??0)||0,reorderQty:parseFloat(r.reorderQty??r.reorder_qty??r["Reorder Qty"]??0)||0,vm:["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())?(r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase():"average",lots,lastCost:cost||0,notes:r.notes||r["Notes"]||"",};
+        });
+      } else {
+        newRecords = rawRecords;
+      }
 
       localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
 
