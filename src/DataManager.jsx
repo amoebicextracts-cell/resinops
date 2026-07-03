@@ -131,6 +131,12 @@ const IMPORT_TARGETS = {
   coaSampleId (lab sample ID — may be called "COA Sample ID", "Sample ID", "Lab Sample #", etc.)
   labName (testing lab name — may be called "Lab Name", "Lab", "Testing Lab", etc.)
   thca (THCa percentage as a plain number — may be called "THCa %", "THCa", "THCa Avg", etc. Strip % sign)
+  plants (plant count as a number — may be called "Plant Count", "Plants", "# Plants", etc.)
+  grade_a (Grade A flower weight in grams as a number — may be called "Grade A (g)", "Grade A", "A Grade", etc.)
+  grade_b (Grade B flower weight in grams — may be called "Grade B (g)", "Grade B", "B Grade", etc.)
+  grade_c (Grade C flower weight in grams — may be called "Grade C (g)", "Grade C", "C Grade", etc.)
+  trim (Trim weight in grams — may be called "Trim (g)", "Trim", "Trim Weight", etc.)
+  waste (Waste weight in grams — may be called "Waste (g)", "Waste", "Waste Weight", etc.)
   notes (any notes field)` },
   qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
     schema:"See COA-specific instructions in the system prompt." },
@@ -560,7 +566,16 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             labName: r.labName||r.lab_name||r["Lab Name"]||"",
             thca: r.thca||r["THCa %"]||r["THCa"]||"",
             notes: r.notes||r["Notes"]||"",
-            grades: [], steps: [],
+            plants: r.plants||r.plant_count||r["Plant Count"]||"",
+            grades: {
+              aa:{weight:r.grade_aa||r["Grade AA (g)"]||"",s2s:""},
+              a: {weight:r.grade_a||r["Grade A (g)"]||"",s2s:""},
+              b: {weight:r.grade_b||r["Grade B (g)"]||"",s2s:""},
+              c: {weight:r.grade_c||r["Grade C (g)"]||"",s2s:""},
+              trim:{weight:r.trim||r["Trim (g)"]||"",s2s:""},
+              waste:{weight:r.waste||r["Waste (g)"]||"",s2s:""},
+            },
+            steps: [],
           };
         });
       } else {

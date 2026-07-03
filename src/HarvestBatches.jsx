@@ -123,9 +123,14 @@ export default function HarvestBatches() {
           thca: r.thca||r["THCa %"]||r["THCa"]||"",
           notes: r.notes||r["Notes"]||"",
           grades: (r.grades && !Array.isArray(r.grades)) ? r.grades : {
-            aa:{weight:"",s2s:""},a:{weight:"",s2s:""},b:{weight:"",s2s:""},
-            c:{weight:"",s2s:""},trim:{weight:"",s2s:""},waste:{weight:"",s2s:""}
+            aa:{weight: r.grade_aa||r["Grade AA (g)"]||"", s2s:""},
+            a: {weight: r.grade_a||r["Grade A (g)"]||r.grade_a_g||"", s2s:""},
+            b: {weight: r.grade_b||r["Grade B (g)"]||r.grade_b_g||"", s2s:""},
+            c: {weight: r.grade_c||r["Grade C (g)"]||r.grade_c_g||"", s2s:""},
+            trim:{weight: r.trim||r["Trim (g)"]||r.trim_g||"", s2s:""},
+            waste:{weight: r.waste||r["Waste (g)"]||r.waste_g||"", s2s:""},
           },
+          plants: r.plants||r.plant_count||r["Plant Count"]||r["Plants"]||"",
           steps: Array.isArray(r.steps) && r.steps.length > 0
             ? r.steps
             : STEPS_DEFAULT.map(s=>({...s})),
