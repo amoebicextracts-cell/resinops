@@ -122,7 +122,10 @@ export default function HarvestBatches() {
           labName: r.labName||r.lab_name||r["Lab Name"]||"",
           thca: r.thca||r["THCa %"]||r["THCa"]||"",
           notes: r.notes||r["Notes"]||"",
-          grades: Array.isArray(r.grades) ? r.grades : [],
+          grades: (r.grades && !Array.isArray(r.grades)) ? r.grades : {
+            aa:{weight:"",s2s:""},a:{weight:"",s2s:""},b:{weight:"",s2s:""},
+            c:{weight:"",s2s:""},trim:{weight:"",s2s:""},waste:{weight:"",s2s:""}
+          },
           steps: Array.isArray(r.steps) && r.steps.length > 0
             ? r.steps
             : STEPS_DEFAULT.map(s=>({...s})),
@@ -202,8 +205,8 @@ export default function HarvestBatches() {
     const rows = batches.map((b,idx)=>{
       const tl = timelines[idx]; const end = tl[tl.length-1]?.end;
       const stepRows = tl.map(s=>'<tr><td style="padding:4px 12px 4px 0;color:#555;font-size:13px;">'+s.n+'</td><td style="font-size:13px;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");
-      const gradeRows = GRADES.map(g=>{const gd=b.grades[g.k];return gd.weight?'<tr><td style="padding:3px 12px 3px 0;font-size:13px;">'+g.l+'</td><td style="font-size:13px;">'+gd.weight+'g</td><td style="font-size:12px;color:#666;">'+(gd.s2s||"—")+'</td></tr>':'';}).join("");
-      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+b.wetWeightG+'g wet \u00b7 Harvested '+fmtF(new Date(b.d+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+b.totalDryWeight.toFixed(1)+'g</p></div>';
+      const gradeRows = GRADES.map(g=>{const gd=(b.grades&&b.grades[g.k])||{};return gd.weight?'<tr><td style="padding:3px 12px 3px 0;font-size:13px;">'+g.l+'</td><td style="font-size:13px;">'+gd.weight+'g</td><td style="font-size:12px;color:#666;">'+(gd.s2s||"—")+'</td></tr>':'';}).join("");
+      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+(b.wetWeightG||0)+'g wet \u00b7 Harvested '+fmtF(new Date((b.d||new Date().toISOString().split("T")[0])+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+(parseFloat(b.totalDryWeight)||0).toFixed(1)+'g</p></div>';
     }).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
     const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Harvest Batches</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;}h1{font-size:22px;color:#2d5a3d;}</style></head><body><h1>ResinOps — Harvest Batches</h1><p style="color:#666;font-size:13px;">Exported '+date+'</p>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Harvest-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
@@ -351,12 +354,12 @@ export default function HarvestBatches() {
                       <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}</td>
                       <td>{b.spaceName||"—"}</td>
                       <td>{b.plants}</td>
-                      <td>{b.wetWeightG}g <span style={{fontSize:10,color:"var(--text-3)"}}>({(b.wetWeightG/LBS_TO_G).toFixed(1)} lbs)</span></td>
-                      <td>{b.grades.a.weight?b.grades.a.weight+"g":"—"}</td>
-                      <td>{b.grades.b.weight?b.grades.b.weight+"g":"—"}</td>
-                      <td>{b.grades.c.weight?b.grades.c.weight+"g":"—"}</td>
-                      <td>{b.grades.trim.weight?b.grades.trim.weight+"g":"—"}</td>
-                      <td style={{fontWeight:600,color:"var(--accent-2)"}}>{b.totalDryWeight?b.totalDryWeight.toFixed(0)+"g":"—"}</td>
+                      <td>{b.wetWeightG?`${parseFloat(b.wetWeightG)||0}g `:<span style={{color:"var(--text-3)"}}>—</span>}{b.wetWeightG?<span style={{fontSize:10,color:"var(--text-3)"}}>({((parseFloat(b.wetWeightG)||0)/LBS_TO_G).toFixed(1)} lbs)</span>:null}</td>
+                      <td>{(b.grades?.a?.weight||b.grades?.aa?.weight)?((b.grades?.a?.weight||b.grades?.aa?.weight)+"g"):"—"}</td>
+                      <td>{b.grades?.b?.weight?b.grades.b.weight+"g":"—"}</td>
+                      <td>{b.grades?.c?.weight?b.grades.c.weight+"g":"—"}</td>
+                      <td>{b.grades?.trim?.weight?b.grades.trim.weight+"g":"—"}</td>
+                      <td style={{fontWeight:600,color:"var(--accent-2)"}}>{b.totalDryWeight?(parseFloat(b.totalDryWeight)||0).toFixed(0)+"g":"—"}</td>
                       <td><span className={"hb-pill hb-status-"+(b.status==="done"?"done":"open")}>{b.status==="done"?"Complete":"In Progress"}</span></td>
                       <td><div style={{display:"flex",gap:6}}>
                         <button className="hb-sm hb-edit" onClick={()=>openEdit(b)}>Edit</button>
