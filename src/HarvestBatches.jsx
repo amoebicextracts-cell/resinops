@@ -95,27 +95,39 @@ export default function HarvestBatches() {
   const [batches, setBatches] = useState(() => {
     try {
       const raw = JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-      return raw.map(r => ({
-        ...r,
-        id: r.id||"hb_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-        strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
-        spaceId: r.spaceId||r.space_id||"",
-        spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
-        plants: r.plants||r.plant_count||r["Plant Count"]||"",
-        d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
-        wetWeightG: r.wetWeightG||r.wet_weight_g||(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]?"":"")||0,
-        totalDryWeight: r.totalDryWeight||r.dry_weight_g||0,
-        status: r.status||r["Status"]||"complete",
-        coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
-        labName: r.labName||r.lab_name||r["Lab Name"]||"",
-        thca: r.thca||r["THCa %"]||r["THCa"]||"",
-        notes: r.notes||r["Notes"]||"",
-        grades: Array.isArray(r.grades) ? r.grades : [],
-        // Always ensure steps exists — imported batches won't have it
-        steps: Array.isArray(r.steps) && r.steps.length > 0
-          ? r.steps
-          : STEPS_DEFAULT.map(s=>({...s})),
-      }));
+      return raw.map(r => {
+        // Wet weight — could be grams or lbs depending on source
+        const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
+        const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
+        const wetWeightG = wetG > 0 ? wetG : wetLbs > 0 ? Math.round(wetLbs * 453.592) : 0;
+        // Dry weight — same
+        const dryLbs = parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
+        const dryG   = parseFloat(r.totalDryWeight||r.total_dry_weight||r.dry_weight_g||0)||0;
+        const totalDryWeight = dryG > 0 ? dryG : dryLbs > 0 ? Math.round(dryLbs * 453.592) : 0;
+        // Status — component expects "done" or "open"
+        const rawStatus = (r.status||r["Status"]||"").toLowerCase();
+        const status = rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed" ? "done" : "open";
+        return {
+          ...r,
+          id: r.id||r.batch_id||r["Batch ID"]||"hb_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+          strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+          spaceId: r.spaceId||r.space_id||"",
+          spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
+          plants: r.plants||r.plant_count||r["Plant Count"]||"",
+          d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+          wetWeightG,
+          totalDryWeight,
+          status,
+          coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
+          labName: r.labName||r.lab_name||r["Lab Name"]||"",
+          thca: r.thca||r["THCa %"]||r["THCa"]||"",
+          notes: r.notes||r["Notes"]||"",
+          grades: Array.isArray(r.grades) ? r.grades : [],
+          steps: Array.isArray(r.steps) && r.steps.length > 0
+            ? r.steps
+            : STEPS_DEFAULT.map(s=>({...s})),
+        };
+      });
     } catch { return []; }
   });
   const [form, setForm] = useState(null);

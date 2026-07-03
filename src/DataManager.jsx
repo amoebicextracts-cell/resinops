@@ -119,7 +119,19 @@ const IMPORT_TARGETS = {
   lightCount (number of lights as a number)
   lightWatts (watts per light as a number)
   status (default "active")` },
-  qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
+  harvest_batches:{ label:"Harvest Batches", icon:"🌿", key:"resinops_harvest_batches",
+    schema:`Each record must use these EXACT field names:
+  id (batch ID — may be called "Batch ID", "Lot ID", "Harvest ID", etc. Preserve the original value exactly)
+  strainName (strain name — may be called "Strain Name", "Strain", "Cultivar", etc.)
+  spaceName (harvest room or grow space — may be called "Harvest Room", "Grow Space", "Room", "Space", etc.)
+  d (harvest date in YYYY-MM-DD — may be called "Harvest Date", "Date", etc.)
+  wetWeightG (wet weight in GRAMS as a number — if source is in lbs multiply by 453.592. May be called "Wet Weight lbs", "Wet Weight", "Wet Weight g", etc.)
+  totalDryWeight (total dry weight in GRAMS as a number — if source is in lbs multiply by 453.592. May be called "Dry Weight lbs", "Dry Weight", "Final Dry Weight", etc.)
+  status (must be exactly "done" or "open" — map "complete", "completed", "finished", "cured" → "done"; "drying", "curing", "in progress", "open" → "open")
+  coaSampleId (lab sample ID — may be called "COA Sample ID", "Sample ID", "Lab Sample #", etc.)
+  labName (testing lab name — may be called "Lab Name", "Lab", "Testing Lab", etc.)
+  thca (THCa percentage as a plain number — may be called "THCa %", "THCa", "THCa Avg", etc. Strip % sign)
+  notes (any notes field)` },
     schema:"See COA-specific instructions in the system prompt." },
   cult_inputs:{ label:"Cultivation Inputs (Nutrients)", icon:"🌱", key:"resinops_cult_inputs",
     schema:`Each record must use these EXACT field names:
@@ -220,7 +232,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|harvest_batches|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -523,6 +535,32 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           const cost=parseFloat(r.cost??r.unit_cost??r["Unit Cost"]??0)||0;
           const lots=Array.isArray(r.lots)?r.lots:(stock>0?[{id:"lot_imp_"+Date.now()+Math.random(),date:new Date().toISOString().split("T")[0],qty:stock,remaining:stock,costPerUnit:cost,poId:"ai_import"}]:[]);
           return {...r,id:r.id||"inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),n:name,cat,uom:r.uom||r.unit||r.unit_of_measure||r["Unit of Measure"]||"each",reorderAt:parseFloat(r.reorderAt??r.reorder_at??r.reorder_point??r["Reorder At"]??0)||0,reorderQty:parseFloat(r.reorderQty??r.reorder_qty??r["Reorder Qty"]??0)||0,vm:["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())?(r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase():"average",lots,lastCost:cost||0,notes:r.notes||r["Notes"]||"",};
+        });
+      } else if(target==="harvest_batches"){
+        newRecords = rawRecords.map(r=>{
+          const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
+          const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
+          const wetWeightG = wetG>0 ? wetG : wetLbs>0 ? Math.round(wetLbs*453.592) : 0;
+          const dryLbs = parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
+          const dryG   = parseFloat(r.totalDryWeight||r.total_dry_weight||r.dry_weight_g||0)||0;
+          const totalDryWeight = dryG>0 ? dryG : dryLbs>0 ? Math.round(dryLbs*453.592) : 0;
+          const rawStatus = (r.status||r["Status"]||"").toLowerCase();
+          const status = rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed"||rawStatus==="cured" ? "done" : "open";
+          return {
+            ...r,
+            id: r.id||r.batch_id||r["Batch ID"]||"hb_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+            spaceId: r.spaceId||r.space_id||"",
+            spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
+            plants: r.plants||r.plant_count||r["Plant Count"]||"",
+            d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+            wetWeightG, totalDryWeight, status,
+            coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
+            labName: r.labName||r.lab_name||r["Lab Name"]||"",
+            thca: r.thca||r["THCa %"]||r["THCa"]||"",
+            notes: r.notes||r["Notes"]||"",
+            grades: [], steps: [],
+          };
         });
       } else {
         newRecords = rawRecords;
