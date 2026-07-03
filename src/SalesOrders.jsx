@@ -65,7 +65,7 @@ export default function SalesOrders() {
         if(Array.isArray(o.lines)) return o;
         // Convert flat CSV import row to component schema
         const dispensaryName=o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||o["Customer"]||o.customerName||"";
-        const licenseNum=o.licenseNum||o.license_num||o.license_number||o["License Number"]||o["License #"]||o["OCM License"]||o.customerLicense||"";
+        const licenseNum=o.licenseNum||o.licenseNumber||o.license_num||o.license_number||o["License Number"]||o["License #"]||o["OCM License"]||o.customerLicense||"";
         const orderDate=o.orderDate||o.order_date||o["Order Date"]||o["Date"]||new Date().toISOString().split("T")[0];
         const units=parseFloat(o.units||o.units_ordered||o["Units Ordered"]||o["Quantity"]||o["Qty"]||0)||0;
         const unitPrice=parseFloat(String(o.unitPrice||o.unit_price||o["Unit Price"]||o["Price"]||0).replace(/[$,]/g,""))||0;
