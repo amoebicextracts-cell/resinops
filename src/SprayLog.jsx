@@ -83,7 +83,12 @@ export default function SprayLog(){
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   function normalizeRecord(r, spaces){
-    const spaceName = r.spaceName||r.space_name||r.grow_space___room||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Space"]||r["Room"]||"";
+    const spaceName = (()=>{
+      const direct = r.spaceName||r.space_name||r.grow_space___room||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Space"]||r["Room"]||"";
+      if(direct) return direct;
+      const key = Object.keys(r).find(k=>k.toLowerCase().includes("space")||k.toLowerCase().includes("room")||k.toLowerCase().includes("grow_space"));
+      return key ? String(r[key]||"") : "";
+    })();
     const spaceId = r.spaceId||(spaces.find(s=>s.name===spaceName)?.id||"");
     const applicatorName = r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||"";
     const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license___||r.pesticide_license||r["Pesticide License #"]||r["Pesticide License Number"]||"";
@@ -94,7 +99,12 @@ export default function SprayLog(){
       type: r.type||"ipm_spray",
       date: r.date||r.application_date||r["Application Date"]||"",
       spaceName,spaceId,
-      product: r.product||r.product___pesticide_name||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||"",
+      product: (()=>{
+        const direct = r.product||r.product___pesticide_name||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||r["Chemical"]||"";
+        if(direct) return direct;
+        const key = Object.keys(r).find(k=>k.toLowerCase().includes("product")||k.toLowerCase().includes("pesticide")||k.toLowerCase().includes("chemical"));
+        return key ? String(r[key]||"") : "";
+      })(),
       manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
       epaRegNum: r.epaRegNum||r.epa_registration_number||r.epa_reg_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
       rate: (()=>{const raw=String(r.rate||r.label_rate||r["Label Rate"]||"");const m=raw.match(/^([\d.]+)/);return m?m[1]:raw;})(),
