@@ -83,10 +83,10 @@ export default function SprayLog(){
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   function normalizeRecord(r, spaces){
-    const spaceName = r.spaceName||r.space_name||r.grow_space_room||r["Grow Space / Room"]||r["Space"]||"";
+    const spaceName = r.spaceName||r.space_name||r.grow_space___room||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Space"]||r["Room"]||"";
     const spaceId = r.spaceId||(spaces.find(s=>s.name===spaceName)?.id||"");
     const applicatorName = r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||"";
-    const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||r["Pesticide License Number"]||"";
+    const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license___||r.pesticide_license||r["Pesticide License #"]||r["Pesticide License Number"]||"";
     return {
       ...EMPTY,
       ...r,
@@ -94,21 +94,21 @@ export default function SprayLog(){
       type: r.type||"ipm_spray",
       date: r.date||r.application_date||r["Application Date"]||"",
       spaceName,spaceId,
-      product: r.product||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"",
-      manufacturer: r.manufacturer||r["Manufacturer"]||"",
-      epaRegNum: r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
-      rate: String(r.rate||r.label_rate||r["Label Rate"]||""),
-      rateUnit: r.rateUnit||r.rate_unit||"oz/gal",
+      product: r.product||r.product___pesticide_name||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||"",
+      manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
+      epaRegNum: r.epaRegNum||r.epa_registration_number||r.epa_reg_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
+      rate: (()=>{const raw=String(r.rate||r.label_rate||r["Label Rate"]||"");const m=raw.match(/^([\d.]+)/);return m?m[1]:raw;})(),
+      rateUnit: (()=>{const raw=String(r.rate||r.label_rate||r["Label Rate"]||"");const m=raw.match(/^[\d.]+\s*(.*)/);return r.rateUnit||r.rate_unit||(m&&m[1]?m[1]:"oz/gal");})(),
       volumeApplied: String(r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
       volumeUnit: r.volumeUnit||r.volume_unit||"gal",
-      areaApplied: String(r.areaApplied||r.area_treated||r["Area Treated (sq ft)"]||r["Area Treated"]||""),
+      areaApplied: String(r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||r["Area Treated"]||""),
       applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
-      targetPest: r.targetPest||r.target_pest||r.target_pest_disease||r["Target Pest / Disease"]||r["Target Pest"]||"",
-      weatherTemp: String(r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||r["Temp"]||""),
-      weatherWind: String(r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||r["Wind Speed"]||""),
-      weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||r["Humidity"]||""),
-      rei: String(r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||r["REI"]||""),
-      phi: String(r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||r["PHI"]||""),
+      targetPest: r.targetPest||r.target_pest___disease||r.target_pest_disease||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||"",
+      weatherTemp: String(r.weatherTemp||r.temp_at_application||r.temp_at_application__f__||r["Temp at Application (F)"]||r["Temp"]||""),
+      weatherWind: String(r.weatherWind||r.wind_speed__mph__||r.wind_speed||r["Wind Speed (mph)"]||r["Wind Speed"]||""),
+      weatherHumidity: String(r.weatherHumidity||r.relative_humidity____||r.relative_humidity||r["Relative Humidity (%)"]||r["RH"]||""),
+      rei: String(r.rei||r.re_entry_interval__hrs__||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||r["REI"]||""),
+      phi: String(r.phi||r.pre_harvest_interval__days__||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||r["PHI"]||""),
       applicatorName,applicatorLicenseNum,
       applicatorId: r.applicatorId||"",
       notes: r.notes||r["Notes"]||"",

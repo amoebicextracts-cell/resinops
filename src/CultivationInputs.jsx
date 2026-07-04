@@ -59,27 +59,34 @@ export default function CultivationInputs(){
       const raw=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]");
       const allSpaces=[...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]")];
       return raw.map(r=>{
-        // Normalize imported records — map snake_case and raw column names to schema fields
-        const product = r.product||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||"";
-        const spaceName = r.spaceName||r.space_name||r.grow_space||r["Grow Space / Room"]||r["Space"]||"";
+        const product = r.product||r["Product"]||r["Input"]||r["Material"]||"";
+        const spaceName = r.spaceName||r.space_name||r.grow_space||r["Grow Space"]||r["Space"]||r["Room"]||"";
         const spaceId = r.spaceId||(allSpaces.find(s=>s.name===spaceName)?.id||"");
-        const applicatorName = r.applicatorName||r.applicator_name||r.licensed_applicator||r["Licensed Applicator"]||r["Applicator"]||"";
-        const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license||r["Pesticide License #"]||r["License #"]||"";
+        // Map type — never default to ipm_spray for nutrient records
+        const rawType=(r.type||r.input_type||r.inputType||r["Input Type"]||r["Type"]||"").toLowerCase().trim();
+        let type="other";
+        if(["nutrient","fertilizer","feed","supplement","foliar","booster","tonic","solution"].some(k=>rawType.includes(k))) type="nutrient";
+        else if(["amendment","compost","worm","casting","microbe","soil","media","topdress"].some(k=>rawType.includes(k))) type="amendment";
+        else if(["beneficial","insect","mite","predator","nematode","cucumeris","sachets","ladybug"].some(k=>rawType.includes(k))) type="beneficial";
+        else if(["flush","plain water","ro water","rinse","enzyme"].some(k=>rawType.includes(k))) type="flush";
+        else if(["nutrient","amendment","beneficial","flush","other","ipm_spray","fungicide","insecticide"].includes(rawType)) type=rawType==="ipm_spray"||rawType==="fungicide"||rawType==="insecticide"?"other":rawType;
         return {
           ...r,
           id: r.id||"ci_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-          type: r.type||"ipm_spray",
+          type,
           product,
           spaceName,
           spaceId,
-          applicatorName,
-          applicatorLicenseNum,
-          date: r.date||r.application_date||r["Application Date"]||"",
-          epaRegNum: r.epaRegNum||r.epa_registration_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
-          rate: r.rate||r.label_rate||r["Label Rate"]||"",
-          rateUnit: r.rateUnit||r.rate_unit||"oz/gal",
-          volumeApplied: r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||"",
-          volumeUnit: r.volumeUnit||r.volume_unit||"gal",
+          date: r.date||r.application_date||r["Date"]||r["Application Date"]||"",
+          manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
+          rate: r.rate||r["Rate"]||"",
+          rateUnit: r.rateUnit||r.rate_unit||r["Rate Unit"]||"",
+          volumeApplied: r.volumeApplied||r.amount_mixed||r["Amount Mixed"]||"",
+          volumeUnit: r.volumeUnit||r.volume_unit||r["Volume Unit"]||"gal",
+          areaApplied: r.areaApplied||r.area_sq_ft||r["Area Sq Ft"]||r["Area"]||"",
+          costPerUnit: r.costPerUnit||r.cost_per_unit||r["Cost Per Unit"]||"",
+          totalCost: r.totalCost||r.total_cost||r["Total Cost"]||"",
+          notes: r.notes||r["Notes"]||"",
           areaApplied: r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||"",
           applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
           targetPest: r.targetPest||r.target_pest||r.target_pest_disease||r["Target Pest / Disease"]||"",
