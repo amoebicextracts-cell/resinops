@@ -122,15 +122,25 @@ export default function Dashboard({ onNavigate }){
   const openDevs=deviations.filter(d=>d.status==="open");
 
   // ── Sales pipeline calculations ───────────────────────────────────────────
-  const confirmedOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="confirmed");
-  const pendingOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="pending");
-  const waitlistOrders=salesOrders.filter(o=>(o.status||"").toLowerCase()==="waitlist"||o.status==="Waitlisted");
-  const getTotal=(o)=>parseFloat(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0)||
-    (parseFloat(o.units||o["Units Ordered"]||0)*parseFloat(o.unitPrice||o.unit_price||o["Unit Price"]||0));
+  // SalesOrders component uses "open"/"fulfilled" — CSV imports use "confirmed"/"pending"/"waitlist"
+  const confirmedOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="confirmed"||s==="open";});
+  const pendingOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="pending";});
+  const waitlistOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="waitlist"||s==="waitlisted";});
+  const getTotal=(o)=>{
+    // Try direct orderTotal first
+    const direct=parseFloat(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0)||0;
+    if(direct>0) return direct;
+    // Fall back to summing lines array (SalesOrders component schema)
+    if(Array.isArray(o.lines)&&o.lines.length>0){
+      return o.lines.reduce((a,l)=>(parseFloat(l.orderTotal)||0)+(a),0)||
+             o.lines.reduce((a,l)=>a+(parseFloat(l.qty||0)*parseFloat(l.unitPrice||0)),0);
+    }
+    return parseFloat(o.units||o["Units Ordered"]||0)*parseFloat(o.unitPrice||o.unit_price||o["Unit Price"]||0)||0;
+  };
   const confirmedRevenue=confirmedOrders.reduce((a,o)=>a+getTotal(o),0);
   const pendingRevenue=pendingOrders.reduce((a,o)=>a+getTotal(o),0);
   const totalPipeline=confirmedRevenue+pendingRevenue;
-  const getDispensaryName=(o)=>o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||"";
+  const getDispensaryName=(o)=>o.customerName||o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||"";
   const uniqueAccounts=new Set(salesOrders.map(getDispensaryName).filter(Boolean)).size;
 
   const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
@@ -192,7 +202,7 @@ export default function Dashboard({ onNavigate }){
                 </div>
               </div>
               {confirmedOrders.slice(0,4).map((o,i)=>{
-                const name=getDispensaryName(o);
+                const name=o.customerName||getDispensaryName(o);
                 const product=o.product||o["Product"]||o.strain||o["Strain"]||"";
                 const total=getTotal(o);
                 return(

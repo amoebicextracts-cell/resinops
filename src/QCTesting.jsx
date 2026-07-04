@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { autoPopulateStrains } from "./strainUtils.js";
-import StrainCombo from "./StrainCombo.jsx";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
 function pf(v){return v===true?"PASS":v===false?"FAIL":"—";}
 function pfColor(v){return v===true?"var(--accent-2)":v===false?"var(--danger)":"var(--text-3)";}
 
-const CANNABINOIDS=["thca","thc","cbda","cbd","cbg","cbn","thcv","cbc","totalCannabinoids"];
-const CANNABINOID_LABELS={thca:"THCa %",thc:"THC %",cbda:"CBDa %",cbd:"CBD %",cbg:"CBG %",cbn:"CBN %",thcv:"THCv %",cbc:"CBC %",totalCannabinoids:"Total Cannabinoids %"};
+const CANNABINOIDS=["totalThc","thca","thc","cbda","cbd","cbg","cbn","thcv","cbc","totalCannabinoids"];
+const CANNABINOID_LABELS={totalThc:"Total THC %",thca:"THCa %",thc:"Delta-9 THC %",cbda:"CBDa %",cbd:"CBD %",cbg:"CBG %",cbn:"CBN %",thcv:"THCv %",cbc:"CBC %",totalCannabinoids:"Total Cannabinoids %}"};
 const TERPENES=["totalTerpenes","myrcene","limonene","caryophyllene","linalool","pinene","ocimene","terpinolene","humulene","bisabolol","valencene","other_terps"];
 const TERP_LABELS={totalTerpenes:"Total Terpenes %",myrcene:"Myrcene %",limonene:"Limonene %",caryophyllene:"Caryophyllene %",linalool:"Linalool %",pinene:"Pinene %",ocimene:"Ocimene %",terpinolene:"Terpinolene %",humulene:"Humulene %",bisabolol:"Bisabolol %",valencene:"Valencene %",other_terps:"Other Terpenes %"};
 
@@ -55,7 +54,7 @@ function PFField({label,value,onChange}){
 const EMPTY={
   batchType:"harvest",batchId:"",batchName:"",strainName:"",
   sampleId:"",labName:"",submittedDate:"",expectedDate:"",receivedDate:"",
-  thca:"",thc:"",cbda:"",cbd:"",cbg:"",cbn:"",thcv:"",cbc:"",totalCannabinoids:"",
+  totalThc:"",thca:"",thc:"",cbda:"",cbd:"",cbg:"",cbn:"",thcv:"",cbc:"",totalCannabinoids:"",
   totalTerpenes:"",myrcene:"",limonene:"",caryophyllene:"",linalool:"",pinene:"",ocimene:"",terpinolene:"",humulene:"",bisabolol:"",valencene:"",other_terps:"",
   tyam:"",tab:"",aspergillus:null,salmonella:null,stec:null,ecoli:null,microbialPass:null,
   pesticidesPass:null,heavyMetalsPass:null,waterActivity:"",moistureContent:"",foreignMatterPass:null,
@@ -232,7 +231,7 @@ export default function QCTesting(){
                   </select></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label className="qc-lbl">Strain</label><StrainCombo className="qc-inp" value={form.strainName} onChange={(name)=>setF("strainName",name)} placeholder="Select or type strain" /></div>
+                  <div><label className="qc-lbl">Strain</label><input className="qc-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} /></div>
                   <div><label className="qc-lbl">Sample ID / CoC #</label><input className="qc-inp" value={form.sampleId} onChange={e=>setF("sampleId",e.target.value)} placeholder="Lab sample reference" /></div>
                   <div><label className="qc-lbl">Lab name</label><input className="qc-inp" value={form.labName} onChange={e=>setF("labName",e.target.value)} placeholder="e.g. Kaycha Labs, Wurk" /></div>
                 </div>
@@ -312,7 +311,7 @@ export default function QCTesting(){
             ):(
               <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
                 <table className="qc-tbl">
-                  <thead><tr><th>Batch / Strain</th><th>Sample ID</th><th>Lab</th><th>Submitted</th><th>Received</th><th>THCa %</th><th>Total Terps %</th><th>Microbial</th><th>Pesticides</th><th>Overall</th><th></th></tr></thead>
+                  <thead><tr><th>Batch / Strain</th><th>Sample ID</th><th>Lab</th><th>Submitted</th><th>Received</th><th style={{color:"var(--accent-2)",fontWeight:700}}>Total THC %</th><th>THCa %</th><th>Total Terps %</th><th>Microbial</th><th>Pesticides</th><th>Overall</th><th></th></tr></thead>
                   <tbody>
                     {[...tests].sort((a,b)=>new Date(b.submittedDate)-new Date(a.submittedDate)).map(t=>(
                       <tr key={t.id}>
@@ -321,7 +320,8 @@ export default function QCTesting(){
                         <td style={{fontSize:11}}>{t.labName||"—"}</td>
                         <td>{fmtD(t.submittedDate)}</td>
                         <td>{t.receivedDate?fmtD(t.receivedDate):<span style={{color:"var(--amber)",fontSize:11}}>Pending</span>}</td>
-                        <td style={{fontWeight:500,color:"var(--accent-2)"}}>{t.thca?t.thca+"%":"—"}</td>
+                        <td style={{fontWeight:700,color:"var(--accent-2)",fontSize:14}}>{t.totalThc||t.total_thc?((t.totalThc||t.total_thc)+"%"):"—"}</td>
+                        <td style={{fontWeight:500,color:"var(--text-2)"}}>{t.thca?t.thca+"%":"—"}</td>
                         <td>{t.totalTerpenes?t.totalTerpenes+"%":"—"}</td>
                         <td style={{color:pfColor(t.microbialPass)}}>{pf(t.microbialPass)}</td>
                         <td style={{color:pfColor(t.pesticidesPass)}}>{pf(t.pesticidesPass)}</td>

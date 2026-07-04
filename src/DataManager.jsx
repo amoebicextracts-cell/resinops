@@ -138,7 +138,17 @@ const IMPORT_TARGETS = {
   trim (Trim weight in grams — may be called "Trim (g)", "Trim", "Trim Weight", etc.)
   waste (Waste weight in grams — may be called "Waste (g)", "Waste", "Waste Weight", etc.)
   notes (any notes field)` },
-  qc_tests:{ label:"QC / Lab Test Results (COA)", icon:"🔬", key:"resinops_qc_tests",
+  production_batches:{ label:"Production Batches", icon:"🏭", key:"resinops_prod",
+    schema:`Each record must use these EXACT field names:
+  name (batch name — may be called "Batch Name", "Name", "Production Batch", etc.)
+  catLabel (product category label — may be called "Product Type", "Category", "Product Category", etc. e.g. "Whole Flower", "Pre-Roll", "Concentrate")
+  subLabel (product sub-type — may be called "Sub-Type", "Sub Type", "Product Sub-Type", e.g. "3.5g Retail", "1g", "Live Rosin")
+  strains (strain name(s) — may be called "Strain(s)", "Strain", "Cultivar", etc.)
+  d (scheduled start date in YYYY-MM-DD — may be called "Scheduled Start", "Start Date", "Date", etc.)
+  status (must be exactly "complete", "in_progress", or "scheduled" — map "Complete","Done","Finished" → "complete"; "In Progress","In-Progress","Active" → "in_progress"; "Scheduled","Upcoming","Planned" → "scheduled")
+  yieldEst (estimated yield as text — may be called "Estimated Yield", "Est. Output", "Yield", etc. Keep the full string including units)
+  actual_yield (actual yield achieved — may be called "Actual Yield", "Actual", "Yield Achieved", etc.)
+  notes (any notes field)` },
     schema:"See COA-specific instructions in the system prompt." },
   cult_inputs:{ label:"Cultivation Inputs (Nutrients)", icon:"🌱", key:"resinops_cult_inputs",
     schema:`Each record must use these EXACT field names:
@@ -258,7 +268,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|harvest_batches|sales_orders|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -490,41 +500,38 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       status: r.receivedDate||r.received_date||r.date_reported?"complete":r.submittedDate||r.submitted_date||r.date_submitted?"submitted":"pending",
       source:"coa_import",
       // Normalize cannabinoids — catch both snake_case and CSV column names
-      thca:toNum(r.thca||r["THCa %"]||r["THCa"]),
-      thc:toNum(r.thc||r.delta_9_thc||r["Delta-9 THC %"]||r["Delta-9 THC"]||r["THC %"]||r["THC"]),
-      cbda:toNum(r.cbda||r["CBDa %"]||r["CBDa"]),
-      cbd:toNum(r.cbd||r["CBD %"]||r["CBD"]),
-      cbg:toNum(r.cbg||r["CBG %"]||r["CBG"]),
-      cbn:toNum(r.cbn||r["CBN %"]||r["CBN"]),
-      thcv:toNum(r.thcv||r["THCv %"]||r["THCv"]),
-      cbc:toNum(r.cbc||r["CBC %"]||r["CBC"]),
-      totalCannabinoids:toNum(r.totalCannabinoids||r.total_cannabinoids||r["Total Cannabinoids %"]||r["Total Cannabinoids"]),
-      // Normalize terpenes
-      totalTerpenes:toNum(r.totalTerpenes||r.total_terpenes||r["Total Terpenes %"]||r["Total Terpenes"]),
-      myrcene:toNum(r.myrcene||r.beta_myrcene||r["beta-Myrcene %"]||r["beta-Myrcene"]||r["Myrcene %"]),
-      limonene:toNum(r.limonene||r["Limonene %"]||r["Limonene"]),
-      caryophyllene:toNum(r.caryophyllene||r.beta_caryophyllene||r["beta-Caryophyllene %"]||r["beta-Caryophyllene"]||r["Caryophyllene %"]),
-      linalool:toNum(r.linalool||r["Linalool %"]||r["Linalool"]),
-      pinene:toNum(r.pinene||r.alpha_pinene||r["alpha-Pinene %"]||r["alpha-Pinene"]||r["Pinene %"]),
-      ocimene:toNum(r.ocimene||r["Ocimene %"]||r["Ocimene"]),
-      terpinolene:toNum(r.terpinolene||r["Terpinolene %"]||r["Terpinolene"]),
+      thca:toNum(r.thca||r.thca_percent||r["THCa %"]||r["THCa"]),
+      thc:toNum(r.thc||r.delta_9_thc||r.total_thc||r["Delta-9 THC %"]||r["Total THC %"]||r["THC"]),
+      totalThc:toNum(r.totalThc||r.total_thc||r["Total THC %"]||r["Total THC"]),
+      cbda:toNum(r.cbda||r.cbda_percent||r["CBDa %"]||r["CBDa"]),
+      cbd:toNum(r.cbd||r.cbd_percent||r["CBD %"]||r["CBD"]),
+      cbg:toNum(r.cbg||r.cbg_percent||r["CBG %"]||r["CBG"]),
+      cbn:toNum(r.cbn||r.cbn_percent||r["CBN %"]||r["CBN"]),
+      thcv:toNum(r.thcv||r.thcv_percent||r["THCv %"]||r["THCv"]),
+      cbc:toNum(r.cbc||r.cbc_percent||r["CBC %"]||r["CBC"]),
+      totalCannabinoids:toNum(r.totalCannabinoids||r.total_cannabinoids||r.total_cannabinoids_percent||r["Total Cannabinoids %"]||r["Total Cannabinoids"]),
+      totalTerpenes:toNum(r.totalTerpenes||r.total_terpenes||r.total_terpenes_percent||r["Total Terpenes %"]||r["Total Terpenes"]),
+      myrcene:toNum(r.myrcene||r.beta_myrcene||r["beta-Myrcene %"]||r["beta-Myrcene"]||r["Myrcene %"]||r["Myrcene"]),
+      limonene:toNum(r.limonene||r.limonene_percent||r["Limonene %"]||r["Limonene"]),
+      caryophyllene:toNum(r.caryophyllene||r.beta_caryophyllene||r["beta-Caryophyllene %"]||r["beta-Caryophyllene"]||r["Caryophyllene %"]||r["Caryophyllene"]),
+      linalool:toNum(r.linalool||r.linalool_percent||r["Linalool %"]||r["Linalool"]),
+      pinene:toNum(r.pinene||r.alpha_pinene||r["alpha-Pinene %"]||r["alpha-Pinene"]||r["Pinene %"]||r["Pinene"]),
+      ocimene:toNum(r.ocimene||r.ocimene_percent||r["Ocimene %"]||r["Ocimene"]),
+      terpinolene:toNum(r.terpinolene||r.terpinolene_percent||r["Terpinolene %"]||r["Terpinolene"]),
       humulene:toNum(r.humulene||r.alpha_humulene||r["Humulene %"]||r["Humulene"]),
-      bisabolol:toNum(r.bisabolol||r.alpha_bisabolol||r["alpha-Bisabolol %"]||r["Bisabolol %"]),
-      valencene:toNum(r.valencene||r["Valencene %"]||r["Valencene"]),
-      // Microbial
-      tyam:toNum(r.tyam||r.total_yeast_and_mold||r["Total Yeast and Mold CFU/g"]||r["TYAM"]),
-      tab:toNum(r.tab||r.total_aerobic_count||r.total_aerobic_bacteria||r["Total Aerobic Count CFU/g"]||r["TAC"]),
-      waterActivity:toNum(r.waterActivity||r.water_activity||r["Water Activity Aw"]||r["Water Activity"]),
-      moistureContent:toNum(r.moistureContent||r.moisture_content||r["Moisture Content %"]||r["Moisture Content"]),
-      // Pass/fail panels
-      aspergillus:toBool(r.aspergillus||r["Aspergillus Panel"]),
-      salmonella:toBool(r.salmonella||r["Salmonella"]),
+      tyam:toNum(r.tyam||r.total_yeast_and_mold||r.total_yeast_mold_cfu_g||r["Total Yeast and Mold CFU/g"]||r["TYAM"]),
+      tab:toNum(r.tab||r.total_aerobic_count||r.total_aerobic_count_cfu_g||r["Total Aerobic Count CFU/g"]||r["TAC"]),
+      waterActivity:toNum(r.waterActivity||r.water_activity||r.water_activity_aw||r["Water Activity Aw"]||r["Water Activity"]),
+      moistureContent:toNum(r.moistureContent||r.moisture_content||r.moisture_content_percent||r["Moisture Content %"]||r["Moisture Content"]),
+      aspergillus:toBool(r.aspergillus||r.aspergillus_panel||r["Aspergillus Panel"]),
+      salmonella:toBool(r.salmonella||r.salmonella_panel||r["Salmonella"]),
       stec:toBool(r.stec||r.stec_e_coli||r["STEC E coli"]||r["STEC"]),
-      ecoli:toBool(r.ecoli||r["E. coli"]),
+      ecoli:toBool(r.ecoli||r.e_coli||r["E. coli"]),
       microbialPass:toBool(r.microbialPass||r.microbial_pass),
-      pesticidesPass:toBool(r.pesticidesPass||r.pesticides_pass||r["Pesticide Residues"]),
-      heavyMetalsPass:toBool(r.heavyMetalsPass||r.heavy_metals_pass||r["Heavy Metals"]),
-      foreignMatterPass:toBool(r.foreignMatterPass||r.foreign_matter_pass||r["Foreign Matter"]),
+      pesticidesPass:toBool(r.pesticidesPass||r.pesticides_pass||r.pesticide_residues||r["Pesticide Residues"]),
+      heavyMetalsPass:toBool(r.heavyMetalsPass||r.heavy_metals_pass||r.heavy_metals||r["Heavy Metals"]),
+      foreignMatterPass:toBool(r.foreignMatterPass||r.foreign_matter_pass||r.foreign_matter||r["Foreign Matter"]),
+      overallPass:toBool(r.overallPass||r.overall_pass||r.overall_result||r["Overall Result"]),
     };
     // Derive overallPass if not explicitly set
     if(norm.overallPass===undefined||norm.overallPass===null){
@@ -533,7 +540,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       else if(bools.length>0&&bools.every(v=>v===true)) norm.overallPass=true;
       else norm.overallPass=toBool(r.overallPass);
     } else {
-      norm.overallPass=toBool(r.overallPass);
+      if(norm.overallPass===undefined) norm.overallPass=toBool(r.overallPass||r.overall_pass||r.overall_result||r["Overall Result"]);
     }
     return norm;
   }
@@ -553,10 +560,14 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       let newRecords;
       if(target==="qc_tests"){
         newRecords = rawRecords.map((r,i)=>{
-          const linkedId=batchLinks[r.sampleId||i]||"";
           const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+          // Resolve sampleId from all possible field name variants
+          const sampleId=r.sampleId||r.sample_id||r["Sample ID"]||r["Lab Sample ID"]||"";
+          // Auto-link: check if harvest batch already has matching coaSampleId
+          const autoMatch=sampleId?hb.find(b=>(b.coaSampleId||b.coa_sample_id||b["COA Sample ID"]||"")===sampleId):null;
+          const linkedId=batchLinks[sampleId||i]||autoMatch?.id||"";
           const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
-          return normalizeQCRecord({...r,batchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
+          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
         });
       } else if(target==="employees"){
         newRecords = rawRecords.map(r=>({...r,id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.full_name||r["Full Name"]||r["Employee Name"]||"",role:r.role||r.job_title||r["Job Title"]||r["Title"]||r["Position"]||"Other",department:r.department||r["Department / Area"]||r["Department"]||r["Area"]||"Other",status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",hireDate:r.hireDate||r.employment_start||r["Employment Start"]||r["Start Date"]||r["Hire Date"]||"",phone:r.phone||r.cell_phone||r["Cell Phone"]||r["Phone"]||"",email:r.email||r.work_email||r["Work Email"]||r["Email"]||"",pestLicenseNum:r.pestLicenseNum||r.pesticide_cert_number||r.cert_number||r["Pesticide Cert #"]||r["License #"]||"",pestLicenseCategory:r.pestLicenseCategory||r.pesticide_cert_category||r.cert_category||r["Cert Category"]||r["License Type"]||"",pestLicenseExpiry:r.pestLicenseExpiry||r.pesticide_cert_expiry||r.cert_expiry_date||r["Cert Expiry Date"]||r["License Expires"]||"",certs:Array.isArray(r.certs)?r.certs:[],trainings:Array.isArray(r.trainings)?r.trainings:[],notes:r.notes||r["Notes"]||"",}));
@@ -579,24 +590,35 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           id: r.id||"sl_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
           type: r.type||"ipm_spray",
           date: r.date||r.application_date||r["Application Date"]||"",
-          spaceName: r.spaceName||r.space_name||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Room"]||r["Space"]||"",
-          product: r.product||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||"",
-          manufacturer: r.manufacturer||r["Manufacturer"]||"",
-          epaRegNum: r.epaRegNum||r.epa_registration_number||r.epa_reg_number||r["EPA Registration Number"]||r["EPA Reg #"]||r["EPA #"]||"",
-          rate: String(r.rate||r.label_rate||r["Label Rate"]||"").split(" ")[0]||"",
-          rateUnit: r.rateUnit||r.rate_unit||(String(r.label_rate||r["Label Rate"]||"").split(" ").slice(1).join(" "))||"oz/gal",
+          // Space — Claude may encode "Grow Space / Room" as grow_space___room or grow_space_room or grow_space
+          spaceName: r.spaceName||r.space_name||r.grow_space___room||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Room"]||r["Space"]||"",
+          // Product — "Product / Pesticide Name" may become product___pesticide_name or product_pesticide_name
+          product: r.product||r.product___pesticide_name||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||r["Chemical"]||"",
+          manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
+          epaRegNum: r.epaRegNum||r.epa_registration_number||r.epa_reg_number||r.epa_number||r["EPA Registration Number"]||r["EPA Reg #"]||r["EPA #"]||r["EPA"]||"",
+          // Rate — "2 oz/gal" → rate="2", rateUnit="oz/gal"
+          rate: (()=>{ const raw=String(r.rate||r.label_rate||r["Label Rate"]||""); const m=raw.match(/^([\d.]+)/); return m?m[1]:""; })(),
+          rateUnit: (()=>{ const raw=String(r.rate||r.label_rate||r["Label Rate"]||""); const m=raw.match(/^[\d.]+\s*(.*)/); return r.rateUnit||r.rate_unit||(m&&m[1]?m[1]:"oz/gal"); })(),
           volumeApplied: String(r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
           volumeUnit: r.volumeUnit||"gal",
+          // Area — "Area Treated (sq ft)" → area_treated__sq_ft__ or area_treated_sq_ft
           areaApplied: String(r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||r["Area Treated"]||r["Area Sq Ft"]||""),
-          applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||r["Application Method"]||"Backpack sprayer",
-          targetPest: r.targetPest||r.target_pest||r.target_pest_disease||r["Target Pest / Disease"]||r["Target Pest"]||r["Pest"]||"",
-          weatherTemp: String(r.weatherTemp||r.temp_at_application||r.temp||r["Temp at Application (F)"]||r["Temp"]||r["Temperature"]||""),
-          weatherWind: String(r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||r["Wind Speed"]||r["Wind"]||""),
-          weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||r["RH"]||r["Humidity"]||""),
-          rei: String(r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||r["REI"]||""),
-          phi: String(r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||r["PHI"]||""),
-          applicatorName: r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||r["Applied By"]||"",
-          applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license||r.pesticide_license_number||r["Pesticide License #"]||r["License #"]||"",
+          applicationMethod: r.applicationMethod||r.application_equipment||r.application_method||r["Application Equipment"]||r["Application Method"]||"Backpack sprayer",
+          // Target pest — "Target Pest / Disease" → target_pest___disease or target_pest_disease
+          targetPest: r.targetPest||r.target_pest___disease||r.target_pest_disease||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||r["Pest"]||"",
+          // Weather — "Temp at Application (F)" → temp_at_application__f__
+          weatherTemp: String(r.weatherTemp||r.temp_at_application||r.temp_at_application__f__||r["Temp at Application (F)"]||r["Temp"]||""),
+          // "Wind Speed (mph)" → wind_speed__mph__
+          weatherWind: String(r.weatherWind||r.wind_speed||r.wind_speed__mph__||r["Wind Speed (mph)"]||r["Wind Speed"]||""),
+          // "Relative Humidity (%)" → relative_humidity____
+          weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r.relative_humidity____||r["Relative Humidity (%)"]||r["RH"]||""),
+          // "Re-Entry Interval (hrs)" → re_entry_interval__hrs__
+          rei: String(r.rei||r.re_entry_interval||r.re_entry_interval__hrs__||r["Re-Entry Interval (hrs)"]||r["REI"]||""),
+          // "Pre-Harvest Interval (days)" → pre_harvest_interval__days__
+          phi: String(r.phi||r.pre_harvest_interval||r.pre_harvest_interval__days__||r["Pre-Harvest Interval (days)"]||r["PHI"]||""),
+          applicatorName: r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||"",
+          // "Pesticide License #" → pesticide_license___
+          applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license___||r.pesticide_license||r.pesticide_license_number||r["Pesticide License #"]||r["License #"]||"",
           notes: r.notes||r["Notes"]||"",
         }));
       } else if(target==="spaces"){
@@ -642,7 +664,39 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           const lots=Array.isArray(r.lots)?r.lots:(stock>0?[{id:"lot_imp_"+Date.now()+Math.random(),date:new Date().toISOString().split("T")[0],qty:stock,remaining:stock,costPerUnit:cost,poId:"ai_import"}]:[]);
           return {...r,id:r.id||"inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),n:name,cat,uom:r.uom||r.unit||r.unit_of_measure||r["Unit of Measure"]||"each",reorderAt:parseFloat(r.reorderAt??r.reorder_at??r.reorder_point??r["Reorder At"]??0)||0,reorderQty:parseFloat(r.reorderQty??r.reorder_qty??r["Reorder Qty"]??0)||0,vm:["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())?(r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase():"average",lots,lastCost:cost||0,notes:r.notes||r["Notes"]||"",};
         });
-      } else if(target==="harvest_batches"){
+      } else if(target==="production_batches"){
+        const WF=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+        const PR=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+        const EX=[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+        newRecords = rawRecords.map(r=>{
+          const rawCat=(r.catLabel||r.cat_label||r.product_type||r["Product Type"]||r["Category"]||"").toLowerCase();
+          let cat="whole_flower", catLabel="Whole Flower";
+          if(rawCat.includes("pre")||rawCat.includes("roll")||rawCat.includes("cone")){ cat="pre_roll"; catLabel="Pre-Roll"; }
+          else if(rawCat.includes("extract")||rawCat.includes("concentrate")||rawCat.includes("rosin")||rawCat.includes("distillate")){ cat="extract"; catLabel="Concentrate"; }
+          else if(rawCat.includes("vape")||rawCat.includes("cart")){ cat="vape"; catLabel="Vape"; }
+          else if(rawCat.includes("edible")||rawCat.includes("gummy")){ cat="edible"; catLabel="Edible"; }
+          const rawStatus=(r.status||r["Status"]||"").toLowerCase();
+          const status=rawStatus.includes("complete")||rawStatus.includes("done")||rawStatus.includes("finish")?"complete":rawStatus.includes("progress")||rawStatus.includes("active")?"in_progress":"scheduled";
+          const steps=cat==="pre_roll"?PR.map(s=>({...s})):cat==="extract"?EX.map(s=>({...s})):WF.map(s=>({...s}));
+          return {
+            ...r,
+            id: r.id||"pb_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            name: r.name||r.batch_name||r["Batch Name"]||r["Name"]||"",
+            cat,
+            catLabel: r.catLabel||r.cat_label||catLabel,
+            subLabel: r.subLabel||r.sub_label||r.sub_type||r["Sub-Type"]||r["Sub Type"]||"",
+            strains: r.strains||r.strain||r["Strain(s)"]||r["Strain"]||r["Cultivar"]||"",
+            d: r.d||r.scheduled_start||r.start_date||r["Scheduled Start"]||r["Start Date"]||r["Date"]||"",
+            status,
+            yieldEst: r.yieldEst||r.yield_est||r.estimated_yield||r["Estimated Yield"]||r["Est. Output"]||r["Yield"]||"",
+            actual_yield: r.actual_yield||r["Actual Yield"]||r["Actual"]||"",
+            inputAmt: parseFloat(r.inputAmt||r.input_amt||r["Input Amount"]||0)||0,
+            unit: r.unit||"g",
+            notes: r.notes||r["Notes"]||"",
+            steps,
+            isLinked: false,
+          };
+        });
         newRecords = rawRecords.map(r=>{
           const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
           const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
@@ -683,6 +737,45 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               const cat=r.cat||"whole_flower";
               return Array.isArray(r.steps)&&r.steps.length>0?r.steps:(DS[cat]||DS.whole_flower).map(s=>({...s}));
             })(),
+          };
+        });
+      } else if(target==="harvest_batches"){
+        const DS={
+          whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        };
+        newRecords = rawRecords.map(r=>{
+          const wetLbs=parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
+          const wetG=parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
+          const wetWeightG=Number(wetG>0?wetG:wetLbs>0?Math.round(wetLbs*453.592):0)||0;
+          const dryLbs=parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
+          const dryG=parseFloat(r.totalDryWeight||r.total_dry_weight||r.dry_weight_g||0)||0;
+          const totalDryWeight=Number(dryG>0?dryG:dryLbs>0?Math.round(dryLbs*453.592):0)||0;
+          const rawStatus=(r.status||r["Status"]||"").toLowerCase();
+          const status=rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed"||rawStatus==="cured"?"done":"open";
+          const cat=r.cat||"whole_flower";
+          return {
+            ...r,
+            id:r.id||r.batch_id||r["Batch ID"]||"hb_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            strainName:r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+            spaceName:r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
+            plants:r.plants||r.plant_count||r["Plant Count"]||"",
+            d:r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+            wetWeightG,totalDryWeight,status,
+            coaSampleId:r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
+            labName:r.labName||r.lab_name||r["Lab Name"]||"",
+            thca:r.thca||r["THCa %"]||r["THCa"]||"",
+            notes:r.notes||r["Notes"]||"",
+            grades:{
+              aa:{weight:r.grade_aa||r["Grade AA (g)"]||"",s2s:""},
+              a:{weight:r.grade_a||r["Grade A (g)"]||"",s2s:""},
+              b:{weight:r.grade_b||r["Grade B (g)"]||"",s2s:""},
+              c:{weight:r.grade_c||r["Grade C (g)"]||"",s2s:""},
+              trim:{weight:r.trim||r["Trim (g)"]||"",s2s:""},
+              waste:{weight:r.waste||r["Waste (g)"]||"",s2s:""},
+            },
+            steps:Array.isArray(r.steps)&&r.steps.length>0?r.steps:(DS[cat]||DS.whole_flower).map(s=>({...s})),
           };
         });
       } else if(target==="sales_orders"){
