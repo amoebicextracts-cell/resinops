@@ -613,20 +613,49 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           volumeApplied: String(r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
           volumeUnit: r.volumeUnit||"gal",
           // Area — "Area Treated (sq ft)" → area_treated__sq_ft__ or area_treated_sq_ft
-          areaApplied: String(r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||r["Area Treated"]||r["Area Sq Ft"]||""),
+          areaApplied: (()=>{
+            const d=r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||r["Area Treated"]||r["Area Sq Ft"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("area"));
+            return k?String(r[k]||""):"";
+          })(),
           applicationMethod: r.applicationMethod||r.application_equipment||r.application_method||r["Application Equipment"]||r["Application Method"]||"Backpack sprayer",
-          // Target pest — "Target Pest / Disease" → target_pest___disease or target_pest_disease
-          targetPest: r.targetPest||r.target_pest___disease||r.target_pest_disease||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||r["Pest"]||"",
-          // Weather — "Temp at Application (F)" → temp_at_application__f__
-          weatherTemp: String(r.weatherTemp||r.temp_at_application||r.temp_at_application__f__||r["Temp at Application (F)"]||r["Temp"]||""),
-          // "Wind Speed (mph)" → wind_speed__mph__
-          weatherWind: String(r.weatherWind||r.wind_speed||r.wind_speed__mph__||r["Wind Speed (mph)"]||r["Wind Speed"]||""),
-          // "Relative Humidity (%)" → relative_humidity____
-          weatherHumidity: String(r.weatherHumidity||r.relative_humidity||r.relative_humidity____||r["Relative Humidity (%)"]||r["RH"]||""),
-          // "Re-Entry Interval (hrs)" → re_entry_interval__hrs__
-          rei: String(r.rei||r.re_entry_interval||r.re_entry_interval__hrs__||r["Re-Entry Interval (hrs)"]||r["REI"]||""),
-          // "Pre-Harvest Interval (days)" → pre_harvest_interval__days__
-          phi: String(r.phi||r.pre_harvest_interval||r.pre_harvest_interval__days__||r["Pre-Harvest Interval (days)"]||r["PHI"]||""),
+          targetPest: (()=>{
+            const d=r.targetPest||r.target_pest___disease||r.target_pest_disease||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||r["Pest"]||"";
+            if(d) return d;
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("pest")||k.toLowerCase().includes("target"));
+            return k?String(r[k]||""):"";
+          })(),
+          weatherTemp: (()=>{
+            const d=r.weatherTemp||r.temp_at_application||r.temp_at_application__f__||r["Temp at Application (F)"]||r["Temp"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("temp"));
+            return k?String(r[k]||""):"";
+          })(),
+          weatherWind: (()=>{
+            const d=r.weatherWind||r.wind_speed||r.wind_speed__mph__||r["Wind Speed (mph)"]||r["Wind Speed"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("wind"));
+            return k?String(r[k]||""):"";
+          })(),
+          weatherHumidity: (()=>{
+            const d=r.weatherHumidity||r.relative_humidity||r.relative_humidity____||r["Relative Humidity (%)"]||r["RH"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("humid")||k.toLowerCase().includes("relative"));
+            return k?String(r[k]||""):"";
+          })(),
+          rei: (()=>{
+            const d=r.rei||r.re_entry_interval||r.re_entry_interval__hrs__||r["Re-Entry Interval (hrs)"]||r["REI"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("rei")||k.toLowerCase().includes("re_entry")||k.toLowerCase().includes("reentry"));
+            return k?String(r[k]||""):"";
+          })(),
+          phi: (()=>{
+            const d=r.phi||r.pre_harvest_interval||r.pre_harvest_interval__days__||r["Pre-Harvest Interval (days)"]||r["PHI"]||"";
+            if(d) return String(d);
+            const k=Object.keys(r).find(k=>k.toLowerCase().includes("phi")||k.toLowerCase().includes("harvest_interval")||k.toLowerCase().includes("pre_harvest"));
+            return k?String(r[k]||""):"";
+          })(),
           applicatorName: r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||"",
           // "Pesticide License #" → pesticide_license___
           applicatorLicenseNum: r.applicatorLicenseNum||r.pesticide_license___||r.pesticide_license||r.pesticide_license_number||r["Pesticide License #"]||r["License #"]||"",
@@ -915,6 +944,53 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           <div className="dm-card">
             <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Drop any file — CSV, Excel, PDF, Word</div>
             <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16}}>Claude reads your existing spreadsheets, lab COA PDFs, and documents and maps the data into ResinOps automatically. Works with Smartsheet exports, METRC reports, lab PDFs, staff lists — anything.</div>
+
+            {/* Download templates */}
+            <div style={{background:"rgba(74,124,89,0.06)",border:"1px solid rgba(74,124,89,0.2)",borderRadius:8,padding:"10px 14px",marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>📥 Download import templates</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:8}}>If the AI can't read your file format, download a blank template, fill it out, and re-upload.</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {[
+                  ["Employees","TEMPLATE_Employee_Roster"],
+                  ["Grow Map","TEMPLATE_Grow_Map"],
+                  ["Equipment","TEMPLATE_Equipment_Registry"],
+                  ["Inventory","TEMPLATE_Supplies_Inventory"],
+                  ["Strains","TEMPLATE_Strain_Catalog"],
+                  ["Harvest Batches","TEMPLATE_Harvest_Batches"],
+                  ["COA Results","TEMPLATE_COA_Results"],
+                  ["Production Batches","TEMPLATE_Production_Batches"],
+                  ["Cult. Inputs","TEMPLATE_Cultivation_Inputs"],
+                  ["Pesticide Log","TEMPLATE_Pesticide_Spray_Log"],
+                  ["Sales Orders","TEMPLATE_Sales_Orders"],
+                ].map(([label, file])=>(
+                  <button key={file} className="dm-btn dm-secondary" style={{fontSize:10,padding:"4px 10px"}}
+                    onClick={()=>{
+                      // Generate template CSV on the fly based on known headers
+                      const headers = {
+                        TEMPLATE_Employee_Roster:"Full Name,Job Title,Department / Area,Employment Start,Cell Phone,Work Email,Pesticide Cert #,Cert Category,Cert Expiry Date,Status,Emergency Contact,Notes",
+                        TEMPLATE_Grow_Map:"Room Name,Room Type,Total Sq Ft,Canopy Sq Ft,Max Plants,Light Type,Lights Count,Watts Per Light,Status,Notes",
+                        TEMPLATE_Equipment_Registry:"Asset Description,Category/Type,Brand / Manufacturer,Model Number,Serial Number,Asset Tag,Room / Location,Purchase Date,Cost (USD),Warranty Expiration,Service Interval,Last Service,Notes",
+                        TEMPLATE_Supplies_Inventory:"Item Name,Category,Unit of Measure,Current Stock,Unit Cost,Reorder At,Reorder Qty,Primary Vendor,Notes",
+                        TEMPLATE_Strain_Catalog:"Cultivar Name,Strain Type,Genetic Cross / Lineage,Original Breeder,Avg THCa %,Avg THC %,Avg CBD %,Avg Total Terpenes %,Dominant Terpenes,Avg Yield (g/sqft canopy),Veg Time (weeks),Flower Time (weeks),Aroma Notes,Flavor Profile,Effect Description,Internal Notes",
+                        TEMPLATE_Harvest_Batches:"Batch ID,Strain Name,Harvest Room,Harvest Date,Wet Weight lbs,Dry Weight lbs,Grade A (g),Grade B (g),Grade C (g),Trim (g),Waste (g),Plant Count,Dry Room,Cure Start Date,Cure End Date,Status,COA Sample ID,Lab Name,THCa %,Notes",
+                        TEMPLATE_COA_Results:"Sample Name,Sample ID,Lab Name,Date Submitted,Date Reported,THCa %,Delta-9 THC %,Total THC %,CBDa %,CBD %,CBG %,CBN %,THCv %,CBC %,Total Cannabinoids %,Total Terpenes %,beta-Myrcene %,Limonene %,Ocimene %,beta-Caryophyllene %,alpha-Pinene %,Linalool %,Humulene %,Total Yeast and Mold CFU/g,Total Aerobic Count CFU/g,Aspergillus Panel,Salmonella,STEC E coli,Pesticide Residues,Heavy Metals,Water Activity Aw,Moisture Content %,Foreign Matter,Overall Result",
+                        TEMPLATE_Production_Batches:"Batch Name,Product Type,Sub-Type,Strain(s),Source Harvest Batch,Scheduled Start,Scheduled Complete,Estimated Yield,Status,Assigned To,Notes",
+                        TEMPLATE_Cultivation_Inputs:"Grow Space,Date,Input Type,Product,Manufacturer,Rate,Rate Unit,Amount Mixed,Volume Unit,Area Sq Ft,Cost Per Unit,Total Cost,Notes",
+                        TEMPLATE_Pesticide_Spray_Log:"Application Date,Grow Space / Room,Product / Pesticide Name,EPA Registration Number,Label Rate,Amount Mixed (gallons),Area Treated (sq ft),Application Equipment,Target Pest / Disease,Temp at Application (F),Wind Speed (mph),Relative Humidity (%),Re-Entry Interval (hrs),Pre-Harvest Interval (days),Licensed Applicator,Pesticide License #,Notes",
+                        TEMPLATE_Sales_Orders:"Order ID,Dispensary Name,License Number,Order Date,Requested Delivery,Product,Strain,Units Ordered,Unit Price,Order Total,Status,Notes",
+                      };
+                      const h = headers[file]||"";
+                      const blob = new Blob([h+"\n"], {type:"text/csv"});
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = file+".csv";
+                      a.click();
+                    }}>
+                    ↓ {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Progress steps */}
             {importState!=="idle"&&(
