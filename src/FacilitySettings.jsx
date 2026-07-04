@@ -28,7 +28,7 @@ const DEFAULTS = {
   facilityName:"",dbaName:"",licenseNumber:"",licenseType:"Adult-Use Processor",
   state:"NY",address:"",city:"",zip:"",phone:"",email:"",website:"",
   ownerName:"",ownerEmail:"",ownerPhone:"",
-  timezone:"America/New_York",metrcApiKey:"",
+  timezone:"America/New_York",metrcApiKey:"",flourishApiKey:"",biotrackApiKey:"",kaychaApiKey:"",distruApiKey:"",
   fiscalYearStart:"01",tagSystem:"METRC",
 };
 
@@ -96,10 +96,40 @@ export default function FacilitySettings(){
             <div><label className="fs-lbl">Fiscal year start month</label><select className="fs-sel" value={settings.fiscalYearStart} onChange={e=>setF("fiscalYearStart",e.target.value)}>{["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i)=><option key={m} value={m}>{new Date(2024,i,1).toLocaleString("en-US",{month:"long"})}</option>)}</select></div>
           </div>
 
-          <div className="fs-section">V2 API Bridge — Reserved Fields</div>
-          <div style={{background:"rgba(74,124,89,0.06)",border:"1px solid rgba(74,124,89,0.2)",borderRadius:8,padding:"10px 14px"}}>
-            <div style={{fontSize:12,color:"var(--text-2)",marginBottom:8}}>These fields will activate when the V2 backend is live. Store them now so your setup is complete when you flip the switch.</div>
-            <div><label className="fs-lbl">METRC API key (stored locally, not transmitted until V2)</label><input className="fs-inp" value={settings.metrcApiKey} onChange={e=>setF("metrcApiKey",e.target.value)} placeholder="Paste your METRC software API key here" /></div>
+          <div className="fs-section">V2 Integrations — API Bridge</div>
+          <div style={{background:"rgba(90,63,160,0.06)",border:"1px solid rgba(90,63,160,0.2)",borderRadius:8,padding:"14px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{fontSize:16}}>🔌</span>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>V2 Integration Hub</div>
+              <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(90,63,160,0.15)",color:"#9080f0"}}>COMING IN V2</span>
+            </div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Store your API credentials now. When V2 launches, flip one switch and ResinOps connects to your existing compliance and seed-to-sale systems automatically — no re-entry, no migration.</div>
+
+            {[
+              {name:"METRC",logo:"🌿",desc:"NY OCM compliant seed-to-sale tracking — plant tags, harvest lots, inventory transfers",field:"metrcApiKey",placeholder:"Paste your METRC Software API key"},
+              {name:"Flourish",logo:"🌱",desc:"Cannabis ERP — inventory, POS, compliance reporting integration",field:"flourishApiKey",placeholder:"Paste your Flourish API key"},
+              {name:"BioTrack",logo:"🔬",desc:"State-mandated tracking for WA, NM, and other BioTrack states",field:"biotrackApiKey",placeholder:"Paste your BioTrack API key"},
+              {name:"Kaycha Labs",logo:"🧪",desc:"Auto-pull COA results when samples are released — no manual CSV upload",field:"kaychaApiKey",placeholder:"Paste your Kaycha Labs API key (when available)"},
+              {name:"Distru",logo:"📦",desc:"Distribution platform — pull confirmed orders directly into ResinOps sales pipeline",field:"distruApiKey",placeholder:"Paste your Distru API key"},
+            ].map(({name,logo,desc,field,placeholder})=>(
+              <div key={field} style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid var(--border-2)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{fontSize:16}}>{logo}</span>
+                  <div style={{fontWeight:600,fontSize:12,color:"var(--text)"}}>{name}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)",flex:1}}>{desc}</div>
+                  <div style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,
+                    background:settings[field]?"rgba(74,124,89,0.15)":"rgba(100,100,100,0.1)",
+                    color:settings[field]?"var(--accent-2)":"var(--text-3)"}}>
+                    {settings[field]?"Key stored ✓":"Not configured"}
+                  </div>
+                </div>
+                <input className="fs-inp" value={settings[field]||""} onChange={e=>setF(field,e.target.value)} placeholder={placeholder} style={{fontSize:11}} />
+              </div>
+            ))}
+
+            <div style={{marginTop:10,padding:"8px 12px",background:"rgba(90,63,160,0.08)",borderRadius:7,fontSize:11,color:"var(--text-2)"}}>
+              🔒 API keys are stored locally in your browser and are never transmitted to any server. V2 will use encrypted cloud storage with zero-knowledge architecture.
+            </div>
           </div>
         </div>
       </div>

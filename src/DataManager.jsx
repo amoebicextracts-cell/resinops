@@ -903,7 +903,9 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
 
       setImportState("done");
       const extras=target==="qc_tests"?` — strain catalogue & harvest batches updated`:"";
-      setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+" ✓");
+      const skipped=rawRecords.length-newRecords.length;
+      const skipMsg=skipped>0?` (${skipped} skipped — missing required fields)`:"";
+      setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+skipMsg+" ✓");
       // Log to import history
       const histEntry={id:"h_"+Date.now(),ts:new Date().toISOString(),fileName:importResult?.fileName||"unknown",module:tgt.label,records:newRecords.length,target};
       const newHistory=[histEntry,...importHistory].slice(0,50);

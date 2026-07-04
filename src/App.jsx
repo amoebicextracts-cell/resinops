@@ -1194,8 +1194,15 @@ export default function ResinOps() {
           })}
 
           <div className="sidebar-footer">
-            <div className="plan-badge">Beta</div>
-            <div className="plan-text">V2 — multi-user, cloud sync, METRC API</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <div className="plan-badge">ResinOps V1</div>
+              <span style={{fontSize:9,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Beta</span>
+            </div>
+            <div className="plan-text" style={{marginBottom:6}}>Built by operators. Powered by data.</div>
+            <div style={{fontSize:9,color:"var(--text-3)",borderTop:"1px solid var(--border)",paddingTop:6,display:"flex",alignItems:"center",gap:6}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(100,100,100,0.3)",display:"inline-block",flexShrink:0}}/>
+              V2: Cloud · Multi-user · METRC API
+            </div>
           </div>
         </aside>
 

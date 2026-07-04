@@ -147,21 +147,67 @@ export default function SprayLog(){
   function remove(id){setRecords(p=>p.filter(x=>x.id!==id));}
 
   function exportCSV(){
+    const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
     const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const header=[
+      `# NY DEC Pesticide Application Record — ${facility.facilityName||"Facility"}`,
+      `# License: ${facility.licenseNumber||""} | Address: ${facility.address||""} ${facility.city||""} ${facility.state||""}`,
+      `# Exported: ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`,
+      `# Records: ${sorted.length}`,
+      "",
+    ].join("\n");
+    const cols="Application Date,Grow Space / Room,Product / Pesticide Name,EPA Registration Number,Label Rate,Amount Mixed (gallons),Area Treated (sq ft),Application Equipment,Target Pest / Disease,Temp at Application (F),Wind Speed (mph),Relative Humidity (%),Re-Entry Interval (hrs),Pre-Harvest Interval (days),Licensed Applicator,Pesticide License #,Notes";
     const rows=[
-      "Date,Grow Space,Product,EPA Reg #,Label Rate,Amount Mixed,Area Treated (sqft),Application Method,Target Pest/Disease,Temp (F),Wind (mph),RH (%),REI (hrs),PHI (days),Licensed Applicator,Pesticide License #,Notes",
+      header+cols,
       ...sorted.map(r=>[
         r.date,r.spaceName,r.product,r.epaRegNum,
-        r.rate+" "+r.rateUnit,r.volumeApplied+" "+r.volumeUnit,
+        (r.rate&&r.rateUnit)?r.rate+" "+r.rateUnit:r.rate||"",
+        r.volumeApplied?(r.volumeApplied+" "+(r.volumeUnit||"gal")):r.volumeApplied||"",
         r.areaApplied,r.applicationMethod,r.targetPest,
         r.weatherTemp,r.weatherWind,r.weatherHumidity,
         r.rei,r.phi,r.applicatorName,r.applicatorLicenseNum,r.notes
-      ].map(v=>`"${v||""}"`).join(","))
+      ].map(v=>`"${String(v||"").replace(/"/g,'""')}"`).join(","))
     ].join("\n");
     const a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([rows],{type:"text/csv"}));
-    a.download="SprayLog-NY-DEC-"+new Date().toISOString().slice(0,10)+".csv";
+    a.download=`${(facility.facilityName||"SprayLog").replace(/\s+/g,"-")}-NY-DEC-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
+  }
+
+  function exportPDF(){
+    const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+    const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const rows=sorted.map(r=>`
+      <tr>
+        <td>${r.date||""}</td><td>${r.spaceName||""}</td><td><strong>${r.product||""}</strong><br/><small style="color:#666">${r.manufacturer||""}</small></td>
+        <td>${r.epaRegNum||""}</td><td>${r.rate||""} ${r.rateUnit||""}</td><td>${r.volumeApplied||""} ${r.volumeUnit||"gal"}</td>
+        <td>${r.areaApplied||""}</td><td>${r.targetPest||""}</td>
+        <td>${r.weatherTemp||""}°F / ${r.weatherWind||""} mph / ${r.weatherHumidity||""}%</td>
+        <td>${r.rei||""}</td><td>${r.phi||""}</td>
+        <td>${r.applicatorName||""}<br/><small style="color:#666">${r.applicatorLicenseNum||""}</small></td>
+      </tr>`).join("");
+    const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><style>
+      body{font-family:Arial,sans-serif;font-size:9px;margin:20px;}
+      h1{font-size:14px;margin:0 0 4px;}h2{font-size:11px;margin:0 0 12px;color:#555;font-weight:normal;}
+      table{width:100%;border-collapse:collapse;margin-top:12px;}
+      th{background:#2d5a3d;color:#fff;padding:4px 6px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:0.04em;}
+      td{padding:4px 6px;border-bottom:1px solid #e0e0e0;vertical-align:top;}
+      tr:nth-child(even){background:#f8f8f8;}
+      .footer{margin-top:20px;font-size:8px;color:#888;border-top:1px solid #ccc;padding-top:8px;}
+    </style></head><body>
+      <h1>NY DEC Pesticide Application Record</h1>
+      <h2>${facility.facilityName||"Facility"} · License: ${facility.licenseNumber||""} · ${facility.address||""} ${facility.city||""} ${facility.state||""}</h2>
+      <div style="font-size:8px;color:#888;">Exported: ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})} · Total records: ${sorted.length}</div>
+      <table>
+        <thead><tr><th>Date</th><th>Space</th><th>Product</th><th>EPA Reg #</th><th>Rate</th><th>Amount</th><th>Area (sqft)</th><th>Target Pest</th><th>Weather</th><th>REI (hrs)</th><th>PHI (days)</th><th>Applicator</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">This record is maintained in compliance with New York State Department of Environmental Conservation pesticide recordkeeping requirements. Records must be retained for a minimum of 3 years.</div>
+      <script>window.onload=()=>{window.print();}</script>
+    </body></html>`;
+    const w=window.open("","_blank");
+    w.document.write(html);
+    w.document.close();
   }
 
   const sorted=[...records].sort((a,b)=>new Date(b.date)-new Date(a.date));
@@ -190,6 +236,7 @@ export default function SprayLog(){
           </div>
           <div style={{display:"flex",gap:8}}>
             <button className="sl-btn sl-secondary" onClick={exportCSV}>⬇ Export NY DEC CSV</button>
+            <button className="sl-btn sl-secondary" onClick={exportPDF}>🖨 Print / PDF</button>
             <button className="sl-btn sl-primary" onClick={()=>setForm({...EMPTY})}>+ Log application</button>
           </div>
         </div>

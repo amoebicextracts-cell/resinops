@@ -105,7 +105,7 @@ export default function LaborDashboard() {
   const [selectedDay, setSelectedDay] = useState(null);
 
   // Load data
-  const facility  = (() => { try { return JSON.parse(localStorage.getItem("resinops_facility")||'{"shiftHours":"8","shiftsPerDay":"1"}'); } catch { return {shiftHours:"8",shiftsPerDay:"1"}; } })();
+  const facility  = (() => { try { return JSON.parse(localStorage.getItem("resinops_facility_settings")||localStorage.getItem("resinops_facility")||'{"shiftHours":"8","shiftsPerDay":"1"}'); } catch { return {shiftHours:"8",shiftsPerDay:"1"}; } })();
   const laborTypes = (() => { try { const s=JSON.parse(localStorage.getItem("resinops_labor_types")||"[]"); return s.length?s:[]; } catch { return []; } })();
   const batches   = (() => { try { return JSON.parse(localStorage.getItem("resinops_prod")||"[]"); } catch { return []; } })();
   const spaces    = (() => { try { return JSON.parse(localStorage.getItem("resinops_spaces")||"[]"); } catch { return []; } })();

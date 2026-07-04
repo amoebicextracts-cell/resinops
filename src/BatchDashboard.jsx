@@ -65,18 +65,18 @@ export default function BatchDashboard(){
   // Build enriched batch rows
   const rows=prodBatches.map(b=>{
     const units=extractUnits(b.yieldEst)||extractGrams(b.yieldEst)/1000;
-    const price=getSkuPrice(b.catLabel,b.subLabel);
-    const bomCost=getBomCost(b.catLabel);
+    const price=getSkuPrice(b.catLabel||b.cat,b.subLabel);
+    const bomCost=getBomCost(b.catLabel||b.cat);
     const estimatedRevenue=units*price;
     const materialCost=bomCost*units;
-    const laborCost=0; // future: pull from shift log hours × labor type rates
-    const testingCost=100; // flat estimate; will be replaced by QC module in V2
+    const laborCost=0;
+    const testingCost=b.cat==="extract"?450:350;
     const totalCOGS=materialCost+laborCost+testingCost;
     const grossProfit=estimatedRevenue-totalCOGS;
     const margin=estimatedRevenue>0?(grossProfit/estimatedRevenue)*100:null;
     const onHold=qcHolds.includes(String(b.id));
     const hasActual=!!b.actual_yield;
-    return{...b,units,price,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual};
+    return{...b,units,price,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual,bomCost};
   });
 
   const harvestRows=harvestBatches.map(b=>{
@@ -104,6 +104,11 @@ export default function BatchDashboard(){
         <div style={{marginBottom:16}}>
           <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Batch Cost & Margin Dashboard</div>
           <div style={{fontSize:12,color:"var(--text-3)"}}>Estimated revenue, COGS, and gross margin across all production batches</div>
+          {(skus.length===0||boms.length===0)&&(
+            <div style={{background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:8,padding:"8px 12px",marginTop:10,fontSize:12,color:"var(--amber)"}}>
+              ⚠ {skus.length===0&&boms.length===0?"SKU pricing and BOMs not set up":skus.length===0?"SKU pricing not set up":"BOMs not set up"} — revenue and COGS will show $0. Load demo settings or configure in Cost & P&L.
+            </div>
+          )}
         </div>
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>

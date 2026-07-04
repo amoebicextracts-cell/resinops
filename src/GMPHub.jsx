@@ -314,19 +314,69 @@ export default function GMPHub(){
         {/* ── BATCH RECORD ── */}
         {tab==="record"&&(
           <div className="gh-card">
-            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:16}}>
-              <div><label className="gh-lbl">Batch type</label><select className="gh-sel" value={batchRecordId.type} onChange={e=>setBatchRecordId(b=>({...b,type:e.target.value,id:""}))}>
-                <option value="harvest">Harvest Batch</option><option value="production">Production Batch</option>
-              </select></div>
-              <div><label className="gh-lbl">Select batch to view GMP record</label><select className="gh-sel" value={batchRecordId.id} onChange={e=>setBatchRecordId(b=>({...b,id:e.target.value}))}>
-                <option value="">— Select batch —</option>
-                {(batchRecordId.type==="harvest"?harvestBatches:prodBatches).map(b=><option key={b.id} value={b.id}>{batchRecordId.type==="harvest"?b.strainName+" ("+fmtD(b.d)+")":b.name}</option>)}
-              </select></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,flex:1,marginRight:12}}>
+                <div><label className="gh-lbl">Batch type</label><select className="gh-sel" value={batchRecordId.type} onChange={e=>setBatchRecordId(b=>({...b,type:e.target.value,id:""}))}>
+                  <option value="harvest">Harvest Batch</option><option value="production">Production Batch</option>
+                </select></div>
+                <div><label className="gh-lbl">Select batch to view GMP record</label><select className="gh-sel" value={batchRecordId.id} onChange={e=>setBatchRecordId(b=>({...b,id:e.target.value}))}>
+                  <option value="">— Select batch —</option>
+                  {(batchRecordId.type==="harvest"?harvestBatches:prodBatches).map(b=><option key={b.id} value={b.id}>{batchRecordId.type==="harvest"?b.strainName+" ("+fmtD(b.d)+")":b.name}</option>)}
+                </select></div>
+              </div>
+              {batchRecordId.id&&(
+                <button className="gh-btn gh-secondary" style={{whiteSpace:"nowrap"}} onClick={()=>{
+                  const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+                  const {type,id}=batchRecordId;
+                  const batch=type==="harvest"?harvestBatches.find(b=>String(b.id)===id):prodBatches.find(b=>String(b.id)===id);
+                  if(!batch) return;
+                  const batchSignoffs=signoffs.filter(s=>s.batchType===type&&String(s.batchId)===id);
+                  const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
+                  const qcRecs=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]").filter(t=>t.batchType===type&&String(t.batchId)===id);
+                  const signoffRows=batchSignoffs.map(s=>`<tr><td>${s.stepName||""}</td><td>${s.performedById||""}</td><td>${s.verifiedById||"—"}</td><td>${s.timestamp?new Date(s.timestamp).toLocaleString():"—"}</td><td>${s.notes||"—"}</td></tr>`).join("");
+                  const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.corrective||"—"}</td></tr>`).join("");
+                  const qcRow=qcRecs.map(t=>`<tr><td>${t.labName||""}</td><td>${t.sampleId||""}</td><td>${t.thca||"—"}%</td><td>${t.totalTerpenes||"—"}%</td><td style="color:${t.overallPass?"#2d5a3d":"#c04040"};font-weight:600;">${t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</td></tr>`).join("");
+                  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>GMP Batch Record</title><style>
+                    body{font-family:Arial,sans-serif;font-size:10px;margin:24px;color:#222;}
+                    h1{font-size:16px;margin:0 0 4px;color:#1a3a28;}h2{font-size:12px;margin:16px 0 6px;color:#2d5a3d;border-bottom:2px solid #2d5a3d;padding-bottom:3px;}
+                    .meta{display:flex;gap:40px;margin-bottom:16px;padding:10px 14px;background:#f5f5f5;border-radius:6px;}
+                    .meta-item{}.meta-label{font-size:8px;text-transform:uppercase;letter-spacing:0.06em;color:#888;font-weight:700;margin-bottom:2px;}
+                    .meta-value{font-size:11px;font-weight:600;}
+                    table{width:100%;border-collapse:collapse;margin-bottom:12px;}
+                    th{background:#2d5a3d;color:#fff;padding:5px 8px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:0.05em;}
+                    td{padding:5px 8px;border-bottom:1px solid #e8e8e8;font-size:10px;vertical-align:top;}tr:nth-child(even){background:#f9f9f9;}
+                    .footer{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8px;color:#888;display:flex;justify-content:space-between;}
+                    .empty{color:#999;font-style:italic;padding:8px 0;}
+                  </style></head><body>
+                  <h1>GMP Batch Record — ${type==="harvest"?batch.strainName:batch.name}</h1>
+                  <div class="meta">
+                    <div class="meta-item"><div class="meta-label">Facility</div><div class="meta-value">${facility.facilityName||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${facility.licenseNumber||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">Batch ID</div><div class="meta-value">${batch.id||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">Date</div><div class="meta-value">${batch.d||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">Space</div><div class="meta-value">${batch.spaceName||batch.strains||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">Status</div><div class="meta-value">${batch.status||"—"}</div></div>
+                  </div>
+                  <h2>Step Sign-Offs (${batchSignoffs.length})</h2>
+                  ${batchSignoffs.length?`<table><thead><tr><th>Step</th><th>Performed By</th><th>Verified By</th><th>Timestamp</th><th>Notes</th></tr></thead><tbody>${signoffRows}</tbody></table>`:`<div class="empty">No sign-offs recorded for this batch.</div>`}
+                  <h2>QC / Lab Results (${qcRecs.length})</h2>
+                  ${qcRecs.length?`<table><thead><tr><th>Lab</th><th>Sample ID</th><th>THCa %</th><th>Total Terps %</th><th>Result</th></tr></thead><tbody>${qcRow}</tbody></table>`:`<div class="empty">No COA results linked to this batch.</div>`}
+                  <h2>Deviations (${batchDevs.length})</h2>
+                  ${batchDevs.length?`<table><thead><tr><th>Type</th><th>Severity</th><th>Title</th><th>Status</th><th>Corrective Action</th></tr></thead><tbody>${devRows}</tbody></table>`:`<div class="empty">No deviations recorded for this batch.</div>`}
+                  <div class="footer">
+                    <span>${facility.facilityName||""} · ${facility.licenseNumber||""}</span>
+                    <span>GMP Batch Record — Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</span>
+                    <span>Page 1 of 1</span>
+                  </div>
+                  <script>window.onload=()=>window.print();</script>
+                  </body></html>`;
+                  const w=window.open("","_blank");
+                  w.document.write(html);w.document.close();
+                }}>🖨 Print Batch Record</button>
+              )}
             </div>
             <BatchRecord />
           </div>
-        )}
-
         )}
 
         {/* ── CLEANING LOG ── */}
