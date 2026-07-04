@@ -66,9 +66,10 @@ export default function SprayLog(){
   const [records,setRecords]=useState(()=>{
     try{
       const raw=JSON.parse(localStorage.getItem("resinops_spray_log")||"[]");
-      // Also check if there are spray records in the old cult_inputs store
+      // Only pull from cult_inputs records that are genuinely pesticide applications
+      // (have an EPA reg number — nutrients never have EPA reg numbers)
       const oldInputs=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]")
-        .filter(r=>r.type==="ipm_spray"||r.type==="ipm_foliar"||r.type==="fungicide"||r.type==="insecticide");
+        .filter(r=>(r.epaRegNum||r.epa_reg_num||r["EPA Registration Number"]||"").trim().length>0);
       const combined=[...raw,...oldInputs.filter(o=>!raw.some(r=>r.id===o.id))];
       return combined.map(r=>normalizeRecord(r, allSpaces));
     }catch{return[];}

@@ -656,7 +656,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             notes: r.notes||r["Notes"]||"",
           };
         });
-        newRecords = rawRecords.map(r=>{
+      } else if(target==="inventory"){
+          newRecords = rawRecords.map(r=>{
           const name=r.n||r.name||r.item_name||r.item||r.description||r.item_description||r["Item Name"]||r["Item"]||r["Description"]||"";
           const rawCat=r.cat||r.category||r.item_category||r["Category"]||"";
           const ICL=["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
