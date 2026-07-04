@@ -71,7 +71,8 @@ export default function SalesOrders() {
         const unitPrice=parseFloat(String(o.unitPrice||o.unit_price||o["Unit Price"]||o["Price"]||0).replace(/[$,]/g,""))||0;
         const orderTotal=parseFloat(String(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;
         const rawStatus=(o.status||"").toLowerCase();
-        const status=rawStatus==="confirmed"||rawStatus==="open"?"open":rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
+        const importStatus=rawStatus==="waitlist"||rawStatus==="waitlisted"?"waitlist":rawStatus==="pending"?"pending":"confirmed";
+        const status=rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
         const product=o.product||o["Product"]||o["Item"]||"";
         const strain=o.strain||o["Strain"]||o["Cultivar"]||"";
         return {
@@ -81,6 +82,7 @@ export default function SalesOrders() {
           orderDate,
           deliveryDate: o.deliveryDate||o.delivery_date||o.requested_delivery||o["Requested Delivery"]||o["Delivery Date"]||"",
           status,
+          importStatus, // preserved for dashboard pipeline reporting
           notes: (o.notes||o["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
           lines: units>0?[{
             id:"ln_imp_"+Date.now()+Math.random(),

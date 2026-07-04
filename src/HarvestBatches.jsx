@@ -352,10 +352,11 @@ export default function HarvestBatches() {
           <div className="hb-card">
             <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
               <table className="hb-tbl">
-                <thead><tr><th>Strain</th><th>Space</th><th>Plants</th><th>Wet Wt</th><th>A</th><th>B</th><th>C</th><th>Trim</th><th>Total Dry</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Batch ID</th><th>Strain</th><th>Space</th><th>Plants</th><th>Wet Wt</th><th>A</th><th>B</th><th>C</th><th>Trim</th><th>Total Dry</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {batches.map(b=>(
                     <tr key={b.id}>
+                      <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-3)"}}>{b.id||"—"}</td>
                       <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}</td>
                       <td>{b.spaceName||"—"}</td>
                       <td>{b.plants}</td>

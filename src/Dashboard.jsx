@@ -122,10 +122,11 @@ export default function Dashboard({ onNavigate }){
   const openDevs=deviations.filter(d=>d.status==="open");
 
   // ── Sales pipeline calculations ───────────────────────────────────────────
-  // SalesOrders component uses "open"/"fulfilled" — CSV imports use "confirmed"/"pending"/"waitlist"
-  const confirmedOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="confirmed"||s==="open";});
-  const pendingOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="pending";});
-  const waitlistOrders=salesOrders.filter(o=>{const s=(o.status||"").toLowerCase();return s==="waitlist"||s==="waitlisted";});
+  // Use importStatus (from CSV import) if available, fall back to status field
+  const getImportStatus=(o)=>o.importStatus||(o.status==="fulfilled"?"confirmed":o.status==="open"?"confirmed":"pending");
+  const confirmedOrders=salesOrders.filter(o=>{const s=getImportStatus(o);return s==="confirmed";});
+  const pendingOrders=salesOrders.filter(o=>{const s=getImportStatus(o);return s==="pending";});
+  const waitlistOrders=salesOrders.filter(o=>{const s=getImportStatus(o);return s==="waitlist";});
   const getTotal=(o)=>{
     // Try direct orderTotal first
     const direct=parseFloat(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0)||0;

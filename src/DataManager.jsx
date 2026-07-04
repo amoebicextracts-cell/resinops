@@ -443,13 +443,17 @@ FIELD MAPPING INSTRUCTIONS — map the source columns to these exact field names
 ${targetInfo.schema}
 
 Your job is to read every row and map each source column to the correct target field name above, regardless of what the source calls it. Use context and meaning to map — do not require exact column name matches.`
-  : `Auto-detect which ResinOps module this data belongs to. Use these definitive rules in order:
-1. If the file has columns for EPA Registration Number AND Re-Entry Interval AND Licensed Applicator → classify as spray_log (pesticide applications)
-2. If the file has columns for Input Type AND products that are nutrients/amendments/beneficials (NO EPA reg numbers) → classify as cult_inputs
-3. If the file has columns for Dispensary Name AND Order Total AND Order Date → classify as sales_orders
-4. If the file has columns for Batch ID AND Harvest Date AND Wet Weight → classify as harvest_batches
-5. If the file has columns for Sample ID AND THCa % AND lab panel results (Pass/Fail) → classify as qc_tests
-6. Otherwise use: employees|equipment|inventory|vendors|strains|spaces|unknown`}
+  : `Auto-detect which ResinOps module this data belongs to. These rules are ABSOLUTE — follow them in order:
+
+RULE 1 — spray_log ONLY if file has ALL THREE: "EPA Registration Number" column AND "Re-Entry Interval" column AND "Licensed Applicator" column. Missing even one = NOT spray_log.
+RULE 2 — cult_inputs if file has "Input Type" column OR products are clearly nutrients/amendments/beneficial insects (Athena Grow, CalMag, Vitamax, Koppert, cucumeris, worm castings) with zero EPA registration numbers in the data.
+RULE 3 — sales_orders if file has dispensary/account names AND order totals AND order dates.
+RULE 4 — production_batches if file has product type/category AND scheduled dates AND batch status.
+RULE 5 — harvest_batches if file has batch IDs AND harvest dates AND wet weight.
+RULE 6 — qc_tests if file has sample IDs AND cannabinoid percentages AND lab pass/fail panels.
+RULE 7 — employees, equipment, inventory, vendors, strains, spaces for all other types.
+
+MOST IMPORTANT: Any file containing nutrient products (Athena, CalMag, Grotek, Botanicare, etc.) or beneficial insects (Koppert, cucumeris) with NO EPA registration numbers is ALWAYS cult_inputs. It is NEVER spray_log.`}
 
 File contents:
 ---

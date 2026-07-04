@@ -7,7 +7,7 @@ function pf(v){return v===true?"PASS":v===false?"FAIL":"—";}
 function pfColor(v){return v===true?"var(--accent-2)":v===false?"var(--danger)":"var(--text-3)";}
 
 const CANNABINOIDS=["totalThc","thca","thc","cbda","cbd","cbg","cbn","thcv","cbc","totalCannabinoids"];
-const CANNABINOID_LABELS={totalThc:"Total THC %",thca:"THCa %",thc:"Delta-9 THC %",cbda:"CBDa %",cbd:"CBD %",cbg:"CBG %",cbn:"CBN %",thcv:"THCv %",cbc:"CBC %",totalCannabinoids:"Total Cannabinoids %}"};
+const CANNABINOID_LABELS={totalThc:"Total THC %",thca:"THCa %",thc:"Delta-9 THC %",cbda:"CBDa %",cbd:"CBD %",cbg:"CBG %",cbn:"CBN %",thcv:"THCv %",cbc:"CBC %",totalCannabinoids:"Total Cannabinoids %"};
 const TERPENES=["totalTerpenes","myrcene","limonene","caryophyllene","linalool","pinene","ocimene","terpinolene","humulene","bisabolol","valencene","other_terps"];
 const TERP_LABELS={totalTerpenes:"Total Terpenes %",myrcene:"Myrcene %",limonene:"Limonene %",caryophyllene:"Caryophyllene %",linalool:"Linalool %",pinene:"Pinene %",ocimene:"Ocimene %",terpinolene:"Terpinolene %",humulene:"Humulene %",bisabolol:"Bisabolol %",valencene:"Valencene %",other_terps:"Other Terpenes %"};
 
@@ -65,7 +65,35 @@ export default function QCTesting(){
   const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
   const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
 
-  const [tests,setTests]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");}catch{return[];}});
+  const [tests,setTests]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");
+      const toN=(v)=>{if(!v&&v!==0)return"";const n=parseFloat(String(v).replace(/%/g,""));return isNaN(n)?"":String(n);};
+      return raw.map(t=>({
+        ...t,
+        strainName:t.strainName||t.strain_name||t.sample_name||t["Sample Name"]||"",
+        sampleId:t.sampleId||t.sample_id||t["Sample ID"]||"",
+        labName:t.labName||t.lab_name||t["Lab Name"]||"",
+        submittedDate:t.submittedDate||t.submitted_date||t.date_submitted||t["Date Submitted"]||"",
+        receivedDate:t.receivedDate||t.received_date||t.date_reported||t["Date Reported"]||"",
+        thca:t.thca||toN(t.thca_percent||t["THCa %"]||t["THCa"])||"",
+        thc:t.thc||toN(t.delta_9_thc||t["Delta-9 THC %"]||t["THC %"])||"",
+        totalThc:t.totalThc||toN(t.total_thc||t["Total THC %"]||t["Total THC"])||"",
+        cbda:t.cbda||toN(t.cbda_percent||t["CBDa %"])||"",
+        cbd:t.cbd||toN(t.cbd_percent||t["CBD %"])||"",
+        cbg:t.cbg||toN(t.cbg_percent||t["CBG %"])||"",
+        totalTerpenes:t.totalTerpenes||toN(t.total_terpenes||t.total_terpenes_percent||t["Total Terpenes %"])||"",
+        tyam:t.tyam||toN(t.total_yeast_and_mold||t.total_yeast_mold_cfu_g||t["Total Yeast and Mold CFU/g"])||"",
+        tab:t.tab||toN(t.total_aerobic_count||t.total_aerobic_count_cfu_g||t["Total Aerobic Count CFU/g"])||"",
+        waterActivity:t.waterActivity||toN(t.water_activity||t.water_activity_aw||t["Water Activity Aw"])||"",
+        moistureContent:t.moistureContent||toN(t.moisture_content||t.moisture_content_percent||t["Moisture Content %"])||"",
+        pesticidesPass:t.pesticidesPass??((t.pesticide_residues||t["Pesticide Residues"]||"").toLowerCase()==="pass"?true:null),
+        heavyMetalsPass:t.heavyMetalsPass??((t.heavy_metals||t["Heavy Metals"]||"").toLowerCase()==="pass"?true:null),
+        aspergillus:t.aspergillus??((t.aspergillus_panel||t["Aspergillus Panel"]||"").toLowerCase()==="pass"?true:null),
+        overallPass:t.overallPass??((t.overall_result||t["Overall Result"]||"").toLowerCase()==="pass"?true:(t.overall_result||t["Overall Result"]||"").toLowerCase()==="fail"?false:null),
+      }));
+    }catch{return[];}
+  });
   const [form,setForm]=useState(null);
   const [formSection,setFormSection]=useState("meta");
   const [err,setErr]=useState("");
