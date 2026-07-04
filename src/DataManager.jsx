@@ -1265,8 +1265,42 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                     {id:"pb_007",name:"Gorilla Cake — Live Rosin (Jul)",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-07-10",inputAmt:0,unit:"g",yieldEst:"~640g",actual_yield:"",harvestBatchId:"HB-2026-0402",status:"in_progress",steps:EX.map(s=>({...s}))},
                     {id:"pb_008",name:"Mango Haze — 1g Pre-Rolls (Jul)",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Mango Haze",d:"2026-07-01",inputAmt:1200,unit:"g",yieldEst:"1500 units",actual_yield:"",harvestBatchId:"HB-2026-0312",status:"in_progress",steps:PR.map(s=>({...s}))},
                   ];
-                  localStorage.setItem("resinops_prod", JSON.stringify(prodBatches));
-                  setStatusMsg("✓ Demo ready — facility, SKUs, BOMs, production batches, GMP Hub SOPs, and license alerts all configured");
+                  // Labor types — needed for Labor Dashboard to show demand
+                  const laborTypes = [
+                    {id:"cultivation",n:"Cultivation Team",cat:"cultivation",count:4,rate:22,hrsPerDay:8,notes:"Marcus Webb + 3 cultivation techs"},
+                    {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:"Taryn Delacroix + 2 trim techs"},
+                    {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:"Devon Park + Tyler Bates"},
+                    {id:"lab",n:"Lab / TC Tech",cat:"lab",count:1,rate:24,hrsPerDay:6,notes:"Priya Nair"},
+                    {id:"maintenance",n:"Maintenance",cat:"facilities",count:1,rate:25,hrsPerDay:8,notes:"Amir Hassan"},
+                  ];
+                  localStorage.setItem("resinops_labor_types", JSON.stringify(laborTypes));
+
+                  // Facility map demo spaces
+                  const facilitySpaces = [
+                    {id:"fac_001",name:"Processing Room",type:"Processing Room",sqft:1000,status:"active",cleanIntervalDays:3,assignedBatchIds:["pb_003","pb_004","pb_008"],notes:"Extraction, trimming, packaging",cleanLog:[{id:"cl_001",date:new Date(Date.now()-2*86400000).toISOString().split("T")[0],type:"Full Sanitation",by:"Tyler Bates",notes:"Post-production full clean"}]},
+                    {id:"fac_002",name:"Dry / Cure Room",type:"Dry / Cure Room",sqft:800,status:"active",cleanIntervalDays:7,assignedBatchIds:["pb_001","pb_002"],notes:"Drying nets and CVault cure station",cleanLog:[{id:"cl_002",date:new Date(Date.now()-5*86400000).toISOString().split("T")[0],type:"Surface Wipe-Down",by:"Taryn Delacroix",notes:"Between harvest cycles"}]},
+                    {id:"fac_003",name:"Compliance Office",type:"Compliance Office",sqft:150,status:"active",cleanIntervalDays:7,assignedBatchIds:[],notes:"QC sample storage and compliance files",cleanLog:[]},
+                    {id:"fac_004",name:"Storage — Finished Goods",type:"Storage — Finished Goods",sqft:400,status:"active",cleanIntervalDays:14,assignedBatchIds:[],notes:"Packaged product awaiting delivery",cleanLog:[{id:"cl_003",date:new Date(Date.now()-10*86400000).toISOString().split("T")[0],type:"Deep Clean",by:"Tyler Bates",notes:"Monthly deep clean"}]},
+                    {id:"fac_005",name:"Receiving / Shipping",type:"Receiving / Shipping",sqft:200,status:"active",cleanIntervalDays:7,assignedBatchIds:[],notes:"Inbound supplies and outbound orders",cleanLog:[]},
+                  ];
+                  localStorage.setItem("resinops_facility_map", JSON.stringify(facilitySpaces));
+
+                  // Grow Scheduler — pre-populate active rooms so scheduler shows data immediately
+                  const today = new Date();
+                  const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r.toISOString().split("T")[0]; };
+                  const growSpaces = [
+                    {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_002",name:"FR6 — Black Maple Cycle 4",d:"2026-05-03",veg:"4",flw:"9",strains:[{id:1,name:"Black Maple",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_003",name:"FR7 — Mango Haze Cycle 2",d:"2026-04-26",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"cleaning"},
+                    {id:"gs_004",name:"FR8 — Gorilla Cake Cycle 3",d:"2026-06-13",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_005",name:"FR1 — Mango Haze Cycle 3",d:"2026-06-20",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_006",name:"FR2 — Sour Diesel OG Cycle 2",d:"2026-06-27",veg:"4",flw:"10",strains:[{id:1,name:"Sour Diesel OG",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_007",name:"FR3 — Blueberry Headband Cycle 3",d:"2026-07-04",veg:"4",flw:"9",strains:[{id:1,name:"Blueberry Headband",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_008",name:"FR4 — Zaza Runtz Cycle 3",d:"2026-07-11",veg:"4",flw:"8",strains:[{id:1,name:"Zaza Runtz",plants:"64"}],growMapId:"",status:"active"},
+                    {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active"},
+                  ];
+                  localStorage.setItem("resinops_spaces", JSON.stringify(growSpaces));
+                  setStatusMsg("✓ Demo ready — facility settings, SKUs, BOMs, production batches, GMP Hub, labor types, facility map, and grow schedule all configured");
                 }}>
                   ✨ Load demo facility settings
                 </button>

@@ -204,7 +204,7 @@ export default function GMPHub(){
         {openDevs>0&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--danger)",fontWeight:500}}>⚠ {openDevs} open deviation{openDevs>1?"s":""} require CAPA sign-off</div>}
 
         <div className="gh-tabs">
-          {[["shifts","🕐 Shift Log"],["signoffs","✅ Step Sign-Offs"],["record","📄 Batch Record"],["deviations","⚠ Deviations"],["sops","📚 SOP Library"]].map(([v,l])=>(
+          {[["shifts","🕐 Shift Log"],["signoffs","✅ Step Sign-Offs"],["record","📄 Batch Record"],["cleaning","🧹 Cleaning Log"],["deviations","⚠ Deviations"],["sops","📚 SOP Library"]].map(([v,l])=>(
             <button key={v} className={"gh-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -326,6 +326,67 @@ export default function GMPHub(){
             <BatchRecord />
           </div>
         )}
+
+        )}
+
+        {/* ── CLEANING LOG ── */}
+        {tab==="cleaning"&&(()=>{
+          // Read cleaning logs from both Facility Map and Grow Map rooms
+          const facilityRooms=JSON.parse(localStorage.getItem("resinops_facility_map")||"[]");
+          const growRooms=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
+          const allRooms=[...facilityRooms,...growRooms];
+          const allCleanLogs=allRooms.flatMap(r=>(r.cleanLog||[]).map(c=>({...c,roomName:r.name,roomType:r.type||""})))
+            .sort((a,b)=>new Date(b.date)-new Date(a.date));
+          const overdueFacility=facilityRooms.filter(r=>{
+            if(r.status==="inactive") return false;
+            const last=r.cleanLog?.slice(-1)[0]?.date;
+            return !last||Math.round((new Date()-new Date(last))/86400000)>=(parseInt(r.cleanIntervalDays)||7);
+          });
+          return(
+            <div className="gh-card">
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Facility & Room Cleaning Log</div>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginTop:2}}>Cross-facility cleaning records — log cleaning events in the Facility Map module per room</div>
+                </div>
+                {overdueFacility.length>0&&(
+                  <div style={{background:"rgba(200,150,58,0.12)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:8,padding:"6px 12px",fontSize:12,color:"var(--amber)"}}>
+                    ⚠ {overdueFacility.length} space{overdueFacility.length!==1?"s":""} overdue: {overdueFacility.map(r=>r.name).join(", ")}
+                  </div>
+                )}
+              </div>
+              {allCleanLogs.length===0?(
+                <div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>
+                  <div style={{fontSize:24,marginBottom:8}}>🧹</div>
+                  <div style={{fontWeight:500,marginBottom:4}}>No cleaning events logged</div>
+                  <div style={{fontSize:12}}>Go to Facility Map → select a space → Log cleaning event</div>
+                </div>
+              ):(
+                <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                    <thead><tr>
+                      {["Date","Room / Space","Type","Clean Type","Performed By","Notes"].map(h=>(
+                        <th key={h} style={{padding:"6px 10px",textAlign:"left",fontSize:10,fontWeight:700,textTransform:"uppercase",color:"var(--text-3)",borderBottom:"1px solid var(--border)",background:"var(--surface-2)"}}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {allCleanLogs.map((c,i)=>(
+                        <tr key={c.id||i} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"var(--surface-2)"}}>
+                          <td style={{padding:"7px 10px",whiteSpace:"nowrap",color:"var(--text-2)"}}>{c.date}</td>
+                          <td style={{padding:"7px 10px",fontWeight:500,color:"var(--text)"}}>{c.roomName}</td>
+                          <td style={{padding:"7px 10px",fontSize:11,color:"var(--text-3)"}}>{c.roomType}</td>
+                          <td style={{padding:"7px 10px"}}>{c.type}</td>
+                          <td style={{padding:"7px 10px"}}>{c.by}</td>
+                          <td style={{padding:"7px 10px",color:"var(--text-3)",fontSize:11}}>{c.notes||"—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── DEVIATIONS ── */}
         {tab==="deviations"&&(

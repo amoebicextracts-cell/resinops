@@ -47,6 +47,9 @@ export default function Dashboard({ onNavigate }){
   const salesOrders=JSON.parse(localStorage.getItem("resinops_orders")||"[]");
   const prodBatchesAll=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
   const skus=JSON.parse(localStorage.getItem("resinops_skus")||"[]");
+  const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");
+  const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
+  const growSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
   const facilityVegWeeks=parseInt(localStorage.getItem("resinops_facility_veg_weeks")||"4");
   const facilityRootDays=parseInt(localStorage.getItem("resinops_facility_root_days")||"14");
 
@@ -146,6 +149,47 @@ export default function Dashboard({ onNavigate }){
 
   const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
 
+  // ── Revenue per pound ─────────────────────────────────────────────────────
+  const totalDryLbs = harvestBatches.filter(b=>b.status==="done"&&b.totalDryWeight>0)
+    .reduce((a,b)=>a+(parseFloat(b.totalDryWeight)||0)/453.592,0);
+  const revPerLb = totalDryLbs>0 ? (confirmedRevenue+pendingRevenue)/totalDryLbs : 0;
+
+  // ── Strain performance (THCa + yield from COAs and harvest batches) ────────
+  const strainPerf = strains.map(s=>{
+    const coa = qcTests.filter(t=>(t.strainName||"").toLowerCase()===s.name.toLowerCase());
+    const hbs = harvestBatches.filter(b=>b.strainName===s.name&&b.totalDryWeight>0);
+    const avgThca = coa.length>0 ? (coa.reduce((a,t)=>a+(parseFloat(t.thca)||0),0)/coa.length).toFixed(1) : s.thcaAvg||"";
+    const avgYield = hbs.length>0 ? (hbs.reduce((a,b)=>a+(parseFloat(b.totalDryWeight)||0),0)/hbs.length/453.592).toFixed(1) : "";
+    const orders = salesOrders.filter(o=>(o.notes||"").includes(s.name)||(o.lines||[]).some(l=>(l.product||"").includes(s.name)));
+    return {name:s.name, avgThca, avgYield, batchCount:hbs.length, orderCount:orders.length};
+  }).filter(s=>s.avgThca||s.avgYield).sort((a,b)=>parseFloat(b.avgThca||0)-parseFloat(a.avgThca||0));
+
+  // ── 30-day timeline ────────────────────────────────────────────────────────
+  function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+  const thirtyDays = [];
+  growSpaces.forEach(sp=>{
+    if(!sp.d) return;
+    const clone = new Date(sp.d);
+    const vegWks = parseInt(sp.veg||4);
+    const flwWks = parseInt(sp.flw||9);
+    const flip = addDays(sp.d, vegWks*7);
+    const harvest = addDays(sp.d, (vegWks+flwWks)*7);
+    const strainLabel = (sp.strains||[]).map(s=>s.name).filter(Boolean).join(", ")||sp.strain||sp.name||"";
+    [
+      {date:flip, event:"🔄 Flip to flower", strain:strainLabel, room:sp.name},
+      {date:harvest, event:"🌿 Harvest", strain:strainLabel, room:sp.name},
+    ].forEach(e=>{
+      const daysOut = Math.round((e.date-today)/86400000);
+      if(daysOut>=0&&daysOut<=30) thirtyDays.push({...e,daysOut});
+    });
+  });
+  prodBatches.filter(b=>b.status==="scheduled"||b.status==="in_progress").forEach(b=>{
+    if(!b.d) return;
+    const daysOut = Math.round((new Date(b.d)-today)/86400000);
+    if(daysOut>=-7&&daysOut<=30) thirtyDays.push({date:new Date(b.d),event:"📦 Production",strain:b.strains||"",room:b.name,daysOut:Math.max(0,daysOut)});
+  });
+  thirtyDays.sort((a,b)=>a.daysOut-b.daysOut);
+
   const greetingHour=today.getHours();
   const greeting=greetingHour<12?"Good morning":greetingHour<17?"Good afternoon":"Good evening";
 
@@ -217,6 +261,71 @@ export default function Dashboard({ onNavigate }){
                 );
               })}
               {confirmedOrders.length>4&&<div style={{fontSize:11,color:"var(--text-3)",textAlign:"center",marginTop:4}}>+{confirmedOrders.length-4} more confirmed orders</div>}
+            </div>
+          )}
+
+          {/* ── Revenue per pound ── */}
+          {totalDryLbs>0&&(
+            <div className="db-card">
+              <div className="db-card-t">💰 Revenue per pound</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:"var(--accent-2)"}}>${revPerLb.toFixed(0)}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)",textTransform:"uppercase"}}>Rev / lb</div>
+                </div>
+                <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:"var(--text)"}}>{totalDryLbs.toFixed(1)}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)",textTransform:"uppercase"}}>Total lbs produced</div>
+                </div>
+                <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:700,color:"var(--text)"}}>{harvestBatches.filter(b=>b.status==="done").length}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)",textTransform:"uppercase"}}>Completed batches</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Strain performance ── */}
+          {strainPerf.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">🧬 Strain performance</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr>
+                  {["Strain","Avg THCa %","Avg Dry Yield (lbs)","Batches","Orders"].map(h=>(
+                    <th key={h} style={{padding:"4px 8px",textAlign:"left",fontSize:10,fontWeight:700,textTransform:"uppercase",color:"var(--text-3)",borderBottom:"1px solid var(--border)"}}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {strainPerf.map((s,i)=>(
+                    <tr key={s.name} style={{borderBottom:"1px solid var(--border)",background:i%2===0?"transparent":"var(--surface-2)"}}>
+                      <td style={{padding:"6px 8px",fontWeight:600,color:"var(--text)"}}>{s.name}</td>
+                      <td style={{padding:"6px 8px",fontWeight:700,color:"var(--accent-2)"}}>{s.avgThca?s.avgThca+"%":"—"}</td>
+                      <td style={{padding:"6px 8px",color:"var(--text-2)"}}>{s.avgYield?s.avgYield+" lbs":"—"}</td>
+                      <td style={{padding:"6px 8px",color:"var(--text-3)"}}>{s.batchCount||"—"}</td>
+                      <td style={{padding:"6px 8px",color:"var(--text-3)"}}>{s.orderCount||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── 30-day operational timeline ── */}
+          {thirtyDays.length>0&&(
+            <div className="db-card">
+              <div className="db-card-t">📅 Next 30 days</div>
+              {thirtyDays.slice(0,10).map((e,i)=>(
+                <div key={i} className="db-alert a-green" style={{cursor:"default"}}>
+                  <div style={{minWidth:36,fontWeight:700,color:"var(--accent-2)",fontSize:12}}>
+                    {e.daysOut===0?"Today":e.daysOut===1?"Tomorrow":e.daysOut+"d"}
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:500,color:"var(--text)",fontSize:12}}>{e.event} — {e.strain}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{e.room} · {e.date.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                  </div>
+                </div>
+              ))}
+              {thirtyDays.length>10&&<div style={{fontSize:11,color:"var(--text-3)",textAlign:"center",marginTop:4}}>+{thirtyDays.length-10} more events this month</div>}
             </div>
           )}
 
