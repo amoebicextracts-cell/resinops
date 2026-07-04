@@ -173,6 +173,29 @@ const STEPS={
   hash:         [{n:"Intake / Prep",days:1},{n:"Washing",days:2},{n:"Lyophilization",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   co2:          [{n:"Intake / Prep",days:1},{n:"Extraction",days:3},{n:"Winterization",days:2},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   distillate:   [{n:"Intake / Prep",days:1},{n:"Crude Extraction",days:3},{n:"Winterization",days:2},{n:"Decarb",days:1},{n:"Distillation",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
+
+  // Short path distillation — all models share same process steps
+  sp_lab5:     [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_lab10:    [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_lab20:    [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_summit_mini:[{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_summit_std:[{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_summit_pro:[{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_oss5:     [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_oss12:    [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_oss20:    [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_ai5:      [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_ai10:     [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  sp_custom:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"Short Path 1st Pass",days:1},{n:"Short Path 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  // Wiped Film Evaporator — all models share same process steps
+  wfe_vta70:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_vta125:  [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_pope2:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_pope4:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_pope6:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_chemtech:[{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_delta:   [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
+  wfe_custom:  [{  {n:"Intake / Crude Prep",days:1},{n:"Winterization / Filtration",days:2},{n:"Decarboxylation",days:1},{n:"WFE 1st Pass",days:1},{n:"WFE 2nd Pass",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}}],
   // thca_ff and thca_trim use getThcaSteps() dynamically
 
   r134a_20l:    [{n:"Intake / Prep",days:1},{n:"R-134a Terp Cut",days:1},{n:"Material Decarb 125C",days:1},{n:"R-134a Cannabinoid Cut",days:4},{n:"Micron Filtration",days:1},{n:"Vacuum Purge (12 hr)",days:1},{n:"Intermediary Storage / QC Hold",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
@@ -188,6 +211,113 @@ const STEPS={
   capsules:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:1},{n:"Production",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   beverage:     [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:2},{n:"Dose QC",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   other:        [{n:"Intake / Prep",days:1},{n:"Formulation",days:2},{n:"Production",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+};
+
+// ── Packaging container types by product category ──────────────────────────
+// ── Distillation apparatus specs ─────────────────────────────────────────────
+const DISTILLATION_SPECS = {
+  // Short path — throughput in grams crude per hour, typical yield %
+  sp_lab5:      {type:"Short Path",vol:"5L",brand:"Lab Society",mfr:"Lab Society",throughputG:150,pass1Yield:0.78,pass2Yield:0.87,notes:"Bench-top, single operator. 1st pass crude→minor cannabinoids cut, 2nd pass main body."},
+  sp_lab10:     {type:"Short Path",vol:"10L",brand:"Lab Society",mfr:"Lab Society",throughputG:300,pass1Yield:0.80,pass2Yield:0.88,notes:"Mid-scale. Common in licensed processing facilities."},
+  sp_lab20:     {type:"Short Path",vol:"20L",brand:"Lab Society",mfr:"Lab Society",throughputG:550,pass1Yield:0.80,pass2Yield:0.88,notes:"Production scale. Requires 2 operators."},
+  sp_summit_mini:{type:"Short Path",vol:"2L",brand:"Summit Research",mfr:"Summit Research",throughputG:80,pass1Yield:0.75,pass2Yield:0.86,notes:"R&D / small batch. Compact footprint."},
+  sp_summit_std: {type:"Short Path",vol:"5L",brand:"Summit Research",mfr:"Summit Research",throughputG:180,pass1Yield:0.78,pass2Yield:0.87,notes:"Industry workhorse. Well-supported."},
+  sp_summit_pro: {type:"Short Path",vol:"12L",brand:"Summit Research",mfr:"Summit Research",throughputG:400,pass1Yield:0.80,pass2Yield:0.88,notes:"Production-grade with motorized mantle."},
+  sp_oss5:      {type:"Short Path",vol:"5L",brand:"Open Source Steel",mfr:"Open Source Steel",throughputG:175,pass1Yield:0.78,pass2Yield:0.87,notes:"Heavy-duty American-made glassware."},
+  sp_oss12:     {type:"Short Path",vol:"12L",brand:"Open Source Steel",mfr:"Open Source Steel",throughputG:380,pass1Yield:0.80,pass2Yield:0.88,notes:""},
+  sp_oss20:     {type:"Short Path",vol:"20L",brand:"Open Source Steel",mfr:"Open Source Steel",throughputG:580,pass1Yield:0.80,pass2Yield:0.88,notes:""},
+  sp_ai5:       {type:"Short Path",vol:"5L",brand:"Across International",mfr:"Across International",throughputG:160,pass1Yield:0.78,pass2Yield:0.87,notes:"Cost-effective entry-level production unit."},
+  sp_ai10:      {type:"Short Path",vol:"10L",brand:"Across International",mfr:"Across International",throughputG:310,pass1Yield:0.79,pass2Yield:0.87,notes:""},
+  sp_custom:    {type:"Short Path",vol:"Custom",brand:"Custom",mfr:"",throughputG:200,pass1Yield:0.78,pass2Yield:0.87,notes:"Custom build. Enter your own throughput."},
+  // WFE — higher throughput, continuous operation
+  wfe_vta70:    {type:"WFE",vol:"VKL 70/5",brand:"Root Sciences",mfr:"VTA GmbH",throughputG:1000,pass1Yield:0.82,pass2Yield:0.90,notes:"Entry-level WFE. ~1kg/hr crude throughput. Continuous operation."},
+  wfe_vta125:   {type:"WFE",vol:"VKL 125/5",brand:"Root Sciences",mfr:"VTA GmbH",throughputG:2000,pass1Yield:0.83,pass2Yield:0.90,notes:"Mid-scale WFE. ~2kg/hr. Industry standard for licensed processors."},
+  wfe_pope2:    {type:"WFE",vol:"2"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:500,pass1Yield:0.82,pass2Yield:0.90,notes:"2-inch unit. R&D to small production. American-made."},
+  wfe_pope4:    {type:"WFE",vol:"4"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:1500,pass1Yield:0.83,pass2Yield:0.90,notes:"4-inch — production scale. ~1.5kg/hr."},
+  wfe_pope6:    {type:"WFE",vol:"6"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:3000,pass1Yield:0.84,pass2Yield:0.91,notes:"6-inch — high-volume production. ~3kg/hr."},
+  wfe_chemtech: {type:"WFE",vol:"Various",brand:"Chemtech",mfr:"Chemtech Services",throughputG:1200,pass1Yield:0.82,pass2Yield:0.90,notes:"Custom-engineered systems."},
+  wfe_delta:    {type:"WFE",vol:"TruVax",brand:"Delta Separations",mfr:"Delta Separations",throughputG:1800,pass1Yield:0.83,pass2Yield:0.90,notes:"Integrated ethanol extraction + distillation system."},
+  wfe_custom:   {type:"WFE",vol:"Custom",brand:"Custom",mfr:"",throughputG:1000,pass1Yield:0.82,pass2Yield:0.90,notes:"Custom WFE. Enter your own throughput."},
+};
+
+const PKG_CONTAINERS = {
+  whole_flower: [
+    {v:"cr_glass_jar",l:"CR Glass Jar"},
+    {v:"cr_mylar",l:"CR Mylar Bag"},
+    {v:"eighth_box",l:"Eighth Box (retail box)"},
+    {v:"cr_tin",l:"CR Tin"},
+    {v:"craft_bag",l:"Craft Paper Bag"},
+    {v:"bulk_lb",l:"Bulk (pounds)"},
+    {v:"other",l:"Other"},
+  ],
+  ground_flower: [
+    {v:"cr_glass_jar",l:"CR Glass Jar"},
+    {v:"cr_mylar",l:"CR Mylar Bag"},
+    {v:"other",l:"Other"},
+  ],
+  pre_roll: [
+    {v:"poptop_single",l:"Pop-Top Vial (single)"},
+    {v:"poptop_multi",l:"Pop-Top Vial (multi-pack)"},
+    {v:"glass_tube",l:"Glass Tube (single)"},
+    {v:"poptop_glass",l:"Pop-Top Glass Tube"},
+    {v:"doob_tube",l:"Doob Tube"},
+    {v:"clamshell",l:"Clamshell"},
+    {v:"retail_box_single",l:"Retail Box (individual)"},
+    {v:"retail_box_multi",l:"Retail Box (multi-pack)"},
+    {v:"tin_single",l:"Tin (single)"},
+    {v:"tin_multi",l:"Tin (multi-pack)"},
+    {v:"mylar_multi",l:"Mylar Bag (multi-pack)"},
+    {v:"poptop_in_mylar",l:"Pop-Top Vials in Mylar"},
+    {v:"tubes_in_mylar",l:"Tubes in Mylar"},
+    {v:"box_in_mylar",l:"Box in Mylar"},
+    {v:"other",l:"Other"},
+  ],
+  extract: [
+    {v:"glass_jar_5ml",l:"Glass Jar 5mL"},
+    {v:"glass_jar_7ml",l:"Glass Jar 7mL"},
+    {v:"glass_jar_10ml",l:"Glass Jar 10mL"},
+    {v:"silicone_container",l:"Silicone Container"},
+    {v:"parchment_envelope",l:"Parchment Envelope"},
+    {v:"applicator_syringe",l:"Applicator Syringe"},
+    {v:"cold_cure_jar",l:"Cold Cure Glass Jar"},
+    {v:"vac_sealed_bag",l:"Vacuum Sealed Bag"},
+    {v:"bulk_gram",l:"Bulk (grams)"},
+    {v:"other",l:"Other"},
+  ],
+  distillate: [
+    {v:"applicator_syringe",l:"Applicator Syringe"},
+    {v:"glass_jar",l:"Glass Jar"},
+    {v:"bulk_gram",l:"Bulk (grams)"},
+    {v:"other",l:"Other"},
+  ],
+  vape: [
+    {v:"blister_pack",l:"Blister Pack"},
+    {v:"individual_tube",l:"Individual CR Tube"},
+    {v:"multi_box",l:"Multi-Pack Box"},
+    {v:"cr_case",l:"Child-Resistant Case"},
+    {v:"mylar_cart",l:"Mylar Bag"},
+    {v:"other",l:"Other"},
+  ],
+  tincture: [
+    {v:"dropper_bottle",l:"Dropper Bottle"},
+    {v:"dropper_box",l:"Dropper Bottle in Box"},
+    {v:"bulk",l:"Bulk"},
+    {v:"other",l:"Other"},
+  ],
+  topical: [
+    {v:"jar",l:"Jar"},
+    {v:"tube_squeeze",l:"Squeeze Tube"},
+    {v:"pump_bottle",l:"Pump Bottle"},
+    {v:"other",l:"Other"},
+  ],
+  edible: [
+    {v:"mylar_pouch",l:"Mylar Pouch"},
+    {v:"cr_tin",l:"CR Tin"},
+    {v:"retail_box",l:"Retail Box"},
+    {v:"blister_pack",l:"Blister Pack"},
+    {v:"bottle",l:"Bottle (capsules/beverages)"},
+    {v:"other",l:"Other"},
+  ],
 };
 
 const PKG={
@@ -359,7 +489,7 @@ const EMPTY={
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
   prerollMachine:"knockbox_100",prerollThroughput:"529",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
-  packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",
+  packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",packagingContainer:"",packagingUnitsPerPack:"5",
   vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",vapeTerpSrcPotency:String(TERP_SRCS.pure.thc*100),
   thcaMethod:"controlled",thcaRecrystCycles:"1",
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
@@ -379,24 +509,7 @@ export default function ProductionScheduler(){
     if (!g) return;
     setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
   }
-  const[batches,setBatches]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_prod")||"[]");
-      const DS={
-        whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        ground_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        vape:[{n:"Intake",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-      };
-      return raw.map(b=>({
-        ...b,
-        steps: Array.isArray(b.steps)&&b.steps.length>0
-          ? b.steps
-          : (DS[b.cat]||DS.whole_flower).map(s=>({...s})),
-      }));
-    }catch{return[];}
-  });
+  const[batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];}});
   const[form,setForm]=useState(EMPTY);
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
@@ -420,7 +533,22 @@ export default function ProductionScheduler(){
   const isVapeFormulable=isVape&&(form.sub==="cartridge"||form.sub==="disposable");
   const isVapeOil=form.sub==="oil_rosin"||form.sub==="oil_live_resin";
   const isDistillate=form.cat==="extract"&&form.sub==="distillate";
-  const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
+  const isShortPath=form.cat==="extract"&&form.sub?.startsWith("sp_");
+  const isWFE=form.cat==="extract"&&form.sub?.startsWith("wfe_");
+  const isAnyDistillation=isDistillate||isShortPath||isWFE;
+  const distSpec=DISTILLATION_SPECS[form.sub]||null;
+
+  // Distillation yield calculator
+  const distCalc=isAnyDistillation&&inputG>0&&distSpec?{
+    throughputHrsPass1: Math.ceil(inputG/distSpec.throughputG),
+    pass1YieldG: Math.round(inputG*distSpec.pass1Yield),
+    pass2YieldG: Math.round(inputG*distSpec.pass1Yield*distSpec.pass2Yield),
+    pass1Pct: Math.round(distSpec.pass1Yield*100),
+    pass2Pct: Math.round(distSpec.pass2Yield*100),
+    totalPct: Math.round(distSpec.pass1Yield*distSpec.pass2Yield*100),
+    throughputHrsPass2: Math.ceil(inputG*distSpec.pass1Yield/distSpec.throughputG),
+    spec: distSpec,
+  }:null;
   const isThca=form.cat==="extract"&&isThcaSub;
   const showCb=["tincture","edible","topical"].includes(form.cat);
 
@@ -605,10 +733,63 @@ export default function ProductionScheduler(){
               </div>
             </div>
 
-            {/* Distillate note */}
-            {isDistillate&&<div style={{background:"rgba(90,120,200,0.1)",border:"1px solid rgba(90,120,200,0.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#8090e0"}}>
-              Saving this batch will automatically create a linked Heads/Tails batch (20% of distillate yield) for edibles-grade oil.
-            </div>}
+            {/* Distillation apparatus calculator */}
+            {isAnyDistillation&&(
+              <div className="ps-box" style={{border:"1px solid rgba(90,120,200,0.3)",background:"rgba(90,120,200,0.05)"}}>
+                <div className="ps-box-t" style={{color:"#8090e0"}}>🔬 Distillation Apparatus</div>
+                {distSpec&&(
+                  <div style={{marginBottom:10,padding:"8px 12px",background:"var(--surface)",borderRadius:7,fontSize:11}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontWeight:700,color:"var(--text)",fontSize:12}}>{distSpec.brand} — {distSpec.vol}</span>
+                      <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:isShortPath?"rgba(90,120,200,0.15)":"rgba(74,124,89,0.15)",color:isShortPath?"#8090e0":"var(--accent-2)"}}>{distSpec.type}</span>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:6}}>
+                      <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                        <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Throughput</div>
+                        <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{distSpec.throughputG}g/hr</div>
+                      </div>
+                      <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                        <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>1st Pass Yield</div>
+                        <div style={{fontSize:14,fontWeight:700,color:"var(--amber)"}}>{distSpec.pass1Pct||Math.round(distSpec.pass1Yield*100)}%</div>
+                      </div>
+                      <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                        <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>2nd Pass Yield</div>
+                        <div style={{fontSize:14,fontWeight:700,color:"var(--accent-2)"}}>{distSpec.pass2Pct||Math.round(distSpec.pass2Yield*100)}%</div>
+                      </div>
+                    </div>
+                    {distSpec.notes&&<div style={{fontSize:10,color:"var(--text-3)"}}>{distSpec.notes}</div>}
+                  </div>
+                )}
+                {distCalc&&(
+                  <div style={{background:"rgba(74,124,89,0.08)",borderRadius:7,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",marginBottom:6}}>📊 Yield estimate from {inputG.toLocaleString()}g crude input:</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>After 1st Pass</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"var(--amber)"}}>{distCalc.pass1YieldG.toLocaleString()}g</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>{distCalc.pass1Pct}% recovery</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>{distCalc.throughputHrsPass1} hrs running time</div>
+                      </div>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>After 2nd Pass</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"var(--accent-2)"}}>{distCalc.pass2YieldG.toLocaleString()}g</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>{distCalc.totalPct}% overall recovery</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>{distCalc.throughputHrsPass2} hrs 2nd pass</div>
+                      </div>
+                      <div style={{textAlign:"center"}}>
+                        <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Heads + Tails</div>
+                        <div style={{fontSize:16,fontWeight:700,color:"var(--text-2)"}}>{(distCalc.pass1YieldG-distCalc.pass2YieldG).toLocaleString()}g</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>edibles-grade fraction</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>auto-creates linked batch</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div style={{fontSize:10,color:"var(--text-3)"}}>
+                  Yield assumptions: 1st pass {distSpec?Math.round(distSpec.pass1Yield*100):78}% crude→distillate (minor cannabinoid separation + color remediation). 2nd pass {distSpec?Math.round(distSpec.pass2Yield*100):87}% yield with potency upgrade to 85–93% THC. Actual yields vary with crude quality and starting potency.
+                </div>
+              </div>
+            )}
 
 
             {/* THCa crystallization method */}
@@ -713,34 +894,71 @@ export default function ProductionScheduler(){
               </div>}
             </div>}
 
-            {/* Trim method calculator */}
-            {isFlower&&<div className="ps-box">
-              <div className="ps-box-t">Trim Method Calculator</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div><label className="ps-lbl">Trim method</label><select className="ps-sel" value={form.trimType} onChange={e=>setF("trimType",e.target.value)}><option value="machine">Machine Trim</option><option value="hand">Hand Trim</option></select></div>
-                {form.trimType==="machine"&&<div><label className="ps-lbl">Machine</label><select className="ps-sel" value={form.trimMachine} onChange={e=>{setF("trimMachine",e.target.value);setF("trimThroughput",String(TRIMMERS[e.target.value]?.t||100));}}>{Object.entries(TRIMMERS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>}
-                {form.trimType==="machine"&&<div><label className="ps-lbl">Throughput (lbs/day) — editable</label><input type="number" min="1" className="ps-inp" value={form.trimThroughput} onChange={e=>setF("trimThroughput",e.target.value)} /></div>}
-                {form.trimType==="hand"&&<div><label className="ps-lbl">Number of trimmers</label><input type="number" min="1" className="ps-inp" value={form.trimmerCount} onChange={e=>setF("trimmerCount",e.target.value)} /></div>}
-                {form.trimType==="hand"&&<div><label className="ps-lbl">Grams per trimmer per day</label><input type="number" min="1" className="ps-inp" value={form.gramsPerTrimmerDay} onChange={e=>setF("gramsPerTrimmerDay",e.target.value)} /></div>}
-              </div>
-              {trimCalc&&<div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div className="ps-calc-note">Trim calc: {trimCalc.days} day{trimCalc.days>1?"s":""} — {trimCalc.note}</div>
-                <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyTrimDays}>Apply to step</button>
-              </div>}
-            </div>}
+            {/* Trim method calculator moved to Harvest Batches — see per-batch trim calculator there */}
 
-            {/* Packaging calculator */}
-            {isFlower&&<div className="ps-box">
+            {/* Packaging container selector — all categories */}
+            {(()=>{
+              const getCatKey=()=>{
+                if(form.cat==="whole_flower"||form.cat==="ground_flower") return form.cat;
+                if(form.cat==="pre_roll") return "pre_roll";
+                if(form.cat==="extract"&&isAnyDistillation) return "distillate";
+                if(form.cat==="extract") return "extract";
+                if(form.cat==="vape") return "vape";
+                if(form.cat==="tincture") return "tincture";
+                if(form.cat==="topical") return "topical";
+                if(form.cat==="edible") return "edible";
+                return null;
+              };
+              const catKey=getCatKey();
+              const containers=catKey?PKG_CONTAINERS[catKey]||[]:[];
+              if(!containers.length) return null;
+              const isMultiPack=["poptop_multi","retail_box_multi","tin_multi","mylar_multi","poptop_in_mylar","tubes_in_mylar","box_in_mylar"].includes(form.packagingContainer);
+              const needsMylar=["poptop_in_mylar","tubes_in_mylar","box_in_mylar"].includes(form.packagingContainer);
+              return(
+                <div className="ps-box">
+                  <div className="ps-box-t">Packaging & Container</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div>
+                      <label className="ps-lbl">Container type</label>
+                      <select className="ps-sel" value={form.packagingContainer||""} onChange={e=>setF("packagingContainer",e.target.value)}>
+                        <option value="">— Select container —</option>
+                        {containers.map(ct=><option key={ct.v} value={ct.v}>{ct.l}</option>)}
+                      </select>
+                    </div>
+                    {isMultiPack&&(
+                      <div>
+                        <label className="ps-lbl">Units per pack</label>
+                        <input type="number" min="2" max="100" className="ps-inp" value={form.packagingUnitsPerPack||"5"} onChange={e=>setF("packagingUnitsPerPack",e.target.value)} placeholder="e.g. 5, 7, 10" />
+                      </div>
+                    )}
+                    {needsMylar&&(
+                      <div style={{gridColumn:"span 2",background:"rgba(74,124,89,0.06)",borderRadius:6,padding:"6px 10px",fontSize:11,color:"var(--accent-2)"}}>
+                        ✓ Mylar outer bag included — {form.packagingContainer==="poptop_in_mylar"?"Pop-top vials sealed in mylar":form.packagingContainer==="tubes_in_mylar"?"Tubes sealed in mylar":"Box sealed in mylar"}
+                      </div>
+                    )}
+                  </div>
+                  {isFlower&&(
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                      <div><label className="ps-lbl">Packaging staff</label><input type="number" min="1" className="ps-inp" value={form.packagingStaff} onChange={e=>setF("packagingStaff",e.target.value)} /></div>
+                      <div><label className="ps-lbl">Baseline rate (units/person/hr)</label><input type="number" min="1" className="ps-inp" value={form.packagingBaseline} onChange={e=>setF("packagingBaseline",e.target.value)} /></div>
+                      {pkgCalc&&<div style={{display:"flex",alignItems:"flex-end",paddingBottom:2}}>
+                        <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px"}} onClick={applyPkgDays}>Apply to step</button>
+                      </div>}
+                    </div>
+                  )}
+                  {pkgCalc&&<div className="ps-calc-note">Packaging: {pkgCalc.days} day{pkgCalc.days>1?"s":""} / ~{pkgCalc.hours} hrs ({pkgCalc.rate} units/person/hr)</div>}
+                </div>
+              );
+            })()}
+
+            {/* Legacy: flower-only packaging calc fallback (hidden but keeps logic alive) */}
+            {false&&isFlower&&<div className="ps-box">
               <div className="ps-box-t">Packaging Calculator</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="ps-lbl">Package type</label><select className="ps-sel" value={form.packagingType} onChange={e=>setF("packagingType",e.target.value)}><option value="jar">Jar (childproof)</option><option value="mylar">Mylar bag</option></select></div>
                 <div><label className="ps-lbl">Packaging staff</label><input type="number" min="1" className="ps-inp" value={form.packagingStaff} onChange={e=>setF("packagingStaff",e.target.value)} /></div>
                 <div><label className="ps-lbl">Baseline rate (units/person/hr for 3.5g)</label><input type="number" min="1" className="ps-inp" value={form.packagingBaseline} onChange={e=>setF("packagingBaseline",e.target.value)} /></div>
               </div>
-              {pkgCalc&&<div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div className="ps-calc-note">Packaging calc: {pkgCalc.days} day{pkgCalc.days>1?"s":""} / ~{pkgCalc.hours} hrs ({pkgCalc.rate} units/person/hr adjusted for {pkgSel?.l} {form.packagingType})</div>
-                <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyPkgDays}>Apply to step</button>
-              </div>}
             </div>}
 
             {/* Vape options */}

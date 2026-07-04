@@ -151,7 +151,8 @@ export default function HarvestBatches() {
       steps: STEPS_DEFAULT.map(s=>({...s})),
       trimType:"machine", trimMachine:"greenboz_215", trimThroughput:"215",
       trimmerCount:"4", gramsPerTrimmerDay:"350",
-      grades: { a:{weight:"",s2s:""}, b:{weight:"",s2s:""}, c:{weight:"",s2s:""}, trim:{weight:"",s2s:""} },
+      trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},
+      grades: { aa:{weight:"",s2s:""}, a:{weight:"",s2s:""}, b:{weight:"",s2s:""}, c:{weight:"",s2s:""}, trim:{weight:"",s2s:""}, waste:{weight:"",s2s:""} },
       status:"open",
     };
   }
@@ -279,26 +280,82 @@ export default function HarvestBatches() {
               )}
             </div>
 
-            {/* Trim method */}
+            {/* Trim Method Calculator — per grade with labor costing */}
             <div className="hb-box">
-              <div className="hb-box-t">Trim Method</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div><label className="hb-lbl">Trim type</label><select className="hb-sel" value={form.trimType} onChange={e=>setF("trimType",e.target.value)}><option value="machine">Machine Trim</option><option value="hand">Hand Trim</option></select></div>
-                {form.trimType==="machine" ? (
-                  <div><label className="hb-lbl">Machine</label><select className="hb-sel" value={form.trimMachine} onChange={e=>{setF("trimMachine",e.target.value);setF("trimThroughput",String(TRIMMERS[e.target.value]?.t||100));}}>{Object.entries(TRIMMERS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
-                ) : (
-                  <div><label className="hb-lbl">Number of trimmers</label><input type="number" min="1" className="hb-inp" value={form.trimmerCount} onChange={e=>setF("trimmerCount",e.target.value)} /></div>
-                )}
+              <div className="hb-box-t">Trim Method Calculator</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>Set trim method per grade — AA/A grade typically hand-trimmed for premium presentation, B/C machine-trimmed for efficiency.</div>
+
+              {/* Per-grade trim selection */}
+              {[{k:"aa",l:"AA Grade"},{k:"a",l:"A Grade"},{k:"b",l:"B Grade"},{k:"c",l:"C Grade"}].map(g=>{
+                const gradeG = parseFloat(form.grades?.[g.k]?.weight)||0;
+                const method = form.trimMethods?.[g.k]||"machine";
+                const setGradeTrim=(v)=>setForm(f=>({...f,trimMethods:{...(f.trimMethods||{}), [g.k]:v}}));
+                const gradeTrimCalc = gradeG>0 ? calcTrimDays(gradeG, method, form.trimThroughput, form.trimmerCount, form.gramsPerTrimmerDay) : null;
+                return(
+                  <div key={g.k} style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr auto",gap:8,alignItems:"center",marginBottom:6,padding:"6px 8px",background:"var(--surface)",borderRadius:6}}>
+                    <span className={"hb-grade-pill grade-"+g.k}>{g.l}</span>
+                    <select className="hb-sel" value={method} onChange={e=>setGradeTrim(e.target.value)} style={{fontSize:11}}>
+                      <option value="machine">Machine Trim</option>
+                      <option value="hand">Hand Trim</option>
+                    </select>
+                    <div style={{fontSize:11,color:"var(--text-3)"}}>
+                      {gradeG>0?`${gradeG}g input`:"no weight entered"}
+                    </div>
+                    <div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",textAlign:"right",minWidth:60}}>
+                      {gradeTrimCalc?`${gradeTrimCalc} day${gradeTrimCalc>1?"s":""}`:gradeG>0?"calc...":"—"}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Machine selector */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10,marginBottom:8}}>
+                <div><label className="hb-lbl">Trim machine (for machine grades)</label>
+                  <select className="hb-sel" value={form.trimMachine} onChange={e=>{setF("trimMachine",e.target.value);setF("trimThroughput",String(TRIMMERS[e.target.value]?.t||100));}}>
+                    {Object.entries(TRIMMERS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
+                  </select>
+                </div>
+                <div><label className="hb-lbl">Machine throughput (lbs/day)</label>
+                  <input type="number" min="1" className="hb-inp" value={form.trimThroughput} onChange={e=>setF("trimThroughput",e.target.value)} />
+                </div>
+                <div><label className="hb-lbl">Number of hand trimmers</label>
+                  <input type="number" min="1" className="hb-inp" value={form.trimmerCount} onChange={e=>setF("trimmerCount",e.target.value)} />
+                </div>
+                <div><label className="hb-lbl">Grams per trimmer per day</label>
+                  <input type="number" min="1" className="hb-inp" value={form.gramsPerTrimmerDay} onChange={e=>setF("gramsPerTrimmerDay",e.target.value)} />
+                </div>
               </div>
-              {form.trimType==="machine" ? (
-                <div style={{maxWidth:240,marginBottom:8}}><label className="hb-lbl">Throughput (lbs/day) — editable</label><input type="number" min="1" className="hb-inp" value={form.trimThroughput} onChange={e=>setF("trimThroughput",e.target.value)} /></div>
-              ) : (
-                <div style={{maxWidth:240,marginBottom:8}}><label className="hb-lbl">Grams per trimmer per day</label><input type="number" min="1" className="hb-inp" value={form.gramsPerTrimmerDay} onChange={e=>setF("gramsPerTrimmerDay",e.target.value)} /></div>
-              )}
-              {trimCalc && (
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.1)",borderRadius:5,padding:"4px 8px"}}>Calculated trim time: {trimCalc} day{trimCalc>1?"s":""}</div>
-                  <button className="hb-btn hb-secondary" style={{fontSize:11,padding:"3px 10px"}} onClick={applyTrimDays}>Apply to step</button>
+
+              {/* Labor cost estimate */}
+              {(()=>{
+                const laborTypes=JSON.parse(localStorage.getItem("resinops_labor_types")||"[]");
+                const postHarvestRate=laborTypes.find(l=>l.cat==="post_harvest"||l.id==="postharvest")?.rate||18;
+                const handTrimGrades=["aa","a","b","c"].filter(g=>(form.trimMethods?.[g]||"machine")==="hand");
+                const machineTrimGrades=["aa","a","b","c"].filter(g=>(form.trimMethods?.[g]||"machine")==="machine");
+                const totalHandG=handTrimGrades.reduce((a,g)=>a+(parseFloat(form.grades?.[g]?.weight)||0),0);
+                const totalMachineG=machineTrimGrades.reduce((a,g)=>a+(parseFloat(form.grades?.[g]?.weight)||0),0);
+                const handDays=totalHandG>0?calcTrimDays(totalHandG,"hand",form.trimThroughput,form.trimmerCount,form.gramsPerTrimmerDay):0;
+                const machineDays=totalMachineG>0?calcTrimDays(totalMachineG,"machine",form.trimThroughput,form.trimmerCount,form.gramsPerTrimmerDay):0;
+                const handLaborCost=handDays*(parseInt(form.trimmerCount)||4)*8*postHarvestRate;
+                const machineLaborCost=machineDays*2*8*postHarvestRate; // 2 operators for machine
+                const totalLaborCost=handLaborCost+machineLaborCost;
+                if(!totalHandG&&!totalMachineG) return null;
+                return(
+                  <div style={{background:"rgba(74,124,89,0.08)",borderRadius:7,padding:"8px 12px",fontSize:11}}>
+                    <div style={{fontWeight:700,color:"var(--accent-2)",marginBottom:4}}>💰 Labor cost estimate (${postHarvestRate}/hr post-harvest rate)</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                      {totalHandG>0&&<div><div style={{color:"var(--text-3)"}}>Hand trim ({handTrimGrades.join(", ").toUpperCase()})</div><div style={{fontWeight:600}}>{handDays}d · ${handLaborCost.toLocaleString()}</div></div>}
+                      {totalMachineG>0&&<div><div style={{color:"var(--text-3)"}}>Machine trim ({machineTrimGrades.join(", ").toUpperCase()})</div><div style={{fontWeight:600}}>{machineDays}d · ${machineLaborCost.toLocaleString()}</div></div>}
+                      <div><div style={{color:"var(--text-3)"}}>Total labor</div><div style={{fontWeight:700,color:"var(--accent-2)"}}>${totalLaborCost.toLocaleString()}</div></div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {trimCalc&&(
+                <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+                  <div style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.1)",borderRadius:5,padding:"4px 8px"}}>Overall trim: {trimCalc} day{trimCalc>1?"s":""}</div>
+                  <button className="hb-btn hb-secondary" style={{fontSize:11,padding:"3px 10px"}} onClick={applyTrimDays}>Apply to steps</button>
                 </div>
               )}
             </div>
