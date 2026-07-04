@@ -1286,7 +1286,6 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   localStorage.setItem("resinops_facility_map", JSON.stringify(facilitySpaces));
 
                   // Grow Scheduler — pre-populate active rooms so scheduler shows data immediately
-                  const today = new Date();
                   const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r.toISOString().split("T")[0]; };
                   const growSpaces = [
                     {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},

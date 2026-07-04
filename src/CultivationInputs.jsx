@@ -87,15 +87,6 @@ export default function CultivationInputs(){
           costPerUnit: r.costPerUnit||r.cost_per_unit||r["Cost Per Unit"]||"",
           totalCost: r.totalCost||r.total_cost||r["Total Cost"]||"",
           notes: r.notes||r["Notes"]||"",
-          areaApplied: r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||"",
-          applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
-          targetPest: r.targetPest||r.target_pest||r.target_pest_disease||r["Target Pest / Disease"]||"",
-          weatherTemp: r.weatherTemp||r.temp_at_application||r["Temp at Application (F)"]||"",
-          weatherWind: r.weatherWind||r.wind_speed||r["Wind Speed (mph)"]||"",
-          weatherHumidity: r.weatherHumidity||r.relative_humidity||r["Relative Humidity (%)"]||"",
-          rei: r.rei||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||"",
-          phi: r.phi||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||"",
-          notes: r.notes||r["Notes"]||"",
         };
       });
     }catch{return[];}

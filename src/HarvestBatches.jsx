@@ -130,7 +130,6 @@ export default function HarvestBatches() {
             trim:{weight: r.trim||r["Trim (g)"]||r.trim_g||"", s2s:""},
             waste:{weight: r.waste||r["Waste (g)"]||r.waste_g||"", s2s:""},
           },
-          plants: r.plants||r.plant_count||r["Plant Count"]||r["Plants"]||"",
           steps: Array.isArray(r.steps) && r.steps.length > 0
             ? r.steps
             : STEPS_DEFAULT.map(s=>({...s})),
