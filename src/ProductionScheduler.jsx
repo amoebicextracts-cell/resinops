@@ -523,7 +523,25 @@ export default function ProductionScheduler(){
     if (!g) return;
     setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
   }
-  const[batches,setBatches]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];}});
+  const[batches,setBatches]=useState(()=>{
+    try{
+      const raw=JSON.parse(localStorage.getItem("resinops_prod")||"[]");
+      const DS={
+        whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        vape:[{n:"Intake",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        edible:[{n:"Intake",days:1},{n:"Production",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+      };
+      return raw.map(b=>({
+        ...b,
+        d: b.d||new Date().toISOString().split("T")[0],
+        steps: Array.isArray(b.steps)&&b.steps.length>0
+          ? b.steps
+          : (DS[b.cat]||DS.extract).map(s=>({...s})),
+      }));
+    }catch{return[];}
+  });
   const[form,setForm]=useState(EMPTY);
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
@@ -610,7 +628,7 @@ export default function ProductionScheduler(){
 
   function openAdd(){const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
   function openEdit(b){
-    setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:b.steps.map(s=>({n:s.n,days:s.days})),
+    setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
       overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
@@ -673,7 +691,10 @@ export default function ProductionScheduler(){
 
   function removeBatch(id){setBatches(p=>p.filter(b=>b.id!==id&&b.linkedTo!==id));}
 
-  const timelines=batches.map(b=>buildTimeline(b.d,b.steps));
+  const timelines=batches.map(b=>{
+    if(!b.d||!Array.isArray(b.steps)||b.steps.length===0) return [];
+    return buildTimeline(b.d,b.steps);
+  });
   const hasBatches=batches.length>0;
   let gStart,total,twPx,todayOff,months,weeks;
   if(hasBatches){
