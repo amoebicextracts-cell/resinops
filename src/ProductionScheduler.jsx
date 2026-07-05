@@ -555,17 +555,25 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
   }
   if(cat==="vape"){const isOil=sub==="oil_rosin"||sub==="oil_live_resin";const fillEff=vapeInputType==="live_resin"||sub==="oil_live_resin"?0.95:vapeInputType==="rosin"||sub==="oil_rosin"?0.93:0.97;const units=Math.floor(g*fillEff/pkgV);return`~${units.toLocaleString()} × ${pkgL} ${sub==="disposable"?"AIOs":isOil?"oil units":"carts"}${isOil?" ("+sauceSepMethod.replace("_"," ")+" sep)":""}`;}
   if(cat==="tincture"){
-    // If blend calc available use it, otherwise fall back to simple potency
     const bCalc=opts.cbBlendCalc;
     if(bCalc&&!bCalc.error){
       const totalG=parseFloat(bCalc.totalG)||0;
       const bottleSize=parseFloat(opts.tincBottleSize)||30;
+      const servingMl=parseFloat(opts.tincServingMl||1);
       const bottles=Math.floor(totalG/bottleSize*0.98);
+      const servingsPerBottle=Math.floor(bottleSize/servingMl);
       const thcPct=bCalc.results?.thc||0;
       const cbdPct=bCalc.results?.cbd||0;
-      const mgPerMl=thcPct/100*1000;
-      const profile=[`THC ${thcPct.toFixed(1)}%`,cbdPct>0.1?`CBD ${cbdPct.toFixed(1)}%`:""].filter(Boolean).join(" / ");
-      return `${totalG.toFixed(1)}g blend · ${(mgPerMl).toFixed(1)}mg THC/ml · ${bottles.toLocaleString()} × ${bottleSize}ml bottles · ${profile}`;
+      const cbgPct=bCalc.results?.cbg||0;
+      const mgThcPerMl=(thcPct/100)*1000;
+      const mgThcPerServing=mgThcPerMl*servingMl;
+      const mgCbdPerServing=(cbdPct/100)*1000*servingMl;
+      const cbProfile=[
+        thcPct>0.1?`THC ${mgThcPerServing.toFixed(1)}mg/${servingMl}ml`:"",
+        cbdPct>0.1?`CBD ${mgCbdPerServing.toFixed(1)}mg`:"",
+        cbgPct>0.1?`CBG ${((cbgPct/100)*1000*servingMl).toFixed(1)}mg`:"",
+      ].filter(Boolean).join(" / ");
+      return `${totalG.toFixed(1)}g blend · ${bottles.toLocaleString()} × ${bottleSize}ml bottles · ${servingsPerBottle} servings/bottle · ${cbProfile}`;
     }
     const potency=extractInputType==="rso"?0.60:extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);
     const totalMg=g*potency*1000;const mgPerMl=parseFloat(tincPotencyMgPerMl)||33;const totalMl=totalMg/mgPerMl;const bottles=Math.floor(totalMl/(parseFloat(tincBottleSize)||30)*0.98);
@@ -931,7 +939,7 @@ const EMPTY={
     {name:"Additive 1",thc:"0",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"0",type:"THC Distillate"},
   ],
   cbTargets:{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
-  pieceWeightG:"",
+  pieceWeightG:"",linkedCocIds:[],
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
   prerollMachine:"knockbox_100",prerollThroughput:"529",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
@@ -1079,7 +1087,7 @@ export default function ProductionScheduler(){
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
       cbBlendComponents:b.cbBlendComponents||[{name:"Base Extract",baseTHC:"85",baseCBD:"0",baseCBG:"0",baseCBN:"0",baseCBC:"0",baseTHCV:"0",baseTerp:"2"},{name:"Additive 1",thc:"35",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"50",type:"HTE / CDT"}],
       cbTargets:b.cbTargets||{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
-      pieceWeightG:String(b.pieceWeightG||""),
+      pieceWeightG:String(b.pieceWeightG||""),linkedCocIds:b.linkedCocIds||[],
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),packagingContainer:b.packagingContainer||"",packagingUnitsPerPack:String(b.packagingUnitsPerPack||5),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
@@ -1100,7 +1108,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1709,22 +1717,23 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Tincture */}
+            {/* Tincture format settings — bottle size and serving size only, potency driven by blend calc */}
             {form.cat==="tincture"&&<div className="ps-box">
-              <div className="ps-box-t">Tincture — Extract, Potency & Format</div>
+              <div className="ps-box-t">Tincture Format</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label className="ps-lbl">Extract type</label><select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}><option value="distillate">Distillate</option><option value="rosin">Rosin</option><option value="rso">RSO (Rick Simpson Oil)</option></select></div>
-                <div><label className="ps-lbl">Input potency % THC</label><input type="number" min="1" max="100" className="ps-inp" value={form.extractInputType==="rosin"?"55":form.extractInputType==="rso"?"60":form.inputPotencyPct} disabled={form.extractInputType!=="distillate"} onChange={e=>setF("inputPotencyPct",e.target.value)} /></div>
-                <div><label className="ps-lbl">Bottle size (ml)</label><select className="ps-sel" value={form.tincBottleSize} onChange={e=>setF("tincBottleSize",e.target.value)}>{["15","30","60"].map(v=><option key={v} value={v}>{v}ml</option>)}</select></div>
-                <div><label className="ps-lbl">Target potency (mg/ml)</label><select className="ps-sel" value={form.tincPotencyMgPerMl} onChange={e=>setF("tincPotencyMgPerMl",e.target.value)}>{["10","25","33","50","100"].map(v=><option key={v} value={v}>{v} mg/ml</option>)}</select></div>
+                <div><label className="ps-lbl">Bottle size (ml)</label>
+                  <select className="ps-sel" value={form.tincBottleSize} onChange={e=>setF("tincBottleSize",e.target.value)}>
+                    {["5","10","15","30","60","100","120"].map(v=><option key={v} value={v}>{v}ml</option>)}
+                  </select>
+                </div>
+                <div><label className="ps-lbl">Serving size (ml)</label>
+                  <select className="ps-sel" value={form.tincServingMl||"1"} onChange={e=>setF("tincServingMl",e.target.value)}>
+                    {["0.5","1","1.5","2"].map(v=><option key={v} value={v}>{v}ml</option>)}
+                  </select>
+                </div>
               </div>
-            </div>}
-
-            {/* Edible input */}
-            {form.cat==="edible"&&form.sub!=="beverage"&&<div className="ps-box">
-              <div className="ps-box-t">Edible — Extract Input</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div><label className="ps-lbl">Extract type</label><select className="ps-sel" value={form.extractInputType} onChange={e=>setF("extractInputType",e.target.value)}><option value="distillate">Distillate</option><option value="rosin">Rosin</option></select></div>
-                <div><label className="ps-lbl">Input potency % THC</label><input type="number" min="1" max="100" className="ps-inp" value={form.extractInputType==="rosin"?"55":form.inputPotencyPct} disabled={form.extractInputType==="rosin"} onChange={e=>setF("inputPotencyPct",e.target.value)} /></div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginTop:8}}>
+                Potency (mg/ml) and cannabinoid profile are calculated from the Formulation Calculator below — enter your component profiles and targets there.
               </div>
             </div>}
 
@@ -1915,6 +1924,45 @@ export default function ProductionScheduler(){
               )}
               {cbBlendCalc?.error&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--danger)"}}>⚠ {cbBlendCalc.error}</div>}
             </div>}
+            {/* CoC — Certificate of Conformity linkage */}
+            {showCb&&(()=>{
+              const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
+              const itemsWithCoc=inventory.filter(it=>(it.cocs||[]).length>0);
+              const linkedIds=form.linkedCocIds||[];
+              if(!itemsWithCoc.length) return(
+                <div className="ps-box" style={{border:"1px dashed var(--border-2)"}}>
+                  <div className="ps-box-t">📄 Certificates of Conformity</div>
+                  <div style={{fontSize:12,color:"var(--text-3)"}}>No CoC records found in Inventory. Add CoC records for your ingredients and hardware in <strong>Inventory → Certificates of Conformity</strong>.</div>
+                </div>
+              );
+              return(
+                <div className="ps-box">
+                  <div className="ps-box-t">📄 Certificates of Conformity</div>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>Link CoC records from your ingredient inventory to this batch for traceability and GMP documentation.</div>
+                  {itemsWithCoc.map(it=>{
+                    const validCocs=(it.cocs||[]).filter(c=>c.status==="pass"&&(!c.expiryDate||new Date(c.expiryDate)>new Date()));
+                    const isLinked=linkedIds.includes(it.id);
+                    return(
+                      <div key={it.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:isLinked?"rgba(74,124,89,0.06)":"var(--surface-2)",borderRadius:7,marginBottom:6,border:isLinked?"1px solid rgba(74,124,89,0.25)":"1px solid transparent"}}>
+                        <input type="checkbox" checked={isLinked} onChange={()=>{
+                          const ids=isLinked?linkedIds.filter(id=>id!==it.id):[...linkedIds,it.id];
+                          setF("linkedCocIds",ids);
+                        }} />
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{it.n}</div>
+                          <div style={{fontSize:10,color:"var(--text-3)"}}>{it.cat} · {validCocs.length} valid CoC{validCocs.length!==1?"s":""} on file{validCocs[0]?` · Lot: ${validCocs[0].lotNum}`:""}</div>
+                        </div>
+                        <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:validCocs.length>0?"rgba(74,124,89,0.15)":"rgba(200,150,58,0.15)",color:validCocs.length>0?"var(--accent-2)":"var(--amber)"}}>
+                          {validCocs.length>0?"✓ CoC valid":"⚠ No valid CoC"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {linkedIds.length>0&&<div style={{fontSize:11,color:"var(--accent-2)",marginTop:8,fontWeight:600}}>✓ {linkedIds.length} ingredient{linkedIds.length!==1?"s":""} with CoC linked to this batch</div>}
+                </div>
+              );
+            })()}
+
             {/* Steps */}
             <div className="ps-box">
               <div className="ps-box-t">Production Steps — {totalDays} days total</div>

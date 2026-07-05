@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
-  "Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies",
+  "Pre-Roll Supplies","Vape Hardware","Vape Packaging","Edible Ingredients","Edible Excipients",
+  "Tincture Ingredients","Tincture Excipients","Topical Ingredients","Topical Excipients",
+  "Lab Supplies","Nutrients & Amendments","IPM Products","Cleaning & Sanitation",
+  "Cultivation Supplies","Other",
+];
   "Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies",
   "Cleaning & Sanitation","Other",
 ];
@@ -135,7 +139,12 @@ const CSS = `
   .po-partial{background:rgba(90,120,200,0.15);color:#7090f0;}
 `;
 
-const EMPTY_ITEM = {n:"",cat:"Packaging",uom:"each",reorderAt:"100",reorderQty:"500",vm:"average",notes:""};
+const EMPTY_ITEM = {
+  n:"",cat:"Packaging",uom:"each",reorderAt:"100",reorderQty:"500",vm:"average",notes:"",
+  // Certificate of Conformity fields
+  requiresCoc:false,
+  cocs:[], // array of {id, lotNum, supplier, issueDate, expiryDate, docRef, specs:{thc,cbd,heavyMetals,pesticides,microbials,moisture,custom}, status:"pass"|"fail"|"pending", notes}
+};
 const EMPTY_VENDOR = {n:"",vendorType:"supply",contact:"",phone:"",email:"",leadDays:"7",notes:""};
 const EMPTY_PO = {vendorId:"",date:"",items:[],notes:""};
 
@@ -191,6 +200,7 @@ function normalizeItem(r){
 
 export default function InventoryERP() {
   const [tab, setTab] = useState("items");
+  const [cocModal, setCocModal] = useState(null); // {item, cocForm}
   const [items, setItems] = useState(() => {
     try {
       const s = JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
@@ -340,7 +350,7 @@ export default function InventoryERP() {
         )}
 
         <div className="erp-tabs">
-          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["ledger","📒 Stock Ledger"]].map(([v,l])=>(
+          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["coc","📄 Certificates of Conformity"],["ledger","📒 Stock Ledger"]].map(([v,l])=>(
             <button key={v} className={"erp-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -559,7 +569,153 @@ export default function InventoryERP() {
         )}
 
         {/* ── LEDGER TAB ── */}
-        {tab==="ledger" && (
+        {/* CoC Tab */}
+        {tab==="coc"&&(()=>{
+          const EMPTY_COC={lotNum:"",supplier:"",issueDate:"",expiryDate:"",docRef:"",status:"pending",
+            specs:{thc:"",cbd:"",heavyMetals:"Pass",pesticides:"Pass",microbials:"Pass",moisture:"",solvents:"",custom:""},notes:""};
+          const [cocItemId,setCocItemId]=useState("");
+          const [cocForm,setCocForm]=useState(null);
+          const [cocErr,setCocErr]=useState("");
+          const cocItems=items.filter(it=>it.requiresCoc||(it.cocs?.length>0));
+          const allCocs=items.flatMap(it=>(it.cocs||[]).map(c=>({...c,itemName:it.n,itemId:it.id,itemCat:it.cat})));
+          const expiringSoon=allCocs.filter(c=>c.expiryDate&&Math.ceil((new Date(c.expiryDate)-new Date())/86400000)<30&&Math.ceil((new Date(c.expiryDate)-new Date())/86400000)>=0);
+          const expired=allCocs.filter(c=>c.expiryDate&&new Date(c.expiryDate)<new Date()&&c.status!=="fail");
+
+          function saveCoc(){
+            if(!cocForm.lotNum.trim()){setCocErr("Lot number required");return;}
+            if(!cocItemId){setCocErr("Select an item");return;}
+            const newCoc={...cocForm,id:"coc_"+Date.now()};
+            setItems(prev=>prev.map(it=>it.id===cocItemId?{...it,cocs:[...(it.cocs||[]),newCoc]}:it));
+            setCocForm(null);setCocErr("");
+          }
+          function removeCoc(itemId,cocId){
+            setItems(prev=>prev.map(it=>it.id===itemId?{...it,cocs:(it.cocs||[]).filter(c=>c.id!==cocId)}:it));
+          }
+
+          return(
+            <div>
+              {(expiringSoon.length>0||expired.length>0)&&(
+                <div style={{background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12}}>
+                  {expired.length>0&&<div style={{color:"var(--danger)",fontWeight:600,marginBottom:4}}>⛔ {expired.length} CoC{expired.length!==1?"s":""} expired: {expired.map(c=>c.itemName).join(", ")}</div>}
+                  {expiringSoon.length>0&&<div style={{color:"var(--amber)",fontWeight:600}}>⚠ {expiringSoon.length} CoC{expiringSoon.length!==1?"s":""} expiring within 30 days: {expiringSoon.map(c=>c.itemName).join(", ")}</div>}
+                </div>
+              )}
+
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Certificate of Conformity Registry</div>
+                <button className="erp-btn erp-primary" onClick={()=>{setCocForm({...EMPTY_COC});setCocErr("");}}>+ Add CoC</button>
+              </div>
+
+              {cocForm&&(
+                <div className="erp-card" style={{marginBottom:14,border:"1px solid var(--accent)"}}>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>New Certificate of Conformity</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div style={{gridColumn:"span 2"}}>
+                      <label className="erp-lbl">Item / Material</label>
+                      <select className="erp-inp" value={cocItemId} onChange={e=>setCocItemId(e.target.value)}>
+                        <option value="">— Select item —</option>
+                        {items.filter(it=>["Vape Hardware","Vape Packaging","Edible Ingredients","Edible Excipients","Tincture Ingredients","Tincture Excipients","Topical Ingredients","Topical Excipients","Extraction Solvents","Packaging"].includes(it.cat)).map(it=>(
+                          <option key={it.id} value={it.id}>{it.n} ({it.cat})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div><label className="erp-lbl">Lot / Batch Number</label><input className="erp-inp" value={cocForm.lotNum} onChange={e=>setCocForm(f=>({...f,lotNum:e.target.value}))} placeholder="e.g. LOT-2026-001" /></div>
+                    <div><label className="erp-lbl">Supplier / Manufacturer</label><input className="erp-inp" value={cocForm.supplier} onChange={e=>setCocForm(f=>({...f,supplier:e.target.value}))} /></div>
+                    <div><label className="erp-lbl">Issue Date</label><input type="date" className="erp-inp" value={cocForm.issueDate} onChange={e=>setCocForm(f=>({...f,issueDate:e.target.value}))} /></div>
+                    <div><label className="erp-lbl">Expiry Date</label><input type="date" className="erp-inp" value={cocForm.expiryDate} onChange={e=>setCocForm(f=>({...f,expiryDate:e.target.value}))} /></div>
+                    <div style={{gridColumn:"span 2"}}><label className="erp-lbl">Document Reference / File Name</label><input className="erp-inp" value={cocForm.docRef} onChange={e=>setCocForm(f=>({...f,docRef:e.target.value}))} placeholder="e.g. FG-CoC-2026-001.pdf" /></div>
+                    <div style={{gridColumn:"span 2"}}>
+                      <label className="erp-lbl">Status</label>
+                      <div style={{display:"flex",gap:8}}>
+                        {["pass","fail","pending"].map(s=>(
+                          <button key={s} onClick={()=>setCocForm(f=>({...f,status:s}))} style={{padding:"5px 16px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,
+                            background:cocForm.status===s?(s==="pass"?"var(--accent)":s==="fail"?"var(--danger)":"var(--amber)"):"var(--surface-2)",
+                            color:cocForm.status===s?"#fff":"var(--text-2)"}}>
+                            {s.charAt(0).toUpperCase()+s.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Test Results / Specifications</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                      {[["THC %","thc"],["CBD %","cbd"],["Moisture %","moisture"],["Heavy Metals","heavyMetals"],["Pesticides","pesticides"],["Microbials","microbials"],["Residual Solvents","solvents"]].map(([lbl,k])=>(
+                        <div key={k}>
+                          <label className="erp-lbl">{lbl}</label>
+                          {["heavyMetals","pesticides","microbials","solvents"].includes(k)?(
+                            <select className="erp-inp" value={cocForm.specs[k]} onChange={e=>setCocForm(f=>({...f,specs:{...f.specs,[k]:e.target.value}}))}>
+                              <option value="Pass">Pass</option><option value="Fail">Fail</option><option value="N/T">Not Tested</option>
+                            </select>
+                          ):(
+                            <input className="erp-inp" value={cocForm.specs[k]||""} onChange={e=>setCocForm(f=>({...f,specs:{...f.specs,[k]:e.target.value}}))} placeholder="result" />
+                          )}
+                        </div>
+                      ))}
+                      <div style={{gridColumn:"span 3"}}><label className="erp-lbl">Additional specs / notes</label><input className="erp-inp" value={cocForm.specs.custom||""} onChange={e=>setCocForm(f=>({...f,specs:{...f.specs,custom:e.target.value}}))} placeholder="Any other test results or notes" /></div>
+                    </div>
+                  </div>
+
+                  <div style={{marginBottom:10}}><label className="erp-lbl">Notes</label><textarea className="erp-inp" rows={2} style={{resize:"vertical"}} value={cocForm.notes} onChange={e=>setCocForm(f=>({...f,notes:e.target.value}))} /></div>
+                  {cocErr&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{cocErr}</div>}
+                  <div style={{display:"flex",gap:8}}>
+                    <button className="erp-btn erp-primary" onClick={saveCoc}>Save CoC</button>
+                    <button className="erp-btn" onClick={()=>{setCocForm(null);setCocErr("");}}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {/* CoC table grouped by item */}
+              {items.filter(it=>(it.cocs||[]).length>0).map(it=>(
+                <div key={it.id} className="erp-card" style={{marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div>
+                      <div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{it.n}</div>
+                      <div style={{fontSize:11,color:"var(--text-3)"}}>{it.cat} · {(it.cocs||[]).length} certificate{(it.cocs||[]).length!==1?"s":""}</div>
+                    </div>
+                    <button className="erp-btn" style={{fontSize:11,padding:"4px 10px"}} onClick={()=>{setCocItemId(it.id);setCocForm({...EMPTY_COC});setCocErr("");}}>+ Add CoC</button>
+                  </div>
+                  <div style={{border:"1px solid var(--border)",borderRadius:7,overflow:"hidden"}}>
+                    <table className="erp-tbl">
+                      <thead><tr><th>Lot #</th><th>Supplier</th><th>Issued</th><th>Expires</th><th>THC%</th><th>CBD%</th><th>HM</th><th>Pest.</th><th>Micro</th><th>Status</th><th>Doc Ref</th><th></th></tr></thead>
+                      <tbody>
+                        {(it.cocs||[]).map(c=>{
+                          const daysLeft=c.expiryDate?Math.ceil((new Date(c.expiryDate)-new Date())/86400000):null;
+                          const isExpired=daysLeft!==null&&daysLeft<0;
+                          const nearExpiry=daysLeft!==null&&daysLeft<30&&daysLeft>=0;
+                          return(
+                            <tr key={c.id} style={{opacity:isExpired?0.7:1}}>
+                              <td style={{fontFamily:"monospace",fontSize:11}}>{c.lotNum}</td>
+                              <td>{c.supplier}</td>
+                              <td style={{fontSize:11}}>{c.issueDate}</td>
+                              <td style={{fontSize:11,color:isExpired?"var(--danger)":nearExpiry?"var(--amber)":"inherit"}}>{c.expiryDate||"—"}{isExpired?" ⛔":nearExpiry?` (${daysLeft}d)`:""}</td>
+                              <td style={{textAlign:"center"}}>{c.specs?.thc||"—"}</td>
+                              <td style={{textAlign:"center"}}>{c.specs?.cbd||"—"}</td>
+                              <td style={{textAlign:"center",fontSize:11,color:c.specs?.heavyMetals==="Pass"?"var(--accent-2)":"var(--danger)"}}>{c.specs?.heavyMetals||"—"}</td>
+                              <td style={{textAlign:"center",fontSize:11,color:c.specs?.pesticides==="Pass"?"var(--accent-2)":"var(--danger)"}}>{c.specs?.pesticides||"—"}</td>
+                              <td style={{textAlign:"center",fontSize:11,color:c.specs?.microbials==="Pass"?"var(--accent-2)":"var(--danger)"}}>{c.specs?.microbials||"—"}</td>
+                              <td><span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:c.status==="pass"?"rgba(74,124,89,0.2)":c.status==="fail"?"rgba(200,74,74,0.15)":"rgba(200,150,58,0.15)",color:c.status==="pass"?"var(--accent-2)":c.status==="fail"?"var(--danger)":"var(--amber)"}}>{c.status}</span></td>
+                              <td style={{fontSize:11,color:"var(--text-3)"}}>{c.docRef||"—"}</td>
+                              <td><button style={{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:12}} onClick={()=>removeCoc(it.id,c.id)}>×</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {items.every(it=>!(it.cocs?.length))&&!cocForm&&(
+                <div style={{textAlign:"center",padding:40,color:"var(--text-3)"}}>
+                  <div style={{fontSize:28,marginBottom:8}}>📄</div>
+                  <div style={{fontWeight:500,marginBottom:4}}>No Certificates of Conformity on file</div>
+                  <div style={{fontSize:12}}>Add CoC records for vape hardware, excipients, ingredients, and solvents</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
           <div className="erp-card">
             <div style={{fontSize:12,color:"var(--text-2)",marginBottom:14}}>All inventory receipts and adjustments</div>
             {items.every(x=>!(x.lots?.length)) ? (
