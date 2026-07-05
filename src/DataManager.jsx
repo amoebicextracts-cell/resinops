@@ -183,6 +183,7 @@ const IMPORT_TARGETS = {
   strain2 (second strain if applicable — may be called "Strain 2", "Secondary Strain", etc. Leave blank if none)
   plants2 (second strain plant count — may be called "Plants 2", etc. Leave blank if none)
   notes (any notes field)` },
+  sales_orders:{ label:"Sales & Pre-Orders", icon:"🧾", key:"resinops_orders",
     schema:`Each record must use these EXACT field names:
   dispensaryName (dispensary or account name — may be called "Dispensary Name", "Account", "Customer", "Buyer", etc.)
   licenseNum (dispensary license number — may be called "License Number", "License #", "OCM License", etc.)
