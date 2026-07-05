@@ -339,7 +339,7 @@ function getPkg(cat,sub){
   if(cat==="whole_flower")return PKG.whole_flower;
   if(cat==="ground_flower")return PKG.ground_flower;
   if(cat==="pre_roll")return PKG.pre_roll;
-  if(cat==="extract")return["distillate","thca_ff","thca_trim","r134a_20l","r134a_50l"].includes(sub)?PKG.extract_bulk:PKG.extract_solid;
+  if(cat==="extract")return["distillate","thca_ff","thca_trim","r134a_20l","r134a_50l",...Object.keys(DISTILLATION_SPECS)].includes(sub)?PKG.extract_bulk:PKG.extract_solid;
   if(cat==="vape"){if(sub==="disposable")return PKG.vape_aio;if(sub==="oil_rosin"||sub==="oil_live_resin")return PKG.vape_oil;return PKG.vape_cart;}
   if(cat==="tincture")return PKG.tincture_bot;
   if(cat==="topical")return PKG.topical;
@@ -627,8 +627,8 @@ export default function ProductionScheduler(){
   function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
   function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};if(s.n==="Micron Filtration")return{...s,days:r134aInfo.filterDays};if(s.n==="Vacuum Purge (12 hr)")return{...s,days:r134aInfo.purgeDays};return s;})}));}
 
-  function openAdd(){const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
-  function openEdit(b){
+  function openAdd(){window.__resinopsUnsaved=true;const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
+  function openEdit(b){window.__resinopsUnsaved=true;
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
       overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
@@ -640,7 +640,7 @@ export default function ProductionScheduler(){
       s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||""});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
-  function closeForm(){setFormMode(null);setEditId(null);}
+  function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
 
   function validate(){
     if(!form.name.trim()){setFormErr("Enter a batch name.");return false;}
@@ -787,6 +787,21 @@ export default function ProductionScheduler(){
             {isAnyDistillation&&(
               <div className="ps-box" style={{border:"1px solid rgba(90,120,200,0.3)",background:"rgba(90,120,200,0.05)"}}>
                 <div className="ps-box-t" style={{color:"#8090e0"}}>🔬 Distillation Apparatus</div>
+
+                {/* Apparatus selector — shown for generic distillate OR as override for specific subs */}
+                <div style={{marginBottom:10}}>
+                  <label className="ps-lbl">Select apparatus (or use sub-type dropdown above for specific model)</label>
+                  <select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>
+                    <option value="distillate">— Generic / No specific apparatus —</option>
+                    <optgroup label="Short Path Distillation">
+                      {SUBS.extract?.filter(s=>s.v.startsWith("sp_")).map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+                    </optgroup>
+                    <optgroup label="Wiped Film Evaporator (WFE)">
+                      {SUBS.extract?.filter(s=>s.v.startsWith("wfe_")).map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+                    </optgroup>
+                  </select>
+                </div>
+
                 {distSpec&&(
                   <div style={{marginBottom:10,padding:"8px 12px",background:"var(--surface)",borderRadius:7,fontSize:11}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>

@@ -157,9 +157,9 @@ export default function HarvestBatches() {
     };
   }
 
-  function openAdd() { setForm(emptyForm()); setFormMode("add"); setErr(""); }
-  function openEdit(b) { setForm(JSON.parse(JSON.stringify(b))); setFormMode("edit"); setErr(""); }
-  function closeForm() { setForm(null); setFormMode(null); setErr(""); }
+  function openAdd() { window.__resinopsUnsaved=true; setForm(emptyForm()); setFormMode("add"); setErr(""); }
+  function openEdit(b) { window.__resinopsUnsaved=true; setForm(JSON.parse(JSON.stringify(b))); setFormMode("edit"); setErr(""); }
+  function closeForm() { window.__resinopsUnsaved=false; setForm(null); setFormMode(null); setErr(""); }
 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
   const setGrade = (g,k,v) => setForm(f=>({...f, grades:{...f.grades, [g]:{...f.grades[g], [k]:v}}}));

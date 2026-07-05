@@ -984,6 +984,20 @@ export default function ResinOps() {
     return !localStorage.getItem("resinops_onboarding_complete");
   });
   const [onboardStep, setOnboardStep] = useState(0);
+  // Global unsaved changes flag — modules set window.__resinopsUnsaved = true when form is open
+  const switchModule = (id) => {
+    const mod = MODULES.find((m) => m.id === id);
+    if (!mod?.available) return;
+    if(window.__resinopsUnsaved && activeModule !== id) {
+      if(!window.confirm("You have unsaved changes. Leave anyway?")) return;
+      window.__resinopsUnsaved = false;
+    }
+    setActiveModule(id);
+    if(id==="dashboard") setDashboardVersion(v=>v+1);
+    setMessages([]);
+    setImage(null);
+    setSidebarOpen(false);
+  };
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1118,16 +1132,6 @@ export default function ResinOps() {
       e.preventDefault();
       send();
     }
-  };
-
-  const switchModule = (id) => {
-    const mod = MODULES.find((m) => m.id === id);
-    if (!mod?.available) return;
-    setActiveModule(id);
-    if(id==="dashboard") setDashboardVersion(v=>v+1);
-    setMessages([]);
-    setImage(null);
-    setSidebarOpen(false);
   };
 
   const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
