@@ -622,84 +622,171 @@ function calcBlend(baseG, baseTHC, baseTerpPct, additiveTHC, additiveTerpPct, ta
 }
 
 
-// ── Multi-cannabinoid formulation calculator ────────────────────────────────
-// Supports up to 3 components with known cannabinoid profiles
-// Solves for how much of each additive to blend into base to hit mg/piece targets
+// ── Multi-cannabinoid formulation calculator — N-component solver ─────────────
+// Supports any number of additives blended into a fixed base quantity.
+// For N additives and N targets: solves the NxN linear system simultaneously.
+// For fewer additives than targets: solves for best-fit using primary targets.
+// Math: given base (A) + additives (B1, B2, ...Bn), find x1, x2, ...xn grams
+// such that for each target cannabinoid k:
+//   (base*A[k] + x1*B1[k] + x2*B2[k] + ...) / (base + x1 + x2 + ...) = target[k]
+// Rearranged into linear system: Mx = b where M is NxN and b is Nx1.
+
 const CB_KEYS = ["thc","cbd","cbg","cbn","cbc","thcv","terp"];
 const CB_LABELS = {thc:"THC",cbd:"CBD",cbg:"CBG",cbn:"CBN",cbc:"CBC",thcv:"THCv",terp:"Terpenes"};
 
+// Gaussian elimination for square matrix system Ax = b
+// Returns solution vector x, or null if singular/no solution
+function gaussianElim(A, b) {
+  const n = b.length;
+  const M = A.map((row,i) => [...row, b[i]]); // augmented matrix
+  for(let col = 0; col < n; col++) {
+    // Find pivot
+    let maxRow = col;
+    for(let row = col+1; row < n; row++) {
+      if(Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
+    }
+    [M[col], M[maxRow]] = [M[maxRow], M[col]];
+    if(Math.abs(M[col][col]) < 1e-12) return null; // singular
+    for(let row = col+1; row < n; row++) {
+      const f = M[row][col] / M[col][col];
+      for(let j = col; j <= n; j++) M[row][j] -= f * M[col][j];
+    }
+  }
+  // Back substitution
+  const x = new Array(n).fill(0);
+  for(let i = n-1; i >= 0; i--) {
+    x[i] = M[i][n];
+    for(let j = i+1; j < n; j++) x[i] -= M[i][j] * x[j];
+    x[i] /= M[i][i];
+  }
+  return x;
+}
+
 function calcMultiCbBlend(baseG, components, targets, pieceWeightG, pkgV) {
-  // components: [{name, thc, cbd, cbg, cbn, cbc, thcv, terp}] — percentages 0-100
-  // targets: {thc, cbd, cbg, cbn, cbc, thcv, terp} — mg per piece (edibles) or % (tincture/topical)
-  // pieceWeightG: weight of finished edible piece in grams (0 for tincture/topical)
-  // pkgV: package size (g or ml)
+  // components[0] = base profile (baseTHC, baseCBD, etc.)
+  // components[1..n] = additives (thc, cbd, etc.)
+  // targets = {thc, cbd, cbg, ...} in mg/piece (edibles) or % (others)
+  // pieceWeightG = piece weight in grams (0 for non-piece products)
   const base = parseFloat(baseG)||0;
   if(!base) return {error:"Enter base extract weight"};
-  if(!components||!components.length) return {error:"Add at least one component"};
 
-  // For edibles: convert mg/piece targets to % targets based on piece weight
-  // For tinctures: targets are already in mg/ml or %
-  const isPiece = pieceWeightG > 0;
+  const baseProfile = components[0] || {};
+  const additives = components.slice(1).filter(c=>c&&c.name);
+  if(!additives.length) return {error:"Add at least one additive component"};
+
+  const isPiece = parseFloat(pieceWeightG) > 0;
   const pieceG = parseFloat(pieceWeightG)||0;
 
-  // With 1 base + 1 additive: solve for additive quantity using primary CB target
-  // Primary = first selected cannabinoid with a target
-  const comp = components[0]; // first additive
-  const A = {thc:(parseFloat(components[0]?.baseTHC)||0)/100, cbd:(parseFloat(components[0]?.baseCBD)||0)/100,
-             cbg:(parseFloat(components[0]?.baseCBG)||0)/100, cbn:(parseFloat(components[0]?.baseCBN)||0)/100,
-             cbc:(parseFloat(components[0]?.baseCBC)||0)/100, thcv:(parseFloat(components[0]?.baseTHCV)||0)/100,
-             terp:(parseFloat(components[0]?.baseTerp)||0)/100};
-  const B = {thc:(parseFloat(comp?.thc)||0)/100, cbd:(parseFloat(comp?.cbd)||0)/100,
-             cbg:(parseFloat(comp?.cbg)||0)/100, cbn:(parseFloat(comp?.cbn)||0)/100,
-             cbc:(parseFloat(comp?.cbc)||0)/100, thcv:(parseFloat(comp?.thcv)||0)/100,
-             terp:(parseFloat(comp?.terp)||0)/100};
+  // Convert base profile to fractions
+  const A = {};
+  CB_KEYS.forEach(k => {
+    const rawKey = k==="thc"?"baseTHC":k==="cbd"?"baseCBD":k==="cbg"?"baseCBG":
+                   k==="cbn"?"baseCBN":k==="cbc"?"baseCBC":k==="thcv"?"baseTHCV":"baseTerp";
+    A[k] = (parseFloat(baseProfile[rawKey])||0)/100;
+  });
 
-  // Find primary target cannabinoid
-  const tgtCB = Object.entries(targets).find(([k,v])=>parseFloat(v)>0);
-  if(!tgtCB) return {error:"Enter at least one target cannabinoid amount"};
-  const [tgtKey, tgtVal] = tgtCB;
+  // Convert additive profiles to fractions
+  const B = additives.map(ad => {
+    const prof = {};
+    CB_KEYS.forEach(k => { prof[k] = (parseFloat(ad[k])||0)/100; });
+    return prof;
+  });
 
-  // Convert target to fraction
-  // For edibles: target is mg/piece, piece is pieceG grams
-  // Fraction in blend = (mg/piece / 1000) / pieceG
-  let tgtFraction;
-  if(isPiece && pieceG > 0) {
-    tgtFraction = (parseFloat(tgtVal)/1000) / pieceG;
+  // Get active targets (mg/piece → fraction, or % → fraction)
+  const activeTgts = CB_KEYS.filter(k => parseFloat(targets[k]||0) > 0);
+  if(!activeTgts.length) return {error:"Enter at least one target (mg per piece or %)"};
+
+  const n = additives.length;
+  const nTgt = activeTgts.length;
+
+  // Convert targets to fractions in final blend
+  // For edibles: target_fraction = (mg/piece / 1000) / pieceG
+  // For others: target_fraction = target% / 100
+  const tgtFractions = {};
+  activeTgts.forEach(k => {
+    const val = parseFloat(targets[k]);
+    if(isPiece && pieceG > 0) {
+      tgtFractions[k] = (val / 1000) / pieceG;
+    } else {
+      tgtFractions[k] = val / 100;
+    }
+  });
+
+  let solution; // array of grams for each additive
+
+  if(n === 1) {
+    // Single additive — solve for first target cannabinoid
+    const tgt = activeTgts[0];
+    const T = tgtFractions[tgt];
+    const denom = B[0][tgt] - T;
+    if(Math.abs(denom) < 1e-8) return {error:`Additive ${CB_LABELS[tgt]} % is too close to target — cannot solve. Try a higher or lower ${CB_LABELS[tgt]}% additive.`};
+    const x = base * (T - A[tgt]) / denom;
+    if(x < 0) return {error:`Cannot reach ${CB_LABELS[tgt]} target with this additive — try a ${T > A[tgt]?"higher":"lower"}-${CB_LABELS[tgt]} source.`};
+    solution = [x];
+  } else if(n <= nTgt) {
+    // N additives, ≥N targets: build NxN system using first N targets
+    // Equation for target k: sum_j(xj * (B[j][k] - T[k])) = base * (T[k] - A[k])
+    const useTgts = activeTgts.slice(0, n);
+    const M = useTgts.map(k => additives.map((_, j) => B[j][k] - tgtFractions[k]));
+    const bVec = useTgts.map(k => base * (tgtFractions[k] - A[k]));
+    solution = gaussianElim(M, bVec);
+    if(!solution) return {error:"No unique solution — try adjusting additive profiles or targets. Components may be too similar in composition."};
+    if(solution.some(x => x < -0.01)) return {
+      error:"Negative quantity required for one or more additives — targets may conflict with component profiles. Check that additives differ in the targeted cannabinoids."
+    };
+    solution = solution.map(x => Math.max(0, x));
   } else {
-    // tincture/topical: target is % directly
-    tgtFraction = parseFloat(tgtVal)/100;
+    // Fewer targets than additives — solve for first nTgt additives, warn
+    const useTgts = activeTgts.slice(0, nTgt);
+    const usedAdds = additives.slice(0, nTgt);
+    const M = useTgts.map(k => usedAdds.map((_, j) => B[j][k] - tgtFractions[k]));
+    const bVec = useTgts.map(k => base * (tgtFractions[k] - A[k]));
+    const partialSolution = gaussianElim(M, bVec);
+    if(!partialSolution) return {error:"No unique solution for first "+nTgt+" additives."};
+    solution = [...partialSolution, ...new Array(n - nTgt).fill(0)];
   }
 
-  // Solve: (base*A[tgtKey] + x*B[tgtKey]) / (base+x) = tgtFraction
-  // x = base*(tgtFraction - A[tgtKey]) / (B[tgtKey] - tgtFraction)
-  const denom = B[tgtKey] - tgtFraction;
-  if(Math.abs(denom) < 0.0001) return {error:`Additive ${CB_LABELS[tgtKey]||tgtKey}% must be different from your target — cannot solve`};
-  const additiveG = base * (tgtFraction - A[tgtKey]) / denom;
-  if(additiveG < 0) return {error:`Cannot reach target — reduce target or use a higher-${CB_LABELS[tgtKey]||tgtKey} additive`};
-
-  const totalG = base + additiveG;
+  const totalAdditivesG = solution.reduce((a,x)=>a+x, 0);
+  const totalG = base + totalAdditivesG;
 
   // Calculate all cannabinoids in final blend
   const results = {};
   CB_KEYS.forEach(k => {
-    const pct = (base*A[k] + additiveG*B[k]) / totalG * 100;
-    results[k] = pct;
+    let sum = base * A[k];
+    additives.forEach((_, j) => { sum += solution[j] * B[j][k]; });
+    results[k] = (sum / totalG) * 100;
   });
 
-  // Calculate per-piece if applicable
+  // Per-piece amounts
   const perPiece = {};
   if(isPiece && pieceG > 0) {
-    CB_KEYS.forEach(k => { perPiece[k] = (results[k]/100) * pieceG * 1000; }); // mg per piece
+    CB_KEYS.forEach(k => { perPiece[k] = (results[k]/100) * pieceG * 1000; });
   }
 
-  // Total pieces
-  const totalPieces = pkgV > 0 ? Math.floor(totalG / (isPiece ? pieceG : pkgV) * 0.97) : 0;
-  const totalBatchPieces = pieceG > 0 ? Math.floor(totalG / pieceG * 0.97) : 0;
+  const totalBatchPieces = isPiece && pieceG > 0 ? Math.floor(totalG / pieceG * 0.97) : 0;
+  const totalServings = !isPiece && pkgV > 0 ? Math.floor(totalG / pkgV * 0.97) : 0;
 
-  return { additiveG:additiveG.toFixed(2), totalG:totalG.toFixed(1),
-           results, perPiece, totalPieces, totalBatchPieces,
-           ratio:`${(base/additiveG).toFixed(1)}:1` };
+  // Check how close we got to each target
+  const targetAccuracy = {};
+  activeTgts.forEach(k => {
+    const actual = isPiece ? (perPiece[k]||0) : results[k];
+    const target = parseFloat(targets[k]);
+    targetAccuracy[k] = { actual, target, pctError: target > 0 ? Math.abs(actual-target)/target*100 : 0 };
+  });
+
+  return {
+    solution: solution.map((x,i) => ({name:additives[i]?.name||`Additive ${i+1}`, grams:x.toFixed(2)})),
+    totalG: totalG.toFixed(1),
+    totalAdditivesG: totalAdditivesG.toFixed(2),
+    results,
+    perPiece,
+    totalBatchPieces,
+    totalServings,
+    targetAccuracy,
+    underdetermined: n > nTgt,
+  };
 }
+
 
 // Legacy wrapper — keep calcFormulation working for existing saved batches
 function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV,terpSrcPotencyOverride){
@@ -806,7 +893,7 @@ const EMPTY={
   // Multi-cannabinoid blend fields
   cbBlendComponents:[
     {name:"Base Extract",baseTHC:"85",baseCBD:"0",baseCBG:"0",baseCBN:"0",baseCBC:"0",baseTHCV:"0",baseTerp:"2"},
-    {name:"Additive 1",thc:"35",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"50",type:"HTE / CDT"},
+    {name:"Additive 1",thc:"0",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"0",type:"THC Distillate"},
   ],
   cbTargets:{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
   pieceWeightG:"",
@@ -1577,6 +1664,191 @@ export default function ProductionScheduler(){
 
             {/* Multi-cannabinoid formulation calculator */}
             {showCb&&<div className="ps-box">
+              <div className="ps-box-t">🧬 Cannabinoid Formulation Calculator</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>
+                Define your component profiles, then set targets per {isPieceProduct?"piece":"serving"}. Add one additive per target cannabinoid — 1 additive for THC only, 2 for THC+CBD, 3 for THC+CBD+CBG, etc.
+              </div>
+
+              {/* Cannabinoid picker */}
+              <div style={{marginBottom:10}}>
+                <label className="ps-lbl">Active cannabinoids in this batch</label>
+                <div className="cb-row">{CANNABINOIDS.map(cb=><div key={cb} className={"cb-pill"+(form.cannabinoids.includes(cb)?" on":"")} onClick={()=>toggleCb(cb)}>{cb}</div>)}</div>
+              </div>
+
+              {/* Edible piece weight */}
+              {isPieceProduct&&<div style={{marginBottom:10,maxWidth:280}}>
+                <label className="ps-lbl">Finished piece weight (grams) — e.g. 1g gummy, 3g brownie, 10g chocolate bar</label>
+                <input type="number" min="0.1" max="500" step="0.1" className="ps-inp"
+                  value={form.pieceWeightG} onChange={e=>setF("pieceWeightG",e.target.value)}
+                  placeholder="e.g. 1.5" />
+              </div>}
+
+              {/* Component A — Base */}
+              <div style={{background:"rgba(74,124,89,0.06)",border:"1px solid rgba(74,124,89,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                  Base Extract — {inputG.toLocaleString()}g input
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {[["THC","baseTHC"],["CBD","baseCBD"],["CBG","baseCBG"],["CBN","baseCBN"],["CBC","baseCBC"],["THCv","baseTHCV"],["Terp","baseTerp"]].map(([lbl,k])=>(
+                    <div key={k}>
+                      <label className="ps-lbl">{lbl} %</label>
+                      <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                        value={form.cbBlendComponents?.[0]?.[k]||"0"}
+                        onChange={e=>{const comps=[...(form.cbBlendComponents||[])];if(!comps[0])comps[0]={};comps[0]={...comps[0],[k]:e.target.value};setF("cbBlendComponents",comps);}} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additives — dynamic list */}
+              {(form.cbBlendComponents||[]).slice(1).map((add,idx)=>(
+                <div key={idx} style={{background:"rgba(200,150,58,0.06)",border:"1px solid rgba(200,150,58,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                      Additive {idx+1}
+                    </div>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <select className="ps-sel" style={{fontSize:11,width:"auto",minWidth:160}}
+                        value={add.type||""}
+                        onChange={e=>{const comps=[...(form.cbBlendComponents||[])];comps[idx+1]={...comps[idx+1],type:e.target.value};setF("cbBlendComponents",comps);}}>
+                        <option value="">— Type —</option>
+                        {["THC Distillate","CBD Isolate","CBG Isolate","CBN Isolate","CBC Isolate","THCv Isolate","Broad Spectrum Distillate","Full Spectrum Oil","HTE / CDT","Live Resin","Rosin","Flavor / Carrier Oil","Custom"].map(t=><option key={t} value={t}>{t}</option>)}
+                      </select>
+                      {idx > 0 &&(
+                        <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                          onClick={()=>{const comps=[...(form.cbBlendComponents||[])];comps.splice(idx+1,1);setF("cbBlendComponents",comps);}}>
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                    {[["THC","thc"],["CBD","cbd"],["CBG","cbg"],["CBN","cbn"],["CBC","cbc"],["THCv","thcv"],["Terp","terp"]].map(([lbl,k])=>(
+                      <div key={k}>
+                        <label className="ps-lbl">{lbl} %</label>
+                        <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                          value={add[k]||"0"}
+                          onChange={e=>{const comps=[...(form.cbBlendComponents||[])];comps[idx+1]={...comps[idx+1],[k]:e.target.value};setF("cbBlendComponents",comps);}} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Add additive button */}
+              <button style={{width:"100%",padding:"7px",background:"rgba(200,150,58,0.08)",border:"1px dashed rgba(200,150,58,0.4)",borderRadius:8,color:"var(--amber)",fontSize:12,fontWeight:600,cursor:"pointer",marginBottom:10}}
+                onClick={()=>{const comps=[...(form.cbBlendComponents||[])];comps.push({name:`Additive ${comps.length}`,thc:"0",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"0",type:""});setF("cbBlendComponents",comps);}}>
+                + Add another additive
+              </button>
+
+              {/* Targets */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                    Target per {isPieceProduct?"piece":"serving / ml"}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--text-3)"}}>
+                    {(form.cbBlendComponents?.length||1)-1} additive{((form.cbBlendComponents?.length||1)-1)!==1?"s":""} → can solve {(form.cbBlendComponents?.length||1)-1} target{((form.cbBlendComponents?.length||1)-1)!==1?"s":""}
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {[["THC","thc"],["CBD","cbd"],["CBG","cbg"],["CBN","cbn"],["CBC","cbc"],["THCv","thcv"],["Terp","terp"]].map(([lbl,k])=>{
+                    const isSelected=form.cannabinoids.some(c=>c.toLowerCase()===lbl.toLowerCase()||c.toLowerCase()===lbl.toLowerCase().replace("terp","terpen"));
+                    return(
+                      <div key={k}>
+                        <label className="ps-lbl" style={{color:isSelected?"var(--accent-2)":"var(--text-3)"}}>
+                          {lbl} {isPieceProduct?"mg/pc":"%"}
+                        </label>
+                        <input type="number" min="0" max="9999" step="0.5" className="ps-inp"
+                          style={{borderColor:isSelected?"var(--accent)":""}}
+                          value={form.cbTargets?.[k]||""}
+                          onChange={e=>setF("cbTargets",{...(form.cbTargets||{}),[k]:e.target.value})}
+                          placeholder={isSelected?"target":"—"} />
+                      </div>
+                    );
+                  })}
+                </div>
+                {isPieceProduct&&!form.pieceWeightG&&<div style={{fontSize:11,color:"var(--amber)",marginTop:6}}>⚠ Enter piece weight above to enable mg/piece calculation</div>}
+                {(()=>{
+                  const nAdd=(form.cbBlendComponents?.length||1)-1;
+                  const nTgt=CB_KEYS.filter(k=>parseFloat(form.cbTargets?.[k]||0)>0).length;
+                  if(nAdd>0&&nAdd<nTgt) return <div style={{fontSize:11,color:"var(--amber)",marginTop:6}}>⚠ You have {nTgt} targets but only {nAdd} additive{nAdd!==1?"s":""} — add {nTgt-nAdd} more additive{nTgt-nAdd!==1?"s":""} to solve all targets simultaneously</div>;
+                  if(nAdd>nTgt&&nAdd>1) return <div style={{fontSize:11,color:"var(--text-3)",marginTop:6}}>ℹ {nAdd} additives, {nTgt} targets — calculator will solve first {nTgt} additives. Set targets for remaining or remove unused additives.</div>;
+                  return null;
+                })()}
+              </div>
+
+              {/* Results */}
+              {cbBlendCalc&&!cbBlendCalc.error&&(
+                <div style={{background:"rgba(74,124,89,0.08)",border:"1px solid rgba(74,124,89,0.25)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--accent-2)",marginBottom:10}}>✓ Formulation Solution</div>
+
+                  {/* Additive amounts needed */}
+                  <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(cbBlendCalc.solution.length+1,3)},1fr)`,gap:8,marginBottom:12}}>
+                    {cbBlendCalc.solution.map((s,i)=>(
+                      <div key={i} style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center",border:"1px solid rgba(200,150,58,0.2)"}}>
+                        <div style={{fontSize:9,color:"var(--amber)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>{s.name}</div>
+                        <div style={{fontSize:22,fontWeight:700,color:"var(--amber)"}}>{s.grams}g</div>
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>add to base</div>
+                      </div>
+                    ))}
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Total Blend</div>
+                      <div style={{fontSize:22,fontWeight:700,color:"var(--text)"}}>{cbBlendCalc.totalG}g</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>
+                        {isPieceProduct&&cbBlendCalc.totalBatchPieces>0?`${cbBlendCalc.totalBatchPieces.toLocaleString()} pieces`:cbBlendCalc.totalServings>0?`${cbBlendCalc.totalServings.toLocaleString()} servings`:""}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cannabinoid breakdown */}
+                  <div style={{border:"1px solid var(--border)",borderRadius:6,overflow:"hidden",marginBottom:10}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr style={{background:"var(--surface-2)"}}>
+                        <th style={{padding:"5px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Cannabinoid</th>
+                        <th style={{padding:"5px 8px",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>% in blend</th>
+                        {isPieceProduct&&form.pieceWeightG&&<th style={{padding:"5px 8px",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>mg / piece</th>}
+                        {isPieceProduct&&form.pieceWeightG&&<th style={{padding:"5px 8px",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Total batch mg</th>}
+                        <th style={{padding:"5px 8px",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Target</th>
+                        <th style={{padding:"5px 8px",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Accuracy</th>
+                      </tr></thead>
+                      <tbody>
+                        {CB_KEYS.filter(k=>cbBlendCalc.results[k]>0.001).map((k,i)=>{
+                          const lbl=CB_LABELS[k];
+                          const pct=cbBlendCalc.results[k];
+                          const mgPc=cbBlendCalc.perPiece?.[k];
+                          const tgt=parseFloat(form.cbTargets?.[k]||0);
+                          const hasTgt=tgt>0;
+                          const acc=cbBlendCalc.targetAccuracy?.[k];
+                          const onTarget=acc&&acc.pctError<2;
+                          const close=acc&&acc.pctError<5;
+                          return(
+                            <tr key={k} style={{borderTop:"1px solid var(--border)",background:i%2?"var(--surface-2)":"transparent"}}>
+                              <td style={{padding:"5px 8px",fontWeight:600,color:hasTgt?"var(--accent-2)":"var(--text-2)"}}>{lbl}</td>
+                              <td style={{padding:"5px 8px",textAlign:"center"}}>{pct.toFixed(2)}%</td>
+                              {isPieceProduct&&form.pieceWeightG&&<td style={{padding:"5px 8px",textAlign:"center",fontWeight:hasTgt?700:400,color:onTarget?"var(--accent-2)":close?"var(--amber)":hasTgt?"var(--danger)":"var(--text-2)"}}>{mgPc!=null?mgPc.toFixed(2)+"mg":"—"}</td>}
+                              {isPieceProduct&&form.pieceWeightG&&<td style={{padding:"5px 8px",textAlign:"center",color:"var(--text-3)",fontSize:10}}>{mgPc!=null&&cbBlendCalc.totalBatchPieces>0?(mgPc*cbBlendCalc.totalBatchPieces).toFixed(0)+"mg":"—"}</td>}
+                              <td style={{padding:"5px 8px",textAlign:"center",color:"var(--text-3)"}}>{hasTgt?tgt+"mg":"—"}</td>
+                              <td style={{padding:"5px 8px",textAlign:"center",fontSize:10,color:onTarget?"var(--accent-2)":close?"var(--amber)":hasTgt?"var(--danger)":"var(--text-3)"}}>{acc?`${acc.pctError.toFixed(1)}%`:"—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {cbBlendCalc.underdetermined&&<div style={{fontSize:11,color:"var(--amber)",background:"rgba(200,150,58,0.08)",borderRadius:6,padding:"6px 10px",marginBottom:8}}>ℹ More additives than targets — remaining additives set to 0g. Add targets to use them.</div>}
+
+                  <div style={{fontSize:11,color:"var(--text-3)"}}>
+                    Mix <strong style={{color:"var(--text)"}}>{inputG.toLocaleString()}g</strong> base
+                    {cbBlendCalc.solution.map((s,i)=><span key={i}> + <strong style={{color:"var(--text)"}}>{s.grams}g</strong> {s.name}</span>)}
+                    {" → "}<strong style={{color:"var(--text)"}}>{cbBlendCalc.totalG}g</strong> total
+                    {isPieceProduct&&form.pieceWeightG&&cbBlendCalc.totalBatchPieces>0&&<> → <strong style={{color:"var(--accent-2)"}}>{cbBlendCalc.totalBatchPieces.toLocaleString()} × {form.pieceWeightG}g pieces</strong></>}
+                  </div>
+                </div>
+              )}
+              {cbBlendCalc?.error&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--danger)"}}>⚠ {cbBlendCalc.error}</div>}
+            </div>}
               <div className="ps-box-t">🧬 Cannabinoid Formulation Calculator</div>
               <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>
                 Define your component profiles and targets. The calculator solves for how much additive to blend into your base to hit your target cannabinoid levels per {isPieceProduct?"piece":"ml/serving"}.
