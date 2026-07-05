@@ -32,6 +32,7 @@ import SprayLog from "./SprayLog.jsx";
 import MotherPlantManager from "./MotherPlantManager.jsx";
 import TCTracker from "./TCTracker.jsx";
 import FacilityMap from "./FacilityMap.jsx";
+import OpsAnalyst from "./OpsAnalyst.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
@@ -217,8 +218,14 @@ const MODULES = [
     sectionBreak: "Cultivation",
   },
   {
-    id: "scheduler",
-    label: "Grow Scheduler",
+    id: "ops-analyst",
+    label: "AI Operations Analyst",
+    icon: "🧠",
+    available: true,
+    description: "Ask plain-English questions about your facility data",
+    isScheduler: true,
+    sectionBreak: null,
+  },
     icon: "📅",
     available: true,
     description: "Plan timelines from clone cut to inventory",
@@ -1134,7 +1141,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1286,6 +1293,7 @@ export default function ResinOps() {
           </div>
 
           <ErrorBoundary key={activeModule}>
+            {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
             {activeModule === "production" ? <ProductionScheduler /> : null}
             {activeModule === "harvest" ? <HarvestBatches /> : null}

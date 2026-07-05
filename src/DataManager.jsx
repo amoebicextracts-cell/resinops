@@ -1409,6 +1409,27 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                     {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active"},
                   ];
                   localStorage.setItem("resinops_spaces", JSON.stringify(growSpaces));
+
+                  // TC Tracker demo vessels
+                  const tcVessels = [
+                    {id:"tc_001",accessionId:"TC-2026-001",strainName:"Black Maple",stage:"multiplication",vesselType:"magenta_box",mediaFormula:"MS-30",transferDate:"2026-06-01",expectedTransfer:"2026-07-01",contaminated:false,notes:"Clean stock — source from mother room pheno BM-04. HLV-free confirmed.",transferCount:3},
+                    {id:"tc_002",accessionId:"TC-2026-002",strainName:"Gorilla Cake",stage:"rooting",vesselType:"culture_tube",mediaFormula:"MS-IBA-1",transferDate:"2026-06-15",expectedTransfer:"2026-07-06",contaminated:false,notes:"Rooting stage — transitioning to ex vitro acclimatization next cycle.",transferCount:2},
+                    {id:"tc_003",accessionId:"TC-2026-003",strainName:"Mango Haze",stage:"establishment",vesselType:"culture_tube",mediaFormula:"WPM-30",transferDate:"2026-06-20",expectedTransfer:"2026-07-11",contaminated:false,notes:"New accession from mother room. Initial establishment phase.",transferCount:1},
+                    {id:"tc_004",accessionId:"TC-2026-004",strainName:"Zaza Runtz",stage:"multiplication",vesselType:"magenta_box",mediaFormula:"MS-30",transferDate:"2026-05-15",expectedTransfer:"2026-06-15",contaminated:true,notes:"Contamination detected June 14 — bacterial. Quarantined. Source review initiated.",transferCount:4},
+                  ];
+                  localStorage.setItem("resinops_tc_vessels", JSON.stringify(tcVessels));
+
+                  // Clone Scheduler demo records
+                  const today2 = new Date();
+                  const fmt = d => d.toISOString().split("T")[0];
+                  const addD = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+                  const cloneSchedules = [
+                    {id:"cs_001",strainName:"Black Maple",motherId:"",cutDate:fmt(addD(today2,5)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 6",cutQty:"32",status:"upcoming",notes:"FR6 flips to flower Jul 10 — cuts needed by Jul 5"},
+                    {id:"cs_002",strainName:"Gorilla Cake",motherId:"",cutDate:fmt(addD(today2,12)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 5",cutQty:"32",status:"upcoming",notes:"FR5 harvest Jul 17 — next cycle cuts needed Jul 17"},
+                    {id:"cs_003",strainName:"Mango Haze",motherId:"",cutDate:fmt(addD(today2,-3)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 7",cutQty:"64",status:"rooting",notes:"Cuts taken Jul 2 — in propagation trays"},
+                    {id:"cs_004",strainName:"Blueberry Headband",motherId:"",cutDate:fmt(addD(today2,19)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 3",cutQty:"64",status:"upcoming",notes:"FR3 scheduled flip Aug 1"},
+                  ];
+                  localStorage.setItem("resinops_clone_sched", JSON.stringify(cloneSchedules));
                   setStatusMsg("✓ Demo ready — facility settings, SKUs, BOMs, production batches, GMP Hub, labor types, facility map, and grow schedule all configured");
                 }}>
                   ✨ Load demo facility settings

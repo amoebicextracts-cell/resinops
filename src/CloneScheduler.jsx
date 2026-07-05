@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import StrainCombo from "./StrainCombo.jsx";
 
 const LBS_TO_G=453.592;
-function addDays(dt,n){const d=new Date(dt);d.setDate(d.getDate()+n);return d;}
-function fmtD(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
-function daysFromNow(dt){return Math.round((new Date(dt)-new Date())/86400000);}
-function isoDate(dt){return new Date(dt).toISOString().split("T")[0];}
+function addDays(dt,n){try{const d=new Date(dt);if(isNaN(d.getTime()))return new Date();d.setDate(d.getDate()+n);return d;}catch{return new Date();}}
+function fmtD(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return"—";return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch{return"—";}}
+function daysFromNow(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return null;return Math.round((d-new Date())/86400000);}catch{return null;}}
+function isoDate(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return"";return d.toISOString().split("T")[0];}catch{return"";}}
+function safeDate(d){return d&&typeof d==="string"&&d.length>=8?d:null;}
 
 // Given a room's harvest date + reset days + veg weeks + rootDays, back-calc clone cut date
 function calcCloneCutDate(harvestDate,resetDays,vegWeeks,rootDays){
@@ -70,15 +70,15 @@ export default function CloneScheduler(){
     const calc=calcCloneCutDate(s.lastHarvestDate,s.resetDays,facilityVegWeeks,facilityRootDays);
     return{...s,_source:"growmap",_calc:calc};
   });
-  const derivedFromCult=cultSpaces.map(s=>{
-    // build harvest date from schedule milestones
+  const derivedFromCult=cultSpaces.filter(s=>safeDate(s.d)).map(s=>{
     const vegMs=parseInt(s.veg||4)*7, flwMs=parseInt(s.flw||9)*7;
     const cut=new Date(s.d+"T12:00:00");
+    if(isNaN(cut.getTime())) return null;
     const harvestDate=addDays(cut,vegMs+flwMs);
     const resetDays=growMap.find(g=>g.name===s.name)?.resetDays||7;
     const calc=calcCloneCutDate(isoDate(harvestDate),resetDays,facilityVegWeeks,facilityRootDays);
     return{id:"cult_"+s.id,name:s.name,strains:s.strains,_source:"cultivation",_calc:calc,_harvestDate:harvestDate};
-  });
+  }).filter(Boolean);
 
   function openAdd(){setForm({...EMPTY_SCHEDULE,vegWeeks:String(facilityVegWeeks),rootDays:String(facilityRootDays)});setErr("");}
   function save(){
@@ -153,7 +153,7 @@ export default function CloneScheduler(){
           <div className="cs-card" style={{border:"1px solid var(--accent)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:14}}>{form.id?"Edit Clone Schedule":"New Clone Schedule"}</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-              <div><label className="cs-lbl">Strain</label><StrainCombo className="cs-inp" value={form.strainName} onChange={(name,obj)=>{ setF("strainName",name); if(obj&&obj.avgFlowerWeeks) setF("rootDays",String(Math.round((parseFloat(obj.avgFlowerWeeks)||8)*7))); }} placeholder="Select or type strain" /></div>
+              <div><label className="cs-lbl">Strain</label><input className="cs-inp" value={form.strainName} onChange={e=>setF("strainName",e.target.value)} /></div>
               <div><label className="cs-lbl">Target grow space (from Grow Map)</label>
                 <select className="cs-sel" value={form.spaceId} onChange={e=>setF("spaceId",e.target.value)}>
                   <option value="">— Select space —</option>

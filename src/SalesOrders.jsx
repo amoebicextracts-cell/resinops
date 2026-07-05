@@ -168,6 +168,37 @@ export default function SalesOrders() {
           <div style={{fontSize:12,color:"var(--text-3)"}}>Track sellable inventory against the production schedule and manage holds</div>
         </div>
 
+        {/* Revenue pipeline summary */}
+        {orders.length>0&&(()=>{
+          const getTotal=(o)=>{
+            const direct=parseFloat(o.orderTotal||o.order_total||0)||0;
+            if(direct>0) return direct;
+            return (o.lines||[]).reduce((a,l)=>a+(parseFloat(l.orderTotal)||parseFloat(l.qty||0)*parseFloat(l.unitPrice||0)),0);
+          };
+          const confirmed=orders.filter(o=>(o.importStatus||"")===("confirmed")||(o.status==="open"&&!o.importStatus));
+          const pending=orders.filter(o=>(o.importStatus||"")==="pending");
+          const waitlist=orders.filter(o=>(o.importStatus||"")==="waitlist");
+          const confirmedRev=confirmed.reduce((a,o)=>a+getTotal(o),0);
+          const pendingRev=pending.reduce((a,o)=>a+getTotal(o),0);
+          const accounts=new Set(orders.map(o=>o.customerName||o.dispensaryName||"").filter(Boolean)).size;
+          return(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:16}}>
+              {[
+                {label:"Confirmed Revenue",value:"$"+confirmedRev.toLocaleString(undefined,{minimumFractionDigits:0}),color:"var(--accent-2)",sub:confirmed.length+" orders"},
+                {label:"Pending Pipeline",value:"$"+pendingRev.toLocaleString(undefined,{minimumFractionDigits:0}),color:"var(--amber)",sub:pending.length+" orders"},
+                {label:"Waitlisted",value:waitlist.length,color:"#9060c0",sub:"orders waiting on stock"},
+                {label:"Active Accounts",value:accounts,color:"var(--text)",sub:orders.length+" total orders"},
+              ].map(({label,value,color,sub})=>(
+                <div key={label} style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 14px",border:"1px solid var(--border-2)"}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"var(--text-3)",marginBottom:4}}>{label}</div>
+                  <div style={{fontSize:22,fontWeight:700,color,marginBottom:2}}>{value}</div>
+                  <div style={{fontSize:10,color:"var(--text-3)"}}>{sub}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <div style={{background:"rgba(90,120,200,0.08)",border:"1px solid rgba(90,120,200,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#7090f0"}}>
           Runs on this device only — holds and availability won't sync across other computers until this moves to a shared backend (v2).
         </div>
