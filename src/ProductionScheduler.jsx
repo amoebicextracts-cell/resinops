@@ -516,6 +516,10 @@ function getInputLabel(cat){
     topical:"Batch size",edible:"Input — extract / distillate"})[cat]||"Input";
 }
 
+// ── Cannabinoid keys and labels — defined here so calcYield can reference them ──
+const CB_KEYS = ["thc","cbd","cbg","cbn","cbc","thcv","terp"];
+const CB_LABELS = {thc:"THC",cbd:"CBD",cbg:"CBG",cbn:"CBN",cbc:"CBC",thcv:"THCv",terp:"Terpenes"};
+
 // ── Yield calculation ──────────────────────────────────────────────────────
 function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
   const amt=parseFloat(inputAmt);if(!amt||amt<=0||!pkgV)return null;
@@ -664,16 +668,6 @@ function calcBlend(baseG, baseTHC, baseTerpPct, additiveTHC, additiveTerpPct, ta
 
 
 // ── Multi-cannabinoid formulation calculator — N-component solver ─────────────
-// Supports any number of additives blended into a fixed base quantity.
-// For N additives and N targets: solves the NxN linear system simultaneously.
-// For fewer additives than targets: solves for best-fit using primary targets.
-// Math: given base (A) + additives (B1, B2, ...Bn), find x1, x2, ...xn grams
-// such that for each target cannabinoid k:
-//   (base*A[k] + x1*B1[k] + x2*B2[k] + ...) / (base + x1 + x2 + ...) = target[k]
-// Rearranged into linear system: Mx = b where M is NxN and b is Nx1.
-
-const CB_KEYS = ["thc","cbd","cbg","cbn","cbc","thcv","terp"];
-const CB_LABELS = {thc:"THC",cbd:"CBD",cbg:"CBG",cbn:"CBN",cbc:"CBC",thcv:"THCv",terp:"Terpenes"};
 
 // Gaussian elimination for square matrix system Ax = b
 // Returns solution vector x, or null if singular/no solution
