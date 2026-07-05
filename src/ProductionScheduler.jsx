@@ -550,9 +550,50 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
     const out=g*(ym[sub]||0.15);const units=Math.floor(out/pkgV*0.97);return`~${out.toFixed(1)}g · ${units.toLocaleString()} × ${pkgL} units`;
   }
   if(cat==="vape"){const isOil=sub==="oil_rosin"||sub==="oil_live_resin";const fillEff=vapeInputType==="live_resin"||sub==="oil_live_resin"?0.95:vapeInputType==="rosin"||sub==="oil_rosin"?0.93:0.97;const units=Math.floor(g*fillEff/pkgV);return`~${units.toLocaleString()} × ${pkgL} ${sub==="disposable"?"AIOs":isOil?"oil units":"carts"}${isOil?" ("+sauceSepMethod.replace("_"," ")+" sep)":""}`;}
-  if(cat==="tincture"){const potency=extractInputType==="rso"?0.60:extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);const totalMg=g*potency*1000;const mgPerMl=parseFloat(tincPotencyMgPerMl)||33;const totalMl=totalMg/mgPerMl;const bottles=Math.floor(totalMl/(parseFloat(tincBottleSize)||30)*0.98);return`~${totalMg.toFixed(0)}mg THC · ${totalMl.toFixed(0)}ml · ${bottles.toLocaleString()} × ${tincBottleSize}ml bottles`;}
-  if(cat==="topical"){const oz=amt*(unit==="lbs"?16:unit==="kg"?35.274:0.035274);const units=Math.floor(oz/pkgV*0.97);return`~${oz.toFixed(1)} oz · ${units.toLocaleString()} × ${pkgL} units`;}
-  if(cat==="edible"){if(sub==="beverage"){return`~${g.toFixed(0)}ml · ${Math.floor(g/pkgV*0.97).toLocaleString()} × ${pkgL} bottles`;}const potency=extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);const totalMg=g*potency*1000;const units=Math.floor(totalMg/pkgV*0.95);return`~${totalMg.toFixed(0)}mg (${(potency*100).toFixed(0)}% THC) · ${units.toLocaleString()} × ${pkgL} units`;}
+  if(cat==="tincture"){
+    // If blend calc available use it, otherwise fall back to simple potency
+    const bCalc=opts.cbBlendCalc;
+    if(bCalc&&!bCalc.error){
+      const totalG=parseFloat(bCalc.totalG)||0;
+      const bottleSize=parseFloat(opts.tincBottleSize)||30;
+      const bottles=Math.floor(totalG/bottleSize*0.98);
+      const thcPct=bCalc.results?.thc||0;
+      const cbdPct=bCalc.results?.cbd||0;
+      const mgPerMl=thcPct/100*1000;
+      const profile=[`THC ${thcPct.toFixed(1)}%`,cbdPct>0.1?`CBD ${cbdPct.toFixed(1)}%`:""].filter(Boolean).join(" / ");
+      return `${totalG.toFixed(1)}g blend · ${(mgPerMl).toFixed(1)}mg THC/ml · ${bottles.toLocaleString()} × ${bottleSize}ml bottles · ${profile}`;
+    }
+    const potency=extractInputType==="rso"?0.60:extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);
+    const totalMg=g*potency*1000;const mgPerMl=parseFloat(tincPotencyMgPerMl)||33;const totalMl=totalMg/mgPerMl;const bottles=Math.floor(totalMl/(parseFloat(tincBottleSize)||30)*0.98);
+    return`~${totalMg.toFixed(0)}mg THC · ${totalMl.toFixed(0)}ml · ${bottles.toLocaleString()} × ${tincBottleSize}ml bottles`;
+  }
+  if(cat==="topical"){
+    const bCalc=opts.cbBlendCalc;
+    if(bCalc&&!bCalc.error){
+      const totalG=parseFloat(bCalc.totalG)||0;
+      const units=pkgV>0?Math.floor(totalG/pkgV*0.97):0;
+      const thcPct=bCalc.results?.thc||0;
+      const cbdPct=bCalc.results?.cbd||0;
+      const profile=[thcPct>0.1?`THC ${thcPct.toFixed(1)}%`:"",cbdPct>0.1?`CBD ${cbdPct.toFixed(1)}%`:""].filter(Boolean).join(" / ");
+      return `${totalG.toFixed(1)}g blend · ${units.toLocaleString()} × ${pkgL}${profile?" · "+profile:""}`;
+    }
+    const oz=amt*(unit==="lbs"?16:unit==="kg"?35.274:0.035274);const units=Math.floor(oz/pkgV*0.97);return`~${oz.toFixed(1)} oz · ${units.toLocaleString()} × ${pkgL} units`;
+  }
+  if(cat==="edible"){
+    const bCalc=opts.cbBlendCalc;
+    if(sub==="beverage"){return`~${g.toFixed(0)}ml · ${Math.floor(g/pkgV*0.97).toLocaleString()} × ${pkgL} bottles`;}
+    if(bCalc&&!bCalc.error&&bCalc.totalBatchPieces>0){
+      const pieces=bCalc.totalBatchPieces;
+      const pieceG=parseFloat(opts.pieceWeightG)||0;
+      // Build cannabinoid summary from perPiece
+      const cbSummary=Object.entries(bCalc.perPiece||{})
+        .filter(([,v])=>v>0.05)
+        .map(([k,v])=>`${CB_LABELS[k]||k.toUpperCase()} ${v.toFixed(1)}mg`)
+        .join(" / ");
+      return `${bCalc.totalG}g blend → ${pieces.toLocaleString()} × ${pieceG}g pieces${cbSummary?" · "+cbSummary+"/pc":""}`;
+    }
+    const potency=extractInputType==="rosin"?0.55:(parseFloat(inputPotencyPct)/100||0.80);const totalMg=g*potency*1000;const units=Math.floor(totalMg/pkgV*0.95);return`~${totalMg.toFixed(0)}mg (${(potency*100).toFixed(0)}% THC) · ${units.toLocaleString()} × ${pkgL} units`;
+  }
   return null;
 }
 
@@ -955,7 +996,7 @@ export default function ProductionScheduler(){
   const isThcaSub=form.sub==="thca_ff"||form.sub==="thca_trim";
   const formSteps=form.steps||(isThcaSub?getThcaSteps(form.sub,form.thcaMethod||"controlled",form.thcaRecrystCycles||1):(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days})));
   const totalDays=formSteps.reduce((a,s)=>a+(parseInt(s.days)||0),0);
-  const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,form);
+  const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,{...form,cbBlendCalc,pieceWeightG:form.pieceWeightG});
   const inputG=(parseFloat(form.inputAmt)||0)*(UNIT_TO_G[form.unit]||1);
   const isFlower=["whole_flower","ground_flower","pre_roll"].includes(form.cat);
   const isVape=form.cat==="vape";
@@ -1064,7 +1105,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1190,7 +1231,37 @@ export default function ProductionScheduler(){
               </div>
               <div><label className="ps-lbl">Package / unit size</label><select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>{pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}</select></div>
               <div style={{display:"flex",alignItems:"center"}}>
-                {yieldEst?(<div className="ps-yield"><div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>Estimated Output</div><div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",lineHeight:1.5}}>{yieldEst}</div></div>):<div style={{fontSize:12,color:"var(--text-3)"}}>Enter quantity to see yield estimate</div>}
+                {yieldEst?(
+                  <div className="ps-yield">
+                    <div style={{fontSize:10,color:"var(--accent-2)",fontWeight:700,marginBottom:2,letterSpacing:"0.06em",textTransform:"uppercase"}}>
+                      {showCb&&cbBlendCalc&&!cbBlendCalc.error?"Formulation Output":"Estimated Output"}
+                    </div>
+                    <div style={{fontSize:11,fontWeight:600,color:"var(--accent-2)",lineHeight:1.5}}>{yieldEst}</div>
+                    {/* Show cannabinoid profile inline for edibles/tinctures/topicals */}
+                    {showCb&&cbBlendCalc&&!cbBlendCalc.error&&(
+                      <div style={{marginTop:6,display:"flex",gap:6,flexWrap:"wrap"}}>
+                        {CB_KEYS.filter(k=>cbBlendCalc.results[k]>0.05).map(k=>(
+                          <span key={k} style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,
+                            background:k==="thc"?"rgba(74,124,89,0.2)":k==="cbd"?"rgba(90,120,200,0.2)":k==="cbg"?"rgba(200,150,58,0.2)":"rgba(100,100,100,0.15)",
+                            color:k==="thc"?"var(--accent-2)":k==="cbd"?"#8090e0":k==="cbg"?"var(--amber)":"var(--text-2)"}}>
+                            {CB_LABELS[k]} {cbBlendCalc.results[k].toFixed(1)}%
+                            {isPieceProduct&&cbBlendCalc.perPiece?.[k]>0.05?` · ${cbBlendCalc.perPiece[k].toFixed(1)}mg/pc`:""}
+                          </span>
+                        ))}
+                        {isPieceProduct&&cbBlendCalc.totalBatchPieces>0&&(
+                          <span style={{fontSize:10,color:"var(--text-3)"}}>
+                            {cbBlendCalc.totalBatchPieces.toLocaleString()} × {form.pieceWeightG}g pieces total
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {showCb&&!cbBlendCalc&&inputG>0&&(
+                      <div style={{fontSize:10,color:"var(--amber)",marginTop:4}}>
+                        ⚠ Add components + targets in the formulation calculator below for an accurate output estimate
+                      </div>
+                    )}
+                  </div>
+                ):<div style={{fontSize:12,color:"var(--text-3)"}}>Enter quantity to see yield estimate</div>}
               </div>
             </div>
 
@@ -1940,6 +2011,17 @@ export default function ProductionScheduler(){
                     {b.vapeHardware&&VAPE_HARDWARE[b.vapeHardware]&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>🔌 {VAPE_HARDWARE[b.vapeHardware].brand} {VAPE_HARDWARE[b.vapeHardware].model}{VAPE_HARDWARE[b.vapeHardware].partner?" ✓":""}</div>}
                     {b.strains&&<div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
                     <div style={{fontSize:10,color:"var(--text-3)"}}>{b.yieldEst||"—"}</div>
+                    {b.cbBlendResult&&["edible","tincture","topical"].includes(b.cat)&&(
+                      <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:2}}>
+                        {CB_KEYS.filter(k=>b.cbBlendResult.results?.[k]>0.05).map(k=>(
+                          <span key={k} style={{fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:8,
+                            background:k==="thc"?"rgba(74,124,89,0.2)":k==="cbd"?"rgba(90,120,200,0.2)":"rgba(200,150,58,0.2)",
+                            color:k==="thc"?"var(--accent-2)":k==="cbd"?"#8090e0":"var(--amber)"}}>
+                            {CB_LABELS[k]} {b.cbBlendResult.results[k].toFixed(1)}%
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {(b.s2sOutputTags||b.s2s_barcode)&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏷 {(b.s2sOutputTags||b.s2s_barcode||'').split(',')[0].trim()}</div>}
                     <div style={{display:"flex",gap:6,marginTop:5}}>
                       {!b.isLinked&&<button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>}
