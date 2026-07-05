@@ -7,9 +7,6 @@ const ITEM_CATS = [
   "Lab Supplies","Nutrients & Amendments","IPM Products","Cleaning & Sanitation",
   "Cultivation Supplies","Other",
 ];
-  "Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies",
-  "Cleaning & Sanitation","Other",
-];
 const UOMS = ["each","g","kg","lb","oz","gal","L","ml","case","sheet","ft","roll"];
 const VAL_METHODS = [
   {v:"fifo",   l:"FIFO (First In First Out)"},
