@@ -1,4 +1,23 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Component } from "react";
+
+class ErrorBoundary extends Component {
+  constructor(props){ super(props); this.state={hasError:false,error:null}; }
+  static getDerivedStateFromError(error){ return {hasError:true,error}; }
+  componentDidCatch(error,info){ console.error("ResinOps module error:",error,info); }
+  render(){
+    if(this.state.hasError){
+      return(
+        <div style={{padding:32,textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:12}}>⚠️</div>
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:8}}>Module Error</div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16,maxWidth:420,margin:"0 auto 16px"}}>{String(this.state.error?.message||"Unknown error")} — this is often caused by data from a previous import. Try clearing this module's data in Data &amp; Imports → Backup → Clear all data.</div>
+          <button style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",cursor:"pointer",fontSize:13,fontWeight:600}} onClick={()=>this.setState({hasError:false,error:null})}>Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
 import HarvestBatches from "./HarvestBatches.jsx";
@@ -1262,33 +1281,35 @@ export default function ResinOps() {
             </div>
           </div>
 
-          {activeModule === "scheduler" ? <Scheduler /> : null}
-          {activeModule === "production" ? <ProductionScheduler /> : null}
-          {activeModule === "harvest" ? <HarvestBatches /> : null}
-          {activeModule === "remediation" ? <Remediation /> : null}
-          {activeModule === "grow-map" ? <GrowMap /> : null}
-          {activeModule === "clone-scheduler" ? <CloneScheduler /> : null}
-          {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
-          {activeModule === "strain-db" ? <StrainDatabase /> : null}
-          {activeModule === "mother-plants" ? <MotherPlantManager /> : null}
-          {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
-          {activeModule === "spray-log" ? <SprayLog /> : null}
-          {activeModule === "tc-tracker" ? <TCTracker /> : null}
-          {activeModule === "qc-testing" ? <QCTesting /> : null}
-          {activeModule === "gmp-hub" ? <GMPHub /> : null}
-          {activeModule === "employees" ? <Employees /> : null}
-          {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
-          {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}
-          {activeModule === "data-manager" ? <DataManager /> : null}
-          {activeModule === "facility-settings" ? <FacilitySettings /> : null}
-          {activeModule === "labor-setup" ? <LaborManager /> : null}
-          {activeModule === "labor-dash" ? <LaborDashboard /> : null}
-          {activeModule === "inventory" ? <InventoryERP /> : null}
-          {activeModule === "finance" ? <Finance /> : null}
-          {activeModule === "equipment" ? <Equipment /> : null}
-          {activeModule === "facility-map" ? <FacilityMap /> : null}
-          {activeModule === "maintenance" ? <Maintenance /> : null}
-          {activeModule === "sales" ? <SalesOrders /> : null}
+          <ErrorBoundary key={activeModule}>
+            {activeModule === "scheduler" ? <Scheduler /> : null}
+            {activeModule === "production" ? <ProductionScheduler /> : null}
+            {activeModule === "harvest" ? <HarvestBatches /> : null}
+            {activeModule === "remediation" ? <Remediation /> : null}
+            {activeModule === "grow-map" ? <GrowMap /> : null}
+            {activeModule === "clone-scheduler" ? <CloneScheduler /> : null}
+            {activeModule === "pheno-hunt" ? <PhenoHunt /> : null}
+            {activeModule === "strain-db" ? <StrainDatabase /> : null}
+            {activeModule === "mother-plants" ? <MotherPlantManager /> : null}
+            {activeModule === "cult-inputs" ? <CultivationInputs /> : null}
+            {activeModule === "spray-log" ? <SprayLog /> : null}
+            {activeModule === "tc-tracker" ? <TCTracker /> : null}
+            {activeModule === "qc-testing" ? <QCTesting /> : null}
+            {activeModule === "gmp-hub" ? <GMPHub /> : null}
+            {activeModule === "employees" ? <Employees /> : null}
+            {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
+            {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}
+            {activeModule === "data-manager" ? <DataManager /> : null}
+            {activeModule === "facility-settings" ? <FacilitySettings /> : null}
+            {activeModule === "labor-setup" ? <LaborManager /> : null}
+            {activeModule === "labor-dash" ? <LaborDashboard /> : null}
+            {activeModule === "inventory" ? <InventoryERP /> : null}
+            {activeModule === "finance" ? <Finance /> : null}
+            {activeModule === "equipment" ? <Equipment /> : null}
+            {activeModule === "facility-map" ? <FacilityMap /> : null}
+            {activeModule === "maintenance" ? <Maintenance /> : null}
+            {activeModule === "sales" ? <SalesOrders /> : null}
+          </ErrorBoundary>
 
           <div className="chat-area" style={{display: (isSchedulerActive && !isAIChat) ? "none" : undefined}}>
             {showWelcome && (
