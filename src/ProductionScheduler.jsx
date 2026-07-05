@@ -693,19 +693,24 @@ export default function ProductionScheduler(){
 
   const timelines=batches.map(b=>{
     if(!b.d||!Array.isArray(b.steps)||b.steps.length===0) return [];
-    return buildTimeline(b.d,b.steps);
+    try{ return buildTimeline(b.d,b.steps); }catch{ return []; }
   });
   const hasBatches=batches.length>0;
   let gStart,total,twPx,todayOff,months,weeks;
   if(hasBatches){
     const allS=timelines.map(tl=>tl[0]?.start).filter(Boolean);
     const allE=timelines.map(tl=>tl[tl.length-1]?.end).filter(Boolean);
-    gStart=new Date(Math.min(...allS));total=dDiff(gStart,new Date(Math.max(...allE)))+10;
-    twPx=total*PX;todayOff=dDiff(gStart,today);
-    months=[];let mo="",moX=0;
-    for(let day=0;day<=total;day++){const ml=dAdd(gStart,day).toLocaleDateString("en-US",{month:"short",year:"2-digit"});if(ml!==mo){if(mo)months.push({label:mo,x:moX,w:day*PX-moX});mo=ml;moX=day*PX;}}
-    months.push({label:mo,x:moX,w:total*PX-moX});
-    weeks=[];for(let day=0;day<=total;day+=7)weeks.push({x:day*PX,wn:Math.floor(day/7)+1,date:fmtS(dAdd(gStart,day))});
+    if(!allS.length||!allE.length){
+      // All batches have empty timelines — skip Gantt rendering
+      gStart=null;total=0;twPx=0;todayOff=0;months=[];weeks=[];
+    } else {
+      gStart=new Date(Math.min(...allS));total=dDiff(gStart,new Date(Math.max(...allE)))+10;
+      twPx=total*PX;todayOff=dDiff(gStart,today);
+      months=[];let mo="",moX=0;
+      for(let day=0;day<=total;day++){const ml=dAdd(gStart,day).toLocaleDateString("en-US",{month:"short",year:"2-digit"});if(ml!==mo){if(mo)months.push({label:mo,x:moX,w:day*PX-moX});mo=ml;moX=day*PX;}}
+      months.push({label:mo,x:moX,w:total*PX-moX});
+      weeks=[];for(let day=0;day<=total;day+=7)weeks.push({x:day*PX,wn:Math.floor(day/7)+1,date:fmtS(dAdd(gStart,day))});
+    }
   }
   function batchStatus(b,tl){const start=new Date(b.d+"T00:00:00");const end=tl[tl.length-1]?.end;if(!end)return{label:"—",cls:"sp-u"};if(end<today0)return{label:"Complete",cls:"sp-c"};if(start>today0)return{label:"Upcoming",cls:"sp-u"};return{label:"In Progress",cls:"sp-a"};}
 
@@ -1132,7 +1137,7 @@ export default function ProductionScheduler(){
           </div>
         )}
 
-        {hasBatches&&(<>
+        {hasBatches&&gStart&&(<>
           <div className="ps-outer">
             <div className="ps-row" style={{height:HH,background:"var(--surface-2)"}}>
               <div className="ps-left" style={{height:HH,background:"var(--surface-2)"}}><span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span></div>
