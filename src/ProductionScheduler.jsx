@@ -1554,15 +1554,6 @@ export default function ProductionScheduler(){
                 </div>
               )}
             </div>}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Terp additive needed</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.terpAdd}g</div><div style={{fontSize:10,color:"#7080c0"}}>of selected source</div></div>
-                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Total volume</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.total}g</div></div>
-                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Est. final potency</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.finalPot}% THC</div></div>
-                  <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Est. cart count</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.carts.toLocaleString()}</div><div style={{fontSize:10,color:"#7080c0"}}>× {pkgSel?.l} @ 97% fill eff.</div></div>
-                </div>
-              </div>}
-              {formCalc?.error&&<div style={{fontSize:12,color:"var(--danger)",marginTop:6}}>{formCalc.error}</div>}
-            </div>}
 
             {/* Tincture */}
             {form.cat==="tincture"&&<div className="ps-box">
