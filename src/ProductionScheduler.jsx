@@ -239,6 +239,153 @@ const DISTILLATION_SPECS = {
   wfe_delta:    {type:"WFE",vol:"TruVax",brand:"Delta Separations",mfr:"Delta Separations",throughputG:1800,pass1Yield:0.83,pass2Yield:0.90,notes:"Integrated ethanol extraction + distillation system."},
   wfe_custom:   {type:"WFE",vol:"Custom",brand:"Custom",mfr:"",throughputG:1000,pass1Yield:0.82,pass2Yield:0.90,notes:"Custom WFE. Enter your own throughput."},
 };
+// ── Vape hardware specs ───────────────────────────────────────────────────────
+// Finished Goods is a featured verified partner — finishedgoods.com
+const VAPE_HARDWARE = {
+  // ── FINISHED GOODS — Featured Partner ──────────────────────────────────────
+  fg_air: {
+    brand:"Finished Goods",model:"Air",type:"AIO",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/all-in-ones",
+    capacities_ml:[0.5,1.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","live_rosin","rosin","HTE"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic (PrecisionFlow™)",airflowOptions:["restricted","medium","open"],
+    notes:"Finished Goods flagship AIO. 0.02% failure rate — 50-100x better than industry average. PrecisionFlow™ atomizer tuned per oil type.",
+  },
+  fg_air_mini: {
+    brand:"Finished Goods",model:"Air Mini",type:"AIO",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/all-in-ones",
+    capacities_ml:[0.5],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","rosin"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic (PrecisionFlow™)",airflowOptions:["restricted","medium","open"],
+    notes:"Compact AIO. Same PrecisionFlow™ system as Air. Ideal for 0.5g program.",
+  },
+  fg_xmini: {
+    brand:"Finished Goods",model:"X Mini",type:"AIO",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/all-in-ones",
+    capacities_ml:[0.5,1.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","live_rosin","rosin","HTE"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:80,
+    coilType:"Ceramic (PrecisionFlow™ — 3 swappable atomizers)",airflowOptions:["restricted","medium","open"],
+    notes:"Fastest selling Finished Goods product. 3 interchangeable PrecisionFlow™ atomizers + 3 airflow options — maximum customization per oil type.",
+  },
+  fg_magnum: {
+    brand:"Finished Goods",model:"Magnum",type:"AIO",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/all-in-ones",
+    capacities_ml:[2.0,3.0,4.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","live_rosin","rosin"],
+    fillMethod:"bottom_fill",fillTempF_min:72,fillTempF_max:82,
+    coilType:"Ceramic (PrecisionFlow™)",airflowOptions:["restricted","medium"],
+    notes:"High-capacity AIO up to 4g. Farm-fresh flavor delivery. Ideal for premium concentrate programs.",
+  },
+  fg_pure2: {
+    brand:"Finished Goods",model:"Pure 2.0",type:"AIO",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/all-in-ones",
+    capacities_ml:[0.5,1.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","rosin"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic (PrecisionFlow™)",airflowOptions:["restricted","medium","open"],
+    notes:"Sleek design with updated PrecisionFlow™ 2.0 atomizer system.",
+  },
+  fg_z510: {
+    brand:"Finished Goods",model:"Z510",type:"510 Cartridge",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/510-thread-cartridges",
+    capacities_ml:[0.5,1.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","live_rosin","rosin","HTE"],
+    fillMethod:"top_fill",fillTempF_min:65,fillTempF_max:75,
+    coilType:"Ceramic (PrecisionFlow™)",
+    notes:"Glass + stainless 510 cart. PrecisionFlow™ tuned per formulation. No clogs.",
+  },
+  fg_g510: {
+    brand:"Finished Goods",model:"G510",type:"510 Cartridge",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/510-thread-cartridges",
+    capacities_ml:[0.5,1.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","rosin"],
+    fillMethod:"top_fill",fillTempF_min:65,fillTempF_max:75,
+    coilType:"Ceramic (PrecisionFlow™)",
+    notes:"Glass body 510 cartridge with PrecisionFlow™ atomizer.",
+  },
+  fg_2g_slim: {
+    brand:"Finished Goods",model:"2G Slim",type:"510 Cartridge",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/510-thread-cartridges",
+    capacities_ml:[2.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin"],
+    fillMethod:"top_fill",fillTempF_min:68,fillTempF_max:80,
+    coilType:"Ceramic (PrecisionFlow™)",
+    notes:"2g slim profile 510. High capacity in a sleek form factor.",
+  },
+  fg_pod: {
+    brand:"Finished Goods",model:"Pod System",type:"Pod",verified:true,partner:true,
+    partnerUrl:"https://www.finishedgoods.com/cannabis-vaporizers/pod-system",
+    capacities_ml:[0.5,1.0,2.0],failureRatePct:0.02,
+    precisionFlow:true,
+    oilTypes:["distillate","live_resin","live_rosin","rosin","HTE"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic (PrecisionFlow™)",
+    notes:"Modular pod system. Magnetic connection. Refillable or disposable pod options.",
+  },
+  // ── Other brands ───────────────────────────────────────────────────────────
+  ccell_m6t: {
+    brand:"CCELL",model:"M6T",type:"510 Cartridge",verified:false,partner:false,
+    capacities_ml:[0.5,1.0],failureRatePct:0.8,
+    oilTypes:["distillate","live_resin"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic",
+    notes:"Industry standard reference cart. Wide availability through distributors.",
+  },
+  ccell_th2: {
+    brand:"CCELL",model:"TH2",type:"AIO",verified:false,partner:false,
+    capacities_ml:[0.5,1.0],failureRatePct:1.0,
+    oilTypes:["distillate","live_resin"],
+    fillMethod:"bottom_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic",
+    notes:"Common AIO. Higher failure rate than Finished Goods PrecisionFlow™.",
+  },
+  greentank_gt: {
+    brand:"Greentank",model:"GT Series",type:"510 Cartridge",verified:false,partner:false,
+    capacities_ml:[0.5,1.0],failureRatePct:0.5,
+    oilTypes:["distillate","live_resin","rosin"],
+    fillMethod:"top_fill",fillTempF_min:68,fillTempF_max:76,
+    coilType:"Ceramic",
+    notes:"Canadian manufacturer. Good performance for rosin-based formulations.",
+  },
+  generic_510: {
+    brand:"Generic",model:"510 Cartridge",type:"510 Cartridge",verified:false,partner:false,
+    capacities_ml:[0.5,1.0],failureRatePct:2.0,
+    oilTypes:["distillate"],
+    fillMethod:"top_fill",fillTempF_min:68,fillTempF_max:78,
+    coilType:"Ceramic",
+    notes:"Unbranded / generic hardware. Higher failure rate — order 3-5% overage.",
+  },
+  generic_aio: {
+    brand:"Generic",model:"AIO Disposable",type:"AIO",verified:false,partner:false,
+    capacities_ml:[0.5,1.0,2.0],failureRatePct:2.5,
+    oilTypes:["distillate"],
+    fillMethod:"bottom_fill",fillTempF_min:70,fillTempF_max:80,
+    coilType:"Ceramic",
+    notes:"Unbranded AIO. Order 4-6% overage to account for failure rate.",
+  },
+};
+
+// ── Packaging vendor specs ────────────────────────────────────────────────────
+const PKG_VENDORS = {
+  // Finished Goods packaging — featured partner
+  fg_cr_glass_jar: {brand:"Finished Goods",type:"CR Glass Jar",partner:true,partnerUrl:"https://www.finishedgoods.com/cannabis-packaging/child-resistant-glass-jars",customPrint:true,leadTimeWks:2,fsccertified:true,sizes:["1g","2g","3.5g","7g","14g"],notes:"Airtight. Custom finishes and labeling. Sub-two-week production."},
+  fg_pop_top: {brand:"Finished Goods",type:"Pop Top Tube",partner:true,partnerUrl:"https://www.finishedgoods.com/cannabis-packaging/pop-top-tubes",customPrint:true,leadTimeWks:2,sizes:["0.5g","1g","2g"],notes:"CR pop top tubes. Custom printing. Sub-two-week lead time."},
+  fg_mylar: {brand:"Finished Goods",type:"Mylar Bag",partner:true,partnerUrl:"https://www.finishedgoods.com/cannabis-packaging/mylar-bags",customPrint:true,leadTimeWks:2,fsccertified:true,sizes:["1g","3.5g","7g","14g","28g"],notes:"Digital and roto-gravure printing. Recyclable ink options. FSC certified."},
+  fg_peel_n_tear_vape: {brand:"Finished Goods",type:"Peel N Tear — Vape",partner:true,partnerUrl:"https://www.finishedgoods.com/cannabis-packaging/peel-n-tear-vapes",customPrint:true,leadTimeWks:2,notes:"CR vape packaging. Paper slide and plastic insert options."},
+  fg_concentrate_jar: {brand:"Finished Goods",type:"Concentrate Jar",partner:true,partnerUrl:"https://www.finishedgoods.com/cannabis-packaging/concentrate-jars",customPrint:true,leadTimeWks:2,sizes:["1g","2g","3.5g","7g"],notes:"Airtight. Engineered for concentrate viscosity and aroma containment."},
+};
+
 
 const PKG_CONTAINERS = {
   whole_flower: [
@@ -497,7 +644,7 @@ const CSS=`
 const EMPTY={
   name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
-  overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",
+  overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",
   extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
   kiefSift:false,kief40Pct:"12",kief100Pct:"8",cannabinoids:["THC"],
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
@@ -631,7 +778,7 @@ export default function ProductionScheduler(){
   function openEdit(b){window.__resinopsUnsaved=true;
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
-      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
+      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),packagingContainer:b.packagingContainer||"",packagingUnitsPerPack:String(b.packagingUnitsPerPack||5),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
@@ -653,7 +800,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1027,6 +1174,135 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Vape options */}
+            {/* Vape Hardware Selector */}
+            {isVape&&(()=>{
+              const hwKey = form.vapeHardware||"fg_xmini";
+              const hw = VAPE_HARDWARE[hwKey];
+              const fgModels = Object.entries(VAPE_HARDWARE).filter(([,v])=>v.partner);
+              const otherModels = Object.entries(VAPE_HARDWARE).filter(([,v])=>!v.partner);
+              // Yield calc — account for failure rate
+              const totalUnits = form.pkgIdx>=0&&inputG>0 ? Math.floor(inputG/(pkgSel?.v||1)) : 0;
+              const failUnits = hw ? Math.ceil(totalUnits*(hw.failureRatePct/100)) : 0;
+              const goodUnits = totalUnits - failUnits;
+              const overOrderPct = hw ? (hw.failureRatePct*1.5).toFixed(1) : 2;
+              return(
+                <div className="ps-box" style={{border:"1px solid rgba(74,124,89,0.3)",background:"rgba(74,124,89,0.03)"}}>
+                  <div className="ps-box-t" style={{color:"var(--accent-2)"}}>🔌 Vape Hardware Selection</div>
+                  <div style={{marginBottom:10}}>
+                    <label className="ps-lbl">Hardware model</label>
+                    <select className="ps-sel" value={hwKey} onChange={e=>setF("vapeHardware",e.target.value)}>
+                      <optgroup label="✅ Finished Goods — Verified Partner (0.02% failure rate)">
+                        {fgModels.map(([k,v])=><option key={k} value={k}>{v.type} — {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
+                      </optgroup>
+                      <optgroup label="Other Brands">
+                        {otherModels.map(([k,v])=><option key={k} value={k}>{v.brand} {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+                  {hw&&(
+                    <div style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                        <span style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{hw.brand} — {hw.model}</span>
+                        {hw.partner&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>✓ VERIFIED PARTNER</span>}
+                        {hw.precisionFlow&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.08)",color:"var(--accent-2)"}}>PrecisionFlow™</span>}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
+                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Failure Rate</div>
+                          <div style={{fontSize:16,fontWeight:700,color:hw.failureRatePct<0.1?"var(--accent-2)":hw.failureRatePct<1?"var(--amber)":"var(--danger)"}}>{hw.failureRatePct}%</div>
+                        </div>
+                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Fill Temp</div>
+                          <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{hw.fillTempF_min}-{hw.fillTempF_max}°F</div>
+                        </div>
+                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Fill Method</div>
+                          <div style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{hw.fillMethod==="bottom_fill"?"Bottom fill":"Top fill"}</div>
+                        </div>
+                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Coil</div>
+                          <div style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{hw.coilType?.split(" ")[0]}</div>
+                        </div>
+                      </div>
+                      <div style={{fontSize:11,color:"var(--text-3)",marginBottom:6}}>
+                        <strong style={{color:"var(--text-2)"}}>Compatible oils:</strong> {hw.oilTypes?.join(", ")}
+                      </div>
+                      {hw.airflowOptions&&<div style={{fontSize:11,color:"var(--text-3)",marginBottom:6}}>
+                        <strong style={{color:"var(--text-2)"}}>Airflow options:</strong> {hw.airflowOptions.join(", ")}
+                      </div>}
+                      {hw.notes&&<div style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic"}}>{hw.notes}</div>}
+                      {totalUnits>0&&(
+                        <div style={{marginTop:8,padding:"6px 10px",background:"rgba(74,124,89,0.06)",borderRadius:6,fontSize:11}}>
+                          <strong style={{color:"var(--accent-2)"}}>For {totalUnits.toLocaleString()} units:</strong> expect ~{failUnits} failures ({hw.failureRatePct}%) — order {Math.ceil(totalUnits*(1+overOrderPct/100)).toLocaleString()} units ({overOrderPct}% overage recommended)
+                        </div>
+                      )}
+                      {hw.partner&&<div style={{marginTop:8}}>
+                        <a href={hw.partnerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"var(--accent-2)",fontWeight:600,textDecoration:"none"}}>
+                          → Request quote from Finished Goods ↗
+                        </a>
+                      </div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ── Vape Hardware Selector — Finished Goods featured partner ── */}
+            {isVape&&(()=>{
+              const hwKey=form.vapeHardware||"fg_xmini";
+              const hw=VAPE_HARDWARE[hwKey];
+              const fgModels=Object.entries(VAPE_HARDWARE).filter(([,v])=>v.partner);
+              const otherModels=Object.entries(VAPE_HARDWARE).filter(([,v])=>!v.partner);
+              const totalUnits=inputG>0&&pkgSel?.v?Math.floor(inputG/pkgSel.v):0;
+              const failUnits=hw?Math.ceil(totalUnits*(hw.failureRatePct/100)):0;
+              const overOrderPct=hw?(hw.failureRatePct*1.5).toFixed(1):"2";
+              return(
+                <div className="ps-box" style={{border:"1px solid rgba(74,124,89,0.3)",background:"rgba(74,124,89,0.03)"}}>
+                  <div className="ps-box-t" style={{color:"var(--accent-2)"}}>🔌 Vape Hardware</div>
+                  <div style={{marginBottom:10}}>
+                    <label className="ps-lbl">Hardware model</label>
+                    <select className="ps-sel" value={hwKey} onChange={e=>setF("vapeHardware",e.target.value)}>
+                      <optgroup label="✅ Finished Goods — Verified Partner (0.02% failure rate)">
+                        {fgModels.map(([k,v])=><option key={k} value={k}>{v.type} — {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
+                      </optgroup>
+                      <optgroup label="Other Brands">
+                        {otherModels.map(([k,v])=><option key={k} value={k}>{v.brand} {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
+                      </optgroup>
+                    </select>
+                  </div>
+                  {hw&&(
+                    <div style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{hw.brand} — {hw.model}</span>
+                        {hw.partner&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>✓ VERIFIED PARTNER</span>}
+                        {hw.precisionFlow&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.08)",color:"var(--accent-2)"}}>PrecisionFlow™</span>}
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
+                        {[
+                          {label:"Failure Rate",value:hw.failureRatePct+"%",color:hw.failureRatePct<0.1?"var(--accent-2)":hw.failureRatePct<1?"var(--amber)":"var(--danger)"},
+                          {label:"Fill Temp",value:hw.fillTempF_min+"-"+hw.fillTempF_max+"°F",color:"var(--text)"},
+                          {label:"Fill Method",value:hw.fillMethod==="bottom_fill"?"Bottom":"Top",color:"var(--text)"},
+                          {label:"Coil",value:hw.coilType?.split(" ")[0]||"Ceramic",color:"var(--text)"},
+                        ].map(s=>(
+                          <div key={s.label} style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+                            <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>{s.label}</div>
+                            <div style={{fontSize:14,fontWeight:700,color:s.color}}>{s.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {hw.oilTypes&&<div style={{fontSize:11,color:"var(--text-3)",marginBottom:4}}><strong style={{color:"var(--text-2)"}}>Compatible oils:</strong> {hw.oilTypes.join(", ")}</div>}
+                      {hw.airflowOptions&&<div style={{fontSize:11,color:"var(--text-3)",marginBottom:4}}><strong style={{color:"var(--text-2)"}}>Airflow options:</strong> {hw.airflowOptions.join(", ")}</div>}
+                      {hw.notes&&<div style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic",marginBottom:6}}>{hw.notes}</div>}
+                      {totalUnits>0&&<div style={{padding:"6px 10px",background:"rgba(74,124,89,0.06)",borderRadius:6,fontSize:11,marginBottom:6}}>
+                        <strong style={{color:"var(--accent-2)"}}>For {totalUnits.toLocaleString()} units:</strong> expect ~{failUnits} failures at {hw.failureRatePct}% — order {Math.ceil(totalUnits*(1+parseFloat(overOrderPct)/100)).toLocaleString()} units ({overOrderPct}% overage recommended)
+                      </div>}
+                      {hw.partner&&<a href={hw.partnerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"var(--accent-2)",fontWeight:600,textDecoration:"none",display:"block"}}>→ Request quote from Finished Goods ↗</a>}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {isVape&&!isVapeOil&&<div className="ps-box">
               <div className="ps-box-t">Vape — Input Material</div>
               <div style={{maxWidth:320}}><label className="ps-lbl">Input material type</label><select className="ps-sel" value={form.vapeInputType} onChange={e=>setF("vapeInputType",e.target.value)}><option value="distillate">Distillate</option><option value="live_resin">Live Resin</option><option value="rosin">Rosin</option></select></div>
@@ -1169,7 +1445,8 @@ export default function ProductionScheduler(){
                   <div className="ps-left" style={{height:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
                     <div style={{fontSize:12,fontWeight:600,color:b.isLinked?"#8090d0":"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.isLinked?"↳ ":""}{b.name}</div>
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
-                    {b.packagingContainer&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>{PKG_CONTAINERS[b.cat]?.find(c=>c.v===b.packagingContainer)?.l||b.packagingContainer}{b.packagingUnitsPerPack&&b.packagingUnitsPerPack>1?` · ${b.packagingUnitsPerPack}-pack`:""}</div>}
+                    {b.packagingContainer&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>{PKG_CONTAINERS[b.cat]?.find(c=>c.v===b.packagingContainer)?.l||b.packagingContainer}{b.packagingUnitsPerPack>1?` · ${b.packagingUnitsPerPack}-pack`:""}</div>}
+                    {b.vapeHardware&&VAPE_HARDWARE[b.vapeHardware]&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>🔌 {VAPE_HARDWARE[b.vapeHardware].brand} {VAPE_HARDWARE[b.vapeHardware].model}{VAPE_HARDWARE[b.vapeHardware].partner?" ✓":""}</div>}
                     {b.strains&&<div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
                     <div style={{fontSize:10,color:"var(--text-3)"}}>{b.yieldEst||"—"}</div>
                     {(b.s2sOutputTags||b.s2s_barcode)&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏷 {(b.s2sOutputTags||b.s2s_barcode||'').split(',')[0].trim()}</div>}
