@@ -226,6 +226,9 @@ const MODULES = [
     isScheduler: true,
     sectionBreak: null,
   },
+  {
+    id: "scheduler",
+    label: "Grow Scheduler",
     icon: "📅",
     available: true,
     description: "Plan timelines from clone cut to inventory",
