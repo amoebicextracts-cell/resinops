@@ -644,7 +644,7 @@ const CSS=`
 const EMPTY={
   name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
-  overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",
+  overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",vapeInputTerpPct:"0",
   extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
   kiefSift:false,kief40Pct:"12",kief100Pct:"8",cannabinoids:["THC"],
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
@@ -778,7 +778,7 @@ export default function ProductionScheduler(){
   function openEdit(b){window.__resinopsUnsaved=true;
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
-      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
+      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",vapeInputTerpPct:String(b.vapeInputTerpPct||0),extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),packagingContainer:b.packagingContainer||"",packagingUnitsPerPack:String(b.packagingUnitsPerPack||5),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
@@ -800,7 +800,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1174,79 +1174,6 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Vape options */}
-            {/* Vape Hardware Selector */}
-            {isVape&&(()=>{
-              const hwKey = form.vapeHardware||"fg_xmini";
-              const hw = VAPE_HARDWARE[hwKey];
-              const fgModels = Object.entries(VAPE_HARDWARE).filter(([,v])=>v.partner);
-              const otherModels = Object.entries(VAPE_HARDWARE).filter(([,v])=>!v.partner);
-              // Yield calc — account for failure rate
-              const totalUnits = form.pkgIdx>=0&&inputG>0 ? Math.floor(inputG/(pkgSel?.v||1)) : 0;
-              const failUnits = hw ? Math.ceil(totalUnits*(hw.failureRatePct/100)) : 0;
-              const goodUnits = totalUnits - failUnits;
-              const overOrderPct = hw ? (hw.failureRatePct*1.5).toFixed(1) : 2;
-              return(
-                <div className="ps-box" style={{border:"1px solid rgba(74,124,89,0.3)",background:"rgba(74,124,89,0.03)"}}>
-                  <div className="ps-box-t" style={{color:"var(--accent-2)"}}>🔌 Vape Hardware Selection</div>
-                  <div style={{marginBottom:10}}>
-                    <label className="ps-lbl">Hardware model</label>
-                    <select className="ps-sel" value={hwKey} onChange={e=>setF("vapeHardware",e.target.value)}>
-                      <optgroup label="✅ Finished Goods — Verified Partner (0.02% failure rate)">
-                        {fgModels.map(([k,v])=><option key={k} value={k}>{v.type} — {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
-                      </optgroup>
-                      <optgroup label="Other Brands">
-                        {otherModels.map(([k,v])=><option key={k} value={k}>{v.brand} {v.model} ({v.capacities_ml.join("/")}mL)</option>)}
-                      </optgroup>
-                    </select>
-                  </div>
-                  {hw&&(
-                    <div style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                        <span style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>{hw.brand} — {hw.model}</span>
-                        {hw.partner&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>✓ VERIFIED PARTNER</span>}
-                        {hw.precisionFlow&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(74,124,89,0.08)",color:"var(--accent-2)"}}>PrecisionFlow™</span>}
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:8}}>
-                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Failure Rate</div>
-                          <div style={{fontSize:16,fontWeight:700,color:hw.failureRatePct<0.1?"var(--accent-2)":hw.failureRatePct<1?"var(--amber)":"var(--danger)"}}>{hw.failureRatePct}%</div>
-                        </div>
-                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Fill Temp</div>
-                          <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{hw.fillTempF_min}-{hw.fillTempF_max}°F</div>
-                        </div>
-                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Fill Method</div>
-                          <div style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{hw.fillMethod==="bottom_fill"?"Bottom fill":"Top fill"}</div>
-                        </div>
-                        <div style={{background:"var(--surface-2)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-                          <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Coil</div>
-                          <div style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{hw.coilType?.split(" ")[0]}</div>
-                        </div>
-                      </div>
-                      <div style={{fontSize:11,color:"var(--text-3)",marginBottom:6}}>
-                        <strong style={{color:"var(--text-2)"}}>Compatible oils:</strong> {hw.oilTypes?.join(", ")}
-                      </div>
-                      {hw.airflowOptions&&<div style={{fontSize:11,color:"var(--text-3)",marginBottom:6}}>
-                        <strong style={{color:"var(--text-2)"}}>Airflow options:</strong> {hw.airflowOptions.join(", ")}
-                      </div>}
-                      {hw.notes&&<div style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic"}}>{hw.notes}</div>}
-                      {totalUnits>0&&(
-                        <div style={{marginTop:8,padding:"6px 10px",background:"rgba(74,124,89,0.06)",borderRadius:6,fontSize:11}}>
-                          <strong style={{color:"var(--accent-2)"}}>For {totalUnits.toLocaleString()} units:</strong> expect ~{failUnits} failures ({hw.failureRatePct}%) — order {Math.ceil(totalUnits*(1+overOrderPct/100)).toLocaleString()} units ({overOrderPct}% overage recommended)
-                        </div>
-                      )}
-                      {hw.partner&&<div style={{marginTop:8}}>
-                        <a href={hw.partnerUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"var(--accent-2)",fontWeight:600,textDecoration:"none"}}>
-                          → Request quote from Finished Goods ↗
-                        </a>
-                      </div>}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
             {/* ── Vape Hardware Selector — Finished Goods featured partner ── */}
             {isVape&&(()=>{
               const hwKey=form.vapeHardware||"fg_xmini";
@@ -1304,22 +1231,76 @@ export default function ProductionScheduler(){
             })()}
 
             {isVape&&!isVapeOil&&<div className="ps-box">
-              <div className="ps-box-t">Vape — Input Material</div>
-              <div style={{maxWidth:320}}><label className="ps-lbl">Input material type</label><select className="ps-sel" value={form.vapeInputType} onChange={e=>setF("vapeInputType",e.target.value)}><option value="distillate">Distillate</option><option value="live_resin">Live Resin</option><option value="rosin">Rosin</option></select></div>
+              <div className="ps-box-t">Input Material</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <div><label className="ps-lbl">Input material type</label>
+                  <select className="ps-sel" value={form.vapeInputType} onChange={e=>setF("vapeInputType",e.target.value)}>
+                    <option value="distillate">Distillate</option>
+                    <option value="live_resin">Live Resin</option>
+                    <option value="rosin">Rosin</option>
+                    <option value="live_rosin">Live Rosin</option>
+                    <option value="hte">HTE (High Terpene Extract)</option>
+                    <option value="crude">Crude Oil</option>
+                  </select>
+                </div>
+                <div><label className="ps-lbl">Starting potency (% THC/THCa)</label>
+                  <input type="number" min="1" max="99" step="0.5" className="ps-inp"
+                    value={form.vapeStartPotency} onChange={e=>setF("vapeStartPotency",e.target.value)}
+                    placeholder="e.g. 85" />
+                </div>
+                <div><label className="ps-lbl">Input material terpene % (from COA)</label>
+                  <input type="number" min="0" max="50" step="0.1" className="ps-inp"
+                    value={form.vapeInputTerpPct||"0"} onChange={e=>setF("vapeInputTerpPct",e.target.value)}
+                    placeholder="e.g. 3.2" />
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",paddingBottom:2}}>
+                  <div style={{fontSize:11,color:"var(--text-3)",lineHeight:1.4}}>
+                    {form.vapeInputType==="hte"?"HTE is already high-terp — adding exogenous terps is optional":
+                     form.vapeInputType==="distillate"?"Distillate is typically 0% terps — add back below":
+                     form.vapeInputType==="live_resin"?"Live resin retains native terps — enter COA value":
+                     "Enter % from COA or lab result"}
+                  </div>
+                </div>
+              </div>
             </div>}
+
             {isVapeOil&&<div className="ps-box">
               <div className="ps-box-t">Vape Oil — Sauce Separation Method</div>
               <div style={{maxWidth:320}}><label className="ps-lbl">Separation method</label><select className="ps-sel" value={form.sauceSepMethod} onChange={e=>setF("sauceSepMethod",e.target.value)}><option value="pour_off">Pour Off</option><option value="centrifuge">Centrifuge</option></select></div>
             </div>}
 
             {/* Vape formulation calculator */}
+            {/* Vape Formulation Calculator */}
             {isVapeFormulable&&<div className="ps-box">
-              <div className="ps-box-t">Vape Formulation Calculator</div>
+              <div className="ps-box-t">Terpene Formulation Calculator</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>
+                Calculate how much terpene additive to blend with your input material to hit your target terpene % in the finished product.
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div><label className="ps-lbl">Distillate starting potency (% THC)</label><input type="number" min="1" max="99" className="ps-inp" value={form.vapeStartPotency} onChange={e=>setF("vapeStartPotency",e.target.value)} /></div>
-                <div><label className="ps-lbl">Target terpene % in final product</label><input type="number" min="1" max="50" step="0.5" className="ps-inp" value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)} /></div>
-                <div style={{gridColumn:"span 2"}}><label className="ps-lbl">Terpene source</label><select className="ps-sel" value={form.vapeTerpSource} onChange={e=>{const k=e.target.value;setForm(f=>({...f,vapeTerpSource:k,vapeTerpSrcPotency:String((TERP_SRCS[k]?.thc||0)*100)}));}}>{Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
-                <div><label className="ps-lbl">Terp source THC % — editable (default shown, override with your COA)</label><input type="number" min="0" max="100" step="0.5" className="ps-inp" value={form.vapeTerpSrcPotency} onChange={e=>setF("vapeTerpSrcPotency",e.target.value)} /></div>
+                <div><label className="ps-lbl">Target terpene % in finished cart/AIO</label>
+                  <input type="number" min="0" max="50" step="0.5" className="ps-inp"
+                    value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)} />
+                </div>
+                <div><label className="ps-lbl">Terpene additive source</label>
+                  <select className="ps-sel" value={form.vapeTerpSource}
+                    onChange={e=>{const k=e.target.value;setForm(f=>({...f,vapeTerpSource:k,vapeTerpSrcPotency:String((TERP_SRCS[k]?.thc||0)*100)}));}}>
+                    {Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
+                  </select>
+                </div>
+                <div><label className="ps-lbl">Additive source THC % (override from COA)</label>
+                  <input type="number" min="0" max="100" step="0.5" className="ps-inp"
+                    value={form.vapeTerpSrcPotency} onChange={e=>setF("vapeTerpSrcPotency",e.target.value)} />
+                </div>
+                <div style={{display:"flex",alignItems:"flex-end",paddingBottom:2}}>
+                  {(()=>{
+                    // Calculate terpene delta needed
+                    const inputTerpPct = parseFloat(form.vapeInputTerpPct||0);
+                    const targetTerpPct = parseFloat(form.vapeTerpPct||10);
+                    const deltaTerp = Math.max(0, targetTerpPct - inputTerpPct);
+                    if(deltaTerp===0) return <div style={{fontSize:11,color:"var(--accent-2)"}}>✓ Input material already meets target terpene %</div>;
+                    return <div style={{fontSize:11,color:"var(--text-3)"}}>Need to add <strong style={{color:"var(--accent-2)"}}>{deltaTerp.toFixed(1)}%</strong> exogenous terpenes to reach target</div>;
+                  })()}
+                </div>
               </div>
               {formCalc&&!formCalc.error&&<div className="ps-form-out">
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
