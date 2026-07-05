@@ -205,6 +205,33 @@ export default function Dashboard({ onNavigate }){
           <div style={{fontSize:12,color:"var(--text-3)"}}>{today.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}{totalAlerts>0&&<span style={{marginLeft:10,fontWeight:600,color:"var(--danger)"}}>• {totalAlerts} item{totalAlerts!==1?"s":""} need attention</span>}</div>
         </div>
 
+        {/* Empty state — show when no meaningful data exists */}
+        {!settings.facilityName&&salesOrders.length===0&&harvestBatches.length===0&&employees.length===0&&(
+          <div style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:12,padding:"32px 28px",marginBottom:20,textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:12}}>🌿</div>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--text)",marginBottom:8}}>Welcome to ResinOps</div>
+            <div style={{fontSize:13,color:"var(--text-2)",marginBottom:20,maxWidth:480,margin:"0 auto 20px"}}>
+              Your dashboard will populate automatically as you import data. Get started in two ways:
+            </div>
+            <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+              <button onClick={()=>onNavigate&&onNavigate("data-manager")} style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:10,padding:"12px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                ✨ Go to Data &amp; Imports
+              </button>
+              <button onClick={()=>{
+                // Quick demo load
+                const demoSettings={facilityName:"Cascade Peak Cannabis LLC",licenseNumber:"OCM-AUPR-007891",licenseType:"Adult-Use Cultivator",state:"NY",city:"Tuxedo",address:"1220 Route 17M",zip:"10987"};
+                localStorage.setItem("resinops_facility_settings",JSON.stringify(demoSettings));
+                window.location.reload();
+              }} style={{background:"rgba(90,63,160,0.15)",color:"#9080f0",border:"1px solid rgba(90,63,160,0.3)",borderRadius:10,padding:"12px 24px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                🏭 Load demo facility
+              </button>
+            </div>
+            <div style={{fontSize:11,color:"var(--text-3)",marginTop:16}}>
+              Or use Data &amp; Imports → Backup → "Load demo facility settings" for a fully configured demo with all modules populated.
+            </div>
+          </div>
+        )}
+
         {/* Top stats row */}
         <div className="db-grid db-row3" style={{marginBottom:14}}>
           {[

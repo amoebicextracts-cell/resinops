@@ -42,6 +42,9 @@ const CSS = `
   .avail-low{background:rgba(200,150,58,0.15);color:var(--amber);}
   .avail-none{background:rgba(200,74,74,0.15);color:var(--danger);}
   .status-open{background:rgba(200,150,58,0.15);color:var(--amber);}
+  .status-confirmed{background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .status-pending{background:rgba(200,150,58,0.15);color:var(--amber);}
+  .status-waitlist{background:rgba(150,100,200,0.15);color:#9060c0;}
   .status-fulfilled{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .status-canceled{background:rgba(100,100,100,0.15);color:var(--text-3);}
   .so-num{width:70px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;color:var(--text);font-family:monospace;font-size:12px;padding:3px 6px;text-align:center;}
@@ -289,7 +292,7 @@ export default function SalesOrders() {
                           <td>{fmtD(o.orderDate)}</td>
                           <td>{o.lines.length} item{o.lines.length!==1?"s":""}</td>
                           <td style={{color:"var(--accent-2)",fontWeight:500}}>{fmtC(orderTotal(o))}</td>
-                          <td><span className={"so-pill status-"+o.status}>{o.status}</span></td>
+                          <td><span className={"so-pill status-"+(o.importStatus||o.status)}>{o.importStatus||o.status}</span></td>
                           <td><div style={{display:"flex",gap:5}}>
                             {o.status==="open" && <button className="so-sm so-edit" onClick={()=>setOrderStatus(o.id,"fulfilled")}>Fulfill</button>}
                             {o.status==="open" && <button className="so-sm so-secondary" onClick={()=>setOrderStatus(o.id,"canceled")}>Release</button>}

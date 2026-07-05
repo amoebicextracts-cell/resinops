@@ -172,7 +172,17 @@ const IMPORT_TARGETS = {
   costPerUnit (cost per unit as a number — strip $ signs)
   totalCost (total cost as a number — strip $ signs)
   notes (any notes field)` },
-  sales_orders:{ label:"Sales & Pre-Orders", icon:"🧾", key:"resinops_orders",
+  grow_schedule:{ label:"Grow Schedule", icon:"📅", key:"resinops_spaces",
+    schema:`Each record must use these EXACT field names:
+  name (batch or room name — may be called "Batch Name", "Room / Batch", "Name", etc.)
+  d (clone or seed date in YYYY-MM-DD — may be called "Clone / Seed Date", "Start Date", "Clone Date", etc.)
+  veg (veg weeks as a number — may be called "Veg Weeks", "Veg (weeks)", "Vegetative Weeks", etc.)
+  flw (flower weeks as a number — may be called "Flower Weeks", "Flower (weeks)", "Flowering Weeks", etc.)
+  strain (primary strain name — may be called "Strain 1", "Primary Strain", "Strain", "Cultivar", etc.)
+  plants (plant count as a number — may be called "Plants 1", "Plant Count", "Plants", etc.)
+  strain2 (second strain if applicable — may be called "Strain 2", "Secondary Strain", etc. Leave blank if none)
+  plants2 (second strain plant count — may be called "Plants 2", etc. Leave blank if none)
+  notes (any notes field)` },
     schema:`Each record must use these EXACT field names:
   dispensaryName (dispensary or account name — may be called "Dispensary Name", "Account", "Customer", "Buyer", etc.)
   licenseNum (dispensary license number — may be called "License Number", "License #", "OCM License", etc.)
@@ -269,7 +279,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -819,7 +829,28 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             steps:Array.isArray(r.steps)&&r.steps.length>0?r.steps:(DS[cat]||DS.whole_flower).map(s=>({...s})),
           };
         });
-      } else if(target==="sales_orders"){
+      } else if(target==="grow_schedule"){
+        newRecords = rawRecords.map(r=>{
+          const strain1=r.strain||r.strain1||r["Strain 1"]||r["Primary Strain"]||r["Strain"]||r["Cultivar"]||"";
+          const plants1=r.plants||r.plants1||r["Plants 1"]||r["Plant Count"]||r["Plants"]||"";
+          const strain2=r.strain2||r["Strain 2"]||r["Secondary Strain"]||"";
+          const plants2=r.plants2||r["Plants 2"]||"";
+          const strains=[{id:Date.now()+Math.random(),name:strain1,plants:String(plants1)}];
+          if(strain2) strains.push({id:Date.now()+Math.random(),name:strain2,plants:String(plants2)});
+          return {
+            id: r.id||"gs_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            name: r.name||r.batch_name||r["Batch Name"]||r["Room / Batch"]||r["Name"]||(strain1+" — "+new Date().toISOString().split("T")[0]),
+            d: r.d||r.clone_date||r.seed_date||r["Clone / Seed Date"]||r["Clone Date"]||r["Start Date"]||new Date().toISOString().split("T")[0],
+            veg: String(r.veg||r.veg_weeks||r["Veg Weeks"]||r["Veg (weeks)"]||"4"),
+            flw: String(r.flw||r.flower_weeks||r["Flower Weeks"]||r["Flower (weeks)"]||"9"),
+            strains,
+            strain: strain1,
+            plants: String(plants1),
+            status: "active",
+            growMapId: "",
+            notes: r.notes||r["Notes"]||"",
+          };
+        });
         newRecords = rawRecords.map(r=>{
           const dispensaryName=r.dispensaryName||r.dispensary_name||r["Dispensary Name"]||r["Account"]||r["Customer"]||"";
           const licenseNum=r.licenseNum||r.licenseNumber||r.license_num||r.license_number||r["License Number"]||r["License #"]||r["OCM License"]||"";

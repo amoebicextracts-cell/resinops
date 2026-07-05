@@ -192,6 +192,26 @@ export default function LaborDashboard() {
           <div style={{fontSize:12,color:"var(--text-3)"}}>Daily labor demand vs capacity — production batches + cultivation harvest events</div>
         </div>
 
+        {laborTypes.length===0&&(
+          <div style={{background:"rgba(200,150,58,0.08)",border:"1px solid rgba(200,150,58,0.25)",borderRadius:10,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--amber)",marginBottom:3}}>⚠ No labor types configured</div>
+              <div style={{fontSize:12,color:"var(--text-3)"}}>Labor demand calculations require configured labor types with headcounts and hourly rates. Load the demo or set up in Labor Setup.</div>
+            </div>
+            <button onClick={()=>{
+              const laborTypes=[
+                {id:"cultivation",n:"Cultivation Team",cat:"cultivation",count:4,rate:22,hrsPerDay:8,notes:""},
+                {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:""},
+                {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:""},
+              ];
+              localStorage.setItem("resinops_labor_types",JSON.stringify(laborTypes));
+              window.location.reload();
+            }} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+              Load defaults
+            </button>
+          </div>
+        )}
+
         {!hasBatches && (
           <div style={{border:"1px dashed var(--border-2)",borderRadius:10,padding:"48px 24px",textAlign:"center"}}>
             <div style={{fontSize:32,marginBottom:10}}>📊</div>
