@@ -990,7 +990,6 @@ export default function ProductionScheduler(){
   const isThcaSub=form.sub==="thca_ff"||form.sub==="thca_trim";
   const formSteps=form.steps||(isThcaSub?getThcaSteps(form.sub,form.thcaMethod||"controlled",form.thcaRecrystCycles||1):(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days})));
   const totalDays=formSteps.reduce((a,s)=>a+(parseInt(s.days)||0),0);
-  const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,{...form,cbBlendCalc,pieceWeightG:form.pieceWeightG});
   const inputG=(parseFloat(form.inputAmt)||0)*(UNIT_TO_G[form.unit]||1);
   const isFlower=["whole_flower","ground_flower","pre_roll"].includes(form.cat);
   const isVape=form.cat==="vape";
@@ -1023,6 +1022,8 @@ export default function ProductionScheduler(){
     isPieceProduct ? (parseFloat(form.pieceWeightG)||0) : 0,
     pkgSel?.v||1
   ) : null;
+  // yieldEst must come AFTER cbBlendCalc since it depends on it for edibles/tinctures/topicals
+  const yieldEst=calcYield(form.cat,form.sub,form.inputAmt,form.unit,pkgSel?.v,pkgSel?.l,{...form,cbBlendCalc,pieceWeightG:form.pieceWeightG});
 
   // Trim calculator
   const trimCalc=isFlower&&inputG>0?calcTrimDays(inputG,form.trimType,TRIMMERS[form.trimMachine]?.l||"Custom",form.trimThroughput,form.trimmerCount,form.gramsPerTrimmerDay):null;
