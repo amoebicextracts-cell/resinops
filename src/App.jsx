@@ -961,6 +961,10 @@ export default function ResinOps() {
   const [activeModule, setActiveModule] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dashboardVersion, setDashboardVersion] = useState(0);
+  const [showOnboarding, setShowOnboarding] = useState(()=>{
+    return !localStorage.getItem("resinops_onboarding_complete");
+  });
+  const [onboardStep, setOnboardStep] = useState(0);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1116,7 +1120,42 @@ export default function ResinOps() {
     <>
       <style>{css}</style>
       <div className="app">
-        {/* Mobile overlay */}
+        {/* ── Onboarding wizard ── */}
+      {showOnboarding&&(()=>{
+        const steps=[
+          {icon:"🌿",title:"Welcome to ResinOps",subtitle:"Cannabis operations software built by operators",body:"ResinOps connects every part of your licensed operation — cultivation, processing, compliance, lab results, sales, and financials — in one platform built for how cannabis businesses actually work.",action:"Get started →"},
+          {icon:"🏭",title:"Set up your facility",subtitle:"Tell ResinOps about your operation",body:"Start by loading your facility settings. If you're exploring the demo, click \"Load demo facility\" to instantly populate Cascade Peak Cannabis LLC — a fully-configured NY OCM licensed cultivator — so you can see the full platform in action.",action:"Continue →",secondary:{label:"Load demo facility",fn:()=>{localStorage.setItem("resinops_facility_settings",JSON.stringify({facilityName:"Cascade Peak Cannabis LLC",licenseNumber:"OCM-AUPR-007891",licenseType:"Adult-Use Cultivator",state:"NY",city:"Tuxedo",address:"1220 Route 17M",zip:"10987"}));}}},
+          {icon:"✨",title:"Import your data with AI",subtitle:"Drop any file — we handle the rest",body:"Go to Data & Imports and drop any CSV, Excel, or PDF from your existing systems. ResinOps AI reads your column headers automatically and maps everything to the right fields — employees, harvest records, COA results, sales orders, pesticide logs, and more.",action:"Continue →"},
+          {icon:"📊",title:"Your dashboard updates live",subtitle:"Everything connected, always current",body:"After importing your data, your operations dashboard shows confirmed revenue, pending pipeline, upcoming harvests, compliance alerts, and strain performance — all in one view. Navigate back to Dashboard any time to see your current state.",action:"Let's go →"},
+        ];
+        const step=steps[onboardStep];
+        const isLast=onboardStep===steps.length-1;
+        return(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+            <div style={{background:"var(--surface)",borderRadius:16,padding:"40px 44px",maxWidth:520,width:"90%",boxShadow:"0 20px 60px rgba(0,0,0,0.5)",border:"1px solid var(--border-2)",position:"relative"}}>
+              <button onClick={()=>{localStorage.setItem("resinops_onboarding_complete","1");setShowOnboarding(false);}} style={{position:"absolute",top:16,right:16,background:"none",border:"none",color:"var(--text-3)",fontSize:18,cursor:"pointer"}}>✕</button>
+              <div style={{textAlign:"center",marginBottom:24}}>
+                <div style={{fontSize:48,marginBottom:12}}>{step.icon}</div>
+                <div style={{fontSize:20,fontWeight:700,color:"var(--text)",marginBottom:6}}>{step.title}</div>
+                <div style={{fontSize:13,color:"var(--accent-2)",fontWeight:600,marginBottom:16}}>{step.subtitle}</div>
+                <div style={{fontSize:13,color:"var(--text-2)",lineHeight:1.6}}>{step.body}</div>
+              </div>
+              <div style={{display:"flex",gap:8,justifyContent:"center",flexDirection:"column",alignItems:"center"}}>
+                <button style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:10,padding:"12px 32px",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%"}} onClick={()=>{
+                  if(isLast){localStorage.setItem("resinops_onboarding_complete","1");setShowOnboarding(false);switchModule("dashboard");}
+                  else setOnboardStep(s=>s+1);
+                }}>{step.action}</button>
+                {step.secondary&&<button style={{background:"rgba(90,63,160,0.15)",color:"#9080f0",border:"1px solid rgba(90,63,160,0.3)",borderRadius:10,padding:"10px 24px",fontSize:13,fontWeight:600,cursor:"pointer",width:"100%"}} onClick={()=>{step.secondary.fn();setOnboardStep(s=>s+1);}}>{step.secondary.label}</button>}
+                <div style={{display:"flex",gap:6,marginTop:8}}>
+                  {steps.map((_,i)=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:i===onboardStep?"var(--accent)":"var(--border-2)"}}/>)}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Mobile overlay */}
         {sidebarOpen&&<div className="mobile-overlay" onClick={()=>setSidebarOpen(false)}/>}
         {/* Hamburger button — only visible on mobile */}
         <button className="hamburger-btn" style={{position:"fixed",top:14,left:14,zIndex:201}} onClick={()=>setSidebarOpen(o=>!o)}>
@@ -1196,7 +1235,10 @@ export default function ResinOps() {
           <div className="sidebar-footer">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
               <div className="plan-badge">ResinOps V1</div>
-              <span style={{fontSize:9,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Beta</span>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <button title="Show setup guide" onClick={()=>{setOnboardStep(0);setShowOnboarding(true);}} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:6,color:"var(--text-3)",fontSize:11,padding:"2px 6px",cursor:"pointer"}}>?</button>
+                <span style={{fontSize:9,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Beta</span>
+              </div>
             </div>
             <div className="plan-text" style={{marginBottom:6}}>Built by operators. Powered by data.</div>
             <div style={{fontSize:9,color:"var(--text-3)",borderTop:"1px solid var(--border)",paddingTop:6,display:"flex",alignItems:"center",gap:6}}>
