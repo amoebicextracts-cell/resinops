@@ -474,7 +474,7 @@ const PKG={
   extract_solid: [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"3.5g",v:3.5},{l:"7g",v:7}],
   extract_bulk:  [{l:"bulk (g)",v:1}],
   vape_cart:     [{l:"0.3g",v:0.3},{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2}],
-  vape_aio:      [{l:"1g",v:1},{l:"1.75g",v:1.75},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
+  vape_aio:      [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"1.75g",v:1.75},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"3g",v:3},{l:"4g",v:4},{l:"7g",v:7}],
   vape_oil:      [{l:"0.5g",v:0.5},{l:"1g",v:1},{l:"2g",v:2},{l:"2.25g",v:2.25},{l:"4g",v:4},{l:"7g",v:7}],
   tincture_bot:  [{l:"15ml",v:15},{l:"30ml",v:30},{l:"60ml",v:60}],
   topical:       [{l:"1 oz",v:1},{l:"2 oz",v:2},{l:"4 oz",v:4}],
@@ -482,12 +482,21 @@ const PKG={
   edible_bev:    [{l:"100ml",v:100},{l:"200ml",v:200},{l:"355ml",v:355}],
 };
 
-function getPkg(cat,sub){
+function getPkg(cat,sub,opts={}){
   if(cat==="whole_flower")return PKG.whole_flower;
   if(cat==="ground_flower")return PKG.ground_flower;
   if(cat==="pre_roll")return PKG.pre_roll;
   if(cat==="extract")return["distillate","thca_ff","thca_trim","r134a_20l","r134a_50l",...Object.keys(DISTILLATION_SPECS)].includes(sub)?PKG.extract_bulk:PKG.extract_solid;
-  if(cat==="vape"){if(sub==="disposable")return PKG.vape_aio;if(sub==="oil_rosin"||sub==="oil_live_resin")return PKG.vape_oil;return PKG.vape_cart;}
+  if(cat==="vape"){
+    const hw=VAPE_HARDWARE[opts?.vapeHardware||""];
+    if(hw?.capacities_ml?.length){
+      // Build sizes from hardware spec
+      return hw.capacities_ml.map(ml=>({l:ml+"g",v:ml}));
+    }
+    if(sub==="disposable")return PKG.vape_aio;
+    if(sub==="oil_rosin"||sub==="oil_live_resin")return PKG.vape_oil;
+    return PKG.vape_cart;
+  }
   if(cat==="tincture")return PKG.tincture_bot;
   if(cat==="topical")return PKG.topical;
   if(cat==="edible")return sub==="beverage"?PKG.edible_bev:PKG.edible_dose;
@@ -547,7 +556,152 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
   return null;
 }
 
-// ── Vape formulation calculator ────────────────────────────────────────────
+// ── Two-component vape blend calculator ───────────────────────────────────
+// Solves: how much terpene-rich component B to add to base component A
+// to reach target THC% and terpene% in the finished blend.
+// Uses alligation: for 2 knowns (A and B) and 2 targets, solve simultaneously.
+// If only one target is specified, solve for that one.
+function calcBlend(baseG, baseTHC, baseTerpPct, additiveTHC, additiveTerpPct, targetTHC, targetTerp, pkgV){
+  // baseG = grams of base extract (A)
+  // baseTHC = THC% of base (e.g. 95)
+  // baseTerpPct = terp% of base (e.g. 2)
+  // additiveTHC = THC% of additive (e.g. 35)
+  // additiveTerpPct = terp% of additive (e.g. 50)
+  // targetTHC = desired THC% in finished blend (e.g. 85)
+  // targetTerp = desired terp% in finished blend (e.g. 10)
+  const A_thc = parseFloat(baseTHC)/100 || 0;
+  const A_terp = parseFloat(baseTerpPct)/100 || 0;
+  const B_thc = parseFloat(additiveTHC)/100 || 0;
+  const B_terp = parseFloat(additiveTerpPct)/100 || 0;
+  const T_thc = parseFloat(targetTHC)/100 || 0;
+  const T_terp = parseFloat(targetTerp)/100 || 0;
+  const base = parseFloat(baseG) || 0;
+  if(!base) return { error:"Enter base extract weight" };
+  if(B_terp <= A_terp && T_terp > A_terp) return { error:"Additive has same or lower terp% than base — cannot increase terpenes" };
+  if(B_thc >= A_thc && T_thc > B_thc) return { error:"Additive THC% is >= base — cannot dilute down to target" };
+
+  // Solve for x = grams of additive B needed
+  // Using terp target: (base * A_terp + x * B_terp) / (base + x) = T_terp
+  // → base * A_terp + x * B_terp = T_terp * base + T_terp * x
+  // → x * (B_terp - T_terp) = T_terp * base - base * A_terp
+  // → x = base * (T_terp - A_terp) / (B_terp - T_terp)
+  let additiveG_byTerp = null, additiveG_byTHC = null;
+  if(B_terp !== T_terp) {
+    additiveG_byTerp = base * (T_terp - A_terp) / (B_terp - T_terp);
+  }
+  // Using THC target: (base * A_thc + x * B_thc) / (base + x) = T_thc
+  // → x = base * (A_thc - T_thc) / (T_thc - B_thc)
+  if(T_thc !== B_thc) {
+    additiveG_byTHC = base * (A_thc - T_thc) / (T_thc - B_thc);
+  }
+
+  // Use terp target as primary driver (most common use case)
+  // Show both solutions so operator can see any conflict
+  const x = additiveG_byTerp !== null ? additiveG_byTerp : additiveG_byTHC;
+  if(x === null || x < 0) return { error:"No valid solution — check your inputs. Additive must have higher terp% and lower THC% than base." };
+
+  const total = base + x;
+  const actualTHC = ((base * A_thc + x * B_thc) / total * 100);
+  const actualTerp = ((base * A_terp + x * B_terp) / total * 100);
+  const carts = pkgV > 0 ? Math.floor(total / pkgV * 0.97) : 0;
+  const ratio = `${(base/x).toFixed(1)}:1`;
+
+  return {
+    additiveG: x.toFixed(2),
+    totalG: total.toFixed(1),
+    actualTHC: actualTHC.toFixed(1),
+    actualTerp: actualTerp.toFixed(1),
+    carts,
+    ratio,
+    thcFromTerp: additiveG_byTerp !== null ? (base * A_thc + additiveG_byTerp * B_thc) / (base + additiveG_byTerp) * 100 : null,
+    terpFromTHC: additiveG_byTHC !== null ? (base * A_terp + additiveG_byTHC * B_terp) / (base + additiveG_byTHC) * 100 : null,
+    conflict: additiveG_byTerp !== null && additiveG_byTHC !== null
+      ? Math.abs(additiveG_byTerp - additiveG_byTHC) > 0.5
+      : false,
+  };
+}
+
+
+// ── Multi-cannabinoid formulation calculator ────────────────────────────────
+// Supports up to 3 components with known cannabinoid profiles
+// Solves for how much of each additive to blend into base to hit mg/piece targets
+const CB_KEYS = ["thc","cbd","cbg","cbn","cbc","thcv","terp"];
+const CB_LABELS = {thc:"THC",cbd:"CBD",cbg:"CBG",cbn:"CBN",cbc:"CBC",thcv:"THCv",terp:"Terpenes"};
+
+function calcMultiCbBlend(baseG, components, targets, pieceWeightG, pkgV) {
+  // components: [{name, thc, cbd, cbg, cbn, cbc, thcv, terp}] — percentages 0-100
+  // targets: {thc, cbd, cbg, cbn, cbc, thcv, terp} — mg per piece (edibles) or % (tincture/topical)
+  // pieceWeightG: weight of finished edible piece in grams (0 for tincture/topical)
+  // pkgV: package size (g or ml)
+  const base = parseFloat(baseG)||0;
+  if(!base) return {error:"Enter base extract weight"};
+  if(!components||!components.length) return {error:"Add at least one component"};
+
+  // For edibles: convert mg/piece targets to % targets based on piece weight
+  // For tinctures: targets are already in mg/ml or %
+  const isPiece = pieceWeightG > 0;
+  const pieceG = parseFloat(pieceWeightG)||0;
+
+  // With 1 base + 1 additive: solve for additive quantity using primary CB target
+  // Primary = first selected cannabinoid with a target
+  const comp = components[0]; // first additive
+  const A = {thc:(parseFloat(components[0]?.baseTHC)||0)/100, cbd:(parseFloat(components[0]?.baseCBD)||0)/100,
+             cbg:(parseFloat(components[0]?.baseCBG)||0)/100, cbn:(parseFloat(components[0]?.baseCBN)||0)/100,
+             cbc:(parseFloat(components[0]?.baseCBC)||0)/100, thcv:(parseFloat(components[0]?.baseTHCV)||0)/100,
+             terp:(parseFloat(components[0]?.baseTerp)||0)/100};
+  const B = {thc:(parseFloat(comp?.thc)||0)/100, cbd:(parseFloat(comp?.cbd)||0)/100,
+             cbg:(parseFloat(comp?.cbg)||0)/100, cbn:(parseFloat(comp?.cbn)||0)/100,
+             cbc:(parseFloat(comp?.cbc)||0)/100, thcv:(parseFloat(comp?.thcv)||0)/100,
+             terp:(parseFloat(comp?.terp)||0)/100};
+
+  // Find primary target cannabinoid
+  const tgtCB = Object.entries(targets).find(([k,v])=>parseFloat(v)>0);
+  if(!tgtCB) return {error:"Enter at least one target cannabinoid amount"};
+  const [tgtKey, tgtVal] = tgtCB;
+
+  // Convert target to fraction
+  // For edibles: target is mg/piece, piece is pieceG grams
+  // Fraction in blend = (mg/piece / 1000) / pieceG
+  let tgtFraction;
+  if(isPiece && pieceG > 0) {
+    tgtFraction = (parseFloat(tgtVal)/1000) / pieceG;
+  } else {
+    // tincture/topical: target is % directly
+    tgtFraction = parseFloat(tgtVal)/100;
+  }
+
+  // Solve: (base*A[tgtKey] + x*B[tgtKey]) / (base+x) = tgtFraction
+  // x = base*(tgtFraction - A[tgtKey]) / (B[tgtKey] - tgtFraction)
+  const denom = B[tgtKey] - tgtFraction;
+  if(Math.abs(denom) < 0.0001) return {error:`Additive ${CB_LABELS[tgtKey]||tgtKey}% must be different from your target — cannot solve`};
+  const additiveG = base * (tgtFraction - A[tgtKey]) / denom;
+  if(additiveG < 0) return {error:`Cannot reach target — reduce target or use a higher-${CB_LABELS[tgtKey]||tgtKey} additive`};
+
+  const totalG = base + additiveG;
+
+  // Calculate all cannabinoids in final blend
+  const results = {};
+  CB_KEYS.forEach(k => {
+    const pct = (base*A[k] + additiveG*B[k]) / totalG * 100;
+    results[k] = pct;
+  });
+
+  // Calculate per-piece if applicable
+  const perPiece = {};
+  if(isPiece && pieceG > 0) {
+    CB_KEYS.forEach(k => { perPiece[k] = (results[k]/100) * pieceG * 1000; }); // mg per piece
+  }
+
+  // Total pieces
+  const totalPieces = pkgV > 0 ? Math.floor(totalG / (isPiece ? pieceG : pkgV) * 0.97) : 0;
+  const totalBatchPieces = pieceG > 0 ? Math.floor(totalG / pieceG * 0.97) : 0;
+
+  return { additiveG:additiveG.toFixed(2), totalG:totalG.toFixed(1),
+           results, perPiece, totalPieces, totalBatchPieces,
+           ratio:`${(base/additiveG).toFixed(1)}:1` };
+}
+
+// Legacy wrapper — keep calcFormulation working for existing saved batches
 function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV,terpSrcPotencyOverride){
   const D=parseFloat(distG)||0;const P=(parseFloat(startPotPct)||85)/100;const T=(parseFloat(targetTerpPct)||10)/100;
   const baseSrc=TERP_SRCS[terpSrc]||TERP_SRCS.pure;
@@ -559,6 +713,7 @@ function calcFormulation(distG,startPotPct,targetTerpPct,terpSrc,pkgV,terpSrcPot
   const carts=pkgV>0?Math.floor(total/pkgV*0.97):0;
   return{terpAdd:terpAdd.toFixed(2),total:total.toFixed(1),finalPot,carts,src:src.l};
 }
+
 
 // ── Trim time calculator ───────────────────────────────────────────────────
 function calcTrimDays(inputG,trimType,machine,throughput,trimmerCount,gramsPerDay){
@@ -645,8 +800,16 @@ const EMPTY={
   name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
   overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",vapeInputTerpPct:"0",
+  additiveTHC:"35",additiveTerpPct:"50",targetBlendTHC:"85",
   extractInputType:"distillate",inputPotencyPct:"80",tincBottleSize:"30",tincPotencyMgPerMl:"33",
   kiefSift:false,kief40Pct:"12",kief100Pct:"8",cannabinoids:["THC"],
+  // Multi-cannabinoid blend fields
+  cbBlendComponents:[
+    {name:"Base Extract",baseTHC:"85",baseCBD:"0",baseCBG:"0",baseCBN:"0",baseCBC:"0",baseTHCV:"0",baseTerp:"2"},
+    {name:"Additive 1",thc:"35",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"50",type:"HTE / CDT"},
+  ],
+  cbTargets:{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
+  pieceWeightG:"",
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
   prerollMachine:"knockbox_100",prerollThroughput:"529",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
@@ -698,7 +861,7 @@ export default function ProductionScheduler(){
 
   const today=new Date();
   const today0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  const pkgOpts=getPkg(form.cat,form.sub);
+  const pkgOpts=getPkg(form.cat,form.sub,{vapeHardware:form.vapeHardware});
   const pkgIdx=Math.min(form.pkgIdx,pkgOpts.length-1);
   const pkgSel=pkgOpts[pkgIdx];
   const subOpts=SUBS[form.cat]||[];
@@ -730,6 +893,14 @@ export default function ProductionScheduler(){
   }:null;
   const isThca=form.cat==="extract"&&isThcaSub;
   const showCb=["tincture","edible","topical"].includes(form.cat);
+  const isPieceProduct = form.cat==="edible";
+  const cbBlendCalc = showCb&&inputG>0 ? calcMultiCbBlend(
+    inputG,
+    form.cbBlendComponents||[],
+    form.cbTargets||{},
+    isPieceProduct ? (parseFloat(form.pieceWeightG)||0) : 0,
+    pkgSel?.v||1
+  ) : null;
 
   // Trim calculator
   const trimCalc=isFlower&&inputG>0?calcTrimDays(inputG,form.trimType,TRIMMERS[form.trimMachine]?.l||"Custom",form.trimThroughput,form.trimmerCount,form.gramsPerTrimmerDay):null;
@@ -745,6 +916,8 @@ export default function ProductionScheduler(){
 
   // Vape formulation
   const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v,form.vapeTerpSrcPotency):null;
+  // Two-component blend calculator — always live when vape form is open
+  const blendCalc=isVapeFormulable&&inputG>0?calcBlend(inputG,form.vapeStartPotency,form.vapeInputTerpPct||0,form.additiveTHC||35,form.additiveTerpPct||50,form.targetBlendTHC||85,form.vapeTerpPct||10,pkgSel?.v||1):null;
 
   // R-134a cycle info
   const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
@@ -778,8 +951,12 @@ export default function ProductionScheduler(){
   function openEdit(b){window.__resinopsUnsaved=true;
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
-      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",vapeInputTerpPct:String(b.vapeInputTerpPct||0),extractInputType:b.extractInputType||"distillate",inputPotencyPct:String(b.inputPotencyPct||80),
+      overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",vapeInputTerpPct:String(b.vapeInputTerpPct||0),
+      additiveTHC:String(b.additiveTHC||35),additiveTerpPct:String(b.additiveTerpPct||50),targetBlendTHC:String(b.targetBlendTHC||85),
       tincBottleSize:String(b.tincBottleSize||30),tincPotencyMgPerMl:String(b.tincPotencyMgPerMl||33),kiefSift:b.kiefSift||false,kief40Pct:String(b.kief40Pct||12),kief100Pct:String(b.kief100Pct||8),cannabinoids:b.cannabinoids||["THC"],
+      cbBlendComponents:b.cbBlendComponents||[{name:"Base Extract",baseTHC:"85",baseCBD:"0",baseCBG:"0",baseCBN:"0",baseCBC:"0",baseTHCV:"0",baseTerp:"2"},{name:"Additive 1",thc:"35",cbd:"0",cbg:"0",cbn:"0",cbc:"0",thcv:"0",terp:"50",type:"HTE / CDT"}],
+      cbTargets:b.cbTargets||{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
+      pieceWeightG:String(b.pieceWeightG||""),
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),packagingContainer:b.packagingContainer||"",packagingUnitsPerPack:String(b.packagingUnitsPerPack||5),
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
@@ -800,7 +977,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1270,39 +1447,113 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Vape formulation calculator */}
-            {/* Vape Formulation Calculator */}
+            {/* Two-component vape blend calculator */}
             {isVapeFormulable&&<div className="ps-box">
-              <div className="ps-box-t">Terpene Formulation Calculator</div>
-              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>
-                Calculate how much terpene additive to blend with your input material to hit your target terpene % in the finished product.
+              <div className="ps-box-t">🧪 Blend Calculator</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>
+                Enter the known composition of your two components and target specs. The calculator solves for how much additive to mix into your base to hit your target potency and terpene %.
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                <div><label className="ps-lbl">Target terpene % in finished cart/AIO</label>
-                  <input type="number" min="0" max="50" step="0.5" className="ps-inp"
-                    value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)} />
-                </div>
-                <div><label className="ps-lbl">Terpene additive source</label>
-                  <select className="ps-sel" value={form.vapeTerpSource}
-                    onChange={e=>{const k=e.target.value;setForm(f=>({...f,vapeTerpSource:k,vapeTerpSrcPotency:String((TERP_SRCS[k]?.thc||0)*100)}));}}>
-                    {Object.entries(TERP_SRCS).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}
-                  </select>
-                </div>
-                <div><label className="ps-lbl">Additive source THC % (override from COA)</label>
-                  <input type="number" min="0" max="100" step="0.5" className="ps-inp"
-                    value={form.vapeTerpSrcPotency} onChange={e=>setF("vapeTerpSrcPotency",e.target.value)} />
-                </div>
-                <div style={{display:"flex",alignItems:"flex-end",paddingBottom:2}}>
-                  {(()=>{
-                    // Calculate terpene delta needed
-                    const inputTerpPct = parseFloat(form.vapeInputTerpPct||0);
-                    const targetTerpPct = parseFloat(form.vapeTerpPct||10);
-                    const deltaTerp = Math.max(0, targetTerpPct - inputTerpPct);
-                    if(deltaTerp===0) return <div style={{fontSize:11,color:"var(--accent-2)"}}>✓ Input material already meets target terpene %</div>;
-                    return <div style={{fontSize:11,color:"var(--text-3)"}}>Need to add <strong style={{color:"var(--accent-2)"}}>{deltaTerp.toFixed(1)}%</strong> exogenous terpenes to reach target</div>;
-                  })()}
+
+              {/* Component A — Base extract */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Component A — Base Extract ({inputG.toLocaleString()}g)</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div><label className="ps-lbl">THC % (from COA)</label>
+                    <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                      value={form.vapeStartPotency} onChange={e=>setF("vapeStartPotency",e.target.value)}
+                      placeholder="e.g. 95" />
+                  </div>
+                  <div><label className="ps-lbl">Terpene % (from COA)</label>
+                    <input type="number" min="0" max="50" step="0.1" className="ps-inp"
+                      value={form.vapeInputTerpPct||"0"} onChange={e=>setF("vapeInputTerpPct",e.target.value)}
+                      placeholder="e.g. 2" />
+                  </div>
                 </div>
               </div>
-              {formCalc&&!formCalc.error&&<div className="ps-form-out">
+
+              {/* Component B — Terpene additive */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Component B — Terpene Additive</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div><label className="ps-lbl">THC % of additive</label>
+                    <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                      value={form.additiveTHC} onChange={e=>setF("additiveTHC",e.target.value)}
+                      placeholder="e.g. 35" />
+                  </div>
+                  <div><label className="ps-lbl">Terpene % of additive</label>
+                    <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                      value={form.additiveTerpPct} onChange={e=>setF("additiveTerpPct",e.target.value)}
+                      placeholder="e.g. 50" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Targets */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target Finished Product</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  <div><label className="ps-lbl">Target THC %</label>
+                    <input type="number" min="0" max="100" step="0.5" className="ps-inp"
+                      value={form.targetBlendTHC} onChange={e=>setF("targetBlendTHC",e.target.value)}
+                      placeholder="e.g. 85" />
+                  </div>
+                  <div><label className="ps-lbl">Target Terpene %</label>
+                    <input type="number" min="0" max="50" step="0.5" className="ps-inp"
+                      value={form.vapeTerpPct} onChange={e=>setF("vapeTerpPct",e.target.value)}
+                      placeholder="e.g. 10" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Result */}
+              {blendCalc&&!blendCalc.error&&(
+                <div style={{background:"rgba(74,124,89,0.08)",border:"1px solid rgba(74,124,89,0.25)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--accent-2)",marginBottom:10}}>✓ Blend Solution</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Add Component B</div>
+                      <div style={{fontSize:20,fontWeight:700,color:"var(--amber)"}}>{blendCalc.additiveG}g</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>of terpene additive</div>
+                    </div>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Total Blend</div>
+                      <div style={{fontSize:20,fontWeight:700,color:"var(--text)"}}>{blendCalc.totalG}g</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>A:B ratio {blendCalc.ratio}</div>
+                    </div>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Filled Units</div>
+                      <div style={{fontSize:20,fontWeight:700,color:"var(--accent-2)"}}>{blendCalc.carts.toLocaleString()}</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{pkgSel?.l||""} carts/AIOs</div>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Actual THC %</div>
+                      <div style={{fontSize:16,fontWeight:700,color:Math.abs(parseFloat(blendCalc.actualTHC)-parseFloat(form.targetBlendTHC||85))<1?"var(--accent-2)":"var(--amber)"}}>{blendCalc.actualTHC}%</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>target {form.targetBlendTHC||85}%</div>
+                    </div>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700}}>Actual Terpene %</div>
+                      <div style={{fontSize:16,fontWeight:700,color:Math.abs(parseFloat(blendCalc.actualTerp)-parseFloat(form.vapeTerpPct||10))<0.5?"var(--accent-2)":"var(--amber)"}}>{blendCalc.actualTerp}%</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>target {form.vapeTerpPct||10}%</div>
+                    </div>
+                  </div>
+                  {blendCalc.conflict&&(
+                    <div style={{fontSize:11,color:"var(--amber)",background:"rgba(200,150,58,0.1)",borderRadius:6,padding:"6px 10px"}}>
+                      ⚠ THC and terpene targets conflict slightly with these component ratios — the calculator solved for terpene target. To hit both exactly, adjust your additive composition or accept the slight THC variance shown above.
+                    </div>
+                  )}
+                  <div style={{fontSize:11,color:"var(--text-3)",marginTop:6}}>
+                    Mix <strong style={{color:"var(--text)"}}>{inputG.toLocaleString()}g</strong> of base extract + <strong style={{color:"var(--text)"}}>{blendCalc.additiveG}g</strong> of terpene additive → <strong style={{color:"var(--text)"}}>{blendCalc.totalG}g</strong> total blend → fill into <strong style={{color:"var(--accent-2)"}}>{blendCalc.carts.toLocaleString()} × {pkgSel?.l||"units"}</strong>
+                  </div>
+                </div>
+              )}
+              {blendCalc?.error&&(
+                <div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--danger)"}}>
+                  ⚠ {blendCalc.error}
+                </div>
+              )}
+            </div>}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Terp additive needed</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.terpAdd}g</div><div style={{fontSize:10,color:"#7080c0"}}>of selected source</div></div>
                   <div><div style={{fontSize:10,color:"#8090e0",fontWeight:700,marginBottom:2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Total volume</div><div style={{fontSize:16,fontWeight:700,color:"#a0b0f8"}}>{formCalc.total}g</div></div>
@@ -1333,10 +1584,170 @@ export default function ProductionScheduler(){
               </div>
             </div>}
 
-            {/* Cannabinoid picker */}
+            {/* Multi-cannabinoid formulation calculator */}
             {showCb&&<div className="ps-box">
-              <div className="ps-box-t">Cannabinoid Profile</div>
-              <div className="cb-row">{CANNABINOIDS.map(cb=><div key={cb} className={"cb-pill"+(form.cannabinoids.includes(cb)?" on":"")} onClick={()=>toggleCb(cb)}>{cb}</div>)}</div>
+              <div className="ps-box-t">🧬 Cannabinoid Formulation Calculator</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>
+                Define your component profiles and targets. The calculator solves for how much additive to blend into your base to hit your target cannabinoid levels per {isPieceProduct?"piece":"ml/serving"}.
+              </div>
+
+              {/* Cannabinoid picker */}
+              <div style={{marginBottom:10}}>
+                <label className="ps-lbl">Active cannabinoids in this batch</label>
+                <div className="cb-row">{CANNABINOIDS.map(cb=><div key={cb} className={"cb-pill"+(form.cannabinoids.includes(cb)?" on":"")} onClick={()=>toggleCb(cb)}>{cb}</div>)}</div>
+              </div>
+
+              {/* Edible piece weight */}
+              {isPieceProduct&&<div style={{marginBottom:10,maxWidth:280}}>
+                <label className="ps-lbl">Finished piece weight (grams) — e.g. 1g gummy, 3g brownie</label>
+                <input type="number" min="0.1" max="100" step="0.1" className="ps-inp"
+                  value={form.pieceWeightG} onChange={e=>setF("pieceWeightG",e.target.value)}
+                  placeholder="e.g. 1.5" />
+              </div>}
+
+              {/* Component A — Base */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                    Component A — Base Extract ({inputG.toLocaleString()}g)
+                  </div>
+                  <div style={{fontSize:10,color:"var(--text-3)"}}>Enter % from COA</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {["THC","CBD","CBG","CBN","CBC","THCv","Terp"].map((cb,i)=>{
+                    const k=["baseTHC","baseCBD","baseCBG","baseCBN","baseCBC","baseTHCV","baseTerp"][i];
+                    return(<div key={cb}>
+                      <label className="ps-lbl">{cb} %</label>
+                      <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                        value={form.cbBlendComponents?.[0]?.[k]||"0"}
+                        onChange={e=>{const comps=[...(form.cbBlendComponents||[])];if(!comps[0])comps[0]={};comps[0]={...comps[0],[k]:e.target.value};setF("cbBlendComponents",comps);}}
+                      />
+                    </div>);
+                  })}
+                </div>
+              </div>
+
+              {/* Component B — Additive */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                    Component B — Additive
+                  </div>
+                  <div style={{maxWidth:200}}>
+                    <select className="ps-sel" style={{fontSize:11}} value={form.cbBlendComponents?.[1]?.type||""}
+                      onChange={e=>{const comps=[...(form.cbBlendComponents||[])];if(!comps[1])comps[1]={};comps[1]={...comps[1],type:e.target.value};setF("cbBlendComponents",comps);}}>
+                      <option value="">— Additive type —</option>
+                      <option value="THC Distillate">THC Distillate</option>
+                      <option value="CBD Isolate">CBD Isolate</option>
+                      <option value="CBG Isolate">CBG Isolate</option>
+                      <option value="CBN Isolate">CBN Isolate</option>
+                      <option value="Broad Spectrum">Broad Spectrum Distillate</option>
+                      <option value="Full Spectrum">Full Spectrum Oil</option>
+                      <option value="HTE / CDT">HTE / CDT (Terpenes)</option>
+                      <option value="Live Resin">Live Resin</option>
+                      <option value="Rosin">Rosin</option>
+                      <option value="Flavor / Carrier">Flavor / Carrier Oil</option>
+                      <option value="Custom">Custom</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {["THC","CBD","CBG","CBN","CBC","THCv","Terp"].map((cb,i)=>{
+                    const k=["thc","cbd","cbg","cbn","cbc","thcv","terp"][i];
+                    return(<div key={cb}>
+                      <label className="ps-lbl">{cb} %</label>
+                      <input type="number" min="0" max="100" step="0.1" className="ps-inp"
+                        value={form.cbBlendComponents?.[1]?.[k]||"0"}
+                        onChange={e=>{const comps=[...(form.cbBlendComponents||[])];if(!comps[1])comps[1]={};comps[1]={...comps[1],[k]:e.target.value};setF("cbBlendComponents",comps);}}
+                      />
+                    </div>);
+                  })}
+                </div>
+              </div>
+
+              {/* Targets */}
+              <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                  Target per {isPieceProduct?"piece (mg)":"serving / ml (mg)"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                  {["THC","CBD","CBG","CBN","CBC","THCv","Terp"].map((cb,i)=>{
+                    const k=["thc","cbd","cbg","cbn","cbc","thcv","terp"][i];
+                    const isSelected = form.cannabinoids.includes(cb)||form.cannabinoids.includes(cb.toUpperCase());
+                    return(<div key={cb}>
+                      <label className="ps-lbl" style={{color:isSelected?"var(--accent-2)":"var(--text-3)"}}>{cb} {isPieceProduct?"mg/pc":"%"}</label>
+                      <input type="number" min="0" max="9999" step="0.5" className="ps-inp"
+                        style={{borderColor:isSelected?"var(--accent)":"",opacity:isSelected?1:0.6}}
+                        value={form.cbTargets?.[k]||""}
+                        onChange={e=>{setF("cbTargets",{...(form.cbTargets||{}),[k]:e.target.value});}}
+                        placeholder={isSelected?"target":"0"}
+                      />
+                    </div>);
+                  })}
+                </div>
+                {isPieceProduct&&!form.pieceWeightG&&<div style={{fontSize:11,color:"var(--amber)",marginTop:6}}>⚠ Enter piece weight above to calculate mg/piece targets</div>}
+              </div>
+
+              {/* Results */}
+              {cbBlendCalc&&!cbBlendCalc.error&&(
+                <div style={{background:"rgba(74,124,89,0.08)",border:"1px solid rgba(74,124,89,0.25)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--accent-2)",marginBottom:10}}>✓ Formulation Solution</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Add Component B</div>
+                      <div style={{fontSize:22,fontWeight:700,color:"var(--amber)"}}>{cbBlendCalc.additiveG}g</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>A:B ratio {cbBlendCalc.ratio}</div>
+                    </div>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>Total Blend</div>
+                      <div style={{fontSize:22,fontWeight:700,color:"var(--text)"}}>{cbBlendCalc.totalG}g</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>finished formula weight</div>
+                    </div>
+                    <div style={{background:"var(--surface)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",textTransform:"uppercase",fontWeight:700,marginBottom:2}}>{isPieceProduct?"Total Pieces":"Total Servings"}</div>
+                      <div style={{fontSize:22,fontWeight:700,color:"var(--accent-2)"}}>{(isPieceProduct?cbBlendCalc.totalBatchPieces:cbBlendCalc.totalPieces).toLocaleString()}</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{isPieceProduct&&form.pieceWeightG?form.pieceWeightG+"g each":pkgSel?.l||""}</div>
+                    </div>
+                  </div>
+
+                  {/* Cannabinoid breakdown table */}
+                  <div style={{border:"1px solid var(--border)",borderRadius:6,overflow:"hidden",marginBottom:10}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                      <thead><tr>
+                        <th style={{padding:"5px 8px",background:"var(--surface-2)",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Cannabinoid</th>
+                        <th style={{padding:"5px 8px",background:"var(--surface-2)",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>% in blend</th>
+                        {isPieceProduct&&form.pieceWeightG&&<th style={{padding:"5px 8px",background:"var(--surface-2)",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>mg / piece</th>}
+                        {isPieceProduct&&form.pieceWeightG&&<th style={{padding:"5px 8px",background:"var(--surface-2)",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>mg / batch</th>}
+                        <th style={{padding:"5px 8px",background:"var(--surface-2)",textAlign:"center",fontSize:10,fontWeight:700,color:"var(--text-3)"}}>Target</th>
+                      </tr></thead>
+                      <tbody>
+                        {CB_KEYS.filter(k=>cbBlendCalc.results[k]>0.01).map((k,i)=>{
+                          const lbl=CB_LABELS[k]||k.toUpperCase();
+                          const pct=cbBlendCalc.results[k];
+                          const mgPc=cbBlendCalc.perPiece?.[k];
+                          const tgt=parseFloat(form.cbTargets?.[k]||0);
+                          const hasTgt=tgt>0;
+                          const onTarget=hasTgt&&mgPc!=null?Math.abs(mgPc-tgt)/tgt<0.05:false;
+                          return(
+                            <tr key={k} style={{borderTop:"1px solid var(--border)",background:i%2?"var(--surface-2)":"transparent"}}>
+                              <td style={{padding:"5px 8px",fontWeight:600,color:hasTgt?"var(--accent-2)":"var(--text-2)"}}>{lbl}</td>
+                              <td style={{padding:"5px 8px",textAlign:"center"}}>{pct.toFixed(2)}%</td>
+                              {isPieceProduct&&form.pieceWeightG&&<td style={{padding:"5px 8px",textAlign:"center",fontWeight:hasTgt?700:400,color:onTarget?"var(--accent-2)":hasTgt?"var(--amber)":"var(--text-2)"}}>{mgPc!=null?mgPc.toFixed(1)+"mg":"—"}</td>}
+                              {isPieceProduct&&form.pieceWeightG&&<td style={{padding:"5px 8px",textAlign:"center",color:"var(--text-3)",fontSize:10}}>{mgPc!=null?(mgPc*cbBlendCalc.totalBatchPieces/1000).toFixed(1)+"g":"—"}</td>}
+                              <td style={{padding:"5px 8px",textAlign:"center",color:"var(--text-3)"}}>{hasTgt?tgt+"mg":"—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{fontSize:11,color:"var(--text-3)"}}>
+                    Mix <strong style={{color:"var(--text)"}}>{inputG.toLocaleString()}g</strong> base + <strong style={{color:"var(--text)"}}>{cbBlendCalc.additiveG}g</strong> additive → <strong style={{color:"var(--text)"}}>{cbBlendCalc.totalG}g</strong> total formula
+                    {isPieceProduct&&form.pieceWeightG&&<> → <strong style={{color:"var(--accent-2)"}}>{cbBlendCalc.totalBatchPieces.toLocaleString()} × {form.pieceWeightG}g pieces</strong></>}
+                  </div>
+                </div>
+              )}
+              {cbBlendCalc?.error&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.2)",borderRadius:8,padding:"8px 12px",fontSize:12,color:"var(--danger)"}}>⚠ {cbBlendCalc.error}</div>}
             </div>}
 
             {/* Steps */}
