@@ -600,6 +600,7 @@ export default function ProductionScheduler(){
   const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v,form.vapeTerpSrcPotency):null;
 
   // R-134a cycle info
+  const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
   const r134aInfo=isR134a&&inputG>0?r134aCalcDays(inputG,form.sub):null;
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
