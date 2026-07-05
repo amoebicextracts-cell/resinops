@@ -232,9 +232,9 @@ const DISTILLATION_SPECS = {
   // WFE — higher throughput, continuous operation
   wfe_vta70:    {type:"WFE",vol:"VKL 70/5",brand:"Root Sciences",mfr:"VTA GmbH",throughputG:1000,pass1Yield:0.82,pass2Yield:0.90,notes:"Entry-level WFE. ~1kg/hr crude throughput. Continuous operation."},
   wfe_vta125:   {type:"WFE",vol:"VKL 125/5",brand:"Root Sciences",mfr:"VTA GmbH",throughputG:2000,pass1Yield:0.83,pass2Yield:0.90,notes:"Mid-scale WFE. ~2kg/hr. Industry standard for licensed processors."},
-  wfe_pope2:    {type:"WFE",vol:"2"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:500,pass1Yield:0.82,pass2Yield:0.90,notes:"2-inch unit. R&D to small production. American-made."},
-  wfe_pope4:    {type:"WFE",vol:"4"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:1500,pass1Yield:0.83,pass2Yield:0.90,notes:"4-inch — production scale. ~1.5kg/hr."},
-  wfe_pope6:    {type:"WFE",vol:"6"",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:3000,pass1Yield:0.84,pass2Yield:0.91,notes:"6-inch — high-volume production. ~3kg/hr."},
+  wfe_pope2:    {type:"WFE",vol:"2-inch",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:500,pass1Yield:0.82,pass2Yield:0.90,notes:"2-inch unit. R&D to small production. American-made."},
+  wfe_pope4:    {type:"WFE",vol:"4-inch",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:1500,pass1Yield:0.83,pass2Yield:0.90,notes:"4-inch — production scale. ~1.5kg/hr."},
+  wfe_pope6:    {type:"WFE",vol:"6-inch",brand:"Pope Scientific",mfr:"Pope Scientific",throughputG:3000,pass1Yield:0.84,pass2Yield:0.91,notes:"6-inch — high-volume production. ~3kg/hr."},
   wfe_chemtech: {type:"WFE",vol:"Various",brand:"Chemtech",mfr:"Chemtech Services",throughputG:1200,pass1Yield:0.82,pass2Yield:0.90,notes:"Custom-engineered systems."},
   wfe_delta:    {type:"WFE",vol:"TruVax",brand:"Delta Separations",mfr:"Delta Separations",throughputG:1800,pass1Yield:0.83,pass2Yield:0.90,notes:"Integrated ethanol extraction + distillation system."},
   wfe_custom:   {type:"WFE",vol:"Custom",brand:"Custom",mfr:"",throughputG:1000,pass1Yield:0.82,pass2Yield:0.90,notes:"Custom WFE. Enter your own throughput."},
