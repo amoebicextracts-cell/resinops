@@ -706,6 +706,9 @@ export default function InventoryERP() {
         {/* ── LEDGER TAB ── */}
         {/* CoC Tab */}
         {tab==="coc"&&<CocTab items={items} setItems={setItems} />}
+
+        {/* Ledger Tab */}
+        {tab==="ledger"&&(
           <div className="erp-card">
             <div style={{fontSize:12,color:"var(--text-2)",marginBottom:14}}>All inventory receipts and adjustments</div>
             {items.every(x=>!(x.lots?.length)) ? (
