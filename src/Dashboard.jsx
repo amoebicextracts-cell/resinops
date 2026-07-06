@@ -201,6 +201,9 @@ export default function Dashboard({ onNavigate }){
         <div style={{marginBottom:20}}>
           <div style={{fontSize:20,fontWeight:700,color:"var(--text)",marginBottom:2}}>
             {greeting}{settings.facilityName?" — "+settings.facilityName:""}
+            <div style={{fontSize:11,color:"var(--text-3)",fontWeight:400,marginTop:2}}>
+              {new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})} · Updated {new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+            </div>
           </div>
           <div style={{fontSize:12,color:"var(--text-3)"}}>{today.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}{totalAlerts>0&&<span style={{marginLeft:10,fontWeight:600,color:"var(--danger)"}}>• {totalAlerts} item{totalAlerts!==1?"s":""} need attention</span>}</div>
         </div>
