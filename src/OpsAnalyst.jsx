@@ -75,81 +75,42 @@ function gatherFacilityData() {
 
 function buildSystemPrompt(data) {
   const f = data.facility;
-  // Summarize key data points to keep context lean
-  const hbSummary = data.harvestBatches.map(b => ({
-    id: b.id, strain: b.strainName, date: b.d,
-    dryLbs: b.totalDryWeight ? (parseFloat(b.totalDryWeight)/453.592).toFixed(1) : null,
-    status: b.status, thca: b.thca,
-    coaSampleId: b.coaSampleId,
-  }));
-  const salesSummary = data.salesOrders.map(o => ({
-    account: o.customerName||o.dispensaryName,
-    status: o.importStatus||o.status,
-    total: o.lines?.reduce((a,l)=>a+(parseFloat(l.orderTotal)||parseFloat(l.qty||0)*parseFloat(l.unitPrice||0)),0)||parseFloat(o.orderTotal||0),
-    product: o.lines?.[0]?.product||o.product,
-    date: o.orderDate,
-  }));
-  const qcSummary = data.qcTests.map(t => ({
-    strain: t.strainName, sampleId: t.sampleId, thca: t.thca,
-    totalThc: t.totalThc, totalTerpenes: t.totalTerpenes,
-    overallPass: t.overallPass, lab: t.labName,
-  }));
-  const empSummary = data.employees.map(e => ({
-    name: e.name, title: e.title,
-    pestLicense: e.pestLicenseCategory,
-    expiry: e.pestLicenseExpiry,
-  }));
-  const prodSummary = data.prodBatches.filter(b=>!b.isLinked).map(b => ({
-    name: b.name, cat: b.catLabel, status: b.status,
-    strain: b.strains, date: b.d, yield: b.actual_yield||b.yieldEst,
-  }));
+  const totalDryLbs = data.harvestBatches.filter(b=>b.status==="done"&&b.totalDryWeight>0).reduce((a,b)=>a+(parseFloat(b.totalDryWeight)||0)/453.592,0);
+  const confirmedRev = data.salesOrders.filter(o=>(o.importStatus||"")===("confirmed")).reduce((a,o)=>a+(o.lines||[]).reduce((s,l)=>s+(parseFloat(l.orderTotal)||0),0),0);
+  const pendingRev = data.salesOrders.filter(o=>(o.importStatus||"")==="pending").reduce((a,o)=>a+(o.lines||[]).reduce((s,l)=>s+(parseFloat(l.orderTotal)||0),0),0);
+  const openDevs = data.deviations.filter(d=>d.status==="open").length;
+  const onHold = data.qcHolds.length;
+  const expLicenses = data.employees.filter(e=>{
+    if(!e.pestLicenseExpiry) return false;
+    return Math.ceil((new Date(e.pestLicenseExpiry)-new Date())/86400000) < 60;
+  });
 
-  return `You are the ResinOps AI Operations Analyst for ${f.facilityName||"this cannabis facility"} — a licensed cannabis operation${f.licenseNumber?` (License: ${f.licenseNumber})`:""}${f.state?` in ${f.state}`:""}. You have direct access to all facility data and answer questions like a seasoned cannabis operations director would — concise, data-driven, actionable.
+  return `You are the ResinOps AI Operations Analyst for ${f.facilityName||"this cannabis facility"} (${f.licenseNumber||"no license"}${f.state?", "+f.state:""}).
+Answer questions like a seasoned cannabis operations director — concise, data-driven, actionable.
 
-FACILITY DATA SUMMARY:
-======================
-Facility: ${f.facilityName||"Not configured"} | License: ${f.licenseNumber||"N/A"} | State: ${f.state||"N/A"}
+LIVE FACILITY DATA:
+Harvest batches: ${data.harvestBatches.length} (${data.harvestBatches.filter(b=>b.status==="done").length} done, ${totalDryLbs.toFixed(1)} lbs total dry)
+Production batches: ${data.prodBatches.filter(b=>!b.isLinked).length} active
+QC tests: ${data.qcTests.length} COAs on file${onHold>0?`, ${onHold} on hold`:""}
+Sales: ${data.salesOrders.length} orders — $${confirmedRev.toLocaleString()} confirmed, $${pendingRev.toLocaleString()} pending
+Employees: ${data.employees.length}${expLicenses.length>0?` — ⚠ ${expLicenses.length} pesticide license(s) expiring soon`:""}
+Open deviations: ${openDevs}
+Active grow rooms: ${data.spaces.length}
+Strains: ${data.strains.map(s=>s.name).join(", ")||"none"}
 
-HARVEST BATCHES (${data.harvestBatches.length} total):
-${JSON.stringify(hbSummary, null, 1)}
+HARVEST DETAILS:
+${data.harvestBatches.slice(0,8).map(b=>`${b.strainName}: ${b.totalDryWeight?((parseFloat(b.totalDryWeight)/453.592).toFixed(1)+"lbs"):"in progress"} | THCa: ${b.thca||"pending"}% | ${b.status}`).join("\n")}
 
-PRODUCTION BATCHES (${data.prodBatches.filter(b=>!b.isLinked).length} active):
-${JSON.stringify(prodSummary, null, 1)}
+COA RESULTS:
+${data.qcTests.slice(0,8).map(t=>`${t.strainName}: THCa ${t.thca}% | Total THC ${t.totalThc}% | Terps ${t.totalTerpenes}% | ${t.overallPass?"PASS":"FAIL"}`).join("\n")}
 
-QC / COA RESULTS (${data.qcTests.length} total):
-${JSON.stringify(qcSummary, null, 1)}
+PRODUCTION BATCHES:
+${data.prodBatches.filter(b=>!b.isLinked).slice(0,8).map(b=>`${b.name}: ${b.status} | ${b.yieldEst||""}`).join("\n")}
 
-QC HOLDS: ${data.qcHolds.length} batches currently on hold
+SALES ORDERS:
+${data.salesOrders.slice(0,8).map(o=>`${o.customerName}: ${o.importStatus} | $${(o.lines||[]).reduce((a,l)=>a+(parseFloat(l.orderTotal)||0),0).toLocaleString()}`).join("\n")}
 
-SALES ORDERS (${data.salesOrders.length} total):
-${JSON.stringify(salesSummary, null, 1)}
-
-EMPLOYEES (${data.employees.length} total):
-${JSON.stringify(empSummary, null, 1)}
-
-STRAINS IN DATABASE: ${data.strains.map(s=>s.name).join(", ")||"None"}
-
-GROW SPACES ACTIVE: ${data.spaces.length} scheduled batches
-
-SKUs CONFIGURED: ${data.skus.length} | BOMs CONFIGURED: ${data.boms.length}
-
-CULTIVATION INPUTS: ${data.cultInputs.length} records | SPRAY LOG: ${data.sprayLog.length} records
-
-TC VESSELS: ${data.tcVessels.length} | CLONE SCHEDULES: ${data.cloneSchedules.length}
-
-EQUIPMENT: ${data.equipment.length} assets | DEVIATIONS: ${data.deviations.filter(d=>d.status==="open").length} open
-
-LABOR TYPES: ${data.laborTypes.map(l=>l.n+"("+l.count+"@$"+l.rate+"/hr)").join(", ")||"None configured"}
-
-INSTRUCTIONS:
-- Answer questions about this facility's data directly and specifically
-- Use actual numbers from the data — don't say "approximately" when you have exact figures
-- Format responses with markdown bold for key numbers and bullet points for lists
-- If data is missing or sparse, say so honestly and suggest what to import
-- For financial calculations: confirmed orders are revenue, pending is pipeline
-- For compliance questions, reference NY OCM/DEC requirements specifically
-- Keep answers concise — 3-8 sentences or a short list, not an essay
-- If asked something outside the data, say what data would be needed`;
+RULES: Use actual numbers. Bold key figures with **. Use bullet points for lists. Keep answers under 200 words unless asked for detail. If data is missing say so and suggest what to import.`;
 }
 
 export default function OpsAnalyst() {
@@ -181,13 +142,13 @@ export default function OpsAnalyst() {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
-          model:"claude-sonnet-4-6",
-          max_tokens:1000,
           system: systemPrompt,
-          messages: history,
+          prompt: q,
+          history: messages.slice(0,-1), // all prior messages except the one we just added
         })
       });
       const json = await res.json();
+      if(json.error) throw new Error(json.error);
       const reply = json.content?.[0]?.text || "I couldn't generate a response. Please try again.";
       setMessages(prev=>[...prev,{role:"assistant",content:reply}]);
     } catch(e) {

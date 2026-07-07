@@ -28,7 +28,7 @@ const DEFAULTS = {
   facilityName:"",dbaName:"",licenseNumber:"",licenseType:"Adult-Use Processor",
   state:"NY",address:"",city:"",zip:"",phone:"",email:"",website:"",
   ownerName:"",ownerEmail:"",ownerPhone:"",
-  timezone:"America/New_York",metrcApiKey:"",flourishApiKey:"",biotrackApiKey:"",kaychaApiKey:"",distruApiKey:"",
+  timezone:"America/New_York",metrcApiKey:"",flourishApiKey:"",biotrackApiKey:"",greenAnalyticsApiKey:"",kaychaApiKey:"",distruApiKey:"",
   fiscalYearStart:"01",tagSystem:"METRC",
 };
 
@@ -109,7 +109,8 @@ export default function FacilitySettings(){
               {name:"METRC",logo:"🌿",desc:"NY OCM compliant seed-to-sale tracking — plant tags, harvest lots, inventory transfers",field:"metrcApiKey",placeholder:"Paste your METRC Software API key"},
               {name:"Flourish",logo:"🌱",desc:"Cannabis ERP — inventory, POS, compliance reporting integration",field:"flourishApiKey",placeholder:"Paste your Flourish API key"},
               {name:"BioTrack",logo:"🔬",desc:"State-mandated tracking for WA, NM, and other BioTrack states",field:"biotrackApiKey",placeholder:"Paste your BioTrack API key"},
-              {name:"Kaycha Labs",logo:"🧪",desc:"Auto-pull COA results when samples are released — no manual CSV upload",field:"kaychaApiKey",placeholder:"Paste your Kaycha Labs API key (when available)"},
+              {name:"Green Analytics",logo:"🧪",desc:"Licensed cannabis testing lab — auto-pull COA results when samples are released",field:"greenAnalyticsApiKey",placeholder:"Paste your Green Analytics API key (coming soon)"},
+              {name:"Kaycha Labs",logo:"🧫",desc:"Auto-pull COA results when samples are released — no manual CSV upload",field:"kaychaApiKey",placeholder:"Paste your Kaycha Labs API key (when available)"},
               {name:"Distru",logo:"📦",desc:"Distribution platform — pull confirmed orders directly into ResinOps sales pipeline",field:"distruApiKey",placeholder:"Paste your Distru API key"},
             ].map(({name,logo,desc,field,placeholder})=>(
               <div key={field} style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid var(--border-2)"}}>

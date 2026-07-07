@@ -321,7 +321,7 @@ export default function GMPHub(){
                 </select></div>
                 <div><label className="gh-lbl">Select batch to view GMP record</label><select className="gh-sel" value={batchRecordId.id} onChange={e=>setBatchRecordId(b=>({...b,id:e.target.value}))}>
                   <option value="">— Select batch —</option>
-                  {(batchRecordId.type==="harvest"?harvestBatches:prodBatches).map(b=><option key={b.id} value={b.id}>{batchRecordId.type==="harvest"?b.strainName+" ("+fmtD(b.d)+")":b.name}</option>)}
+                  {(batchRecordId.type==="harvest"?harvestBatches:prodBatches).map(b=><option key={b.id} value={String(b.id)}>{batchRecordId.type==="harvest"?(b.strainName||"Unknown")+" ("+(b.d?fmtD(b.d):"no date")+")":b.name||"Unnamed batch"}</option>)}
                 </select></div>
               </div>
               {batchRecordId.id&&(
