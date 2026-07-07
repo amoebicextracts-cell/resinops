@@ -207,6 +207,15 @@ const MODULES = [
     description: "Cannabis operations expert — cultivation, extraction, compliance",
     isScheduler: false,
   },
+  {
+    id: "ops-analyst",
+    label: "AI Operations Analyst",
+    icon: "🧠",
+    available: true,
+    description: "Ask plain-English questions about your facility data",
+    isScheduler: true,
+    sectionBreak: null,
+  },
   // ── Cultivation ─────────────────────────────────────────────────────────────
   {
     id: "grow-map",
@@ -216,15 +225,6 @@ const MODULES = [
     description: "Room & space repository with reset tracking",
     isScheduler: true,
     sectionBreak: "Cultivation",
-  },
-  {
-    id: "ops-analyst",
-    label: "AI Operations Analyst",
-    icon: "🧠",
-    available: true,
-    description: "Ask plain-English questions about your facility data",
-    isScheduler: true,
-    sectionBreak: null,
   },
   {
     id: "scheduler",
