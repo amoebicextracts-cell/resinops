@@ -118,7 +118,7 @@ export default function GMPHub(){
     const batchSignoffs=signoffs.filter(s=>s.batchType===type&&String(s.batchId)===id);
     const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
     const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]").filter(t=>t.batchType===type&&String(t.batchId)===id);
-    const batchShiftEntries=shifts.flatMap(sh=>sh.entries.filter(e=>e.batchType===type&&String(e.batchId)===id).map(e=>({...e,shiftDate:sh.date,department:sh.department})));
+    const batchShiftEntries=shifts.flatMap(sh=>(sh.entries||[]).filter(e=>e.batchType===type&&String(e.batchId)===id).map(e=>({...e,shiftDate:sh.date,department:sh.department})));
     const cultivationInputs=type==="harvest"?JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]").filter(ci=>{
       const sp=JSON.parse(localStorage.getItem("resinops_spaces")||"[]").find(s=>String(s.id)===String(ci.spaceId));
       return sp&&batch.spaceName&&sp.name===batch.spaceName;
