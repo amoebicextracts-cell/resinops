@@ -1121,10 +1121,14 @@ export default function ResinOps() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: activeModule, messages: newMessages }),
+        body: JSON.stringify({
+          system: "You are an expert cannabis operations consultant with 25 years of experience across cultivation, extraction, processing, compliance, and business management. You have deep knowledge of NY OCM regulations, NY DEC pesticide requirements, METRC, extraction methods (R-134a, CO2, hydrocarbon, ethanol, solventless), GMP practices, and cannabis business operations. Answer questions clearly and specifically. When relevant, reference NY-specific regulations, licensing requirements, and best practices for licensed cannabis operators.",
+          prompt: query,
+          history: messages.filter(m => typeof m.content === 'string').slice(-10),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Server error');
