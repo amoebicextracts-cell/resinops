@@ -994,7 +994,14 @@ export default function ResinOps() {
     return !localStorage.getItem("resinops_onboarding_complete");
   });
   const [onboardStep, setOnboardStep] = useState(0);
-  // Global unsaved changes flag — modules set window.__resinopsUnsaved = true when form is open
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [image, setImage] = useState(null);
+  const bottomRef = useRef(null);
+  const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
     if (!mod?.available) return;
@@ -1008,13 +1015,6 @@ export default function ResinOps() {
     setImage(null);
     setSidebarOpen(false);
   };
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [image, setImage] = useState(null);
-  const bottomRef = useRef(null);
-  const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   const currentModule = MODULES.find((m) => m.id === activeModule);
 
