@@ -29,6 +29,7 @@ import StrainDatabase from "./StrainDatabase.jsx";
 import Employees from "./Employees.jsx";
 import CultivationInputs from "./CultivationInputs.jsx";
 import SprayLog from "./SprayLog.jsx";
+import MetrcHub from "./MetrcHub.jsx";
 import MotherPlantManager from "./MotherPlantManager.jsx";
 import TCTracker from "./TCTracker.jsx";
 import FacilityMap from "./FacilityMap.jsx";
@@ -304,13 +305,22 @@ const MODULES = [
   },
   // ── Compliance ──────────────────────────────────────────────────────────────
   {
+    id: "metrc",
+    label: "METRC Sync",
+    icon: "🌿",
+    available: true,
+    description: "Sync plants, harvests, packages, and lab results from METRC",
+    isScheduler: true,
+    sectionBreak: "Compliance",
+  },
+  {
     id: "gmp-hub",
     label: "GMP Hub",
     icon: "📋",
     available: true,
     description: "SOPs, deviations, shift log & batch records",
     isScheduler: true,
-    sectionBreak: "Compliance",
+    sectionBreak: null,
   },
   {
     id: "qc-testing",
@@ -1148,7 +1158,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1314,6 +1324,7 @@ export default function ResinOps() {
             {activeModule === "spray-log" ? <SprayLog /> : null}
             {activeModule === "tc-tracker" ? <TCTracker /> : null}
             {activeModule === "qc-testing" ? <QCTesting /> : null}
+            {activeModule === "metrc" ? <MetrcHub /> : null}
             {activeModule === "gmp-hub" ? <GMPHub /> : null}
             {activeModule === "employees" ? <Employees /> : null}
             {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
