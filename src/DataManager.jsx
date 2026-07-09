@@ -771,7 +771,6 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             labName: r.labName||r.lab_name||r["Lab Name"]||"",
             thca: r.thca||r["THCa %"]||r["THCa"]||"",
             notes: r.notes||r["Notes"]||"",
-            plants: r.plants||r.plant_count||r["Plant Count"]||"",
             grades: {
               aa:{weight:r.grade_aa||r["Grade AA (g)"]||"",s2s:""},
               a: {weight:r.grade_a||r["Grade A (g)"]||"",s2s:""},
