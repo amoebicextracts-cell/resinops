@@ -3,7 +3,25 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import { auth } from './lib/db.js'
-import { isSupabaseEnabled, setCurrentFacility } from './lib/supabase.js'
+import { isSupabaseEnabled, setCurrentFacility, supabase } from './lib/supabase.js'
+
+async function fetchAndSetFacility(userId) {
+  if (!supabase || !userId) return;
+  try {
+    const { data } = await supabase
+      .from('facility_members')
+      .select('facility_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single();
+    if (data?.facility_id) {
+      setCurrentFacility(data.facility_id);
+      console.log('Facility set:', data.facility_id);
+    }
+  } catch (e) {
+    console.warn('Could not fetch facility:', e.message);
+  }
+}
 
 function Root() {
   const [user, setUser] = useState(undefined); // undefined=loading
@@ -14,12 +32,16 @@ function Root() {
       return;
     }
     // Check for existing session
-    auth.getSession().then(session => {
-      setUser(session?.user || null);
+    auth.getSession().then(async session => {
+      const u = session?.user || null;
+      if (u) await fetchAndSetFacility(u.id);
+      setUser(u);
     });
     // Listen for future auth changes
-    const { data: { subscription } } = auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+    const { data: { subscription } } = auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user || null;
+      if (u) await fetchAndSetFacility(u.id);
+      setUser(u);
     });
     return () => subscription.unsubscribe();
   }, []);
