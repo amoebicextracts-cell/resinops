@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
@@ -83,26 +84,40 @@ function normalizeStrain(r){
 }
 
 export default function StrainDatabase(){
-  const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-  const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
-  const phenoHunts=JSON.parse(localStorage.getItem("resinops_pheno_hunts")||"[]");
+  const [harvestBatches,setHarvestBatches]=useState([]);
+  const [prodBatches,setProdBatches]=useState([]);
+  const [phenoHunts,setPhenoHunts]=useState([]);
 
-  const [strains,setStrains]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
-      return raw.map(normalizeStrain);
-    }catch{return[];}
-  });
+  const [strains,setStrains]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [form,setForm]=useState(null);
   const [activeId,setActiveId]=useState(null);
   const [generating,setGenerating]=useState(false);
   const [search,setSearch]=useState("");
   const [err,setErr]=useState("");
-  const [descChat,setDescChat]=useState([]); // [{role:"user"|"assistant", content:"..."}]
+  const [descChat,setDescChat]=useState([]);
   const [descInput,setDescInput]=useState("");
   const [showDescChat,setShowDescChat]=useState(false);
 
-  useEffect(()=>{localStorage.setItem("resinops_strains",JSON.stringify(strains));},[strains]);
+  // Load all data from db layer on mount
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [s, hb, pb]=await Promise.all([
+          db.strains.list(),
+          db.harvest_batches.list(),
+          db.production_batches.list(),
+        ]);
+        setStrains(s.map(normalizeStrain));
+        setHarvestBatches(hb);
+        setProdBatches(pb.filter(b=>!b.isLinked));
+        // phenoHunts not in db.js mapping yet — keep localStorage fallback
+        try{ setPhenoHunts(JSON.parse(localStorage.getItem("resinops_pheno_hunts")||"[]")); }catch{}
+      }catch(e){ console.error("StrainDatabase load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const activeStrain=strains.find(s=>s.id===activeId);
@@ -178,14 +193,23 @@ Rules:
     finally{setGenerating(false);}
   }
 
-  function save(){
+  async function save(){
     if(!form.name.trim()){setErr("Enter a strain name.");return;}
     const s={...form,id:form.id||"str"+Date.now()};
-    if(form.id) setStrains(p=>p.map(x=>x.id===s.id?s:x));
-    else setStrains(p=>[...p,s]);
-    setForm(null);setErr("");
+    try{
+      const saved=await db.strains.upsert(s);
+      if(form.id) setStrains(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setStrains(p=>[...p,saved]);
+      setForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function remove(id){setStrains(p=>p.filter(x=>x.id!==id));if(activeId===id)setActiveId(null);}
+  async function remove(id){
+    try{
+      await db.strains.delete(id);
+      setStrains(p=>p.filter(x=>x.id!==id));
+      if(activeId===id)setActiveId(null);
+    }catch(e){ setErr("Delete failed: "+e.message); }
+  }
 
   // Import keeper phenos as strains
   function importFromPheno(hunt,seed){
@@ -210,6 +234,8 @@ Rules:
       return a.name.localeCompare(b.name);
     });
   const keeperPhenos=phenoHunts.flatMap(h=>(h.seeds||[]).filter(s=>s.isKeeper).map(s=>({hunt:h,seed:s})));
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading strains…</div>);
 
   return(
     <>
