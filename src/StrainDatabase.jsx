@@ -237,7 +237,7 @@ Rules:
 
   async function save(){
     if(!form.name.trim()){setErr("Enter a strain name.");return;}
-    const s={...form,id:form.id||"str"+Date.now()};
+    const s={...form,id:form.id||crypto.randomUUID()};
     try{
       const saved=await db.strains.upsert(toSupabase(s));
       const normalized=fromSupabase(saved);
