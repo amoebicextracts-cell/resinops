@@ -952,7 +952,7 @@ const css = `
   .hamburger-btn { display:none;align-items:center;justify-content:center;width:36px;height:36px;border:none;border-radius:8px;background:var(--surface-2);cursor:pointer;color:var(--text);font-size:18px; }
 
   /* User menu */
-  .user-menu-wrap{position:relative;}
+  .user-menu-wrap{position:relative;margin-left:auto;flex-shrink:0;}
   .user-menu-btn{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 12px 6px 8px;cursor:pointer;color:var(--text-2);font-family:var(--sans);font-size:12px;transition:all 0.15s;}
   .user-menu-btn:hover{border-color:var(--accent);color:var(--text);}
   .user-avatar-sm{width:28px;height:28px;border-radius:7px;background:var(--accent-glow);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent-2);font-weight:600;}
@@ -1385,10 +1385,10 @@ export default function ResinOps() {
         {/* ── Main ── */}
         <main className="main">
           <div className="header">
-            <span className="header-icon">{currentModule?.icon}</span>
+            <span className="header-icon">{currentModule?.icon || (isAIChat ? "🤖" : "📋")}</span>
             <div>
-              <div className="header-title">{currentModule?.label}</div>
-              <div className="header-desc">{currentModule?.description}</div>
+              <div className="header-title">{currentModule?.label || (isAIChat ? "AI Assistant" : "ResinOps")}</div>
+              <div className="header-desc">{currentModule?.description || (isAIChat ? "Cannabis operations expert — cultivation, extraction, compliance" : "")}</div>
             </div>
             <div className="user-menu-wrap" ref={userMenuRef}>
               <button className="user-menu-btn" onClick={()=>setUserMenuOpen(o=>!o)}>
