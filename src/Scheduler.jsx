@@ -364,8 +364,8 @@ export default function Scheduler() {
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
-            <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text)", marginBottom: "3px" }}><!-- title removed - shown in app header --></div>
-            <div style={{ fontSize: "12px", color: "var(--text-3)" }}></div>
+            <div style={{ fontSize: "16px", fontWeight: 600, color: "var(--text)", marginBottom: "3px" }}>Cultivation Scheduler</div>
+            <div style={{ fontSize: "12px", color: "var(--text-3)" }}>Clone cut to live inventory — every milestone tracked</div>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
             {hasSpaces && (

@@ -244,7 +244,8 @@ Rules:
       <div className="sd-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
-            <!-- title removed - shown in app header -->
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Strain Database</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Strain registry with parentage, aggregated cultivation & processing data, and AI-generated descriptions</div>
           </div>
           <div style={{display:"flex",gap:8}}>
             {activeId&&<button className="sd-btn sd-secondary" onClick={()=>{setActiveId(null);setForm(null);}}>← All strains</button>}

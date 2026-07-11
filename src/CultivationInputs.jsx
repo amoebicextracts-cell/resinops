@@ -124,7 +124,8 @@ export default function CultivationInputs(){
       <div className="ci-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
-            <!-- title removed - shown in app header -->
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Cultivation Inputs</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Nutrients, amendments, and beneficial insect releases — see Pesticide Spray Log for IPM applications</div>
             <div style={{fontSize:12,color:"var(--text-3)"}}>Nutrients, IPM spray log, and beneficial insect releases per grow space — regulatory-grade records</div>
           </div>
           <div style={{display:"flex",gap:8}}>

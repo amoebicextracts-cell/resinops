@@ -237,9 +237,10 @@ export default function SprayLog(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:3}}>
-              <!-- title removed - shown in app header -->
+              <div style={{fontSize:16,fontWeight:600,color:"var(--text)"}}>Pesticide Spray Log</div>
+              <span className="sl-dec-badge">NY DEC COMPLIANT</span>
             </div>
-            <div style={{fontSize:12,color:"var(--text-3)"}}></div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Regulatory pesticide application records — EPA reg #, REI, PHI, licensed applicator, and weather conditions required</div>
           </div>
           <div style={{display:"flex",gap:8}}>
             <button className="sl-btn sl-secondary" onClick={exportCSV}>⬇ Export NY DEC CSV</button>

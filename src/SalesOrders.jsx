@@ -144,7 +144,8 @@ export default function SalesOrders() {
       <style>{CSS}</style>
       <div className="so-wrap">
         <div style={{marginBottom:16}}>
-          <!-- title removed - shown in app header -->
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Sales & Pre-Order Availability</div>
+          <div style={{fontSize:12,color:"var(--text-3)"}}>Track sellable inventory against the production schedule and manage holds</div>
         </div>
 
         {/* Revenue pipeline summary */}

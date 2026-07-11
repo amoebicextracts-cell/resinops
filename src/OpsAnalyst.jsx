@@ -181,7 +181,8 @@ export default function OpsAnalyst() {
       <style>{CSS}</style>
       <div className="oa-wrap">
         <div className="oa-header">
-          <!-- title removed - shown in app header -->
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>AI Operations Analyst</div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:12}}>Ask plain-English questions about your facility data — harvests, revenue, compliance, strain performance, and more</div>
 
           {!hasData&&(
             <div style={{background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.25)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--amber)"}}>

@@ -146,7 +146,8 @@ export default function CloneScheduler(){
       <div className="cs-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
-            <!-- title removed - shown in app header -->
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Clone Scheduler</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Back-calculates clone cut dates from harvest dates, room reset time, and veg lead</div>
           </div>
           {!form&&<button className="cs-btn cs-primary" onClick={openAdd}>+ Add clone schedule</button>}
         </div>

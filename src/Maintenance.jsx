@@ -131,7 +131,8 @@ export default function Maintenance() {
       <style>{CSS}</style>
       <div className="mx-wrap">
         <div style={{marginBottom:16}}>
-          <!-- title removed - shown in app header -->
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Maintenance & Facilities</div>
+          <div style={{fontSize:12,color:"var(--text-3)"}}>Work orders, downtime tracking, and lockout/tagout safety log</div>
         </div>
 
         {openLOTOs.length>0 && (

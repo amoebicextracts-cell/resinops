@@ -231,7 +231,8 @@ export default function GMPHub(){
       <style>{CSS}</style>
       <div className="gh-wrap">
         <div style={{marginBottom:16}}>
-          <!-- title removed - shown in app header -->
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>GMP Hub</div>
+          <div style={{fontSize:12,color:"var(--text-3)"}}>SOP library, deviation register, shift log, step sign-offs, and digital batch records</div>
         </div>
         {openDevs>0&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--danger)",fontWeight:500}}>⚠ {openDevs} open deviation{openDevs>1?"s":""} require CAPA sign-off</div>}
 

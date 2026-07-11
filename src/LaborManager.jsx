@@ -150,7 +150,8 @@ export default function LaborManager() {
       <style>{CSS}</style>
       <div className="lm-wrap">
         <div style={{marginBottom:20}}>
-          <!-- title removed - shown in app header -->
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Labor Setup</div>
+          <div style={{fontSize:12,color:"var(--text-3)"}}>Define facility shift structure and labor types with hourly rates</div>
         </div>
 
         {/* Facility settings */}

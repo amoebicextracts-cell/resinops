@@ -123,7 +123,8 @@ export default function FacilitySettings(){
       <div className="fs-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
           <div>
-            <!-- title removed - shown in app header -->
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Facility Settings</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Your facility's identity — appears on all exports, batch records, and spray logs</div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             {saved&&<span className="fs-saved">✓ Saved</span>}

@@ -116,7 +116,8 @@ export default function FacilityMap(){
       <div className="fm-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
-            <!-- title removed - shown in app header -->
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Facility Map</div>
+            <div style={{fontSize:12,color:"var(--text-3)"}}>Processing, dry/cure, storage, packaging, and office spaces — with cleaning logs and batch assignment</div>
           </div>
           {!form&&tab==="rooms"&&<button className="fm-btn fm-primary" onClick={()=>setForm({...EMPTY_ROOM})}>+ Add space</button>}
         </div>
