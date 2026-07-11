@@ -1384,12 +1384,7 @@ export default function ResinOps() {
 
         {/* ── Main ── */}
         <main className="main">
-          <div className="header">
-            <span className="header-icon">{currentModule?.icon || (isAIChat ? "🤖" : "📋")}</span>
-            <div>
-              <div className="header-title">{currentModule?.label || (isAIChat ? "AI Assistant" : "ResinOps")}</div>
-              <div className="header-desc">{currentModule?.description || (isAIChat ? "Cannabis operations expert — cultivation, extraction, compliance" : "")}</div>
-            </div>
+          <div className="header" style={{padding:"10px 24px",justifyContent:"flex-end"}}>
             <div className="user-menu-wrap" ref={userMenuRef}>
               <button className="user-menu-btn" onClick={()=>setUserMenuOpen(o=>!o)}>
                 <div className="user-avatar-sm">{userEmail?userEmail[0].toUpperCase():"U"}</div>
