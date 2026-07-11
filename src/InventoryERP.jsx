@@ -478,8 +478,7 @@ export default function InventoryERP() {
       <style>{CSS}</style>
       <div className="erp-wrap">
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Inventory</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>Items, vendors, purchase orders, and stock management</div>
+          <!-- title removed - shown in app header -->
         </div>
 
         {lowStock.length > 0 && (

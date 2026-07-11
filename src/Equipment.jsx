@@ -140,8 +140,7 @@ export default function Equipment() {
       <style>{CSS}</style>
       <div className="eq-wrap">
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Equipment Registry</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>Company-wide asset list with PM schedules, warranty, and service history</div>
+          <!-- title removed - shown in app header -->
         </div>
 
         {upcomingPM.length>0 && (

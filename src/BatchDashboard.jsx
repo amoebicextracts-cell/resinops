@@ -129,8 +129,7 @@ export default function BatchDashboard(){
       <style>{CSS}</style>
       <div className="bd-wrap">
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Batch Cost & Margin Dashboard</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>Estimated revenue, COGS, and gross margin across all production batches</div>
+          <!-- title removed - shown in app header -->
           {(skus.length===0||boms.length===0)&&(
             <div style={{background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:8,padding:"8px 12px",marginTop:10,fontSize:12,color:"var(--amber)"}}>
               ⚠ {skus.length===0&&boms.length===0?"SKU pricing and BOMs not set up":skus.length===0?"SKU pricing not set up":"BOMs not set up"} — revenue and COGS will show $0. Load demo settings or configure in Cost & P&L.

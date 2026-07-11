@@ -146,8 +146,7 @@ export default function Remediation() {
       <div className="rm-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
           <div>
-            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Microbial Remediation</div>
-            <div style={{fontSize:12,color:"var(--text-3)"}}>Radiation dose calculator for total yeast/mold and Aspergillus remediation after a failed lab test</div>
+            <!-- title removed - shown in app header -->
           </div>
           {!form && <button className="rm-btn rm-primary" onClick={openAdd}>+ Flag failed batch</button>}
         </div>

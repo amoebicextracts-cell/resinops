@@ -232,8 +232,7 @@ export default function Finance() {
       <style>{CSS}</style>
       <div className="fin-wrap">
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Cost & P&L</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>COGS per batch · 280E-structured · P&L summary</div>
+          <!-- title removed - shown in app header -->
         </div>
 
         <div className="fin-tabs">

@@ -962,8 +962,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       <style>{CSS}</style>
       <div className="dm-wrap">
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Data & Imports</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>AI-powered universal import, data backup, and restore — onboard any facility in minutes</div>
+          <!-- title removed - shown in app header -->
         </div>
         {statusMsg&&<div style={{background:"rgba(74,124,89,0.1)",border:"1px solid rgba(74,124,89,0.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}
 

@@ -246,8 +246,7 @@ export default function HarvestBatches() {
       <div className="hb-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
           <div>
-            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Harvest Batches</div>
-            <div style={{fontSize:12,color:"var(--text-3)"}}>Post-harvest tracking — drying, trimming, curing, and graded final weights per strain</div>
+            <!-- title removed - shown in app header -->
           </div>
           <div style={{display:"flex",gap:8}}>
             {batches.length>0 && <button className="hb-btn hb-secondary" onClick={exportHarvest}>↓ Export</button>}

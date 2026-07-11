@@ -144,8 +144,7 @@ export default function GrowMap(){
       <div className="gm-wrap">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
-            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Grow Map</div>
-            <div style={{fontSize:12,color:"var(--text-3)"}}>Persistent room & space repository — all facility grow areas, statuses, and reset timing</div>
+            <!-- title removed - shown in app header -->
           </div>
           <div style={{display:"flex",gap:8}}>
             {spaces.length>0&&<button className="gm-btn gm-secondary" onClick={exportCSV}>↓ Export CSV</button>}

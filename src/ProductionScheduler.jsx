@@ -1199,8 +1199,7 @@ export default function ProductionScheduler(){
       <div className="ps-wrap">
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:20}}>
           <div>
-            <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Production Scheduler</div>
-            <div style={{fontSize:12,color:"var(--text-3)"}}>Track every batch from intake to live inventory</div>
+            <!-- title removed - shown in app header -->
           </div>
           <div style={{display:"flex",gap:8}}>
             {hasBatches&&<button className="ps-exp" onClick={exportProd}>↓ Export</button>}

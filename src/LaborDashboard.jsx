@@ -209,8 +209,7 @@ export default function LaborDashboard() {
       <style>{CSS}</style>
       <div className="ld-wrap">
         <div style={{marginBottom:20}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Labor Dashboard</div>
-          <div style={{fontSize:12,color:"var(--text-3)"}}>Daily labor demand vs capacity — production batches + cultivation harvest events</div>
+          <!-- title removed - shown in app header -->
         </div>
 
         {laborTypes.length===0&&(
