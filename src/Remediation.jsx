@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
 
@@ -67,14 +68,30 @@ function emptyForm() {
 }
 
 export default function Remediation() {
-  const harvestBatches = (() => { try{return JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");}catch{return[];} })();
-  const prodBatches = (() => { try{ const b=JSON.parse(localStorage.getItem("resinops_prod")||"[]"); return b.filter(x=>!x.isLinked); }catch{return[];} })();
+  const [harvestBatches, setHarvestBatches] = useState([]);
+  const [prodBatches, setProdBatches] = useState([]);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [records, setRecords] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_remediation")||"[]");}catch{return[];} });
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [hb, pb] = await Promise.all([
+          db.harvest_batches.list(),
+          db.production_batches.list(),
+        ]);
+        setHarvestBatches(hb);
+        setProdBatches(pb.filter(x=>!x.isLinked));
+        // remediation not in db mapping yet - keep localStorage fallback
+        try{ setRecords(JSON.parse(localStorage.getItem("resinops_remediation")||"[]")); }catch{}
+      }catch(e){ console.error("Remediation load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [form, setForm] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_remediation", JSON.stringify(records)); }, [records]);
 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
@@ -120,6 +137,8 @@ export default function Remediation() {
 
   const flaggedCount = records.filter(r => r.status === "flagged").length;
   const totalHoursAll = records.reduce((a,r) => a + (r.dose?.totalHours || 0), 0);
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading remediation…</div>);
 
   return (
     <>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const APP_METHODS = ["Backpack sprayer","Boom sprayer","Hand sprayer","Drench / Irrigation injection","Fogger / ULV","Broadcast","Other"];
 const VOL_UNITS = ["gal","L","ml","oz","qt"];
@@ -56,30 +57,35 @@ const EMPTY={
 };
 
 export default function SprayLog(){
-  const allSpaces=[
-    ...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),
-    ...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]"),
-  ];
-  const employees=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
+  const [allSpaces, setAllSpaces] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const pestApplicators=employees.filter(e=>e.pestLicenseCategory&&e.pestLicenseCategory!=="None / Not Licensed"&&e.status==="active");
 
-  const [records,setRecords]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_spray_log")||"[]");
-      // Only pull from cult_inputs records that are genuinely pesticide applications
-      // (have an EPA reg number — nutrients never have EPA reg numbers)
-      const oldInputs=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]")
-        .filter(r=>(r.epaRegNum||r.epa_reg_num||r["EPA Registration Number"]||"").trim().length>0);
-      const combined=[...raw,...oldInputs.filter(o=>!raw.some(r=>r.id===o.id))];
-      return combined.map(r=>normalizeRecord(r, allSpaces));
-    }catch{return[];}
-  });
+  const [records,setRecords]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [sl, sp, gm, emp]=await Promise.all([
+          db.spray_log.list(),
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+          db.employees.list(),
+        ]);
+        setRecords(sl);
+        setAllSpaces([...sp,...gm].filter(s=>s.name));
+        setEmployees(emp);
+      }catch(e){ console.error("SprayLog load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const [form,setForm]=useState(null);
   const [filterSpace,setFilterSpace]=useState("");
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_spray_log",JSON.stringify(records));},[records]);
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   function normalizeRecord(r, spaces){
@@ -147,7 +153,7 @@ export default function SprayLog(){
   function remove(id){setRecords(p=>p.filter(x=>x.id!==id));}
 
   function exportCSV(){
-    const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+    const facility={}; // TODO: load from db.facilities
     const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const header=[
       `# NY DEC Pesticide Application Record — ${facility.facilityName||"Facility"}`,
@@ -175,7 +181,7 @@ export default function SprayLog(){
   }
 
   function exportPDF(){
-    const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+    const facility={}; // TODO: load from db.facilities
     const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const rows=sorted.map(r=>`
       <tr>
@@ -222,7 +228,9 @@ export default function SprayLog(){
     return phiEnd>new Date();
   });
 
-  return(
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading spray log…</div>);
+
+  return (
     <>
       <style>{CSS}</style>
       <div className="sl-wrap">

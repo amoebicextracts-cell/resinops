@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { db } from "./lib/db";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const FACILITY_ROOM_TYPES = [
   "Processing Room","Dry / Cure Room","Packaging Room","Extraction Lab",
@@ -56,8 +57,8 @@ const EMPTY_CLEAN = {
 };
 
 export default function FacilityMap(){
-  const prodBatches = JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked&&b.status!=="complete");
-  const employees = JSON.parse(localStorage.getItem("resinops_employees")||"[]");
+  const [prodBatches, setProdBatches] = useState([]);
+  const [employees, setEmployees] = useState([]);
 
   const [rooms, setRooms] = useState(()=>{
     try{ return JSON.parse(localStorage.getItem("resinops_facility_map")||"[]"); }catch{ return []; }
@@ -68,7 +69,6 @@ export default function FacilityMap(){
   const [cleanForm, setCleanForm] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(()=>{ localStorage.setItem("resinops_facility_map", JSON.stringify(rooms)); }, [rooms]);
 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
   const selected = rooms.find(r=>r.id===selectedId);
@@ -108,7 +108,9 @@ export default function FacilityMap(){
 
   const allCleanLogs = rooms.flatMap(r=>(r.cleanLog||[]).map(c=>({...c,roomName:r.name,roomId:r.id}))).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
-  return(
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading facility map…</div>);
+
+  return (
     <>
       <style>{CSS}</style>
       <div className="fm-wrap">

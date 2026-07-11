@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
@@ -336,15 +337,10 @@ function CocTab({items, setItems}) {
 export default function InventoryERP() {
   const [tab, setTab] = useState("items");
   const [cocModal, setCocModal] = useState(null); // {item, cocForm}
-  const [items, setItems] = useState(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
-      if(!s.length) return DEFAULT_ITEMS;
-      return s.map(normalizeItem);
-    } catch { return DEFAULT_ITEMS; }
-  });
-  const [vendors, setVendors] = useState(() => { try { return JSON.parse(localStorage.getItem("resinops_vendors")||"[]"); } catch { return []; } });
-  const [pos, setPOs] = useState(() => { try { return JSON.parse(localStorage.getItem("resinops_pos")||"[]"); } catch { return []; } });
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState([]);
+  const [pos, setPOs] = useState([]);
   const [itemForm, setItemForm] = useState(null);
   const [vendorForm, setVendorForm] = useState(null);
   const [poForm, setPoForm] = useState(null);
@@ -378,9 +374,16 @@ export default function InventoryERP() {
     setCsvPreview(null); setCsvFileName("");
   }
 
-  useEffect(() => { localStorage.setItem("resinops_inventory", JSON.stringify(items)); }, [items]);
-  useEffect(() => { localStorage.setItem("resinops_vendors", JSON.stringify(vendors)); }, [vendors]);
-  useEffect(() => { localStorage.setItem("resinops_pos", JSON.stringify(pos)); }, [pos]);
+  useEffect(()=>{
+    async function load(){
+      try{
+        const inv = await db.inventory_items.list();
+        setItems(inv);
+      }catch(e){ console.error("InventoryERP load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const setIF = (k,v) => setItemForm(f=>({...f,[k]:v}));
   const setVF = (k,v) => setVendorForm(f=>({...f,[k]:v}));
@@ -467,6 +470,8 @@ export default function InventoryERP() {
 
   const filteredItems = items.filter(x => x.n.toLowerCase().includes(search.toLowerCase()) || x.cat.toLowerCase().includes(search.toLowerCase()));
   const lowStock = items.filter(x => itemStock(x) <= x.reorderAt && x.reorderAt > 0);
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading inventory…</div>);
 
   return (
     <>

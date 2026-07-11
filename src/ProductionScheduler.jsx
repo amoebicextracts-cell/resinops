@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 
 const LW=280, RH=96, HH=56, PX=11;
@@ -949,7 +950,7 @@ const EMPTY={
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
 };
 
-function loadHarvestBatches(){ try{return JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");}catch{return[];} }
+function loadHarvestBatches(){ return []; } // loaded async now
 const GRADE_LABELS={a:"A-Bud",b:"B-Bud",c:"C-Bud",trim:"Trim"};
 
 export default function ProductionScheduler(){
@@ -963,31 +964,45 @@ export default function ProductionScheduler(){
     if (!g) return;
     setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
   }
-  const[batches,setBatches]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_prod")||"[]");
-      const DS={
-        whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        vape:[{n:"Intake",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-        edible:[{n:"Intake",days:1},{n:"Production",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-      };
-      return raw.map(b=>({
-        ...b,
-        d: b.d||new Date().toISOString().split("T")[0],
-        steps: Array.isArray(b.steps)&&b.steps.length>0
-          ? b.steps
-          : (DS[b.cat]||DS.extract).map(s=>({...s})),
-      }));
-    }catch{return[];}
-  });
+  const[batches,setBatches]=useState([]);
+  const[harvestBatchesData,setHarvestBatchesData]=useState([]);
+  const[inventoryData,setInventoryData]=useState([]);
+  const[loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [pb, hb, inv]=await Promise.all([
+          db.production_batches.list(),
+          db.harvest_batches.list(),
+          db.inventory_items.list(),
+        ]);
+        const DS={
+          whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          vape:[{n:"Intake",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+          edible:[{n:"Intake",days:1},{n:"Production",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+        };
+        setBatches(pb.map(b=>({
+          ...b,
+          d: b.d||b.scheduled_date||new Date().toISOString().split("T")[0],
+          steps: Array.isArray(b.steps)&&b.steps.length>0
+            ? b.steps
+            : (DS[b.cat||b.category]||DS.extract).map(s=>({...s})),
+        })));
+        setHarvestBatchesData(hb);
+        setInventoryData(inv);
+      }catch(e){ console.error("ProductionScheduler load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const[form,setForm]=useState(EMPTY);
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
   const[formErr,setFormErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_prod",JSON.stringify(batches));},[batches]);
 
   const today=new Date();
   const today0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
@@ -1926,7 +1941,7 @@ export default function ProductionScheduler(){
             </div>}
             {/* CoC — Certificate of Conformity linkage */}
             {showCb&&(()=>{
-              const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
+              const inventory=inventoryData;
               const itemsWithCoc=inventory.filter(it=>(it.cocs||[]).length>0);
               const linkedIds=form.linkedCocIds||[];
               if(!itemsWithCoc.length) return(

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { db } from "./lib/db";
 
 const ROOTING   = 14;
 const DRYING    = 12;
@@ -137,51 +138,48 @@ function strainNames(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.na
 const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }], growMapId: "" };
 
 export default function Scheduler() {
-  const [spaces, setSpaces] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("resinops_spaces") || "[]"); }
-    catch { return []; }
-  });
-  const [growMap, setGrowMap] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("resinops_grow_map") || "[]"); }
-    catch { return []; }
-  });
+  const [spaces, setSpaces] = useState([]);
+  const [growMap, setGrowMap] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm]         = useState(EMPTY_FORM);
-  const [formMode, setFormMode] = useState(null); // null | "add" | "edit"
+  const [formMode, setFormMode] = useState(null);
   const [editId, setEditId]     = useState(null);
   const [formErr, setFormErr]   = useState("");
 
   useEffect(() => {
-    localStorage.setItem("resinops_spaces", JSON.stringify(spaces));
-  }, [spaces]);
-
-  // Keep a live read of grow map so changes made in GrowMap tab are reflected here
-  useEffect(() => {
-    function syncGrowMap() {
-      try { setGrowMap(JSON.parse(localStorage.getItem("resinops_grow_map") || "[]")); } catch {}
+    async function load(){
+      try{
+        const [sp, gm] = await Promise.all([
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+        ]);
+        setSpaces(sp);
+        setGrowMap(gm);
+      }catch(e){ console.error("Scheduler load error:",e); }
+      setLoading(false);
     }
-    window.addEventListener("storage", syncGrowMap);
-    return () => window.removeEventListener("storage", syncGrowMap);
+    load();
   }, []);
 
   // Write a new or updated room back to Grow Map if it doesn't already exist there
-  function syncToGrowMap(name, growMapId) {
+  async function syncToGrowMap(name, growMapId) {
     const existing = growMap.find(g => g.id === growMapId || g.name === name);
     if (existing) {
-      // Update status to active when a batch is scheduled into it
-      const updated = growMap.map(g => g.id === existing.id ? { ...g, status: "active" } : g);
-      setGrowMap(updated);
-      localStorage.setItem("resinops_grow_map", JSON.stringify(updated));
+      try {
+        await db.grow_rooms.upsert({ ...existing, status: "active" });
+        setGrowMap(p => p.map(g => g.id === existing.id ? { ...g, status: "active" } : g));
+      } catch(e) { console.error("syncToGrowMap update failed:", e); }
     } else {
-      // Create a stub entry so the room appears in Grow Map
       const stub = {
-        id: "gm_auto_" + Date.now(), name: name.trim(), type: "Indoor",
+        id: crypto.randomUUID(), name: name.trim(), type: "Indoor",
         status: "active", sqft: "", canopy: "", maxPlants: "", lightType: "LED",
         lightCount: "", lightWatts: "", resetDays: "7", lastHarvestDate: "",
         sensorId: "", notes: "Auto-created from Cultivation Scheduler",
       };
-      const updated = [...growMap, stub];
-      setGrowMap(updated);
-      localStorage.setItem("resinops_grow_map", JSON.stringify(updated));
+      try {
+        const saved = await db.grow_rooms.upsert(stub);
+        setGrowMap(p => [...p, saved]);
+      } catch(e) { console.error("syncToGrowMap create failed:", e); }
     }
   }
 
@@ -216,43 +214,54 @@ export default function Scheduler() {
     return true;
   }
 
-  function saveAdd() {
+  async function saveAdd() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
     const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
-    setSpaces(prev => [...prev, {
-      id: Date.now(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
+    const record = {
+      id: crypto.randomUUID(), name: form.name.trim(), strains: JSON.stringify(strains), strain: strains.map(s=>s.name).join(", "),
       d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||""
-    }]);
-    autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
-    syncToGrowMap(form.name.trim(), form.growMapId);
-    closeForm();
+    };
+    try {
+      const saved = await db.grow_spaces.upsert(record);
+      setSpaces(prev => [...prev, saved]);
+      autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
+      await syncToGrowMap(form.name.trim(), form.growMapId);
+      closeForm();
+    } catch(e) { setFormErr("Save failed: "+e.message); }
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
     const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
-    setSpaces(prev => prev.map(sp => sp.id === editId
-      ? { ...sp, name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
-          d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" }
-      : sp
-    ));
-    autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
-    syncToGrowMap(form.name.trim(), form.growMapId);
-    closeForm();
+    const updated = { name: form.name.trim(), strains: JSON.stringify(strains), strain: strains.map(s=>s.name).join(", "),
+        d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" };
+    try {
+      const existing = spaces.find(sp => sp.id === editId);
+      const saved = await db.grow_spaces.upsert({ ...existing, ...updated });
+      setSpaces(prev => prev.map(sp => sp.id === editId ? { ...sp, ...saved } : sp));
+      autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
+      await syncToGrowMap(form.name.trim(), form.growMapId);
+      closeForm();
+    } catch(e) { setFormErr("Save failed: "+e.message); }
   }
 
-  function updateWks(id, field, val) {
+  async function updateWks(id, field, val) {
     const n = Math.max(1, Math.min(24, parseInt(val) || 1));
+    const sp = spaces.find(s => s.id === id);
+    if (sp) { try { await db.grow_spaces.upsert({ ...sp, [field]: n }); } catch(e) { console.error(e); } }
     setSpaces(prev => prev.map(sp => sp.id === id ? { ...sp, [field]: n } : sp));
   }
 
-  function removeSpace(id) { setSpaces(prev => prev.filter(sp => sp.id !== id)); }
+  async function removeSpace(id) {
+    try { await db.grow_spaces.delete(id); } catch(e) { console.error("Delete failed:",e); }
+    setSpaces(prev => prev.filter(sp => sp.id !== id));
+  }
 
   // ── Export ────────────────────────────────────────────────────────────────
   function exportScheduler() {
@@ -344,6 +353,8 @@ export default function Scheduler() {
   }
 
 
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading scheduler…</div>);
 
   return (
     <>

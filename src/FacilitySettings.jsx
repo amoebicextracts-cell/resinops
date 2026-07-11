@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 const LICENSE_TYPES = [
   "Adult-Use Cultivator","Adult-Use Processor","Adult-Use Distributor",
@@ -33,17 +35,87 @@ const DEFAULTS = {
 };
 
 export default function FacilitySettings(){
-  const [settings,setSettings] = useState(() => {
-    try{ return {...DEFAULTS,...JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")}; }catch{ return DEFAULTS; }
-  });
+  const [settings,setSettings] = useState(DEFAULTS);
   const [saved,setSaved] = useState(false);
+  const [loading,setLoading] = useState(true);
+  const [err,setErr] = useState("");
   const setF = (k,v) => setSettings(s=>({...s,[k]:v}));
 
-  function save(){
-    localStorage.setItem("resinops_facility_settings",JSON.stringify(settings));
-    setSaved(true);
-    setTimeout(()=>setSaved(false),2500);
+  useEffect(()=>{
+    async function load(){
+      const fid = getCurrentFacility();
+      if(fid && supabase){
+        try{
+          const { data } = await supabase.from('facilities').select('*').eq('id', fid).single();
+          if(data){
+            setSettings({...DEFAULTS,
+              facilityName: data.facility_name||"",
+              dbaName: data.dba_name||"",
+              licenseNumber: data.license_number||"",
+              licenseType: data.license_type||"Adult-Use Processor",
+              state: data.state||"NY",
+              address: data.address||"",
+              city: data.city||"",
+              zip: data.zip||"",
+              phone: data.phone||"",
+              email: data.email||"",
+              website: data.website||"",
+              timezone: data.timezone||"America/New_York",
+              fiscalYearStart: data.fiscal_year_start ? String(data.fiscal_year_start).padStart(2,'0') : "01",
+              metrcApiKey: data.metrc_api_key||"",
+              flourishApiKey: data.flourish_api_key||"",
+              biotrackApiKey: data.biotrack_api_key||"",
+              kaychaApiKey: data.kaycha_api_key||"",
+              greenAnalyticsApiKey: data.green_analytics_api_key||"",
+              distruApiKey: data.distru_api_key||"",
+            });
+          }
+        }catch(e){ console.error("FacilitySettings load error:",e); }
+      } else {
+        try{ setSettings({...DEFAULTS,...JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")}); }catch{}
+      }
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  async function save(){
+    const fid = getCurrentFacility();
+    if(fid && supabase){
+      try{
+        const { error } = await supabase.from('facilities').update({
+          facility_name: settings.facilityName,
+          license_number: settings.licenseNumber,
+          license_type: settings.licenseType,
+          state: settings.state,
+          address: settings.address,
+          city: settings.city,
+          zip: settings.zip,
+          phone: settings.phone,
+          email: settings.email,
+          website: settings.website,
+          timezone: settings.timezone,
+          fiscal_year_start: parseInt(settings.fiscalYearStart)||1,
+          metrc_api_key: settings.metrcApiKey||null,
+          flourish_api_key: settings.flourishApiKey||null,
+          biotrack_api_key: settings.biotrackApiKey||null,
+          kaycha_api_key: settings.kaychaApiKey||null,
+          green_analytics_api_key: settings.greenAnalyticsApiKey||null,
+          distru_api_key: settings.distruApiKey||null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', fid);
+        if(error) throw error;
+        setSaved(true);
+        setTimeout(()=>setSaved(false),2500);
+      }catch(e){ setErr("Save failed: "+e.message); setTimeout(()=>setErr(""),4000); }
+    } else {
+      localStorage.setItem("resinops_facility_settings",JSON.stringify(settings));
+      setSaved(true);
+      setTimeout(()=>setSaved(false),2500);
+    }
   }
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading facility settings…</div>);
 
   return(
     <>

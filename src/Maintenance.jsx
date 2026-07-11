@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtD(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
@@ -63,18 +64,32 @@ const EMPTY_LOTO = {
 
 export default function Maintenance() {
   const [tab, setTab] = useState("workorders");
-  const [workOrders, setWorkOrders] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_workorders")||"[]");}catch{return[];} });
-  const [lotoLog, setLotoLog] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_loto")||"[]");}catch{return[];} });
-  const equipment = (() => { try{return JSON.parse(localStorage.getItem("resinops_equipment")||"[]");}catch{return[];} })();
-  const laborTypes = (() => { try{return JSON.parse(localStorage.getItem("resinops_labor_types")||"[]");}catch{return[];} })();
-  const vendors = (() => { try{return JSON.parse(localStorage.getItem("resinops_vendors")||"[]");}catch{return[];} })();
+  const [workOrders, setWorkOrders] = useState([]);
+  const [lotoLog, setLotoLog] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [laborTypes, setLaborTypes] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [eq, lt]=await Promise.all([
+          db.equipment.list(),
+          db.labor_types.list(),
+        ]);
+        setEquipment(eq);
+        setLaborTypes(lt);
+      }catch(e){ console.error("Maintenance load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const [form, setForm] = useState(null);
   const [lotoForm, setLotoForm] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_workorders", JSON.stringify(workOrders)); }, [workOrders]);
-  useEffect(() => { localStorage.setItem("resinops_loto", JSON.stringify(lotoLog)); }, [lotoLog]);
 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
   const setLF = (k,v) => setLotoForm(f=>({...f,[k]:v}));
@@ -108,6 +123,8 @@ export default function Maintenance() {
 
   const openWOs = workOrders.filter(w=>w.status!=="resolved");
   const openLOTOs = lotoLog.filter(l=>l.status==="open");
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading maintenance…</div>);
 
   return (
     <>

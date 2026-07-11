@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { db } from "./lib/db";
 
 const CSS = `
   .oa-wrap{display:flex;flex-direction:column;height:100%;padding:0;}
@@ -42,34 +43,25 @@ const SUGGESTIONS = [
   "What cultivation inputs did I apply last month?",
 ];
 
-function gatherFacilityData() {
-  const get = (key) => { try { return JSON.parse(localStorage.getItem(key)||"[]"); } catch { return []; } };
-  const getObj = (key) => { try { return JSON.parse(localStorage.getItem(key)||"{}"); } catch { return {}; } };
+async function gatherFacilityData() {
+  const [employees, harvestBatches, prodBatches, qcTests, salesOrders,
+         cultInputs, sprayLog, strains, skus, boms, spaces, growMap,
+         equipment, laborTypes, inventory, facilityMap, tcVessels,
+         cloneSchedules, mothers, deviations, shifts, sops] = await Promise.all([
+    db.employees.list(), db.harvest_batches.list(), db.production_batches.list(),
+    db.qc_tests.list(), db.sales_orders.list(), db.cultivation_inputs.list(),
+    db.spray_log.list(), db.strains.list(), db.skus.list(), db.boms.list(),
+    db.grow_spaces.list(), db.grow_rooms.list(), db.equipment.list(),
+    db.labor_types.list(), db.inventory_items.list(), db.facility_map_spaces.list(),
+    db.tc_vessels.list(), db.clone_schedules.list(), db.mother_plants.list(),
+    db.gmp_deviations.list(), db.gmp_shifts.list(), db.gmp_sops.list(),
+  ]);
   return {
-    facility: getObj("resinops_facility_settings"),
-    employees: get("resinops_employees"),
-    harvestBatches: get("resinops_harvest_batches"),
-    prodBatches: get("resinops_prod"),
-    qcTests: get("resinops_qc_tests"),
-    qcHolds: get("resinops_qc_holds"),
-    salesOrders: get("resinops_orders"),
-    cultInputs: get("resinops_cult_inputs"),
-    sprayLog: get("resinops_spray_log"),
-    strains: get("resinops_strains"),
-    skus: get("resinops_skus"),
-    boms: get("resinops_boms"),
-    spaces: get("resinops_spaces"),
-    growMap: get("resinops_grow_map"),
-    equipment: get("resinops_equipment"),
-    laborTypes: get("resinops_labor_types"),
-    inventory: get("resinops_inventory"),
-    facilityMap: get("resinops_facility_map"),
-    tcVessels: get("resinops_tc_vessels"),
-    cloneSchedules: get("resinops_clone_sched"),
-    mothers: get("resinops_mothers"),
-    deviations: get("resinops_deviations"),
-    shifts: get("resinops_shifts"),
-    sops: get("resinops_sops"),
+    facility: {}, employees, harvestBatches, prodBatches, qcTests,
+    qcHolds: qcTests.filter(t=>t.overallPass===false||t.on_hold).map(t=>String(t.id)),
+    salesOrders, cultInputs, sprayLog, strains, skus, boms, spaces, growMap,
+    equipment, laborTypes, inventory, facilityMap, tcVessels,
+    cloneSchedules, mothers, deviations, shifts, sops,
   };
 }
 
@@ -134,7 +126,7 @@ export default function OpsAnalyst() {
     setLoading(true);
 
     try {
-      const data = gatherFacilityData();
+      const data = await gatherFacilityData();
       const systemPrompt = buildSystemPrompt(data);
       const history = [...messages, userMsg].map(m=>({role:m.role,content:m.content}));
 
@@ -176,9 +168,13 @@ export default function OpsAnalyst() {
     });
   }
 
-  const hasData = gatherFacilityData().harvestBatches.length > 0 ||
-    gatherFacilityData().salesOrders.length > 0 ||
-    gatherFacilityData().prodBatches.length > 0;
+  const [hasData, setHasData] = useState(false);
+
+  useEffect(() => {
+    gatherFacilityData().then(data => {
+      setHasData(data.harvestBatches.length > 0 || data.salesOrders.length > 0 || data.prodBatches.length > 0);
+    }).catch(() => {});
+  }, []);
 
   return (
     <>

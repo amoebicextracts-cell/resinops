@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n){return Number(n||0).toLocaleString();}
@@ -55,56 +56,33 @@ const EMPTY_ORDER = { customerName:"", customerLicense:"", orderDate:new Date().
 
 export default function SalesOrders() {
   const [tab, setTab] = useState("availability");
-  const batches = (() => { try{ const b=JSON.parse(localStorage.getItem("resinops_prod")||"[]"); return b.filter(x=>!x.isLinked); }catch{return[];} })();
-  const skus = (() => { try{return JSON.parse(localStorage.getItem("resinops_skus")||"[]");}catch{return[];} })();
+  const [batches, setBatches] = useState([]);
+  const [skus, setSkus] = useState([]);
 
-  const [presellOverrides, setPresellOverrides] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_presell")||"{}");}catch{return{};} });
-  const [defaultPct, setDefaultPct] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_presell_default")||"50");}catch{return 50;} });
-  const [orders, setOrders] = useState(() => {
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_orders")||"[]");
-      return raw.map(o=>{
-        // Already in correct format
-        if(Array.isArray(o.lines)) return o;
-        // Convert flat CSV import row to component schema
-        const dispensaryName=o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||o["Customer"]||o.customerName||"";
-        const licenseNum=o.licenseNum||o.licenseNumber||o.license_num||o.license_number||o["License Number"]||o["License #"]||o["OCM License"]||o.customerLicense||"";
-        const orderDate=o.orderDate||o.order_date||o["Order Date"]||o["Date"]||new Date().toISOString().split("T")[0];
-        const units=parseFloat(o.units||o.units_ordered||o["Units Ordered"]||o["Quantity"]||o["Qty"]||0)||0;
-        const unitPrice=parseFloat(String(o.unitPrice||o.unit_price||o["Unit Price"]||o["Price"]||0).replace(/[$,]/g,""))||0;
-        const orderTotal=parseFloat(String(o.orderTotal||o.order_total||o["Order Total"]||o["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;
-        const rawStatus=(o.status||"").toLowerCase();
-        const importStatus=rawStatus==="waitlist"||rawStatus==="waitlisted"?"waitlist":rawStatus==="pending"?"pending":"confirmed";
-        const status=rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
-        const product=o.product||o["Product"]||o["Item"]||"";
-        const strain=o.strain||o["Strain"]||o["Cultivar"]||"";
-        return {
-          id: o.id||"ord_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-          customerName: dispensaryName,
-          customerLicense: licenseNum,
-          orderDate,
-          deliveryDate: o.deliveryDate||o.delivery_date||o.requested_delivery||o["Requested Delivery"]||o["Delivery Date"]||"",
-          status,
-          importStatus, // preserved for dashboard pipeline reporting
-          notes: (o.notes||o["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
-          lines: units>0?[{
-            id:"ln_imp_"+Date.now()+Math.random(),
-            batchId:"",
-            product: product+(strain?` (${strain})`:""),
-            qty: String(units),
-            unitPrice: String(unitPrice||0),
-            orderTotal,
-          }]:[],
-        };
-      });
-    }catch{return[];}
-  });
+  const [presellOverrides, setPresellOverrides] = useState({});
+  const [defaultPct, setDefaultPct] = useState(50);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [o, pb, sk]=await Promise.all([
+          db.sales_orders.list(),
+          db.production_batches.list(),
+          db.skus.list(),
+        ]);
+        setOrders(o);
+        setBatches(pb.filter(x=>!x.isLinked));
+        setSkus(sk);
+      }catch(e){ console.error("SalesOrders load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [orderForm, setOrderForm] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_presell", JSON.stringify(presellOverrides)); }, [presellOverrides]);
-  useEffect(() => { localStorage.setItem("resinops_presell_default", JSON.stringify(defaultPct)); }, [defaultPct]);
-  useEffect(() => { localStorage.setItem("resinops_orders", JSON.stringify(orders)); }, [orders]);
 
   // ── Availability math ──────────────────────────────────────────────────
   function batchAvailability(b) {
@@ -158,6 +136,8 @@ export default function SalesOrders() {
 
   const openOrders = orders.filter(o=>o.status==="open");
   const totalCommittedValue = openOrders.reduce((a,o)=>a+orderTotal(o),0);
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading sales orders…</div>);
 
   return (
     <>

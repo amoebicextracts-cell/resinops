@@ -75,9 +75,17 @@ export default function AuthScreen({ onAuth }) {
     setLoading(false);
   }
 
-  function handleLocalMode() {
-    // Continue without Supabase — V1 localStorage mode
-    onAuth(null);
+  async function handleForgotPassword() {
+    if (!email.trim()) { setError("Enter your email first, then click Forgot password."); return; }
+    setLoading(true); setError("");
+    const { error } = await auth.resetPassword ? await auth.resetPassword(email) : await (async()=>{
+      const { data: sb } = await import("./lib/supabase");
+      if (!sb.supabase) return { error: { message: "Supabase not configured" } };
+      return await sb.supabase.auth.resetPasswordForEmail(email, { redirectTo: "https://app.resinops.com" });
+    })();
+    if (error) { setError(error.message); }
+    else { setSuccess("Password reset email sent. Check your inbox."); }
+    setLoading(false);
   }
 
   function handleKey(e) {
@@ -118,60 +126,17 @@ export default function AuthScreen({ onAuth }) {
             <button className="auth-btn" onClick={handleSignIn} disabled={loading || !email || !password}>
               {loading ? "Signing in..." : "Sign In"}
             </button>
+            <div style={{textAlign:"center",marginTop:10}}>
+              <a onClick={handleForgotPassword} style={{fontSize:12,color:"#4a7c59",cursor:"pointer",textDecoration:"underline"}}>Forgot password?</a>
+            </div>
             <div className="auth-toggle">
-              Don't have an account? <a onClick={()=>{setMode("signup");setError("");}}>Create one</a>
+              Need an account? <a href="https://resinops.com/#waitlist" target="_blank" rel="noopener">Request access</a>
             </div>
           </>}
 
-          {mode === "signup" && <>
-            <div className="auth-title">Create account</div>
-            <div className="auth-sub">Set up your ResinOps facility</div>
-            <div className="auth-field">
-              <label className="auth-lbl">Full Name</label>
-              <input className="auth-inp" value={fullName}
-                onChange={e=>setFullName(e.target.value)} onKeyDown={handleKey}
-                placeholder="Alex Marzec" autoFocus />
-            </div>
-            <div className="auth-field">
-              <label className="auth-lbl">Facility Name</label>
-              <input className="auth-inp" value={facilityName}
-                onChange={e=>setFacilityName(e.target.value)} onKeyDown={handleKey}
-                placeholder="Cascade Peak Cannabis LLC" />
-            </div>
-            <div className="auth-field">
-              <label className="auth-lbl">Email</label>
-              <input className="auth-inp" type="email" value={email}
-                onChange={e=>setEmail(e.target.value)} onKeyDown={handleKey}
-                placeholder="you@example.com" />
-            </div>
-            <div className="auth-field">
-              <label className="auth-lbl">Password</label>
-              <input className="auth-inp" type="password" value={password}
-                onChange={e=>setPassword(e.target.value)} onKeyDown={handleKey}
-                placeholder="8+ characters" />
-            </div>
-            <button className="auth-btn" onClick={handleSignUp}
-              disabled={loading || !email || !password || !fullName || !facilityName}>
-              {loading ? "Creating account..." : "Create Account"}
-            </button>
-            <div className="auth-toggle">
-              Already have an account? <a onClick={()=>{setMode("signin");setError("");}}>Sign in</a>
-            </div>
-          </>}
+          {/* Sign-up disabled — accounts created by admin via Supabase dashboard */}
 
-          {isSupabaseEnabled && (
-            <>
-              <div className="auth-divider"><span>or</span></div>
-              <div className="auth-local">
-                <button className="auth-btn secondary" onClick={handleLocalMode}>
-                  Continue without account (local mode)
-                </button>
-                <div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>
-                  Data stays in your browser only — no sync, no multi-user
-                </div>
-              </div>
-            </>
-          )}
+          {/* Local mode disabled for production */}
         </div>
       </div>
     </>

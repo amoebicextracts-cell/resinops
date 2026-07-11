@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 const LBS_TO_G = 453.592;
 
@@ -91,57 +92,68 @@ const CSS = `
 `;
 
 export default function HarvestBatches() {
-  const spaces = (() => { try { return JSON.parse(localStorage.getItem("resinops_spaces")||"[]"); } catch { return []; } })();
-  const [batches, setBatches] = useState(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-      return raw.map(r => {
-        // Wet weight — could be grams or lbs depending on source
-        const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
-        const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
-        const wetWeightG = wetG > 0 ? wetG : wetLbs > 0 ? Math.round(wetLbs * 453.592) : 0;
-        // Dry weight — same
-        const dryLbs = parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
-        const dryG   = parseFloat(r.totalDryWeight||r.total_dry_weight||r.dry_weight_g||0)||0;
-        const totalDryWeight = dryG > 0 ? dryG : dryLbs > 0 ? Math.round(dryLbs * 453.592) : 0;
-        // Status — component expects "done" or "open"
-        const rawStatus = (r.status||r["Status"]||"").toLowerCase();
-        const status = rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed" ? "done" : "open";
-        return {
-          ...r,
-          id: r.id||r.batch_id||r["Batch ID"]||"hb_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-          strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
-          spaceId: r.spaceId||r.space_id||"",
-          spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
-          plants: r.plants||r.plant_count||r["Plant Count"]||"",
-          d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
-          wetWeightG,
-          totalDryWeight,
-          status,
-          coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
-          labName: r.labName||r.lab_name||r["Lab Name"]||"",
-          thca: r.thca||r["THCa %"]||r["THCa"]||"",
-          notes: r.notes||r["Notes"]||"",
-          grades: (r.grades && !Array.isArray(r.grades)) ? r.grades : {
-            aa:{weight: r.grade_aa||r["Grade AA (g)"]||"", s2s:""},
-            a: {weight: r.grade_a||r["Grade A (g)"]||r.grade_a_g||"", s2s:""},
-            b: {weight: r.grade_b||r["Grade B (g)"]||r.grade_b_g||"", s2s:""},
-            c: {weight: r.grade_c||r["Grade C (g)"]||r.grade_c_g||"", s2s:""},
-            trim:{weight: r.trim||r["Trim (g)"]||r.trim_g||"", s2s:""},
-            waste:{weight: r.waste||r["Waste (g)"]||r.waste_g||"", s2s:""},
-          },
-          steps: Array.isArray(r.steps) && r.steps.length > 0
-            ? r.steps
-            : STEPS_DEFAULT.map(s=>({...s})),
-        };
-      });
-    } catch { return []; }
-  });
+  const [spaces, setSpaces] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [laborTypes, setLaborTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
   const [formMode, setFormMode] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_harvest_batches", JSON.stringify(batches)); }, [batches]);
+  function normalizeBatch(r) {
+    const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
+    const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
+    const wetWeightG = wetG > 0 ? wetG : wetLbs > 0 ? Math.round(wetLbs * 453.592) : 0;
+    const dryLbs = parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
+    const dryG   = parseFloat(r.totalDryWeight||r.total_dry_weight||r.total_dry_weight_g||r.dry_weight_g||0)||0;
+    const totalDryWeight = dryG > 0 ? dryG : dryLbs > 0 ? Math.round(dryLbs * 453.592) : 0;
+    const rawStatus = (r.status||r["Status"]||"").toLowerCase();
+    const status = rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed" ? "done" : "open";
+    return {
+      ...r,
+      id: r.id||r.batch_id||r["Batch ID"]||crypto.randomUUID(),
+      strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+      spaceId: r.spaceId||r.space_id||r.grow_space_id||"",
+      spaceName: r.spaceName||r.space_name||r.room_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
+      plants: r.plants||r.plant_count||r["Plant Count"]||"",
+      d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+      wetWeightG,
+      totalDryWeight,
+      status,
+      coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
+      labName: r.labName||r.lab_name||r["Lab Name"]||"",
+      thca: r.thca||r.thca_pct||r["THCa %"]||r["THCa"]||"",
+      notes: r.notes||r["Notes"]||"",
+      grades: (r.grades && !Array.isArray(r.grades)) ? r.grades : {
+        aa:{weight: r.grade_aa||r.grade_aa_g||r["Grade AA (g)"]||"", s2s:""},
+        a: {weight: r.grade_a||r.grade_a_g||r["Grade A (g)"]||"", s2s:""},
+        b: {weight: r.grade_b||r.grade_b_g||r["Grade B (g)"]||"", s2s:""},
+        c: {weight: r.grade_c||r.grade_c_g||r["Grade C (g)"]||"", s2s:""},
+        trim:{weight: r.trim||r.trim_g||r["Trim (g)"]||"", s2s:""},
+        waste:{weight: r.waste||r.waste_g||r["Waste (g)"]||"", s2s:""},
+      },
+      steps: Array.isArray(r.steps) && r.steps.length > 0
+        ? r.steps
+        : STEPS_DEFAULT.map(s=>({...s})),
+    };
+  }
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [hb, sp, lt] = await Promise.all([
+          db.harvest_batches.list(),
+          db.grow_spaces.list(),
+          db.labor_types.list(),
+        ]);
+        setBatches(hb.map(normalizeBatch));
+        setSpaces(sp);
+        setLaborTypes(lt);
+      }catch(e){ console.error("HarvestBatches load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   function emptyForm() {
     return {
@@ -188,18 +200,27 @@ export default function HarvestBatches() {
     return true;
   }
 
-  function saveBatch() {
+  async function saveBatch() {
     if (!validate()) return;
-    const batch = { ...form, id: formMode==="edit" ? form.id : Date.now(),
+    const batch = { ...form, id: formMode==="edit" ? form.id : crypto.randomUUID(),
       plants: parseInt(form.plants)||0, wetWeightG: parseFloat(form.wetWeightG)||0,
       spaceName: selSpace?.name||"", totalDryWeight,
       status: totalDryWeight>0 ? "done" : "open" };
-    if (formMode==="edit") setBatches(p=>p.map(b=>b.id===batch.id?batch:b));
-    else setBatches(p=>[...p,batch]);
-    autoPopulateStrains(form.strainName, { source: "Harvest Batches" });
-    closeForm();
+    try {
+      const saved = await db.harvest_batches.upsert(batch);
+      const normalized = normalizeBatch(saved);
+      if (formMode==="edit") setBatches(p=>p.map(b=>b.id===normalized.id?normalized:b));
+      else setBatches(p=>[...p,normalized]);
+      autoPopulateStrains(form.strainName, { source: "Harvest Batches" });
+      closeForm();
+    } catch(e) { setErr("Save failed: "+e.message); }
   }
-  function removeBatch(id) { setBatches(p=>p.filter(b=>b.id!==id)); }
+  async function removeBatch(id) {
+    try {
+      await db.harvest_batches.delete(id);
+      setBatches(p=>p.filter(b=>b.id!==id));
+    } catch(e) { setErr("Delete failed: "+e.message); }
+  }
 
   const timelines = batches.map(b=>buildTimeline(b.d||new Date().toISOString().split("T")[0], Array.isArray(b.steps)&&b.steps.length>0 ? b.steps : STEPS_DEFAULT.map(s=>({...s}))));
   const today = new Date();
@@ -216,6 +237,8 @@ export default function HarvestBatches() {
     const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Harvest Batches</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;}h1{font-size:22px;color:#2d5a3d;}</style></head><body><h1>ResinOps — Harvest Batches</h1><p style="color:#666;font-size:13px;">Exported '+date+'</p>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Harvest-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   }
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading harvest batches…</div>);
 
   return (
     <>
@@ -328,8 +351,7 @@ export default function HarvestBatches() {
 
               {/* Labor cost estimate */}
               {(()=>{
-                const laborTypes=JSON.parse(localStorage.getItem("resinops_labor_types")||"[]");
-                const postHarvestRate=laborTypes.find(l=>l.cat==="post_harvest"||l.id==="postharvest")?.rate||18;
+                const postHarvestRate=laborTypes.find(l=>l.cat==="post_harvest"||l.category==="post_harvest"||l.id==="postharvest")?.rate||laborTypes.find(l=>l.cat==="post_harvest"||l.category==="post_harvest"||l.id==="postharvest")?.hourly_rate||18;
                 const handTrimGrades=["aa","a","b","c"].filter(g=>(form.trimMethods?.[g]||"machine")==="hand");
                 const machineTrimGrades=["aa","a","b","c"].filter(g=>(form.trimMethods?.[g]||"machine")==="machine");
                 const totalHandG=handTrimGrades.reduce((a,g)=>a+(parseFloat(form.grades?.[g]?.weight)||0),0);

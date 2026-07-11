@@ -4,22 +4,14 @@
  * Call autoPopulateStrains(names) wherever a strain name is saved.
  */
 
-const STORAGE_KEY = "resinops_strains";
-
-function readStrains() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
-}
-
-function writeStrains(strains) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(strains));
-}
+import { db } from './lib/db';
 
 /**
  * Accepts a single name string, an array of names, or a comma-separated string.
  * For any name not already in the database, creates a stub entry.
  * Returns the array of names that were newly created.
  */
-export function autoPopulateStrains(input, opts = {}) {
+export async function autoPopulateStrains(input, opts = {}) {
   if (!input) return [];
 
   // Normalise input to an array of clean, non-empty strings
@@ -29,15 +21,22 @@ export function autoPopulateStrains(input, opts = {}) {
 
   if (!rawNames.length) return [];
 
-  const existing = readStrains();
-  const existingNamesLower = new Set(existing.map(s => s.name.toLowerCase()));
+  let existing = [];
+  try {
+    existing = await db.strains.list();
+  } catch {
+    return []; // can't check, bail
+  }
+  
+  const existingNamesLower = new Set(existing.map(s => (s.name||"").toLowerCase()));
 
-  const newEntries = [];
-  rawNames.forEach(name => {
-    if (!name || existingNamesLower.has(name.toLowerCase())) return;
+  const newNames = [];
+  for (const name of rawNames) {
+    if (!name || existingNamesLower.has(name.toLowerCase())) continue;
     existingNamesLower.add(name.toLowerCase()); // prevent duplicates within the same batch
-    newEntries.push({
-      id: "str_auto_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+    
+    const entry = {
+      id: crypto.randomUUID(),
       name,
       type: "Hybrid",
       parentage: "",
@@ -50,12 +49,15 @@ export function autoPopulateStrains(input, opts = {}) {
       salesDescription: "",
       linkedPhenoHuntId: "",
       status: "active",
-    });
-  });
+    };
 
-  if (newEntries.length) {
-    writeStrains([...existing, ...newEntries]);
+    try {
+      await db.strains.upsert(entry);
+      newNames.push(name);
+    } catch (e) {
+      console.error("Auto-populate strain failed:", name, e);
+    }
   }
 
-  return newEntries.map(e => e.name);
+  return newNames;
 }

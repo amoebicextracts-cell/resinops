@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const LBS_TO_G=453.592;
 function addDays(dt,n){try{const d=new Date(dt);if(isNaN(d.getTime()))return new Date();d.setDate(d.getDate()+n);return d;}catch{return new Date();}}
@@ -51,17 +52,32 @@ const CSS=`
 const EMPTY_SCHEDULE={spaceId:"",strainName:"",plannedPlants:"",vegWeeks:"4",rootDays:"14",harvestDate:"",status:"upcoming",notes:""};
 
 export default function CloneScheduler(){
-  const growMap=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
-  const cultSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
-  const [schedules,setSchedules]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_clone_sched")||"[]");}catch{return[];}});
-  const [facilityRootDays,setFacilityRootDays]=useState(()=>parseInt(localStorage.getItem("resinops_facility_root_days")||"14"));
-  const [facilityVegWeeks,setFacilityVegWeeks]=useState(()=>parseInt(localStorage.getItem("resinops_facility_veg_weeks")||"4"));
+  const [growMap,setGrowMap]=useState([]);
+  const [cultSpaces,setCultSpaces]=useState([]);
+  const [schedules,setSchedules]=useState([]);
+  const [facilityRootDays,setFacilityRootDays]=useState(14);
+  const [facilityVegWeeks,setFacilityVegWeeks]=useState(4);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [cs, gm, rooms]=await Promise.all([
+          db.clone_schedules.list(),
+          db.grow_rooms.list(),
+          db.grow_spaces.list(),
+        ]);
+        setSchedules(cs);
+        setGrowMap(gm);
+        setCultSpaces(rooms);
+      }catch(e){ console.error("CloneScheduler load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [form,setForm]=useState(null);
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_clone_sched",JSON.stringify(schedules));},[schedules]);
-  useEffect(()=>{localStorage.setItem("resinops_facility_root_days",facilityRootDays);},[facilityRootDays]);
-  useEffect(()=>{localStorage.setItem("resinops_facility_veg_weeks",facilityVegWeeks);},[facilityVegWeeks]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -81,14 +97,14 @@ export default function CloneScheduler(){
   }).filter(Boolean);
 
   function openAdd(){setForm({...EMPTY_SCHEDULE,vegWeeks:String(facilityVegWeeks),rootDays:String(facilityRootDays)});setErr("");}
-  function save(){
+  async function save(){
     if(!form.strainName.trim()){setErr("Enter a strain.");return;}
     const rec={...form,id:form.id||"cs"+Date.now()};
     if(form.id) setSchedules(p=>p.map(x=>x.id===rec.id?rec:x));
     else setSchedules(p=>[...p,rec]);
     setForm(null);setErr("");
   }
-  function remove(id){setSchedules(p=>p.filter(x=>x.id!==id));}
+  async function remove(id){ try{ await db.clone_schedules.delete(id); setSchedules(p=>p.filter(x=>x.id!==id)); }catch(e){ console.error("Delete failed:",e); } }
   function setStatus(id,st){setSchedules(p=>p.map(x=>x.id===id?{...x,status:st}:x));}
 
   function urgencyClass(cutDate){
@@ -121,6 +137,8 @@ export default function CloneScheduler(){
     const d=s._calc?.cutDate;
     return d&&daysFromNow(d)<=7&&daysFromNow(d)>=0;
   }).length;
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading clone schedules…</div>);
 
   return(
     <>

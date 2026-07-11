@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Genetics Lab / TC","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
@@ -51,28 +52,44 @@ const CSS=`
 const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED",lightCount:"",lightWatts:"",resetDays:"7",status:"empty",lastHarvestDate:"",sensorId:"",notes:""};
 
 export default function GrowMap(){
-  const [spaces,setSpaces]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
-      return raw.map(r=>({
-        ...r,
-        id: r.id||"sp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-        name: r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",
-        type: r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",
-        sqft: r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||r["sqft"]||"",
-        canopy: r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||r["Canopy"]||"",
-        maxPlants: r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||r["Maximum Plants"]||"",
-        lightType: r.lightType||r.light_type||r["Light Type"]||r["Lights Type"]||"LED",
-        lightCount: r.lightCount||r.light_count||r.lights_count||r["Lights Count"]||r["Light Count"]||r["Number of Lights"]||"",
-        lightWatts: r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||r["Watts/Fixture"]||"",
-        resetDays: r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",
-        lastHarvestDate: r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",
-        status: r.status||"active",
-        notes: r.notes||r["Notes"]||"",
-      }));
-    }catch{return[];}
-  });
-  const cultSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
+  const [spaces,setSpaces]=useState([]);
+  const [cultSpaces,setCultSpaces]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  function normalizeRoom(r){
+    return {
+      ...r,
+      id: r.id||crypto.randomUUID(),
+      name: r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",
+      type: r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",
+      sqft: r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",
+      canopy: r.canopy||r.canopy_sqft||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy"]||"",
+      maxPlants: r.maxPlants||r.max_plants||r["Max Plants"]||"",
+      lightType: r.lightType||r.light_type||r["Light Type"]||"LED",
+      lightCount: r.lightCount||r.light_count||r["Lights Count"]||"",
+      lightWatts: r.lightWatts||r.light_watts||r.watts_per_light||r["Watts Per Light"]||"",
+      resetDays: r.resetDays||r.reset_days||r["Reset Days"]||"",
+      lastHarvestDate: r.lastHarvestDate||r.last_harvest_date||"",
+      sensorId: r.sensorId||r.sensor_id||"",
+      status: r.status||"active",
+      notes: r.notes||"",
+    };
+  }
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [rooms, cs] = await Promise.all([
+          db.grow_rooms.list(),
+          db.grow_spaces.list(),
+        ]);
+        setSpaces(rooms.map(normalizeRoom));
+        setCultSpaces(cs);
+      }catch(e){ console.error("GrowMap load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   function getActiveBatch(roomName, roomId) {
     return cultSpaces.find(s => s.name === roomName || s.growMapId === roomId);
@@ -80,20 +97,35 @@ export default function GrowMap(){
   const [form,setForm]=useState(null);
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_grow_map",JSON.stringify(spaces));},[spaces]);
-
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   function openAdd(){setForm({...EMPTY,id:null});setErr("");}
   function openEdit(s){setForm({...s});setErr("");}
-  function save(){
+  async function save(){
     if(!form.name.trim()){setErr("Enter a room name.");return;}
-    const sp={...form,id:form.id||"gm"+Date.now()};
-    if(form.id) setSpaces(p=>p.map(x=>x.id===sp.id?sp:x));
-    else setSpaces(p=>[...p,sp]);
-    setForm(null);setErr("");
+    const sp={...form,id:form.id||crypto.randomUUID()};
+    try{
+      const saved=await db.grow_rooms.upsert(sp);
+      const normalized=normalizeRoom(saved);
+      if(form.id) setSpaces(p=>p.map(x=>x.id===normalized.id?normalized:x));
+      else setSpaces(p=>[...p,normalized]);
+      setForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function remove(id){setSpaces(p=>p.filter(x=>x.id!==id));}
-  function setStatus(id,status){setSpaces(p=>p.map(x=>x.id===id?{...x,status}:x));}
+  async function remove(id){
+    try{
+      await db.grow_rooms.delete(id);
+      setSpaces(p=>p.filter(x=>x.id!==id));
+    }catch(e){ setErr("Delete failed: "+e.message); }
+  }
+  async function setStatus(id,status){
+    try{
+      const room=spaces.find(x=>x.id===id);
+      if(room){
+        await db.grow_rooms.upsert({...room,status});
+        setSpaces(p=>p.map(x=>x.id===id?{...x,status}:x));
+      }
+    }catch(e){ console.error("Status update failed:",e); }
+  }
 
   function exportCSV(){
     const cols=["name","type","sqft","canopy","maxPlants","lightType","lightCount","lightWatts","resetDays","status","sensorId","notes"];
@@ -103,6 +135,8 @@ export default function GrowMap(){
 
   const statusGroups=STATUSES.map(s=>({...s,rooms:spaces.filter(sp=>sp.status===s.v)}));
   const cleaningRooms=spaces.filter(s=>s.status==="cleaning");
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading grow rooms…</div>);
 
   return(
     <>

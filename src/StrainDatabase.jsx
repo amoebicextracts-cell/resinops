@@ -83,48 +83,6 @@ function normalizeStrain(r){
   };
 }
 
-// Transform app format → Supabase column names for saving
-function toSupabase(s){
-  return {
-    id: s.id,
-    name: s.name || "",
-    type: s.type || "Hybrid",
-    lineage: s.parentage || "",
-    breeder: s.breeder || "",
-    thca_avg: s.thcaAvg || null,
-    thc_avg: s.thcAvg || null,
-    cbd_avg: s.cbdAvg || null,
-    terps_avg: s.terpsAvg || null,
-    dominant_terps: s.dominantTerpenes || "",
-    veg_weeks: s.avgVegWeeks || null,
-    flower_weeks: s.avgFlowerWeeks || null,
-    yield_g_sqft: s.avgYieldGPerSqft || null,
-    aroma: s.aroma || "",
-    flavor: s.flavor || "",
-    effects: s.effectProfile || "",
-    ai_description: s.salesDescription || "",
-    notes: s.notes || "",
-  };
-}
-
-// Transform Supabase row → app format for loading
-function fromSupabase(r){
-  return normalizeStrain({
-    ...r,
-    parentage: r.lineage || r.parentage || "",
-    thcaAvg: r.thca_avg || r.thcaAvg || "",
-    thcAvg: r.thc_avg || r.thcAvg || "",
-    cbdAvg: r.cbd_avg || r.cbdAvg || "",
-    terpsAvg: r.terps_avg || r.terpsAvg || "",
-    dominantTerpenes: r.dominant_terps || r.dominantTerpenes || "",
-    avgVegWeeks: r.veg_weeks || r.avgVegWeeks || "",
-    avgFlowerWeeks: r.flower_weeks || r.avgFlowerWeeks || "",
-    avgYieldGPerSqft: r.yield_g_sqft || r.avgYieldGPerSqft || "",
-    effectProfile: r.effects || r.effectProfile || "",
-    salesDescription: r.ai_description || r.salesDescription || "",
-  });
-}
-
 export default function StrainDatabase(){
   const [harvestBatches,setHarvestBatches]=useState([]);
   const [prodBatches,setProdBatches]=useState([]);
@@ -150,7 +108,7 @@ export default function StrainDatabase(){
           db.harvest_batches.list(),
           db.production_batches.list(),
         ]);
-        setStrains(s.map(fromSupabase));
+        setStrains(s.map(normalizeStrain));
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
         // phenoHunts not in db.js mapping yet — keep localStorage fallback
@@ -239,8 +197,8 @@ Rules:
     if(!form.name.trim()){setErr("Enter a strain name.");return;}
     const s={...form,id:form.id||crypto.randomUUID()};
     try{
-      const saved=await db.strains.upsert(toSupabase(s));
-      const normalized=fromSupabase(saved);
+      const saved=await db.strains.upsert(s);
+      const normalized=normalizeStrain(saved);
       if(form.id) setStrains(p=>p.map(x=>x.id===normalized.id?normalized:x));
       else setStrains(p=>[...p,normalized]);
       setForm(null);setErr("");

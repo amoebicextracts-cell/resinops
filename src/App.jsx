@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, Component } from "react";
+import { auth } from "./lib/db";
+import { supabase, isSupabaseEnabled } from "./lib/supabase";
 
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false,error:null}; }
@@ -948,6 +950,36 @@ const css = `
   }
   .mobile-overlay { display:none; }
   .hamburger-btn { display:none;align-items:center;justify-content:center;width:36px;height:36px;border:none;border-radius:8px;background:var(--surface-2);cursor:pointer;color:var(--text);font-size:18px; }
+
+  /* User menu */
+  .user-menu-wrap{position:relative;}
+  .user-menu-btn{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 12px 6px 8px;cursor:pointer;color:var(--text-2);font-family:var(--sans);font-size:12px;transition:all 0.15s;}
+  .user-menu-btn:hover{border-color:var(--accent);color:var(--text);}
+  .user-avatar-sm{width:28px;height:28px;border-radius:7px;background:var(--accent-glow);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent-2);font-weight:600;}
+  .user-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--border-2);border-radius:10px;min-width:220px;box-shadow:0 8px 32px rgba(0,0,0,0.4);z-index:500;overflow:hidden;}
+  .user-dropdown-header{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-3);}
+  .user-dropdown-header strong{display:block;color:var(--text);font-size:13px;margin-bottom:2px;}
+  .user-dropdown-item{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:13px;color:var(--text-2);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--sans);transition:background 0.1s;}
+  .user-dropdown-item:hover{background:var(--surface-2);color:var(--text);}
+  .user-dropdown-item.danger{color:var(--danger);}
+  .user-dropdown-item.danger:hover{background:rgba(200,74,74,0.1);}
+  .user-dropdown-divider{height:1px;background:var(--border);margin:0;}
+
+  /* Account settings modal */
+  .acct-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:600;display:flex;align-items:center;justify-content:center;}
+  .acct-modal{background:var(--surface);border:1px solid var(--border-2);border-radius:14px;width:100%;max-width:440px;padding:28px;box-shadow:0 12px 48px rgba(0,0,0,0.5);}
+  .acct-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;}
+  .acct-sub{font-size:12px;color:var(--text-3);margin-bottom:20px;}
+  .acct-field{margin-bottom:14px;}
+  .acct-lbl{display:block;font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;}
+  .acct-inp{width:100%;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-size:13px;font-family:var(--sans);outline:none;box-sizing:border-box;}
+  .acct-inp:focus{border-color:var(--accent);}
+  .acct-btn{padding:10px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+  .acct-btn.primary{background:var(--accent);color:#fff;}
+  .acct-btn.secondary{background:var(--surface-2);border:1px solid var(--border-2);color:var(--text-2);}
+  .acct-msg{font-size:12px;margin-top:8px;}
+  .acct-msg.ok{color:var(--accent-2);}
+  .acct-msg.err{color:var(--danger);}
 `;
 
 
@@ -1008,9 +1040,64 @@ export default function ResinOps() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [acctTab, setAcctTab] = useState("profile"); // profile | password
+  const [acctNewEmail, setAcctNewEmail] = useState("");
+  const [acctCurrentPw, setAcctCurrentPw] = useState("");
+  const [acctNewPw, setAcctNewPw] = useState("");
+  const [acctConfirmPw, setAcctConfirmPw] = useState("");
+  const [acctMsg, setAcctMsg] = useState({text:"",type:""});
+  const [acctLoading, setAcctLoading] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const userMenuRef = useRef(null);
+
+  // Load user email on mount
+  useEffect(() => {
+    if (isSupabaseEnabled) {
+      auth.getUser().then(u => { if(u?.email) setUserEmail(u.email); });
+    }
+  }, []);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    function handler(e) { if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  async function handleSignOut() {
+    await auth.signOut();
+    window.location.reload();
+  }
+
+  async function handleUpdateEmail() {
+    if (!acctNewEmail.trim()) { setAcctMsg({text:"Enter a new email.",type:"err"}); return; }
+    setAcctLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: acctNewEmail });
+      if (error) throw error;
+      setAcctMsg({text:"Confirmation email sent to your new address. Check your inbox.",type:"ok"});
+      setAcctNewEmail("");
+    } catch(e) { setAcctMsg({text:e.message,type:"err"}); }
+    setAcctLoading(false);
+  }
+
+  async function handleChangePassword() {
+    if (acctNewPw.length < 6) { setAcctMsg({text:"Password must be at least 6 characters.",type:"err"}); return; }
+    if (acctNewPw !== acctConfirmPw) { setAcctMsg({text:"Passwords don't match.",type:"err"}); return; }
+    setAcctLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: acctNewPw });
+      if (error) throw error;
+      setAcctMsg({text:"Password updated successfully.",type:"ok"});
+      setAcctCurrentPw(""); setAcctNewPw(""); setAcctConfirmPw("");
+    } catch(e) { setAcctMsg({text:e.message,type:"err"}); }
+    setAcctLoading(false);
+  }
 
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
@@ -1303,9 +1390,30 @@ export default function ResinOps() {
               <div className="header-title">{currentModule?.label}</div>
               <div className="header-desc">{currentModule?.description}</div>
             </div>
-            <div className="header-status">
-              <div className="status-dot" />
-              Live
+            <div className="user-menu-wrap" ref={userMenuRef}>
+              <button className="user-menu-btn" onClick={()=>setUserMenuOpen(o=>!o)}>
+                <div className="user-avatar-sm">{userEmail?userEmail[0].toUpperCase():"U"}</div>
+                <span style={{maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{userEmail||"Account"}</span>
+                <span style={{fontSize:10,opacity:0.5}}>{userMenuOpen?"▲":"▼"}</span>
+              </button>
+              {userMenuOpen&&(
+                <div className="user-dropdown">
+                  <div className="user-dropdown-header">
+                    <strong>{userEmail||"User"}</strong>
+                    Signed in
+                  </div>
+                  <button className="user-dropdown-item" onClick={()=>{setShowAccountSettings(true);setAcctTab("profile");setUserMenuOpen(false);setAcctMsg({text:"",type:""});}}>
+                    ⚙️ Account Settings
+                  </button>
+                  <button className="user-dropdown-item" onClick={()=>{switchModule("facility-settings");setUserMenuOpen(false);}}>
+                    🏢 Facility Settings
+                  </button>
+                  <div className="user-dropdown-divider"/>
+                  <button className="user-dropdown-item danger" onClick={handleSignOut}>
+                    🚪 Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1443,6 +1551,59 @@ export default function ResinOps() {
           </div>}
         </main>
       </div>
+      {/* Account Settings Modal */}
+      {showAccountSettings && (
+        <div className="acct-overlay" onClick={(e)=>{if(e.target===e.currentTarget)setShowAccountSettings(false);}}>
+          <div className="acct-modal">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+              <div>
+                <div className="acct-title">Account Settings</div>
+                <div className="acct-sub">{userEmail}</div>
+              </div>
+              <button onClick={()=>setShowAccountSettings(false)} style={{background:"none",border:"none",color:"var(--text-3)",fontSize:20,cursor:"pointer",padding:4}}>✕</button>
+            </div>
+
+            <div style={{display:"flex",gap:8,marginBottom:20}}>
+              <button className={`acct-btn ${acctTab==="profile"?"primary":"secondary"}`} onClick={()=>{setAcctTab("profile");setAcctMsg({text:"",type:""});}}>Email</button>
+              <button className={`acct-btn ${acctTab==="password"?"primary":"secondary"}`} onClick={()=>{setAcctTab("password");setAcctMsg({text:"",type:""});}}>Password</button>
+            </div>
+
+            {acctTab==="profile" && (
+              <>
+                <div className="acct-field">
+                  <label className="acct-lbl">Current Email</label>
+                  <input className="acct-inp" value={userEmail} disabled style={{opacity:0.6}} />
+                </div>
+                <div className="acct-field">
+                  <label className="acct-lbl">New Email</label>
+                  <input className="acct-inp" type="email" value={acctNewEmail} onChange={e=>setAcctNewEmail(e.target.value)} placeholder="new@example.com" />
+                </div>
+                <button className="acct-btn primary" onClick={handleUpdateEmail} disabled={acctLoading}>
+                  {acctLoading?"Updating...":"Update Email"}
+                </button>
+              </>
+            )}
+
+            {acctTab==="password" && (
+              <>
+                <div className="acct-field">
+                  <label className="acct-lbl">New Password</label>
+                  <input className="acct-inp" type="password" value={acctNewPw} onChange={e=>setAcctNewPw(e.target.value)} placeholder="Minimum 6 characters" />
+                </div>
+                <div className="acct-field">
+                  <label className="acct-lbl">Confirm New Password</label>
+                  <input className="acct-inp" type="password" value={acctConfirmPw} onChange={e=>setAcctConfirmPw(e.target.value)} placeholder="Re-enter new password" />
+                </div>
+                <button className="acct-btn primary" onClick={handleChangePassword} disabled={acctLoading}>
+                  {acctLoading?"Updating...":"Change Password"}
+                </button>
+              </>
+            )}
+
+            {acctMsg.text && <div className={`acct-msg ${acctMsg.type}`}>{acctMsg.text}</div>}
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -30,28 +31,63 @@ const CSS=`
 `;
 
 export default function Dashboard({ onNavigate }){
-  const settings=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
-  const spaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
-  const growMap=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
-  const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-  const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
-  const employees=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
-  const equipment=JSON.parse(localStorage.getItem("resinops_equipment")||"[]");
-  const workOrders=JSON.parse(localStorage.getItem("resinops_workorders")||"[]");
-  const loto=JSON.parse(localStorage.getItem("resinops_loto")||"[]");
-  const deviations=JSON.parse(localStorage.getItem("resinops_deviations")||"[]");
-  const qcHolds=JSON.parse(localStorage.getItem("resinops_qc_holds")||"[]");
-  const inventory=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");
-  const cloneSched=JSON.parse(localStorage.getItem("resinops_clone_sched")||"[]");
-  const shifts=JSON.parse(localStorage.getItem("resinops_shifts")||"[]");
-  const salesOrders=JSON.parse(localStorage.getItem("resinops_orders")||"[]");
-  const prodBatchesAll=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
-  const skus=JSON.parse(localStorage.getItem("resinops_skus")||"[]");
-  const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");
-  const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
-  const growSpaces=JSON.parse(localStorage.getItem("resinops_spaces")||"[]");
-  const facilityVegWeeks=parseInt(localStorage.getItem("resinops_facility_veg_weeks")||"4");
-  const facilityRootDays=parseInt(localStorage.getItem("resinops_facility_root_days")||"14");
+  const [loading,setLoading]=useState(true);
+  const [settings,setSettings]=useState({});
+  const [spaces,setSpaces]=useState([]);
+  const [growMap,setGrowMap]=useState([]);
+  const [harvestBatches,setHarvestBatches]=useState([]);
+  const [prodBatches,setProdBatches]=useState([]);
+  const [employees,setEmployees]=useState([]);
+  const [equipment,setEquipment]=useState([]);
+  const [deviations,setDeviations]=useState([]);
+  const [inventory,setInventory]=useState([]);
+  const [cloneSched,setCloneSched]=useState([]);
+  const [shifts,setShifts]=useState([]);
+  const [salesOrders,setSalesOrders]=useState([]);
+  const [skus,setSkus]=useState([]);
+  const [qcTests,setQcTests]=useState([]);
+  const [strains,setStrains]=useState([]);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [sp,gm,hb,pb,emp,eq,dv,inv,cs,sh,so,sk,qc,st]=await Promise.all([
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+          db.harvest_batches.list(),
+          db.production_batches.list(),
+          db.employees.list(),
+          db.equipment.list(),
+          db.gmp_deviations.list(),
+          db.inventory_items.list(),
+          db.clone_schedules.list(),
+          db.gmp_shifts.list(),
+          db.sales_orders.list(),
+          db.skus.list(),
+          db.qc_tests.list(),
+          db.strains.list(),
+        ]);
+        setSpaces(sp); setGrowMap(gm); setHarvestBatches(hb);
+        setProdBatches(pb.filter(b=>!b.isLinked)); setEmployees(emp);
+        setEquipment(eq); setDeviations(dv); setInventory(inv);
+        setCloneSched(cs); setShifts(sh); setSalesOrders(so);
+        setSkus(sk); setQcTests(qc); setStrains(st);
+        try{ setSettings(JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")); }catch{}
+      }catch(e){ console.error("Dashboard load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
+
+  const workOrders=[];
+  const loto=[];
+  const qcHolds=qcTests.filter(t=>t.overallPass===false||t.on_hold).map(t=>String(t.id));
+  const prodBatchesAll=prodBatches;
+  const growSpaces=spaces;
+  const facilityVegWeeks=4;
+  const facilityRootDays=14;
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading dashboard…</div>);
 
   const today=new Date();
   const todayStr=today.toISOString().split("T")[0];

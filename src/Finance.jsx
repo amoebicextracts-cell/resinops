@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const fmtC = n => "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -144,22 +145,40 @@ function calcBatchCOGS(batch, boms, cogsRecords, items, laborTypes, facility) {
 export default function Finance() {
   const [tab, setTab] = useState("cogs");
 
-  // Load all data from localStorage
-  const [boms, setBoms]           = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_boms")||"[]");}catch{return[];} });
-  const [cogsRecs, setCogsRecs]   = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_cogs")||"[]");}catch{return[];} });
-  const [skus, setSkus]           = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_skus")||"[]");}catch{return[];} });
-  const [cultCosts, setCultCosts] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_cult_costs")||"[]");}catch{return[];} });
+  const [boms, setBoms] = useState([]);
+  const [cogsRecs, setCogsRecs] = useState([]);
+  const [skus, setSkus] = useState([]);
+  const [cultCosts, setCultCosts] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [spaces, setSpaces] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const batches     = (() => { try{return JSON.parse(localStorage.getItem("resinops_prod")||"[]");}catch{return[];} })();
-  const spaces      = (() => { try{return JSON.parse(localStorage.getItem("resinops_spaces")||"[]");}catch{return[];} })();
-  const items       = (() => { try{const s=JSON.parse(localStorage.getItem("resinops_inventory")||"[]");return s.length?s:[];}catch{return[];} })();
-  const laborTypes  = (() => { try{return JSON.parse(localStorage.getItem("resinops_labor_types")||"[]");}catch{return[];} })();
-  const facility    = (() => { try{return JSON.parse(localStorage.getItem("resinops_facility")||"{}"); }catch{return {};} })();
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [b, sk, pb, sp, inv, lt]=await Promise.all([
+          db.boms.list(),
+          db.skus.list(),
+          db.production_batches.list(),
+          db.grow_spaces.list(),
+          db.inventory_items.list(),
+          db.labor_types.list(),
+        ]);
+        setBoms(b);
+        setSkus(sk);
+        setBatches(pb);
+        setSpaces(sp);
+        setItems(inv);
+        setLaborTypes(lt);
+      }catch(e){ console.error("Finance load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
+  const [laborTypes, setLaborTypes] = useState([]);
+  const [facility, setFacility] = useState({});
 
-  useEffect(() => { localStorage.setItem("resinops_boms", JSON.stringify(boms)); }, [boms]);
-  useEffect(() => { localStorage.setItem("resinops_cogs", JSON.stringify(cogsRecs)); }, [cogsRecs]);
-  useEffect(() => { localStorage.setItem("resinops_skus", JSON.stringify(skus)); }, [skus]);
-  useEffect(() => { localStorage.setItem("resinops_cult_costs", JSON.stringify(cultCosts)); }, [cultCosts]);
 
   const [editCogs, setEditCogs] = useState(null); // batchId being edited
   const [editSku, setEditSku]   = useState(null);
@@ -205,6 +224,8 @@ export default function Finance() {
   }, {totalCOGS:0,totalRev:0,materialCost:0,laborCost:0,testFee:0,cultCost:0});
   const totalGrossProfit = summary.totalRev - summary.totalCOGS;
   const totalGrossMargin = summary.totalRev > 0 ? totalGrossProfit/summary.totalRev*100 : 0;
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading finance…</div>);
 
   return (
     <>
@@ -549,7 +570,7 @@ export default function Finance() {
                   <div><label className="fin-lbl">Price per unit ($)</label><input type="number" step="0.01" className="fin-inp" value={editSku.price} onChange={e=>setEditSku(s=>({...s,price:e.target.value}))} placeholder="15.00" /></div>
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  <button className="fin-btn fin-primary" onClick={()=>{if(!editSku.product){return;}setSkus(p=>{const i=p.findIndex(x=>x.id===editSku.id);return i>=0?p.map(x=>x.id===editSku.id?editSku:x):[...p,editSku];});setEditSku(null);}}>Save</button>
+                  <button className="fin-btn fin-primary" onClick={async()=>{if(!editSku.product){return;}try{const s={...editSku,id:editSku.id||crypto.randomUUID()};const saved=await db.skus.upsert(s);setSkus(p=>{const i=p.findIndex(x=>x.id===saved.id);return i>=0?p.map(x=>x.id===saved.id?saved:x):[...p,saved];});setEditSku(null);}catch(e){console.error("SKU save failed:",e);}}}>Save</button>
                   <button className="fin-btn fin-secondary" onClick={()=>setEditSku(null)}>Cancel</button>
                 </div>
               </div>
@@ -570,7 +591,7 @@ export default function Finance() {
                         <td style={{color:"var(--accent-2)",fontWeight:600}}>{fmtC(sku.price)}</td>
                         <td><div style={{display:"flex",gap:6}}>
                           <button className="fin-btn fin-sm fin-edit" onClick={()=>setEditSku(sku)}>Edit</button>
-                          <button className="fin-btn fin-sm fin-del" onClick={()=>setSkus(p=>p.filter(x=>x.id!==sku.id))}>✕</button>
+                          <button className="fin-btn fin-sm fin-del" onClick={async()=>{try{await db.skus.delete(sku.id);setSkus(p=>p.filter(x=>x.id!==sku.id));}catch(e){console.error(e);}}}>✕</button>
                         </div></td>
                       </tr>
                     ))}

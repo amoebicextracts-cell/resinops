@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { STEP_LABOR } from "./LaborManager.jsx";
 
 // ── Date helpers ───────────────────────────────────────────────────────────
@@ -105,10 +106,28 @@ export default function LaborDashboard() {
   const [selectedDay, setSelectedDay] = useState(null);
 
   // Load data
-  const facility  = (() => { try { return JSON.parse(localStorage.getItem("resinops_facility_settings")||localStorage.getItem("resinops_facility")||'{"shiftHours":"8","shiftsPerDay":"1"}'); } catch { return {shiftHours:"8",shiftsPerDay:"1"}; } })();
-  const laborTypes = (() => { try { const s=JSON.parse(localStorage.getItem("resinops_labor_types")||"[]"); return s.length?s:[]; } catch { return []; } })();
-  const batches   = (() => { try { return JSON.parse(localStorage.getItem("resinops_prod")||"[]"); } catch { return []; } })();
-  const spaces    = (() => { try { return JSON.parse(localStorage.getItem("resinops_spaces")||"[]"); } catch { return []; } })();
+  const [facility, setFacility] = useState({shiftHours:"8",shiftsPerDay:"1"});
+  const [laborTypes, setLaborTypes] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [spaces, setSpaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [lt, pb, sp]=await Promise.all([
+          db.labor_types.list(),
+          db.production_batches.list(),
+          db.grow_spaces.list(),
+        ]);
+        setLaborTypes(lt);
+        setBatches(pb);
+        setSpaces(sp);
+      }catch(e){ console.error("LaborDashboard load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const sh = parseFloat(facility.shiftHours) || 8;
   const spd = parseInt(facility.shiftsPerDay) || 1;
@@ -183,6 +202,8 @@ export default function LaborDashboard() {
 
   const hasBatches = batches.filter(b=>!b.isLinked).length > 0 || spaces.length > 0;
 
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading labor dashboard…</div>);
+
   return (
     <>
       <style>{CSS}</style>
@@ -204,7 +225,7 @@ export default function LaborDashboard() {
                 {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:""},
                 {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:""},
               ];
-              localStorage.setItem("resinops_labor_types",JSON.stringify(laborTypes));
+              // labor types saved via LaborManager
               window.location.reload();
             }} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>
               Load defaults

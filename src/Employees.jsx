@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const DEPARTMENTS = ["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","Management","Security","Other"];
 const ROLES = ["Cultivation Tech","Lead Grower","Master Grower","Trim Tech","Post-Harvest Lead","Extraction Tech","Extraction Lead","Processing Tech","Production Manager","QC Tech","QC Manager","Maintenance Tech","Shift Supervisor","Department Manager","Director of Operations","VP of Processing","CEO / Owner","Other"];
@@ -43,27 +44,8 @@ const EMPTY={name:"",role:"Cultivation Tech",department:"Cultivation",status:"ac
   certs:[],trainings:[],notes:""};
 
 export default function Employees(){
-  const [employees,setEmployees]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
-      return raw.map(e=>({
-        ...e,
-        name: e.name || e.full_name || e["Full Name"] || e["Employee Name"] || e["Name"] || e["Staff Member"] || "",
-        role: e.role || e.job_title || e["Job Title"] || e["Title"] || e["Position"] || "Other",
-        department: e.department || e["Department / Area"] || e["Department"] || e["Area"] || "Other",
-        status: ["active","inactive"].includes((e.status||"").toLowerCase()) ? (e.status||"").toLowerCase() : "active",
-        hireDate: e.hireDate || e.employment_start || e["Employment Start"] || e["Start Date"] || e["Hire Date"] || e["Date Hired"] || "",
-        phone: e.phone || e.cell_phone || e["Cell Phone"] || e["Phone"] || e["Mobile"] || "",
-        email: e.email || e.work_email || e["Work Email"] || e["Email"] || "",
-        pestLicenseNum: e.pestLicenseNum || e.pesticide_cert_number || e.pesticide_cert_num || e.cert_number || e["Pesticide Cert #"] || e["License #"] || e["Cert Number"] || "",
-        pestLicenseCategory: e.pestLicenseCategory || e.pesticide_cert_category || e.cert_category || e["Cert Category"] || e["License Type"] || e["Pesticide License Category"] || "None / Not Licensed",
-        pestLicenseExpiry: e.pestLicenseExpiry || e.pesticide_cert_expiry || e.cert_expiry_date || e.cert_expiry || e["Cert Expiry Date"] || e["License Expires"] || e["Expiry Date"] || "",
-        certs: Array.isArray(e.certs) ? e.certs : [],
-        trainings: Array.isArray(e.trainings) ? e.trainings : [],
-        notes: e.notes || e["Notes"] || "",
-      }));
-    }catch{return[];}
-  });
+  const [employees,setEmployees]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [form,setForm]=useState(null);
   const [detailId,setDetailId]=useState(null);
   const [formTab,setFormTab]=useState("basic");
@@ -71,19 +53,54 @@ export default function Employees(){
   const [newCert,setNewCert]=useState({cert:"GMP Fundamentals",issuedBy:"",date:"",expiryDate:""});
   const [newTraining,setNewTraining]=useState({title:"",date:"",trainer:"",notes:""});
 
-  useEffect(()=>{localStorage.setItem("resinops_employees",JSON.stringify(employees));},[employees]);
+  function normalizeEmployee(e){
+    return {
+      ...e,
+      name: e.name||e.full_name||e["Full Name"]||e["Employee Name"]||"",
+      role: e.role||e.job_title||e["Job Title"]||"Other",
+      department: e.department||e["Department"]||"Other",
+      status: ["active","inactive"].includes((e.status||"").toLowerCase()) ? (e.status||"").toLowerCase() : "active",
+      hireDate: e.hireDate||e.hire_date||e["Hire Date"]||"",
+      phone: e.phone||e["Phone"]||"",
+      email: e.email||e["Email"]||"",
+      pestLicenseNum: e.pestLicenseNum||e.pest_license_number||e["Pesticide Cert #"]||"",
+      pestLicenseCategory: e.pestLicenseCategory||e["Cert Category"]||"None / Not Licensed",
+      pestLicenseExpiry: e.pestLicenseExpiry||e.pest_license_expiry||e["Cert Expiry Date"]||"",
+      certs: Array.isArray(e.certs) ? e.certs : [],
+      trainings: Array.isArray(e.trainings) ? e.trainings : [],
+      notes: e.notes||"",
+    };
+  }
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const raw=await db.employees.list();
+        setEmployees(raw.map(normalizeEmployee));
+      }catch(e){ console.error("Employees load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const detail=employees.find(e=>e.id===detailId);
 
-  function save(){
+  async function save(){
     if(!form.name.trim()){setErr("Enter employee name.");return;}
-    const emp={...form,id:form.id||"emp"+Date.now()};
-    if(form.id) setEmployees(p=>p.map(x=>x.id===emp.id?emp:x));
-    else setEmployees(p=>[...p,emp]);
-    setForm(null);setFormTab("basic");setErr("");
+    const emp={...form,id:form.id||crypto.randomUUID()};
+    try{
+      const saved=await db.employees.upsert(emp);
+      const normalized=normalizeEmployee(saved);
+      if(form.id) setEmployees(p=>p.map(x=>x.id===normalized.id?normalized:x));
+      else setEmployees(p=>[...p,normalized]);
+      setForm(null);setFormTab("basic");setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function remove(id){setEmployees(p=>p.filter(x=>x.id!==id));if(detailId===id)setDetailId(null);}
+  async function remove(id){
+    try{ await db.employees.delete(id); setEmployees(p=>p.filter(x=>x.id!==id)); if(detailId===id)setDetailId(null); }
+    catch(e){ setErr("Delete failed: "+e.message); }
+  }
   function addCert(){if(!newCert.cert)return;setForm(f=>({...f,certs:[...(f.certs||[]),{...newCert,id:"c"+Date.now()}]}));setNewCert({cert:"GMP Fundamentals",issuedBy:"",date:"",expiryDate:""});}
   function removeCert(id){setForm(f=>({...f,certs:f.certs.filter(c=>c.id!==id)}));}
   function addTraining(){if(!newTraining.title)return;setForm(f=>({...f,trainings:[...(f.trainings||[]),{...newTraining,id:"t"+Date.now()}]}));setNewTraining({title:"",date:"",trainer:"",notes:""});}
@@ -93,6 +110,8 @@ export default function Employees(){
     const d=daysUntil(e.pestLicenseExpiry);
     return d!==null&&d<=60&&d>=0&&e.pestLicenseCategory!=="None / Not Licensed";
   });
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading employees…</div>);
 
   return(
     <>

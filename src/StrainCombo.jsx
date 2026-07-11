@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { db } from "./lib/db";
 
 const COMBO_CSS = `
   .sc-wrap{position:relative;width:100%;}
@@ -43,9 +44,9 @@ export default function StrainCombo({ value="", onChange, onSelect, placeholder=
   const wrapRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Load strains from localStorage on mount and whenever dropdown opens
+  // Load strains from db layer on mount and whenever dropdown opens
   useEffect(()=>{
-    try{ setStrains(JSON.parse(localStorage.getItem("resinops_strains")||"[]")); }catch{}
+    db.strains.list().then(data => setStrains(data)).catch(()=>{});
   }, [open]);
 
   // Close on outside click

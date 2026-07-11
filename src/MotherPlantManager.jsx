@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
 
@@ -62,25 +63,33 @@ const EMPTY_MOM = {
 };
 
 export default function MotherPlantManager(){
-  const allSpaces = [
-    ...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),
-    ...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]"),
-  ].filter(s => s.type === "mother" || s.name?.toLowerCase().includes("mother") || s.name?.toLowerCase().includes("mom"));
-
-  const allRooms = [
-    ...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),
-    ...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]"),
-  ];
-
-  const [moms, setMoms] = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("resinops_mothers")||"[]"); }catch{ return []; }
-  });
+  const [allSpaces, setAllSpaces] = useState([]);
+  const [allRooms, setAllRooms] = useState([]);
+  const [moms, setMoms] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [err, setErr] = useState("");
   const [cutForm, setCutForm] = useState(null);
 
-  useEffect(()=>{ localStorage.setItem("resinops_mothers", JSON.stringify(moms)); }, [moms]);
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [m, spaces, rooms]=await Promise.all([
+          db.mother_plants.list(),
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+        ]);
+        setMoms(m);
+        const combined=[...spaces,...rooms];
+        setAllRooms(combined);
+        setAllSpaces(combined.filter(s=>s.type==="mother"||s.room_type==="mother"||s.name?.toLowerCase().includes("mother")||s.name?.toLowerCase().includes("mom")));
+      }catch(e){ console.error("MotherPlantManager load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
+
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const selected = moms.find(m=>m.id===selectedId);
@@ -98,7 +107,7 @@ export default function MotherPlantManager(){
     return "active";
   }
 
-  function save(){
+  async function save(){
     if(!form.strainName){ setErr("Strain name is required."); return; }
     if(!form.plantCount||form.plantCount<1){ setErr("Plant count must be at least 1."); return; }
     const rec = {
@@ -131,7 +140,7 @@ export default function MotherPlantManager(){
     setMoms(p=>p.map(m=>m.id===selectedId?{...m,cutLog:[...(m.cutLog||[]),entry]}:m));
 
     // Suggest to Clone Scheduler — store as a suggested batch
-    const cloneSuggestions = JSON.parse(localStorage.getItem("resinops_clone_suggestions")||"[]");
+    const cloneSuggestions = []; // TODO: move to db layer
     cloneSuggestions.push({
       id: "cs_"+Date.now(),
       strainName: selected.strainName,
@@ -141,7 +150,7 @@ export default function MotherPlantManager(){
       status: "suggested",
       notes: "From Mother Plant Manager cut log",
     });
-    localStorage.setItem("resinops_clone_suggestions", JSON.stringify(cloneSuggestions));
+    // clone suggestions will be persisted in a future update
 
     setCutForm(null); setErr("");
   }

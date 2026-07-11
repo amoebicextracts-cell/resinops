@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 export const DEFAULT_LABOR_TYPES = [
   {id:"lt_1", n:"Director of Operations",       cat:"Management",   count:1, rate:75},
@@ -92,21 +93,23 @@ const CSS = `
 const EMPTY_LT = {n:"",cat:"Post-Harvest",count:"1",rate:"20"};
 
 export default function LaborManager() {
-  const [facility, setFacility] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("resinops_facility") || '{"shiftHours":"8","shiftsPerDay":"1"}'); }
-    catch { return {shiftHours:"8",shiftsPerDay:"1"}; }
-  });
-  const [types, setTypes] = useState(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem("resinops_labor_types") || "[]");
-      return stored.length > 0 ? stored : DEFAULT_LABOR_TYPES;
-    } catch { return DEFAULT_LABOR_TYPES; }
-  });
+  const [facility, setFacility] = useState({shiftHours:"8",shiftsPerDay:"1"});
+  const [types, setTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const lt = await db.labor_types.list();
+        setTypes(lt);
+      }catch(e){ console.error("LaborManager load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [form, setForm] = useState(null); // null = hidden, {} = new, {id} = edit
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_facility", JSON.stringify(facility)); }, [facility]);
-  useEffect(() => { localStorage.setItem("resinops_labor_types", JSON.stringify(types)); }, [types]);
 
   const setF = (k,v) => setFacility(f => ({...f,[k]:v}));
   const setLF = (k,v) => setForm(f => ({...f,[k]:v}));
@@ -115,15 +118,21 @@ export default function LaborManager() {
   function openEdit(lt) { setForm({...lt, count:String(lt.count), rate:String(lt.rate)}); setErr(""); }
   function closeForm() { setForm(null); setErr(""); }
 
-  function saveType() {
+  async function saveType() {
     if (!form.n?.trim()) { setErr("Enter a job title."); return; }
-    const lt = { id: form.id || "lt_"+Date.now(), n: form.n.trim(), cat: form.cat, count: parseInt(form.count)||1, rate: parseFloat(form.rate)||0 };
-    if (form.id) setTypes(p => p.map(t => t.id===form.id ? lt : t));
-    else setTypes(p => [...p, lt]);
-    closeForm();
+    const lt = { id: form.id || crypto.randomUUID(), name: form.n.trim(), category: form.cat, headcount: parseInt(form.count)||1, hourly_rate: parseFloat(form.rate)||0 };
+    try {
+      const saved = await db.labor_types.upsert(lt);
+      if (form.id) setTypes(p => p.map(t => t.id===saved.id ? saved : t));
+      else setTypes(p => [...p, saved]);
+      closeForm();
+    } catch(e) { setErr("Save failed: "+e.message); }
   }
 
-  function removeType(id) { setTypes(p => p.filter(t => t.id !== id)); }
+  async function removeType(id) {
+    try { await db.labor_types.delete(id); setTypes(p => p.filter(t => t.id !== id)); }
+    catch(e) { setErr("Delete failed: "+e.message); }
+  }
 
   function resetDefaults() {
     if (window.confirm("Reset labor types to defaults? This will overwrite your current roster.")) {
@@ -133,6 +142,8 @@ export default function LaborManager() {
 
   const totalHeadcount = types.reduce((a,t) => a+t.count, 0);
   const totalHrCost = types.reduce((a,t) => a+t.count*t.rate, 0);
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading labor…</div>);
 
   return (
     <>

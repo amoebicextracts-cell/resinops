@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const INPUT_TYPES=[
   {v:"nutrient",l:"Nutrient Application"},
@@ -50,53 +51,36 @@ const EMPTY={spaceId:"",date:new Date().toISOString().split("T")[0],type:"nutrie
   species:"",supplier:"",releaseRate:"",releaseUnit:"insects/plant",notes:""};
 
 export default function CultivationInputs(){
-  const spaces=[...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]").filter(g=>!JSON.parse(localStorage.getItem("resinops_spaces")||"[]").some(s=>s.name===g.name))];
-  const employees=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
+  const [spaces, setSpaces] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const pestApplicators=employees.filter(e=>e.pestLicenseCategory!=="None / Not Licensed"&&e.status==="active");
 
-  const [records,setRecords]=useState(()=>{
-    try{
-      const raw=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]");
-      const allSpaces=[...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]")];
-      return raw.map(r=>{
-        const product = r.product||r["Product"]||r["Input"]||r["Material"]||"";
-        const spaceName = r.spaceName||r.space_name||r.grow_space||r["Grow Space"]||r["Space"]||r["Room"]||"";
-        const spaceId = r.spaceId||(allSpaces.find(s=>s.name===spaceName)?.id||"");
-        // Map type — never default to ipm_spray for nutrient records
-        const rawType=(r.type||r.input_type||r.inputType||r["Input Type"]||r["Type"]||"").toLowerCase().trim();
-        let type="other";
-        if(["nutrient","fertilizer","feed","supplement","foliar","booster","tonic","solution"].some(k=>rawType.includes(k))) type="nutrient";
-        else if(["amendment","compost","worm","casting","microbe","soil","media","topdress"].some(k=>rawType.includes(k))) type="amendment";
-        else if(["beneficial","insect","mite","predator","nematode","cucumeris","sachets","ladybug"].some(k=>rawType.includes(k))) type="beneficial";
-        else if(["flush","plain water","ro water","rinse","enzyme"].some(k=>rawType.includes(k))) type="flush";
-        else if(["nutrient","amendment","beneficial","flush","other","ipm_spray","fungicide","insecticide"].includes(rawType)) type=rawType==="ipm_spray"||rawType==="fungicide"||rawType==="insecticide"?"other":rawType;
-        return {
-          ...r,
-          id: r.id||"ci_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-          type,
-          product,
-          spaceName,
-          spaceId,
-          date: r.date||r.application_date||r["Date"]||r["Application Date"]||"",
-          manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
-          rate: r.rate||r["Rate"]||"",
-          rateUnit: r.rateUnit||r.rate_unit||r["Rate Unit"]||"",
-          volumeApplied: r.volumeApplied||r.amount_mixed||r["Amount Mixed"]||"",
-          volumeUnit: r.volumeUnit||r.volume_unit||r["Volume Unit"]||"gal",
-          areaApplied: r.areaApplied||r.area_sq_ft||r["Area Sq Ft"]||r["Area"]||"",
-          costPerUnit: r.costPerUnit||r.cost_per_unit||r["Cost Per Unit"]||"",
-          totalCost: r.totalCost||r.total_cost||r["Total Cost"]||"",
-          notes: r.notes||r["Notes"]||"",
-        };
-      });
-    }catch{return[];}
-  });
+  const [records,setRecords]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [ci, sp, gm, emp]=await Promise.all([
+          db.cultivation_inputs.list(),
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+          db.employees.list(),
+        ]);
+        setRecords(ci);
+        const combined=[...sp,...gm.filter(g=>!sp.some(s=>s.name===g.name))];
+        setSpaces(combined);
+        setEmployees(emp);
+      }catch(e){ console.error("CultivationInputs load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [form,setForm]=useState(null);
   const [filterSpace,setFilterSpace]=useState("");
   const [filterType,setFilterType]=useState("");
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_cult_inputs",JSON.stringify(records));},[records]);
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const isSpray=form?.type==="ipm_spray"||form?.type==="ipm_foliar";
@@ -132,7 +116,9 @@ export default function CultivationInputs(){
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows],{type:"text/csv"}));a.download="SprayLog-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
 
-  return(
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading cultivation inputs…</div>);
+
+  return (
     <>
       <style>{CSS}</style>
       <div className="ci-wrap">

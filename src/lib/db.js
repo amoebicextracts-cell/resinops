@@ -14,6 +14,7 @@
 // ============================================================
 
 import { supabase, isSupabaseEnabled, getCurrentFacility } from './supabase';
+import { transformForDb, transformFromDb } from './dbTransforms';
 
 // ── localStorage key mapping ──────────────────────────────────
 const LS_KEYS = {
@@ -63,7 +64,7 @@ function lsSet(table, data) {
 
 function lsUpsert(table, record) {
   const rows = lsGet(table);
-  const id = record.id || `${table}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+  const id = record.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${table}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`);
   const withId = { ...record, id, updated_at: new Date().toISOString() };
   const idx = rows.findIndex(r => String(r.id) === String(id));
   if (idx >= 0) rows[idx] = withId;
@@ -88,21 +89,25 @@ async function sbList(table, filters = {}) {
   q = q.order('created_at', { ascending: false });
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+  // Transform each row from Supabase columns to app field names
+  return (data || []).map(row => transformFromDb(table, row));
 }
 
 async function sbUpsert(table, record) {
   const fid = getCurrentFacility();
+  // Transform app field names → Supabase column names and strip invalid fields
+  const transformed = transformForDb(table, record);
   const withFacility = (fid && table !== 'facilities' && table !== 'profiles')
-    ? { ...record, facility_id: fid }
-    : record;
+    ? { ...transformed, facility_id: fid }
+    : transformed;
   const { data, error } = await supabase
     .from(table)
     .upsert(withFacility, { onConflict: 'id' })
     .select()
     .single();
   if (error) throw error;
-  return data;
+  // Transform Supabase columns back to app field names
+  return transformFromDb(table, data);
 }
 
 async function sbDelete(table, id) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
@@ -62,20 +63,30 @@ const EMPTY={
 };
 
 export default function QCTesting(){
-  const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-  const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
-
-  const [tests,setTests]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]");}catch{return[];}});
+  const [harvestBatches,setHarvestBatches]=useState([]);
+  const [prodBatches,setProdBatches]=useState([]);
+  const [tests,setTests]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [form,setForm]=useState(null);
   const [formSection,setFormSection]=useState("meta");
   const [err,setErr]=useState("");
 
   useEffect(()=>{
-    localStorage.setItem("resinops_qc_tests",JSON.stringify(tests));
-    // Sync pass/fail status to sales availability
-    const fails=tests.filter(t=>t.overallPass===false).map(t=>t.batchId);
-    localStorage.setItem("resinops_qc_holds",JSON.stringify(fails));
-  },[tests]);
+    async function load(){
+      try{
+        const [qc,hb,pb]=await Promise.all([
+          db.qc_tests.list(),
+          db.harvest_batches.list(),
+          db.production_batches.list(),
+        ]);
+        setTests(qc);
+        setHarvestBatches(hb);
+        setProdBatches(pb.filter(b=>!b.isLinked));
+      }catch(e){ console.error("QCTesting load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -95,96 +106,66 @@ export default function QCTesting(){
     return null;
   }
 
-  function save(){
-    // Allow imported COA records that have no linked batch — they use strainName + sampleId as identity
+  async function save(){
     const hasIdentity = form.batchId || form.batchName || form.strainName || form.sampleId;
     if(!hasIdentity){setErr("Provide at least a strain name or sample ID to save this record.");return;}
     const overall=form.overallPass??calcOverall(form);
-    const rec={...form,id:form.id||"qc"+Date.now(),overallPass:overall,
-      status:form.receivedDate?"complete":form.submittedDate?"submitted":"pending"};
-    if(form.id) setTests(p=>p.map(x=>x.id===rec.id?rec:x));
-    else setTests(p=>[...p,rec]);
+    const rec={...form,id:form.id||crypto.randomUUID(),overallPass:overall,
+      status:form.receivedDate?"complete":form.submittedDate?"submitted":"pending",
+      onHold:overall===false};
+    try{
+      const saved=await db.qc_tests.upsert(rec);
+      if(form.id) setTests(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setTests(p=>[...p,saved]);
 
-    // Auto-trigger remediation flag if microbial fail
-    if(overall===false&&(form.microbialPass===false||form.aspergillus===false)){
-      const existingRem=JSON.parse(localStorage.getItem("resinops_remediation")||"[]");
-      const alreadyFlagged=existingRem.some(r=>r.sourceId===String(form.batchId||form.sampleId));
-      if(!alreadyFlagged){
-        const newRem={id:"rm_auto_"+Date.now(),sourceType:form.batchType||"harvest",sourceId:String(form.batchId||form.sampleId||rec.id),strainName:form.strainName,weightG:"",labName:form.labName,labReportRef:form.sampleId,testDate:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],tyamCfu:form.tyam||"",tabCfu:form.tab||"",aspergillus:form.aspergillus===false,gyPerHour:"1000",turnRequired:true,status:"flagged",notes:"Auto-flagged from QC Testing — COA fail",dose:null};
-        localStorage.setItem("resinops_remediation",JSON.stringify([...existingRem,newRem]));
-      }
-    }
-
-    // ── Passing COA: auto-create completed harvest batch + update strain catalogue ──
-    if(overall===true){
-      // 1. Create a completed harvest batch if no existing batch is linked
-      if(!form.batchId){
-        const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-        const alreadyExists=hb.some(b=>b.coaSampleId===form.sampleId);
+      // Auto-create harvest batch from passing COA
+      if(overall===true&&!form.batchId){
+        const alreadyExists=harvestBatches.some(b=>b.coaSampleId===form.sampleId||b.coa_sample_id===form.sampleId);
         if(!alreadyExists){
-          const newBatch={
-            id:"hb_coa_"+Date.now(),
-            strainName:form.strainName||"Unknown",
-            d:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
-            status:"complete",
-            coaSampleId:form.sampleId,
-            labName:form.labName,
-            thca:form.thca,
-            thc:form.thc,
-            totalTerpenes:form.totalTerpenes,
-            notes:"Auto-created from passing COA import ("+( form.sampleId||"no sample ID")+")",
-            source:"coa_import",
-          };
-          localStorage.setItem("resinops_harvest_batches",JSON.stringify([...hb,newBatch]));
+          try{
+            const newBatch={id:crypto.randomUUID(),strainName:form.strainName||"Unknown",
+              d:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
+              status:"complete",coaSampleId:form.sampleId,labName:form.labName,
+              thca:form.thca,notes:"Auto-created from passing COA import"};
+            const savedHb=await db.harvest_batches.upsert(newBatch);
+            setHarvestBatches(p=>[...p,savedHb]);
+          }catch(e){ console.error("Auto harvest batch failed:",e); }
         }
-      } else {
-        // Mark the linked harvest batch as complete
-        const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-        const updated=hb.map(b=>String(b.id)===String(form.batchId)?{...b,status:"complete",coaSampleId:form.sampleId,thca:form.thca||b.thca,thc:form.thc||b.thc,totalTerpenes:form.totalTerpenes||b.totalTerpenes}:b);
-        localStorage.setItem("resinops_harvest_batches",JSON.stringify(updated));
+      } else if(overall===true&&form.batchId){
+        // Mark linked harvest batch complete
+        const hb=harvestBatches.find(b=>String(b.id)===String(form.batchId));
+        if(hb){
+          try{
+            await db.harvest_batches.upsert({...hb,status:"complete",coaSampleId:form.sampleId,thca:form.thca||hb.thca});
+            setHarvestBatches(p=>p.map(b=>String(b.id)===String(form.batchId)?{...b,status:"complete"}:b));
+          }catch(e){ console.error("Harvest batch update failed:",e); }
+        }
       }
 
-      // 2. Update strain catalogue with COA averages
-      if(form.strainName){
-        const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
-        const idx=strains.findIndex(s=>s.name.toLowerCase()===form.strainName.toLowerCase());
-        if(idx>=0){
-          // Update averages on existing strain
-          const s=strains[idx];
-          strains[idx]={...s,
-            thcaAvg:form.thca||s.thcaAvg,
-            thcAvg:form.thc||s.thcAvg,
-            cbdAvg:form.cbd||s.cbdAvg,
-            terpsAvg:form.totalTerpenes||s.terpsAvg,
-            lastCoaDate:form.receivedDate||form.submittedDate,
-            lastCoaSampleId:form.sampleId,
-          };
-        } else {
-          // Add new strain entry from COA data
-          strains.push({
-            id:"str_coa_"+Date.now(),
-            name:form.strainName,
-            type:"Unknown",parentage:"",breeder:"",
-            thcaAvg:form.thca||"",thcAvg:form.thc||"",cbdAvg:form.cbd||"",
-            terpsAvg:form.totalTerpenes||"",
-            dominantTerpenes:[form.myrcene&&"Myrcene",form.limonene&&"Limonene",form.caryophyllene&&"Caryophyllene"].filter(Boolean).join(", "),
-            lastCoaDate:form.receivedDate||form.submittedDate,
-            lastCoaSampleId:form.sampleId,
-            notes:"Auto-added from passing COA import",
-            status:"active",salesDescription:"",
-          });
-        }
-        localStorage.setItem("resinops_strains",JSON.stringify(strains));
+      // Update strain catalogue with COA averages
+      if(overall===true&&form.strainName){
+        try{
+          const allStrains=await db.strains.list();
+          const existing=allStrains.find(s=>s.name&&s.name.toLowerCase()===form.strainName.toLowerCase());
+          if(existing){
+            await db.strains.upsert({...existing,thcaAvg:form.thca||existing.thcaAvg,thcAvg:form.thc||existing.thcAvg,cbdAvg:form.cbd||existing.cbdAvg,terpsAvg:form.totalTerpenes||existing.terpsAvg});
+          }
+        }catch(e){ console.error("Strain update failed:",e); }
       }
-    }
 
-    autoPopulateStrains(form.strainName,{source:"QC Testing"});
-    setForm(null);setFormSection("meta");setErr("");
+      autoPopulateStrains(form.strainName,{source:"QC Testing"});
+      setForm(null);setFormSection("meta");setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function remove(id){setTests(p=>p.filter(x=>x.id!==id));}
+  async function remove(id){
+    try{ await db.qc_tests.delete(id); setTests(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ setErr("Delete failed: "+e.message); }
+  }
 
   const failedCount=tests.filter(t=>t.overallPass===false).length;
   const pendingCount=tests.filter(t=>t.status==="pending"||t.status==="submitted").length;
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading QC tests…</div>);
 
   return(
     <>

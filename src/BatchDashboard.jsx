@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { db } from "./lib/db";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n,d=1){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
@@ -24,23 +25,47 @@ const CSS=`
 `;
 
 export default function BatchDashboard(){
-  const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
-  const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]").map(b=>({
-    ...b,
-    spaceName: b.spaceName||b.space_name||b.harvest_room||b["Harvest Room"]||b["Grow Space"]||"",
-    totalDryWeight: parseFloat(b.totalDryWeight||b.total_dry_weight||0)||0,
-    strainName: b.strainName||b.strain_name||b["Strain Name"]||b["Strain"]||"",
-  }));
-  const skus=JSON.parse(localStorage.getItem("resinops_skus")||"[]");
-  const boms=JSON.parse(localStorage.getItem("resinops_boms")||"[]");
-  const laborTypes=JSON.parse(localStorage.getItem("resinops_labor_types")||"[]");
-  const qcHolds=JSON.parse(localStorage.getItem("resinops_qc_holds")||"[]");
-  const cultivationCosts=JSON.parse(localStorage.getItem("resinops_cult_costs")||"[]");
-  const cultInputs=JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]").map(ci=>({
-    ...ci,
-    spaceName: ci.spaceName||ci.space_name||ci["Grow Space"]||ci["Space"]||ci["Room"]||"",
-    totalCost: parseFloat(ci.totalCost||ci.total_cost||ci["Total Cost"]||0)||0,
-  }));
+  const [prodBatches, setProdBatches] = useState([]);
+  const [harvestBatches, setHarvestBatches] = useState([]);
+  const [skus, setSkus] = useState([]);
+  const [boms, setBoms] = useState([]);
+  const [laborTypes, setLaborTypes] = useState([]);
+  const [qcHolds, setQcHolds] = useState([]);
+  const [cultivationCosts, setCultivationCosts] = useState([]);
+  const [cultInputs, setCultInputs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [pb, hb, sk, b, lt, ci]=await Promise.all([
+          db.production_batches.list(),
+          db.harvest_batches.list(),
+          db.skus.list(),
+          db.boms.list(),
+          db.labor_types.list(),
+          db.cultivation_inputs.list(),
+        ]);
+        setProdBatches(pb.filter(x=>!x.isLinked));
+        setHarvestBatches(hb.map(h=>({
+          ...h,
+          spaceName: h.spaceName||h.space_name||h.room_name||h.harvest_room||"",
+          totalDryWeight: parseFloat(h.totalDryWeight||h.total_dry_weight||h.total_dry_weight_g||0)||0,
+          strainName: h.strainName||h.strain_name||"",
+        })));
+        setSkus(sk);
+        setBoms(b);
+        setLaborTypes(lt);
+        setCultInputs(ci.map(c=>({
+          ...c,
+          spaceName: c.spaceName||c.space_name||c.room_name||"",
+          totalCost: parseFloat(c.totalCost||c.total_cost||0)||0,
+        })));
+      }catch(e){ console.error("BatchDashboard load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
   const [filter,setFilter]=useState("all");
 
   function getSkuPrice(catLabel,subLabel){
@@ -96,6 +121,8 @@ export default function BatchDashboard(){
   const holdCount=rows.filter(r=>r.onHold).length;
 
   function marginClass(m){return m===null?"":m>=50?"margin-good":m>=25?"margin-mid":"margin-low";}
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading batch dashboard…</div>);
 
   return(
     <>

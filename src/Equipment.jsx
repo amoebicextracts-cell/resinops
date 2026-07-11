@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 const EQUIP_CATS = [
   "Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging",
@@ -78,37 +79,25 @@ function normalizeEquipCat(raw){
 }
 
 export default function Equipment() {
-  const [equipment, setEquipment] = useState(() => {
-    try{
-      const raw = JSON.parse(localStorage.getItem("resinops_equipment")||"[]");
-      return raw.map(e=>({
-        ...e,
-        name: e.name || e.asset_description || e.equipment_name || e["Asset Description"] || e["Equipment Name"] || e["Item"] || "",
-        cat: normalizeEquipCat(e.cat || e.category || e.category_type || e["Category"] || e["Category/Type"] || e["Type"] || ""),
-        make: e.make || e.brand || e.manufacturer || e.brand_manufacturer || e["Brand"] || e["Manufacturer"] || e["Brand / Manufacturer"] || "",
-        model: e.model || e.model_number || e["Model Number"] || e["Model"] || "",
-        serial: e.serial || e.serial_number || e["Serial Number"] || e["Serial"] || "",
-        assetTag: e.assetTag || e.asset_tag || e["Asset Tag"] || "",
-        location: e.location || e.room_location || e["Room / Location"] || e["Location"] || "",
-        purchaseDate: e.purchaseDate || e.purchase_date || e["Purchase Date"] || "",
-        purchasePrice: e.purchasePrice || e.purchase_price || e.cost || e["Cost (USD)"] || e["Cost"] || "",
-        warrantyExpires: e.warrantyExpires || e.warranty_expiration || e.warranty_expires || e["Warranty Expiration"] || "",
-        pmFreqDays: e.pmFreqDays || e.pm_freq_days || e.service_interval || e["Service Interval"] || "90",
-        lastServiceDate: e.lastServiceDate || e.last_service || e.last_service_date || e["Last Service"] || "",
-        status: e.status || "active",
-        notes: e.notes || e["Notes"] || "",
-      }));
-    }catch{return[];}
-  });
-  const [serviceLog, setServiceLog] = useState(() => { try{return JSON.parse(localStorage.getItem("resinops_equipment_service")||"[]");}catch{return[];} });
-  const vendors = (() => { try{return JSON.parse(localStorage.getItem("resinops_vendors")||"[]");}catch{return[];} })();
+  const [equipment, setEquipment] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [serviceLog, setServiceLog] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [form, setForm] = useState(null);
   const [serviceForm, setServiceForm] = useState(null); // {equipId}
   const [historyFor, setHistoryFor] = useState(null);
   const [err, setErr] = useState("");
 
-  useEffect(() => { localStorage.setItem("resinops_equipment", JSON.stringify(equipment)); }, [equipment]);
-  useEffect(() => { localStorage.setItem("resinops_equipment_service", JSON.stringify(serviceLog)); }, [serviceLog]);
+  useEffect(()=>{
+    async function load(){
+      try{
+        const eq = await db.equipment.list();
+        setEquipment(eq);
+      }catch(e){ console.error("Equipment load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   function openAdd() { setForm({...EMPTY}); setErr(""); }
   function openEdit(eq) { setForm({...eq}); setErr(""); }
@@ -143,6 +132,8 @@ export default function Equipment() {
   }
 
   const upcomingPM = equipment.map(eq=>({eq,st:pmStatus(eq)})).filter(({st})=>st.cls==="pm-overdue"||st.cls==="pm-soon").sort((a,b)=>(a.st.date||0)-(b.st.date||0));
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading equipment…</div>);
 
   return (
     <>

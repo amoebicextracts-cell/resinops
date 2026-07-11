@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtDT(dt){return dt?new Date(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
@@ -46,14 +47,38 @@ const EMPTY_SIGNOFF={batchType:"harvest",batchId:"",stepName:"",performedById:""
 
 export default function GMPHub(){
   const [tab,setTab]=useState("shifts");
-  const employees=JSON.parse(localStorage.getItem("resinops_employees")||"[]");
-  const harvestBatches=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-  const prodBatches=JSON.parse(localStorage.getItem("resinops_prod")||"[]").filter(b=>!b.isLinked);
+  const [employees,setEmployees]=useState([]);
+  const [harvestBatches,setHarvestBatches]=useState([]);
+  const [prodBatches,setProdBatches]=useState([]);
 
-  const [sops,setSops]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_sops")||"[]");}catch{return[];}});
-  const [deviations,setDeviations]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_deviations")||"[]");}catch{return[];}});
-  const [shifts,setShifts]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_shifts")||"[]");}catch{return[];}});
+  const [sops,setSops]=useState([]);
+  const [deviations,setDeviations]=useState([]);
+  const [shifts,setShifts]=useState([]);
   const [signoffs,setSignoffs]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_signoffs")||"[]");}catch{return[];}});
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [so,dv,sh,emp,hb,pb]=await Promise.all([
+          db.gmp_sops.list(),
+          db.gmp_deviations.list(),
+          db.gmp_shifts.list(),
+          db.employees.list(),
+          db.harvest_batches.list(),
+          db.production_batches.list(),
+        ]);
+        setSops(so);
+        setDeviations(dv);
+        setShifts(sh);
+        setEmployees(emp);
+        setHarvestBatches(hb);
+        setProdBatches(pb.filter(b=>!b.isLinked));
+      }catch(e){ console.error("GMPHub load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const [sopForm,setSopForm]=useState(null);
   const [devForm,setDevForm]=useState(null);
@@ -63,38 +88,44 @@ export default function GMPHub(){
   const [batchRecordId,setBatchRecordId]=useState({type:"harvest",id:""});
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_sops",JSON.stringify(sops));},[sops]);
-  useEffect(()=>{localStorage.setItem("resinops_deviations",JSON.stringify(deviations));},[deviations]);
-  useEffect(()=>{localStorage.setItem("resinops_shifts",JSON.stringify(shifts));},[shifts]);
   useEffect(()=>{localStorage.setItem("resinops_signoffs",JSON.stringify(signoffs));},[signoffs]);
 
   function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
 
   // ── SOPs ──
-  function saveSop(){
+  async function saveSop(){
     if(!sopForm.title.trim()){setErr("Enter SOP title.");return;}
-    const s={...sopForm,id:sopForm.id||"sop"+Date.now()};
-    if(sopForm.id) setSops(p=>p.map(x=>x.id===s.id?s:x));
-    else setSops(p=>[...p,s]);
-    setSopForm(null);setErr("");
+    const s={...sopForm,id:sopForm.id||crypto.randomUUID()};
+    try{
+      const saved=await db.gmp_sops.upsert(s);
+      if(sopForm.id) setSops(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setSops(p=>[...p,saved]);
+      setSopForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
 
   // ── Deviations ──
-  function saveDev(){
+  async function saveDev(){
     if(!devForm.description.trim()){setErr("Describe the deviation.");return;}
-    const d={...devForm,id:devForm.id||"dev"+Date.now()};
-    if(devForm.id) setDeviations(p=>p.map(x=>x.id===d.id?x:x));
-    else setDeviations(p=>[...p,d]);
-    setDevForm(null);setErr("");
+    const d={...devForm,id:devForm.id||crypto.randomUUID()};
+    try{
+      const saved=await db.gmp_deviations.upsert(d);
+      if(devForm.id) setDeviations(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setDeviations(p=>[...p,saved]);
+      setDevForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
 
   // ── Shifts ──
-  function saveShift(){
+  async function saveShift(){
     const validEntries=shiftEntries.filter(e=>e.employeeId&&(e.timeIn||e.timeOut));
-    const s={...shiftForm,id:shiftForm.id||"sh"+Date.now(),entries:validEntries};
-    if(shiftForm.id) setShifts(p=>p.map(x=>x.id===s.id?s:x));
-    else setShifts(p=>[...p,s]);
-    setShiftForm(null);setShiftEntries([]);setErr("");
+    const s={...shiftForm,id:shiftForm.id||crypto.randomUUID(),entries:validEntries};
+    try{
+      const saved=await db.gmp_shifts.upsert(s);
+      if(shiftForm.id) setShifts(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setShifts(p=>[...p,saved]);
+      setShiftForm(null);setShiftEntries([]);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
   function addShiftEntry(){setShiftEntries(p=>[...p,{id:"se"+Date.now(),employeeId:"",timeIn:"",timeOut:"",batchType:"harvest",batchId:"",hoursWorked:"",taskNotes:""}]);}
   function setEntry(i,k,v){setShiftEntries(p=>p.map((e,idx)=>idx===i?{...e,[k]:v}:e));}
@@ -193,6 +224,8 @@ export default function GMPHub(){
 
   const openDevs=deviations.filter(d=>d.status==="open").length;
 
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading GMP hub…</div>);
+
   return(
     <>
       <style>{CSS}</style>
@@ -252,7 +285,7 @@ export default function GMPHub(){
                   <tr key={s.id}><td>{fmtD(s.date)}</td><td>{s.department}</td><td>{empName(s.supervisorId)}</td>
                     <td style={{fontSize:11}}>{(s.entries||[]).map(e=>empName(e.employeeId)).filter(Boolean).join(", ")||"—"}</td>
                     <td style={{fontSize:11,color:"var(--text-3)"}}>{s.notes||"—"}</td>
-                    <td><button className="gh-sm gh-del" onClick={()=>setShifts(p=>p.filter(x=>x.id!==s.id))}>✕</button></td>
+                    <td><button className="gh-sm gh-del" onClick={async()=>{try{await db.gmp_shifts.delete(s.id);setShifts(p=>p.filter(x=>x.id!==s.id));}catch(e){console.error(e);}}}>✕</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -486,7 +519,7 @@ export default function GMPHub(){
                     <td><span className={"gh-pill dev-"+d.status}>{d.status}</span></td>
                     <td><div style={{display:"flex",gap:5}}>
                       <button className="gh-sm gh-edit" onClick={()=>setDevForm({...d})}>Edit</button>
-                      <button className="gh-sm gh-del" onClick={()=>setDeviations(p=>p.filter(x=>x.id!==d.id))}>✕</button>
+                      <button className="gh-sm gh-del" onClick={async()=>{try{await db.gmp_deviations.delete(d.id);setDeviations(p=>p.filter(x=>x.id!==d.id));}catch(e){console.error(e);}}}>✕</button>
                     </div></td>
                   </tr>
                 ))}</tbody>
@@ -534,7 +567,7 @@ export default function GMPHub(){
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
                     <span className={"gh-pill sop-"+s.status}>{s.status}</span>
                     <button className="gh-sm gh-edit" onClick={()=>setSopForm({...s})}>Edit</button>
-                    <button className="gh-sm gh-del" onClick={()=>setSops(p=>p.filter(x=>x.id!==s.id))}>✕</button>
+                    <button className="gh-sm gh-del" onClick={async()=>{try{await db.gmp_sops.delete(s.id);setSops(p=>p.filter(x=>x.id!==s.id));}catch(e){console.error(e);}}}>✕</button>
                   </div>
                 </div>
                 {s.content&&<div style={{fontSize:11,color:"var(--text-2)",marginTop:8,borderTop:"1px solid var(--border)",paddingTop:8,whiteSpace:"pre-wrap"}}>{s.content.slice(0,300)}{s.content.length>300?"…":""}</div>}
