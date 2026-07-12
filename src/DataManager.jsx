@@ -571,6 +571,47 @@ export default function DataManager(){
         }
       } catch(e) { console.warn("Employee demo patch skipped:", e.message); }
 
+      // ── Employees ── create real demo staff records (the patch above only
+      // updates an existing Marcus Webb record — if none exists yet, as on a
+      // fresh demo facility, there's nothing to patch, hence Employees/Labor
+      // Setup showing empty). Create the actual roster referenced throughout
+      // this demo data (shift leads, applicators, deviation closers, etc.)
+      const employeesRaw = [
+        {id:"emp_001",name:"Marcus Webb",role:"Cultivation Manager",department:"Cultivation",status:"active",hireDate:"2024-03-01",phone:"(845) 555-0110",email:"m.webb@cascadepeak.co",pestLicenseNum:"NY-PEST-1847",pestLicenseCategory:"Category 24 (Private Applicator)",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"Lead cultivator, 12 years experience."},
+        {id:"emp_002",name:"Sofia Ramirez",role:"IPM / Compliance Lead",department:"Compliance",status:"active",hireDate:"2024-04-15",phone:"(845) 555-0111",email:"s.ramirez@cascadepeak.co",pestLicenseNum:"NY-PEST-2291",pestLicenseCategory:"Category 1A (Commercial Technician)",pestLicenseState:"NY",pestLicenseExpiry:"2027-03-01",certs:[],trainings:[],notes:"Manages IPM program and NY OCM compliance filings."},
+        {id:"emp_003",name:"Taryn Delacroix",role:"Post-Harvest Lead",department:"Post-Harvest",status:"active",hireDate:"2024-05-01",phone:"(845) 555-0112",email:"t.delacroix@cascadepeak.co",pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"Runs drying, bucking, trimming, and curing operations."},
+        {id:"emp_004",name:"Priya Nair",role:"Tissue Culture Lab Tech",department:"Genetics Lab",status:"active",hireDate:"2024-06-01",phone:"(845) 555-0113",email:"p.nair@cascadepeak.co",pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"Manages TC lab, accessions, and clean stock program."},
+        {id:"emp_005",name:"Amir Hassan",role:"Maintenance Lead",department:"Facilities",status:"active",hireDate:"2024-03-15",phone:"(845) 555-0114",email:"a.hassan@cascadepeak.co",pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"HVAC, dehumidification, and equipment PM schedule."},
+        {id:"emp_006",name:"Devon Park",role:"Extraction Technician",department:"Processing",status:"active",hireDate:"2024-07-01",phone:"(845) 555-0115",email:"d.park@cascadepeak.co",pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"Hydrocarbon extraction and post-processing."},
+        {id:"emp_007",name:"Tyler Bates",role:"Packaging Technician",department:"Processing",status:"active",hireDate:"2024-08-01",phone:"(845) 555-0116",email:"t.bates@cascadepeak.co",pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",certs:[],trainings:[],notes:"Packaging line and facility sanitation."},
+      ];
+      for (const e of employeesRaw) {
+        await db.employees.upsert({...e, id: uid(e.id)});
+      }
+
+      // ── Cultivation Inputs ────────────────────────────────
+      const cultivationInputsRaw = [
+        {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:"",product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
+        {id:"ci_002",date:"2026-06-25",type:"beneficial_insect",spaceId:"",species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"1000",releaseUnit:"insects/plant",notes:"Preventive thrips biocontrol release, clone room."},
+        {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:"",product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
+      ];
+      for (const ci of cultivationInputsRaw) {
+        await db.cultivation_inputs.upsert({...ci, id: uid(ci.id)});
+      }
+
+      // ── Inventory Items ───────────────────────────────────
+      const inventoryRaw = [
+        {id:"inv_001",n:"Child-Resistant Glass Jar 2oz",cat:"Packaging",uom:"each",reorderAt:"500",reorderQty:"5000",vm:"average",notes:"Primary packaging for whole flower 3.5g/7g."},
+        {id:"inv_002",n:"Tamper-Evident Label",cat:"Packaging",uom:"each",reorderAt:"1000",reorderQty:"10000",vm:"average",notes:"NY OCM compliant labels, printed per SKU."},
+        {id:"inv_003",n:"Pre-Roll Cone 110mm",cat:"Packaging",uom:"each",reorderAt:"2000",reorderQty:"20000",vm:"average",notes:""},
+        {id:"inv_004",n:"Athena Pro Grow",cat:"Nutrients",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Primary flower-stage nutrient line."},
+        {id:"inv_005",n:"Athena Pro Core",cat:"Nutrients",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Veg-stage base nutrient."},
+        {id:"inv_006",n:"55-Gallon Butane (n-Butane)",cat:"Solvents",uom:"lb",reorderAt:"100",reorderQty:"500",vm:"fifo",requiresCoc:true,notes:"Extraction solvent, hydrocarbon-certified."},
+      ];
+      for (const inv of inventoryRaw) {
+        await db.inventory_items.upsert({...inv, id: uid(inv.id)});
+      }
+
       // ── Spray Log / Pesticide Applications ──────────────────────
       const sprayLogRaw = [
         {id:"sl_001",date:"2026-06-25",type:"ipm_spray",spaceName:"Veg Room",product:"Regalia Bio-Fungicide",manufacturer:"Marrone Bio Innovations",epaRegNum:"84059-3",rate:"1",rateUnit:"oz/gal",volumeApplied:"12",volumeUnit:"gal",areaApplied:"800",applicationMethod:"Backpack sprayer",targetPest:"Powdery mildew (preventive)",weatherTemp:"71",weatherWind:"2",weatherHumidity:"55",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Routine preventive IPM rotation — week 3 of 4"},
@@ -596,10 +637,10 @@ export default function DataManager(){
         localStorage.setItem("resinops_tc_accessions", JSON.stringify(tcAccessions));
 
         const tcVessels = [
-          {id:"tcv_001",accessionId:"tca_001",label:"BM-04-A",stage:"multiplication",stageDate:"2026-06-01",mediaBase:"Athena Shoots",mediaLotNum:"AS-2604",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:3,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Clean stock, transitioning to rooting stage next cycle.",log:[]},
-          {id:"tcv_002",accessionId:"tca_002",label:"GC-01-A",stage:"rooting",stageDate:"2026-06-15",mediaBase:"Athena Roots",mediaLotNum:"AR-1092",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:2,explantDate:"2026-05-20",explantSource:"Mother room",notes:"Rooting stage, transitioning to ex vitro acclimatization next cycle.",log:[]},
+          {id:"tcv_001",accessionId:"tca_001",label:"BM-04-A",stage:"stage2",stageDate:"2026-06-01",mediaBase:"Athena Shoots",mediaLotNum:"AS-2604",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:3,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Clean stock, transitioning to rooting stage next cycle.",log:[]},
+          {id:"tcv_002",accessionId:"tca_002",label:"GC-01-A",stage:"stage3",stageDate:"2026-06-15",mediaBase:"Athena Roots",mediaLotNum:"AR-1092",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:2,explantDate:"2026-05-20",explantSource:"Mother room",notes:"Rooting stage, transitioning to ex vitro acclimatization next cycle.",log:[]},
           {id:"tcv_003",accessionId:"tca_003",label:"SD-02-A",stage:"explant",stageDate:"2026-06-20",mediaBase:"WPM",mediaLotNum:"WP-3301",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:1,explantDate:"2026-06-01",explantSource:"Mother room",notes:"New accession, initial establishment phase.",log:[]},
-          {id:"tcv_004",accessionId:"tca_001",label:"BM-04-B",stage:"multiplication",stageDate:"2026-05-15",mediaBase:"Athena Shoots",mediaLotNum:"AS-2589",contaminated:true,contamType:"Bacterial",contamDate:"2026-06-14",health:"Quarantined",transferCount:4,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Contamination detected June 14 — bacterial. Quarantined, source review initiated.",log:[]},
+          {id:"tcv_004",accessionId:"tca_001",label:"BM-04-B",stage:"stage2",stageDate:"2026-05-15",mediaBase:"Athena Shoots",mediaLotNum:"AS-2589",contaminated:true,contamType:"Bacterial (cloudy media)",contamDate:"2026-06-14",health:"Poor — consider discard",transferCount:4,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Contamination detected June 14 — bacterial. Quarantined, source review initiated.",log:[]},
         ];
         localStorage.setItem("resinops_tc_vessels", JSON.stringify(tcVessels));
 
