@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { db } from "./lib/db";
+import { getCurrentFacility } from "./lib/supabase";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -356,6 +357,32 @@ export default function DataManager(){
       // datasets that reference each other (e.g. a production batch's harvestBatchId).
       const idMap = {};
       const uid = (fakeId) => { if(!fakeId) return ""; if(!idMap[fakeId]) idMap[fakeId]=crypto.randomUUID(); return idMap[fakeId]; };
+
+      // ── Facility Settings ── rename the current facility for the demo.
+      // facilities isn't in dbTransforms' SCHEMAS list, so db.facilities.upsert
+      // passes fields straight through — using the real snake_case column
+      // names confirmed directly from FacilitySettings.jsx's own save() call.
+      try {
+        const fid = getCurrentFacility();
+        if (fid) {
+          await db.facilities.upsert({
+            id: fid,
+            facility_name: "Cascade Peak Cannabis LLC",
+            dba_name: "Cascade Peak",
+            license_number: "OCM-AUPR-007891",
+            license_type: "Adult-Use Cultivator",
+            state: "NY",
+            address: "1220 Route 17M",
+            city: "Tuxedo",
+            zip: "10987",
+            phone: "(845) 555-0100",
+            email: "ops@cascadepeak.co",
+            website: "www.cascadepeak.co",
+            timezone: "America/New_York",
+            fiscal_year_start: 1,
+          });
+        }
+      } catch(e) { console.warn("Facility settings demo rename skipped:", e.message); }
 
       // ── Strains ──────────────────────────────────────────
       const strainsRaw = [
