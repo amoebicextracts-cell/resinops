@@ -142,6 +142,58 @@ const PRESS_MODELS={
 };
 function pressModel(brand,modelV){ return (PRESS_MODELS[brand]||[]).find(m=>m.v===modelV); }
 
+// ── BHO post-processing equipment (researched specs) ────────────────────────
+const DEWAX_EXTRACTOR_BRANDS=[
+  {v:"ets",l:"ETS"},
+  {v:"illuminated",l:"Illuminated Extractors"},
+  {v:"bizzy_bee",l:"Bizzy Bee"},
+  {v:"rainier",l:"Rainier 3.0"},
+  {v:"precision_px1",l:"Precision Extraction PX1"},
+  {v:"bvv_icarus",l:"BVV Icarus (True Dewax)"},
+  {v:"bvv_orthrus",l:"BVV Orthrus"},
+  {v:"other",l:"Other / Custom"},
+];
+
+const DEWAX_MEDIA=[
+  {v:"celite",l:"Celite / Diatomaceous Earth"},
+  {v:"silica",l:"Silica Gel"},
+  {v:"t41",l:"T41 / Magnesol"},
+  {v:"dry_ice",l:"Dry Ice Pack"},
+  {v:"chilled_alcohol",l:"Chilled Alcohol Jacket"},
+  {v:"ln2",l:"Liquid Nitrogen Jacket"},
+  {v:"other",l:"Other"},
+];
+
+const PURGE_OVEN_BRANDS=[
+  {v:"across_intl",l:"Across International"},
+  {v:"cascade_tek",l:"Cascade TEK"},
+  {v:"ai_vac",l:"Ai Vac Ovens"},
+  {v:"binder",l:"Binder (VDL Series)"},
+  {v:"touch_science",l:"Touch Science"},
+  {v:"other",l:"Other / Custom"},
+];
+
+const WHIP_TECHNIQUES=[
+  {v:"none",l:"No whip — static purge"},
+  {v:"hand",l:"Hand whip"},
+  {v:"mixer",l:"Mixer / paddle whip"},
+  {v:"homogenizer",l:"Homogenizer / high-shear whip"},
+];
+
+const CRYSTALLIZATION_METHODS=[
+  {v:"jar_tech",l:"Jar Tech (mason jar)"},
+  {v:"diamond_miner",l:"Diamond Miner (pressurized vessel)"},
+  {v:"genome_crystallizer",l:"Genome Crystallizer / Controlled Crash Reactor"},
+  {v:"other",l:"Other"},
+];
+
+const SEPARATION_METHODS=[
+  {v:"mesh_strainer",l:"Mesh strainer / pour-off"},
+  {v:"centrifuge",l:"Terpene Separation Centrifuge"},
+  {v:"other",l:"Other"},
+];
+
+
 
 // ── Vape terpene sources ───────────────────────────────────────────────────
 const TERP_SRCS={
@@ -1056,6 +1108,7 @@ const EMPTY={
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
   washEvents:[],freezeDryCycles:[],
   pressRuns:[],coldCureBatches:[],
+  dewaxPasses:[],purgeRuns:[],diamondSauceBatches:[],
 };
 
 function loadHarvestBatches(){ return []; } // loaded async now
@@ -1179,6 +1232,8 @@ export default function ProductionScheduler(){
   const isRosinFl=form.sub==="rosin_fl";
   const isRosinHash=form.sub==="rosin_hash";
   const isRosin=isRosinFl||isRosinHash;
+  const isBhoProduct=form.cat==="extract"&&["shatter","badder","live_resin","sugar","diamonds"].includes(form.sub);
+  const isDiamondsSauce=form.sub==="diamonds";
   const r134aInfo=isR134a&&inputG>0?r134aCalcDays(inputG,form.sub):null;
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -1219,7 +1274,7 @@ export default function ProductionScheduler(){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[]});
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[]});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
@@ -1235,7 +1290,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[]};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1752,6 +1807,154 @@ export default function ProductionScheduler(){
               <button style={{width:"100%",padding:"7px",background:"rgba(90,120,200,0.08)",border:"1px dashed rgba(90,120,200,0.4)",borderRadius:8,color:"#7090f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
                 onClick={()=>{const cs=[...(form.coldCureBatches||[])];cs.push({id:crypto.randomUUID(),sourcePressRunId:"",dateStarted:new Date().toISOString().split("T")[0],dateEnded:"",tempF:"",resultingConsistency:"",notes:""});setF("coldCureBatches",cs);}}>
                 + Add cold cure batch
+              </button>
+            </div>}
+
+            {/* BHO — Dewax (cryo-column, inline on the extractor — not winterization) */}
+            {isBhoProduct&&<div className="ps-box">
+              <div className="ps-box-t">Dewax</div>
+              <div style={{fontSize:10,color:"var(--text-3)",marginBottom:8}}>Inline cryo-column dewax on the crude — separate from winterization. Optional; leave empty if this batch wasn't dewaxed.</div>
+              {(form.dewaxPasses||[]).map((d,idx)=>{
+                const removedG=(parseFloat(d.prePassWeightG)||0)-(parseFloat(d.postPassWeightG)||0);
+                const removedPct=parseFloat(d.prePassWeightG)>0&&removedG>0?(removedG/parseFloat(d.prePassWeightG)*100).toFixed(1):null;
+                return(
+                <div key={d.id||idx} style={{background:"rgba(80,180,220,0.06)",border:"1px solid rgba(80,180,220,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#78c8f0",textTransform:"uppercase",letterSpacing:"0.05em"}}>Dewax Pass {idx+1}</div>
+                    <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                      onClick={()=>{const ds=[...(form.dewaxPasses||[])];ds.splice(idx,1);setF("dewaxPasses",ds);}}>Remove</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 2fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Date</label><input type="date" className="ps-inp" value={d.date||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],date:e.target.value};setF("dewaxPasses",ds);}} /></div>
+                    <div>
+                      <label className="ps-lbl">Extractor / column</label>
+                      <select className="ps-sel" value={d.extractorBrand||"ets"} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],extractorBrand:e.target.value};setF("dewaxPasses",ds);}}>
+                        {DEWAX_EXTRACTOR_BRANDS.map(b=><option key={b.v} value={b.v}>{b.l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="ps-lbl">Column media</label>
+                      <select className="ps-sel" value={d.columnMedia||"celite"} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],columnMedia:e.target.value};setF("dewaxPasses",ds);}}>
+                        {DEWAX_MEDIA.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Column temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={d.columnTempF||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],columnTempF:e.target.value};setF("dewaxPasses",ds);}} placeholder="-76" /></div>
+                    <div><label className="ps-lbl">Hold time (min)</label><input type="number" step="1" className="ps-inp" value={d.holdTimeMin||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],holdTimeMin:e.target.value};setF("dewaxPasses",ds);}} /></div>
+                    <div><label className="ps-lbl">Filter micron</label><input type="number" step="1" className="ps-inp" value={d.filterMicron||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],filterMicron:e.target.value};setF("dewaxPasses",ds);}} placeholder="45" /></div>
+                    <div><label className="ps-lbl">Pre-pass weight (g)</label><input type="number" step="0.1" className="ps-inp" value={d.prePassWeightG||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],prePassWeightG:e.target.value};setF("dewaxPasses",ds);}} /></div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <label className="ps-lbl">Post-pass weight (g)</label>
+                    <input type="number" step="0.1" className="ps-inp" style={{maxWidth:160}} value={d.postPassWeightG||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],postPassWeightG:e.target.value};setF("dewaxPasses",ds);}} />
+                    {removedPct&&<div className="ps-lbl" style={{marginTop:4,color:"var(--accent-2)"}}>Wax/lipid mass removed: {removedG.toFixed(1)}g ({removedPct}%)</div>}
+                  </div>
+                  <div><label className="ps-lbl">Notes</label><input className="ps-inp" value={d.notes||""} onChange={e=>{const ds=[...(form.dewaxPasses||[])];ds[idx]={...ds[idx],notes:e.target.value};setF("dewaxPasses",ds);}} placeholder="Color, clarity, filter clogging…" /></div>
+                </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(80,180,220,0.08)",border:"1px dashed rgba(80,180,220,0.4)",borderRadius:8,color:"#78c8f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const ds=[...(form.dewaxPasses||[])];ds.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],extractorBrand:"ets",columnMedia:"celite",columnTempF:"",holdTimeMin:"",filterMicron:"",prePassWeightG:"",postPassWeightG:"",notes:""});setF("dewaxPasses",ds);}}>
+                + Add dewax pass
+              </button>
+            </div>}
+
+            {/* BHO — Purge (determines Shatter vs Badder vs Sugar consistency) */}
+            {isBhoProduct&&<div className="ps-box">
+              <div className="ps-box-t">Purge</div>
+              {(form.purgeRuns||[]).map((p,idx)=>{
+                const yieldPct=parseFloat(p.prePurgeWeightG)>0&&parseFloat(p.postPurgeWeightG)>0?(parseFloat(p.postPurgeWeightG)/parseFloat(p.prePurgeWeightG)*100).toFixed(1):null;
+                return(
+                <div key={p.id||idx} style={{background:"rgba(200,150,58,0.06)",border:"1px solid rgba(200,150,58,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Purge {idx+1}</div>
+                    <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                      onClick={()=>{const ps=[...(form.purgeRuns||[])];ps.splice(idx,1);setF("purgeRuns",ps);}}>Remove</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Date</label><input type="date" className="ps-inp" value={p.date||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],date:e.target.value};setF("purgeRuns",ps);}} /></div>
+                    <div>
+                      <label className="ps-lbl">Vacuum oven brand</label>
+                      <select className="ps-sel" value={p.ovenBrand||"across_intl"} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],ovenBrand:e.target.value};setF("purgeRuns",ps);}}>
+                        {PURGE_OVEN_BRANDS.map(b=><option key={b.v} value={b.v}>{b.l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={p.tempF||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],tempF:e.target.value};setF("purgeRuns",ps);}} placeholder="100–115" /></div>
+                    <div><label className="ps-lbl">Vacuum (inHg)</label><input type="number" step="0.1" className="ps-inp" value={p.vacuumInHg||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],vacuumInHg:e.target.value};setF("purgeRuns",ps);}} placeholder="-29.5" /></div>
+                    <div><label className="ps-lbl">Duration (hrs)</label><input type="number" step="1" className="ps-inp" value={p.durationHours||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],durationHours:e.target.value};setF("purgeRuns",ps);}} placeholder="24–72" /></div>
+                    <div><label className="ps-lbl">Film thickness (mm)</label><input type="number" step="0.1" className="ps-inp" value={p.filmThicknessMm||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],filmThicknessMm:e.target.value};setF("purgeRuns",ps);}} placeholder="1–2" /></div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <label className="ps-lbl">Whip technique</label>
+                    <select className="ps-sel" value={p.whipTechnique||"none"} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],whipTechnique:e.target.value};setF("purgeRuns",ps);}}>
+                      {WHIP_TECHNIQUES.map(w=><option key={w.v} value={w.v}>{w.l}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Pre-purge weight (g)</label><input type="number" step="0.1" className="ps-inp" value={p.prePurgeWeightG||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],prePurgeWeightG:e.target.value};setF("purgeRuns",ps);}} /></div>
+                    <div><label className="ps-lbl">Post-purge weight (g)</label><input type="number" step="0.1" className="ps-inp" value={p.postPurgeWeightG||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],postPurgeWeightG:e.target.value};setF("purgeRuns",ps);}} /></div>
+                  </div>
+                  {yieldPct&&<div style={{fontSize:11,color:"var(--accent-2)",marginBottom:8}}>Final yield: {yieldPct}% of pre-purge weight</div>}
+                  <div><label className="ps-lbl">Notes</label><input className="ps-inp" value={p.notes||""} onChange={e=>{const ps=[...(form.purgeRuns||[])];ps[idx]={...ps[idx],notes:e.target.value};setF("purgeRuns",ps);}} placeholder="Muffin top behavior, final texture, color…" /></div>
+                </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(200,150,58,0.08)",border:"1px dashed rgba(200,150,58,0.4)",borderRadius:8,color:"var(--amber)",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const ps=[...(form.purgeRuns||[])];ps.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],ovenBrand:"across_intl",tempF:"",vacuumInHg:"",durationHours:"",filmThicknessMm:"",whipTechnique:"none",prePurgeWeightG:"",postPurgeWeightG:"",notes:""});setF("purgeRuns",ps);}}>
+                + Add purge run
+              </button>
+            </div>}
+
+            {/* BHO — Diamonds & Sauce (separate from THCa Isolate crystallization tracking) */}
+            {isDiamondsSauce&&<div className="ps-box">
+              <div className="ps-box-t">Diamonds & Sauce</div>
+              {(form.diamondSauceBatches||[]).map((d,idx)=>{
+                const totalOut=(parseFloat(d.diamondYieldG)||0)+(parseFloat(d.sauceYieldG)||0);
+                const totalYieldPct=parseFloat(d.inputCrudeWeightG)>0&&totalOut>0?(totalOut/parseFloat(d.inputCrudeWeightG)*100).toFixed(1):null;
+                const diamondRatioPct=totalOut>0?((parseFloat(d.diamondYieldG)||0)/totalOut*100).toFixed(1):null;
+                return(
+                <div key={d.id||idx} style={{background:"rgba(90,120,200,0.06)",border:"1px solid rgba(90,120,200,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7090f0",textTransform:"uppercase",letterSpacing:"0.05em"}}>Batch {idx+1}</div>
+                    <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                      onClick={()=>{const ds=[...(form.diamondSauceBatches||[])];ds.splice(idx,1);setF("diamondSauceBatches",ds);}}>Remove</button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Crystallization start</label><input type="date" className="ps-inp" value={d.dateStarted||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],dateStarted:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                    <div><label className="ps-lbl">Crystallization end</label><input type="date" className="ps-inp" value={d.dateEnded||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],dateEnded:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                    <div>
+                      <label className="ps-lbl">Crystallization method</label>
+                      <select className="ps-sel" value={d.crystallizationMethod||"jar_tech"} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],crystallizationMethod:e.target.value};setF("diamondSauceBatches",ds);}}>
+                        {CRYSTALLIZATION_METHODS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Vessel details</label><input className="ps-inp" value={d.vesselNotes||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],vesselNotes:e.target.value};setF("diamondSauceBatches",ds);}} placeholder="e.g. 12x 1L mason jars, or Puck Push nitrogen-assisted miner" /></div>
+                    <div><label className="ps-lbl">Crash temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={d.crashTempF||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],crashTempF:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <label className="ps-lbl">Separation method</label>
+                    <select className="ps-sel" value={d.separationMethod||"mesh_strainer"} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],separationMethod:e.target.value};setF("diamondSauceBatches",ds);}}>
+                      {SEPARATION_METHODS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Input crude weight (g)</label><input type="number" step="0.1" className="ps-inp" value={d.inputCrudeWeightG||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],inputCrudeWeightG:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                    <div><label className="ps-lbl">Diamond yield (g)</label><input type="number" step="0.1" className="ps-inp" value={d.diamondYieldG||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],diamondYieldG:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                    <div><label className="ps-lbl">Sauce yield (g)</label><input type="number" step="0.1" className="ps-inp" value={d.sauceYieldG||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],sauceYieldG:e.target.value};setF("diamondSauceBatches",ds);}} /></div>
+                  </div>
+                  {totalYieldPct&&<div style={{fontSize:11,color:"var(--accent-2)",marginBottom:4}}>Total yield: {totalYieldPct}% of input crude · Diamond:Sauce ratio {diamondRatioPct}:{(100-diamondRatioPct).toFixed(1)}</div>}
+                  <div><label className="ps-lbl">Notes</label><input className="ps-inp" value={d.notes||""} onChange={e=>{const ds=[...(form.diamondSauceBatches||[])];ds[idx]={...ds[idx],notes:e.target.value};setF("diamondSauceBatches",ds);}} placeholder="Crystal size, clarity, sauce viscosity…" /></div>
+                </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(90,120,200,0.08)",border:"1px dashed rgba(90,120,200,0.4)",borderRadius:8,color:"#7090f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const ds=[...(form.diamondSauceBatches||[])];ds.push({id:crypto.randomUUID(),dateStarted:new Date().toISOString().split("T")[0],dateEnded:"",crystallizationMethod:"jar_tech",vesselNotes:"",crashTempF:"",separationMethod:"mesh_strainer",inputCrudeWeightG:"",diamondYieldG:"",sauceYieldG:"",notes:""});setF("diamondSauceBatches",ds);}}>
+                + Add diamond/sauce batch
               </button>
             </div>}
 
