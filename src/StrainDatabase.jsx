@@ -146,7 +146,19 @@ export default function StrainDatabase(){
       if(wet>0&&dry>0) dryYields.push(dry/wet*100);
     }));
     const avgFreezeDryYieldPct=dryYields.length?(dryYields.reduce((a,v)=>a+v,0)/dryYields.length):null;
-    return{harvestBatchCount:hbs.length,prodBatchCount:pbs.length,avgDryWeightG:avgDryG,avgWetHashYieldPct,avgFreezeDryYieldPct};
+    const flowerRosinYields=[];
+    const hashRosinYields=[];
+    pbs.forEach(b=>(b.pressRuns||[]).forEach(p=>{
+      const pre=parseFloat(p.prePressWeightG);
+      const post=parseFloat(p.postPressYieldG);
+      if(pre>0&&post>0){
+        if(b.sub==="rosin_fl") flowerRosinYields.push(post/pre*100);
+        else if(b.sub==="rosin_hash") hashRosinYields.push(post/pre*100);
+      }
+    }));
+    const avgFlowerRosinYieldPct=flowerRosinYields.length?(flowerRosinYields.reduce((a,v)=>a+v,0)/flowerRosinYields.length):null;
+    const avgHashRosinYieldPct=hashRosinYields.length?(hashRosinYields.reduce((a,v)=>a+v,0)/hashRosinYields.length):null;
+    return{harvestBatchCount:hbs.length,prodBatchCount:pbs.length,avgDryWeightG:avgDryG,avgWetHashYieldPct,avgFreezeDryYieldPct,avgFlowerRosinYieldPct,avgHashRosinYieldPct};
   }
 
   const strainSystemPrompt = (strain) => `You are an expert cannabis copywriter and strain analyst working collaboratively with a licensed cannabis operator to craft the perfect strain description.
@@ -432,7 +444,7 @@ Rules:
                 </div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-                {[{l:"THCa %",v:activeStrain.thcaAvg},{l:"THC %",v:activeStrain.thcAvg},{l:"CBD %",v:activeStrain.cbdAvg},{l:"Total terps %",v:activeStrain.terpsAvg},{l:"Avg yield g/sqft",v:activeStrain.avgYieldGPerSqft},{l:"Flower weeks",v:activeStrain.avgFlowerWeeks},{l:"Harvest batches",v:agg.harvestBatchCount||0},{l:"Prod batches",v:agg.prodBatchCount||0},...(agg.avgWetHashYieldPct!=null?[{l:"Avg wet hash yield",v:agg.avgWetHashYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFreezeDryYieldPct!=null?[{l:"Avg freeze-dry yield",v:agg.avgFreezeDryYieldPct.toFixed(1)+"%"}]:[])].map((s,i)=>(
+                {[{l:"THCa %",v:activeStrain.thcaAvg},{l:"THC %",v:activeStrain.thcAvg},{l:"CBD %",v:activeStrain.cbdAvg},{l:"Total terps %",v:activeStrain.terpsAvg},{l:"Avg yield g/sqft",v:activeStrain.avgYieldGPerSqft},{l:"Flower weeks",v:activeStrain.avgFlowerWeeks},{l:"Harvest batches",v:agg.harvestBatchCount||0},{l:"Prod batches",v:agg.prodBatchCount||0},...(agg.avgWetHashYieldPct!=null?[{l:"Avg wet hash yield",v:agg.avgWetHashYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFreezeDryYieldPct!=null?[{l:"Avg freeze-dry yield",v:agg.avgFreezeDryYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFlowerRosinYieldPct!=null?[{l:"Avg flower rosin yield",v:agg.avgFlowerRosinYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgHashRosinYieldPct!=null?[{l:"Avg hash rosin yield",v:agg.avgHashRosinYieldPct.toFixed(1)+"%"}]:[])].map((s,i)=>(
                   <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"8px 10px"}}>
                     <div style={{fontSize:9,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.l}</div>
                     <div style={{fontSize:15,fontWeight:700,color:"var(--accent-2)"}}>{s.v||"—"}</div>

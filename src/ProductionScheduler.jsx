@@ -58,33 +58,90 @@ const FD_EQUIPMENT_BRANDS=[
 
 const FD_EQUIPMENT_MODELS={
   harvest_right:[
-    {v:"hr_small",l:"Small",capacity:"4\u20137 lbs fresh material \u00b7 434 sq in tray space",cycleHrs:"20\u201335 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_medium",l:"Medium",capacity:"10\u201315 lbs fresh material \u00b7 675 sq in tray space",cycleHrs:"20\u201335 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_large",l:"Large",capacity:"18\u201327 lbs fresh material \u00b7 1,107 sq in tray space",cycleHrs:"20\u201340 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_xlarge",l:"X-Large",capacity:"40\u201350 lbs fresh material \u00b7 2,251 sq in tray space",cycleHrs:"20\u201340 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_pharma_small",l:"Pharmaceutical \u2014 Small",capacity:"3.75\u20135 lbs wet material \u00b7 5 trays",cycleHrs:"20\u201324 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_pharma_medium",l:"Pharmaceutical \u2014 Medium",capacity:"7\u20139 lbs wet material",cycleHrs:"20\u201324 hrs (auto-managed)",condenserF:-40,auto:true},
-    {v:"hr_pharma_large",l:"Pharmaceutical \u2014 Large",capacity:"12\u201314 lbs wet material",cycleHrs:"20\u201324 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_small",l:"Small",capacity:"4–7 lbs fresh material · 434 sq in tray space",cycleHrs:"20–35 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_medium",l:"Medium",capacity:"10–15 lbs fresh material · 675 sq in tray space",cycleHrs:"20–35 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_large",l:"Large",capacity:"18–27 lbs fresh material · 1,107 sq in tray space",cycleHrs:"20–40 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_xlarge",l:"X-Large",capacity:"40–50 lbs fresh material · 2,251 sq in tray space",cycleHrs:"20–40 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_pharma_small",l:"Pharmaceutical — Small",capacity:"3.75–5 lbs wet material · 5 trays",cycleHrs:"20–24 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_pharma_medium",l:"Pharmaceutical — Medium",capacity:"7–9 lbs wet material",cycleHrs:"20–24 hrs (auto-managed)",condenserF:-40,auto:true},
+    {v:"hr_pharma_large",l:"Pharmaceutical — Large",capacity:"12–14 lbs wet material",cycleHrs:"20–24 hrs (auto-managed)",condenserF:-40,auto:true},
   ],
   labconco:[
-    {v:"lc_freezone_4_5l",l:"FreeZone 4.5L Benchtop",capacity:"4.5L collector \u00b7 light sample loads",cycleHrs:"~24 hrs",condenserF:-58,auto:false},
-    {v:"lc_freezone_6l_50c",l:"FreeZone 6L Console (-50\u00b0C)",capacity:"6L collector",cycleHrs:"24\u201348 hrs",condenserF:-58,auto:false},
-    {v:"lc_freezone_6l_84c",l:"FreeZone 6L Console (-84\u00b0C)",capacity:"6L collector \u00b7 low eutectic samples",cycleHrs:"24\u201348 hrs",condenserF:-119,auto:false},
-    {v:"lc_freezone_18l",l:"FreeZone 18L Console",capacity:"18L collector \u00b7 large batches",cycleHrs:"24\u201348 hrs",condenserF:-58,auto:false},
-    {v:"lc_triad",l:"Triad Freeze Dry System",capacity:"Console \u2014 varies by config",cycleHrs:"24\u201348 hrs",condenserF:null,auto:false},
-    {v:"lc_custom",l:"Custom / Other Labconco",capacity:"\u2014",cycleHrs:"\u2014",condenserF:null,auto:false},
+    {v:"lc_freezone_4_5l",l:"FreeZone 4.5L Benchtop",capacity:"4.5L collector · light sample loads",cycleHrs:"~24 hrs",condenserF:-58,auto:false},
+    {v:"lc_freezone_6l_50c",l:"FreeZone 6L Console (-50°C)",capacity:"6L collector",cycleHrs:"24–48 hrs",condenserF:-58,auto:false},
+    {v:"lc_freezone_6l_84c",l:"FreeZone 6L Console (-84°C)",capacity:"6L collector · low eutectic samples",cycleHrs:"24–48 hrs",condenserF:-119,auto:false},
+    {v:"lc_freezone_18l",l:"FreeZone 18L Console",capacity:"18L collector · large batches",cycleHrs:"24–48 hrs",condenserF:-58,auto:false},
+    {v:"lc_triad",l:"Triad Freeze Dry System",capacity:"Console — varies by config",cycleHrs:"24–48 hrs",condenserF:null,auto:false},
+    {v:"lc_custom",l:"Custom / Other Labconco",capacity:"—",cycleHrs:"—",condenserF:null,auto:false},
   ],
   benchtop_pro:[
-    {v:"bp_3l",l:"VirTis BenchTop Pro 3L",capacity:"3L condenser \u00b7 config -55\u00b0C to -105\u00b0C",cycleHrs:"24\u201348 hrs",condenserF:-121,auto:false},
-    {v:"bp_8l",l:"VirTis BenchTop Pro 8L",capacity:"8L condenser \u00b7 heavier loads",cycleHrs:"24\u201348 hrs",condenserF:-157,auto:false},
-    {v:"bp_advantage_pro",l:"VirTis AdVantage Pro",capacity:"6L condenser \u00b7 silicone-flooded shelves",cycleHrs:"24\u201348 hrs",condenserF:-121,auto:false},
-    {v:"bp_custom",l:"Custom / Other BenchTop",capacity:"\u2014",cycleHrs:"\u2014",condenserF:null,auto:false},
+    {v:"bp_3l",l:"VirTis BenchTop Pro 3L",capacity:"3L condenser · config -55°C to -105°C",cycleHrs:"24–48 hrs",condenserF:-121,auto:false},
+    {v:"bp_8l",l:"VirTis BenchTop Pro 8L",capacity:"8L condenser · heavier loads",cycleHrs:"24–48 hrs",condenserF:-157,auto:false},
+    {v:"bp_advantage_pro",l:"VirTis AdVantage Pro",capacity:"6L condenser · silicone-flooded shelves",cycleHrs:"24–48 hrs",condenserF:-121,auto:false},
+    {v:"bp_custom",l:"Custom / Other BenchTop",capacity:"—",cycleHrs:"—",condenserF:null,auto:false},
   ],
   other:[
-    {v:"custom",l:"Custom / Other equipment",capacity:"\u2014",cycleHrs:"\u2014",condenserF:null,auto:false},
+    {v:"custom",l:"Custom / Other equipment",capacity:"—",cycleHrs:"—",condenserF:null,auto:false},
   ],
 };
 function fdModel(brand,modelV){ return (FD_EQUIPMENT_MODELS[brand]||[]).find(m=>m.v===modelV); }
+
+// ── Rosin press equipment (researched specs) ────────────────────────────────
+const PRESS_BAG_MICRONS=[25,37,45,73,90,110,120,160,190,220];
+
+const PACKING_METHODS=[
+  {v:"loose_bag",l:"Loose material in press bag"},
+  {v:"prepress_puck_bag",l:"Pre-pressed puck (bagged)"},
+  {v:"premold_pillow_bag",l:"Pre-molded pillow (bagged)"},
+  {v:"no_bag_parchment",l:"No bag — parchment fold only"},
+  {v:"other",l:"Other"},
+];
+
+const PRESS_BRANDS=[
+  {v:"lowtemp",l:"Low Temp Plates"},
+  {v:"pure_pressure",l:"Pure Pressure"},
+  {v:"nugsmasher",l:"NugSmasher"},
+  {v:"sasquash",l:"Sasquash"},
+  {v:"dabpress",l:"Dabpress"},
+  {v:"other",l:"Other / Custom"},
+];
+
+const PRESS_MODELS={
+  lowtemp:[
+    {v:"lt_v2_3x5",l:"V2 3x5",capacity:"Up to 30g hash / cycle · 3\"×5\" plates",tons:20},
+    {v:"lt_v2_4x7",l:"V2 4x7",capacity:"Up to 60g hash / cycle · 4\"×7\" plates",tons:20},
+    {v:"lt_custom",l:"Custom / Other Low Temp",capacity:"—",tons:null},
+  ],
+  pure_pressure:[
+    {v:"pp_helix",l:"Helix",capacity:"Up to 6g flower / 10g hash · manual",tons:3},
+    {v:"pp_pikes_peak",l:"Pikes Peak V2",capacity:"Up to 20g flower / 35g hash · 10\"×2.5\" plates",tons:5},
+    {v:"pp_longs_peak",l:"Longs Peak",capacity:"Pneumatic, high throughput",tons:8},
+    {v:"pp_custom",l:"Custom / Other Pure Pressure",capacity:"—",tons:null},
+  ],
+  nugsmasher:[
+    {v:"ns_mini",l:"Mini",capacity:"Up to 3.5g · 2.5\"×2.5\" plates · manual",tons:2},
+    {v:"ns_og",l:"OG",capacity:"Entry commercial · smaller plates",tons:3},
+    {v:"ns_xp",l:"XP",capacity:"Up to 28g · 4\"×6\" plates · pressure gauge",tons:12},
+    {v:"ns_touch",l:"Touch",capacity:"Up to 28g · 4\"×6\" plates · touchscreen",tons:12},
+    {v:"ns_pro",l:"Pro",capacity:"Up to 84–100g · 7\"×10\" plates",tons:20},
+    {v:"ns_pro_touch",l:"Pro Touch",capacity:"Up to 84g · 7\"×10\" plates · touchscreen",tons:20},
+    {v:"ns_custom",l:"Custom / Other NugSmasher",capacity:"—",tons:null},
+  ],
+  sasquash:[
+    {v:"sq_yeti_10t",l:"Yeti Pro (hand pump)",capacity:"Commercial · hand pump",tons:10},
+    {v:"sq_yeti_55t",l:"Yeti Pro (electric pump)",capacity:"Commercial · electric pump",tons:55},
+    {v:"sq_custom",l:"Custom / Other Sasquash",capacity:"—",tons:null},
+  ],
+  dabpress:[
+    {v:"db_30t",l:"30 Ton Industrial",capacity:"Commercial-scale",tons:30},
+    {v:"db_custom",l:"Custom / Other Dabpress",capacity:"—",tons:null},
+  ],
+  other:[
+    {v:"custom",l:"Custom / Other equipment",capacity:"—",tons:null},
+  ],
+};
+function pressModel(brand,modelV){ return (PRESS_MODELS[brand]||[]).find(m=>m.v===modelV); }
+
 
 // ── Vape terpene sources ───────────────────────────────────────────────────
 const TERP_SRCS={
@@ -581,7 +638,7 @@ function calcYield(cat,sub,inputAmt,unit,pkgV,pkgL,opts){
     packagingContainer="",packagingUnitsPerPack=1}=opts;
   if(cat==="whole_flower"){const eff=pkgV+(parseFloat(overfillG)||0);const units=Math.floor(g/eff*0.95);return`${g.toFixed(0)}g · ${units.toLocaleString()} × ${pkgL} units`+(parseFloat(overfillG)>0?` (+${overfillG}g overfill/unit)`:"");}
   if(cat==="ground_flower"){const sw=parseFloat(stemWastePct)/100||0;const ml=parseFloat(moistureLossPct)/100||0;const u=g*(1-sw)*(1-ml);const units=Math.floor(u/pkgV*0.98);let k="";if(kiefSift){k=` · Kief: ${(u*(parseFloat(kief40Pct)/100)).toFixed(1)}g (40-mesh), ${(u*(parseFloat(kief100Pct)/100)).toFixed(1)}g (100-mesh)`;}return`${u.toFixed(0)}g usable · ${units.toLocaleString()} × ${pkgL}${k}`;}
-  if(cat==="pre_roll"){const sw=inputMaterial==="trim"?0.05:(parseFloat(stemWastePct)/100||0);const ml=parseFloat(moistureLossPct)/100||0;const fw=parseFloat(fillWastePct)/100||0;const u=g*(1-sw)*(1-ml)*(1-fw);const coneG=parseFloat(coneWeight)||1;const units=Math.floor(u/coneG);const ps=parseInt(packSize)||1;const packs=Math.floor(units/ps);const containerLabel=opts.packagingContainer?((PKG_CONTAINERS.pre_roll?.find(p=>p.v===opts.packagingContainer)?.l||opts.packagingContainer)+(opts.packagingUnitsPerPack>1?` (${opts.packagingUnitsPerPack}-pack)`:"")):ps+"\u002dpack";let k="";if(kiefSift){k=` · Kief: ${(g*sw*(parseFloat(kief40Pct)/100)).toFixed(1)}g / ${(g*sw*(parseFloat(kief100Pct)/100)).toFixed(1)}g`;}return`${units.toLocaleString()} cones · ${packs.toLocaleString()} × ${containerLabel}${k}`;}
+  if(cat==="pre_roll"){const sw=inputMaterial==="trim"?0.05:(parseFloat(stemWastePct)/100||0);const ml=parseFloat(moistureLossPct)/100||0;const fw=parseFloat(fillWastePct)/100||0;const u=g*(1-sw)*(1-ml)*(1-fw);const coneG=parseFloat(coneWeight)||1;const units=Math.floor(u/coneG);const ps=parseInt(packSize)||1;const packs=Math.floor(units/ps);const containerLabel=opts.packagingContainer?((PKG_CONTAINERS.pre_roll?.find(p=>p.v===opts.packagingContainer)?.l||opts.packagingContainer)+(opts.packagingUnitsPerPack>1?` (${opts.packagingUnitsPerPack}-pack)`:"")):ps+"-pack";let k="";if(kiefSift){k=` · Kief: ${(g*sw*(parseFloat(kief40Pct)/100)).toFixed(1)}g / ${(g*sw*(parseFloat(kief100Pct)/100)).toFixed(1)}g`;}return`${units.toLocaleString()} cones · ${packs.toLocaleString()} × ${containerLabel}${k}`;}
   // Distillation yield — use DISTILLATION_SPECS
   if(cat==="extract"&&(sub?.startsWith("sp_")||sub?.startsWith("wfe_"))){
     const spec=DISTILLATION_SPECS[sub];
@@ -998,6 +1055,7 @@ const EMPTY={
   thcaMethod:"controlled",thcaRecrystCycles:"1",
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
   washEvents:[],freezeDryCycles:[],
+  pressRuns:[],coldCureBatches:[],
 };
 
 function loadHarvestBatches(){ return []; } // loaded async now
@@ -1118,6 +1176,9 @@ export default function ProductionScheduler(){
   // R-134a cycle info
   const isR134a=form.sub==="r134a_20l"||form.sub==="r134a_50l";
   const isHash=form.cat==="extract"&&form.sub==="hash";
+  const isRosinFl=form.sub==="rosin_fl";
+  const isRosinHash=form.sub==="rosin_hash";
+  const isRosin=isRosinFl||isRosinHash;
   const r134aInfo=isR134a&&inputG>0?r134aCalcDays(inputG,form.sub):null;
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -1158,7 +1219,7 @@ export default function ProductionScheduler(){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[]});
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[]});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
@@ -1174,7 +1235,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[]};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[]};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1239,8 +1300,8 @@ export default function ProductionScheduler(){
   function exportProd(){
     if(!batches.length)return;
     const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
-    const rows=batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const stepRows=tl.map(s=>'<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">'+s.name+'</td><td style="padding:4px 14px 4px 0;font-size:13px;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");return'<div style="margin-bottom:28px;page-break-inside:avoid;border-left:4px solid '+(b.isLinked?"#5a78cc":"#2d5a3d")+';padding-left:14px;"><h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">'+b.name+(b.isLinked?' <span style="font-size:11px;color:#5a78cc;">[Linked Batch]</span>':'')+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.catLabel+(b.subLabel?' \u2014 '+b.subLabel:'')+' &nbsp;\u00b7&nbsp; '+b.inputAmt+b.unit+(b.strains?' &nbsp;\u00b7&nbsp; '+b.strains:'')+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;color:#333;margin:6px 0 0;"><strong>Est. output:</strong> '+(b.yieldEst||'—')+(b.actual_yield?' &nbsp;\u00b7&nbsp; <strong>Actual:</strong> '+b.actual_yield:'')+(b.cannabinoids?.length?' &nbsp;\u00b7&nbsp; '+b.cannabinoids.join(', '):'')+(b.s2s_barcode?' &nbsp;\u00b7&nbsp; S2S: '+b.s2s_barcode:'')+'</p></div>';}).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
-    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body><h1>ResinOps \u2014 Production Schedule</h1><div class="meta">Exported '+date+' &nbsp;\u00b7&nbsp; '+batches.filter(b=>!b.isLinked).length+' batches<br><small>Ctrl+P \u2192 Save as PDF &nbsp;|&nbsp; File \u2192 Open in Word</small></div>'+rows+'</body></html>';
+    const rows=batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const stepRows=tl.map(s=>'<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">'+s.name+'</td><td style="padding:4px 14px 4px 0;font-size:13px;">'+fmtF(s.start)+' → '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");return'<div style="margin-bottom:28px;page-break-inside:avoid;border-left:4px solid '+(b.isLinked?"#5a78cc":"#2d5a3d")+';padding-left:14px;"><h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">'+b.name+(b.isLinked?' <span style="font-size:11px;color:#5a78cc;">[Linked Batch]</span>':'')+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.catLabel+(b.subLabel?' — '+b.subLabel:'')+' &nbsp;·&nbsp; '+b.inputAmt+b.unit+(b.strains?' &nbsp;·&nbsp; '+b.strains:'')+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;color:#333;margin:6px 0 0;"><strong>Est. output:</strong> '+(b.yieldEst||'—')+(b.actual_yield?' &nbsp;·&nbsp; <strong>Actual:</strong> '+b.actual_yield:'')+(b.cannabinoids?.length?' &nbsp;·&nbsp; '+b.cannabinoids.join(', '):'')+(b.s2s_barcode?' &nbsp;·&nbsp; S2S: '+b.s2s_barcode:'')+'</p></div>';}).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
+    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body><h1>ResinOps — Production Schedule</h1><div class="meta">Exported '+date+' &nbsp;·&nbsp; '+batches.filter(b=>!b.isLinked).length+' batches<br><small>Ctrl+P → Save as PDF &nbsp;|&nbsp; File → Open in Word</small></div>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Production-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   }
 
@@ -1447,7 +1508,7 @@ export default function ProductionScheduler(){
               <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"4px 10px"}} onClick={applyR134aDays}>Apply calculated days to steps</button>
             </div>}
 
-            {/* Ice Water Hash \u2014 Wash Log (repeatable, multiple washes per batch) */}
+            {/* Ice Water Hash — Wash Log (repeatable, multiple washes per batch) */}
             {isHash&&<div className="ps-box">
               <div className="ps-box-t">Wash Log</div>
               {(form.washEvents||[]).map((w,idx)=>{
@@ -1461,14 +1522,14 @@ export default function ProductionScheduler(){
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
                     <div><label className="ps-lbl">Wash date</label><input type="date" className="ps-inp" value={w.date||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],date:e.target.value};setF("washEvents",ws);}} /></div>
-                    <div><label className="ps-lbl">Water temp (\u00b0F)</label><input type="number" step="0.5" className="ps-inp" value={w.waterTempF||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],waterTempF:e.target.value};setF("washEvents",ws);}} placeholder="34" /></div>
+                    <div><label className="ps-lbl">Water temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={w.waterTempF||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],waterTempF:e.target.value};setF("washEvents",ws);}} placeholder="34" /></div>
                     <div><label className="ps-lbl">Ice ratio</label><input className="ps-inp" value={w.iceRatio||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],iceRatio:e.target.value};setF("washEvents",ws);}} placeholder="1:1" /></div>
                     <div><label className="ps-lbl"># of washes</label><input type="number" className="ps-inp" value={w.numberOfWashes||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],numberOfWashes:e.target.value};setF("washEvents",ws);}} /></div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8,marginBottom:8}}>
                     <div><label className="ps-lbl">Agitation method</label><select className="ps-sel" value={w.agitationMethod||"manual_paddle"} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],agitationMethod:e.target.value};setF("washEvents",ws);}}>{AGITATION_METHODS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}</select></div>
                     <div><label className="ps-lbl">Agitation time (min)</label><input type="number" className="ps-inp" value={w.agitationTimeMin||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],agitationTimeMin:e.target.value};setF("washEvents",ws);}} /></div>
-                    <div><label className="ps-lbl">Wash vessel / equipment</label><input className="ps-inp" value={w.washVessel||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],washVessel:e.target.value};setF("washEvents",ws);}} placeholder="220g Bubble Bags, Pure Extraction, Klein Tank\u2026" /></div>
+                    <div><label className="ps-lbl">Wash vessel / equipment</label><input className="ps-inp" value={w.washVessel||""} onChange={e=>{const ws=[...(form.washEvents||[])];ws[idx]={...ws[idx],washVessel:e.target.value};setF("washEvents",ws);}} placeholder="220g Bubble Bags, Pure Extraction, Klein Tank…" /></div>
                   </div>
                   <div style={{marginBottom:8}}>
                     <label className="ps-lbl">Input weight loaded (g)</label>
@@ -1479,13 +1540,13 @@ export default function ProductionScheduler(){
                     {MICRON_GRADES.map(m=>{
                       const g=(w.grades||[]).find(x=>x.micron===m)||{micron:m,wetWeightG:""};
                       return(<div key={m}>
-                        <label className="ps-lbl" style={{textAlign:"center",display:"block"}}>{m}\u03bc</label>
+                        <label className="ps-lbl" style={{textAlign:"center",display:"block"}}>{m}μ</label>
                         <input type="number" step="0.1" className="ps-inp" style={{textAlign:"center"}} value={g.wetWeightG}
                           onChange={e=>{const ws=[...(form.washEvents||[])];const grades=MICRON_GRADES.map(mm=>{const existing=(ws[idx].grades||[]).find(x=>x.micron===mm)||{micron:mm,wetWeightG:""};return mm===m?{micron:mm,wetWeightG:e.target.value}:existing;});ws[idx]={...ws[idx],grades};setF("washEvents",ws);}} />
                       </div>);
                     })}
                   </div>
-                  <div style={{fontSize:11,color:"var(--text-2)"}}>Total wet: <strong style={{color:"var(--accent-2)"}}>{total.toFixed(1)}g</strong>{parseFloat(w.inputWeightG)>0&&<> \u00b7 Wet yield: <strong style={{color:"var(--accent-2)"}}>{(total/parseFloat(w.inputWeightG)*100).toFixed(1)}%</strong></>}</div>
+                  <div style={{fontSize:11,color:"var(--text-2)"}}>Total wet: <strong style={{color:"var(--accent-2)"}}>{total.toFixed(1)}g</strong>{parseFloat(w.inputWeightG)>0&&<> · Wet yield: <strong style={{color:"var(--accent-2)"}}>{(total/parseFloat(w.inputWeightG)*100).toFixed(1)}%</strong></>}</div>
                 </div>
                 );
               })}
@@ -1495,7 +1556,7 @@ export default function ProductionScheduler(){
               </button>
             </div>}
 
-            {/* Ice Water Hash \u2014 Freeze Dry Cycles (repeatable, can pull from any wash logged above) */}
+            {/* Ice Water Hash — Freeze Dry Cycles (repeatable, can pull from any wash logged above) */}
             {isHash&&<div className="ps-box">
               <div className="ps-box-t">Freeze Dry Cycles</div>
               {(form.freezeDryCycles||[]).map((c,idx)=>{
@@ -1518,7 +1579,7 @@ export default function ProductionScheduler(){
                         cs[idx]={...cs[idx],sourceWashId:e.target.value,batchSizeG:total!=null?String(total):cs[idx].batchSizeG};
                         setF("freezeDryCycles",cs);
                       }}>
-                        <option value="">\u2014 No linked wash \u2014</option>
+                        <option value="">— No linked wash —</option>
                         {(form.washEvents||[]).map((w,wi)=><option key={w.id||wi} value={w.id}>{w.date||"Wash "+(wi+1)}</option>)}
                       </select>
                     </div>
@@ -1539,10 +1600,10 @@ export default function ProductionScheduler(){
                       </select>
                     </div>
                   </div>
-                  {model&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:8}}>{model.capacity} \u00b7 Typical cycle: {model.cycleHrs}{model.condenserF!=null?` \u00b7 Condenser ~${model.condenserF}\u00b0F`:""}{model.auto&&" \u00b7 Shelf temp & vacuum auto-managed"}</div>}
+                  {model&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:8}}>{model.capacity} · Typical cycle: {model.cycleHrs}{model.condenserF!=null?` · Condenser ~${model.condenserF}°F`:""}{model.auto&&" · Shelf temp & vacuum auto-managed"}</div>}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
-                    <div><label className="ps-lbl">Shelf temp (\u00b0F)</label><input type="number" step="0.5" className="ps-inp" value={c.shelfTempF||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],shelfTempF:e.target.value};setF("freezeDryCycles",cs);}} placeholder={model?.auto?"Auto":""} /></div>
-                    <div><label className="ps-lbl">Condenser temp (\u00b0F)</label><input type="number" step="0.5" className="ps-inp" value={c.condenserTempF||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],condenserTempF:e.target.value};setF("freezeDryCycles",cs);}} placeholder={model?.condenserF!=null?String(model.condenserF):""} /></div>
+                    <div><label className="ps-lbl">Shelf temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={c.shelfTempF||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],shelfTempF:e.target.value};setF("freezeDryCycles",cs);}} placeholder={model?.auto?"Auto":""} /></div>
+                    <div><label className="ps-lbl">Condenser temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={c.condenserTempF||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],condenserTempF:e.target.value};setF("freezeDryCycles",cs);}} placeholder={model?.condenserF!=null?String(model.condenserF):""} /></div>
                     <div><label className="ps-lbl">Vacuum level</label><input className="ps-inp" value={c.vacuumLevel||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],vacuumLevel:e.target.value};setF("freezeDryCycles",cs);}} placeholder={model?.auto?"Auto":"500 mTorr"} /></div>
                     <div><label className="ps-lbl">Cycle time (hrs)</label><input type="number" step="0.5" className="ps-inp" value={c.cycleTimeHours||""} onChange={e=>{const cs=[...(form.freezeDryCycles||[])];cs[idx]={...cs[idx],cycleTimeHours:e.target.value};setF("freezeDryCycles",cs);}} /></div>
                   </div>
@@ -1557,6 +1618,140 @@ export default function ProductionScheduler(){
               <button style={{width:"100%",padding:"7px",background:"rgba(120,150,240,0.08)",border:"1px dashed rgba(120,150,240,0.4)",borderRadius:8,color:"#9ab0f8",fontSize:12,fontWeight:600,cursor:"pointer"}}
                 onClick={()=>{const cs=[...(form.freezeDryCycles||[])];cs.push({id:crypto.randomUUID(),sourceWashId:"",date:new Date().toISOString().split("T")[0],equipmentBrand:"harvest_right",equipmentModel:"hr_medium",batchSizeG:"",shelfTempF:"",condenserTempF:"",vacuumLevel:"",cycleTimeHours:"",finalDryWeightG:""});setF("freezeDryCycles",cs);}}>
                 + Add freeze-dry cycle
+              </button>
+            </div>}
+
+            {/* Rosin — Press Runs (repeatable; hash rosin can pull from another batch's dried hash) */}
+            {isRosin&&<div className="ps-box">
+              <div className="ps-box-t">Press Runs</div>
+              {(form.pressRuns||[]).map((p,idx)=>{
+                const pm=pressModel(p.pressBrand,p.pressModel);
+                const yieldPct=parseFloat(p.prePressWeightG)>0&&parseFloat(p.postPressYieldG)>0?(parseFloat(p.postPressYieldG)/parseFloat(p.prePressWeightG)*100).toFixed(1):null;
+                const sourceBatch=isRosinHash?batches.find(b=>b.id===p.sourceBatchId):null;
+                return(
+                <div key={p.id||idx} style={{background:"rgba(200,150,58,0.06)",border:"1px solid rgba(200,150,58,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Press {idx+1}</div>
+                    <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                      onClick={()=>{const ps=[...(form.pressRuns||[])];ps.splice(idx,1);setF("pressRuns",ps);}}>Remove</button>
+                  </div>
+
+                  {isRosinHash&&<div style={{display:"grid",gridTemplateColumns:"2fr 2fr",gap:8,marginBottom:8}}>
+                    <div>
+                      <label className="ps-lbl">Sourced from hash batch</label>
+                      <select className="ps-sel" value={p.sourceBatchId||""} onChange={e=>{
+                        const ps=[...(form.pressRuns||[])];
+                        ps[idx]={...ps[idx],sourceBatchId:e.target.value,sourceFreezeDryId:""};
+                        setF("pressRuns",ps);
+                      }}>
+                        <option value="">— No linked batch —</option>
+                        {batches.filter(b=>b.id!==editId&&b.cat==="extract"&&b.sub==="hash"&&(b.freezeDryCycles||[]).length>0).map(b=><option key={b.id} value={b.id}>{b.name} ({b.strains||"unspecified"})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="ps-lbl">Freeze-dry cycle</label>
+                      <select className="ps-sel" value={p.sourceFreezeDryId||""} disabled={!sourceBatch} onChange={e=>{
+                        const ps=[...(form.pressRuns||[])];
+                        const cyc=(sourceBatch?.freezeDryCycles||[]).find(c=>c.id===e.target.value);
+                        ps[idx]={...ps[idx],sourceFreezeDryId:e.target.value,prePressWeightG:cyc?.finalDryWeightG||ps[idx].prePressWeightG};
+                        setF("pressRuns",ps);
+                      }}>
+                        <option value="">— Select cycle —</option>
+                        {(sourceBatch?.freezeDryCycles||[]).map((c,ci)=><option key={c.id||ci} value={c.id}>{c.date||"Cycle "+(ci+1)} ({c.finalDryWeightG||"?"}g dry)</option>)}
+                      </select>
+                    </div>
+                  </div>}
+
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Press date</label><input type="date" className="ps-inp" value={p.date||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],date:e.target.value};setF("pressRuns",ps);}} /></div>
+                    <div>
+                      <label className="ps-lbl">Press brand</label>
+                      <select className="ps-sel" value={p.pressBrand||"lowtemp"} onChange={e=>{const ps=[...(form.pressRuns||[])];const firstModel=(PRESS_MODELS[e.target.value]||[])[0];ps[idx]={...ps[idx],pressBrand:e.target.value,pressModel:firstModel?.v||""};setF("pressRuns",ps);}}>
+                        {PRESS_BRANDS.map(b=><option key={b.v} value={b.v}>{b.l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="ps-lbl">Model</label>
+                      <select className="ps-sel" value={p.pressModel||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],pressModel:e.target.value};setF("pressRuns",ps);}}>
+                        {(PRESS_MODELS[p.pressBrand||"lowtemp"]||[]).map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {pm&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:8}}>{pm.capacity}{pm.tons!=null?` · ${pm.tons} tons max`:""}</div>}
+
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Plate temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={p.plateTempF||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],plateTempF:e.target.value};setF("pressRuns",ps);}} placeholder="180" /></div>
+                    <div><label className="ps-lbl">Press time (sec)</label><input type="number" step="1" className="ps-inp" value={p.pressTimeSec||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],pressTimeSec:e.target.value};setF("pressRuns",ps);}} placeholder="90" /></div>
+                    <div><label className="ps-lbl">Pressure</label><input className="ps-inp" value={p.pressure||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],pressure:e.target.value};setF("pressRuns",ps);}} placeholder={pm?.tons?pm.tons+" tons":"e.g. 1000 PSI"} /></div>
+                    <div>
+                      <label className="ps-lbl">Bag micron</label>
+                      <select className="ps-sel" value={p.bagMicron||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],bagMicron:e.target.value};setF("pressRuns",ps);}}>
+                        <option value="">— Select —</option>
+                        {PRESS_BAG_MICRONS.map(m=><option key={m} value={m}>{m}μ</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div>
+                      <label className="ps-lbl">Packing method</label>
+                      <select className="ps-sel" value={p.packingMethod||"loose_bag"} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],packingMethod:e.target.value};setF("pressRuns",ps);}}>
+                        {PACKING_METHODS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                    </div>
+                    <div><label className="ps-lbl">Pre-press weight (g)</label><input type="number" step="0.1" className="ps-inp" value={p.prePressWeightG||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],prePressWeightG:e.target.value};setF("pressRuns",ps);}} /></div>
+                    <div><label className="ps-lbl">Post-press yield (g)</label><input type="number" step="0.1" className="ps-inp" value={p.postPressYieldG||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],postPressYieldG:e.target.value};setF("pressRuns",ps);}} /></div>
+                  </div>
+                  {yieldPct&&<div style={{fontSize:11,color:"var(--accent-2)",marginBottom:8}}>Press yield: {yieldPct}%</div>}
+
+                  <div><label className="ps-lbl">Notes</label><input className="ps-inp" value={p.notes||""} onChange={e=>{const ps=[...(form.pressRuns||[])];ps[idx]={...ps[idx],notes:e.target.value};setF("pressRuns",ps);}} placeholder="Bag blowouts, chlorophyll bleed, consistency observations…" /></div>
+                </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(200,150,58,0.08)",border:"1px dashed rgba(200,150,58,0.4)",borderRadius:8,color:"var(--amber)",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const ps=[...(form.pressRuns||[])];ps.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],sourceBatchId:"",sourceFreezeDryId:"",pressBrand:"lowtemp",pressModel:"lt_v2_3x5",plateTempF:"",pressTimeSec:"",pressure:"",bagMicron:"",packingMethod:"loose_bag",prePressWeightG:"",postPressYieldG:"",notes:""});setF("pressRuns",ps);}}>
+                + Add press run
+              </button>
+            </div>}
+
+            {/* Rosin — Cold Cure (hash rosin batter/sauce separation step) */}
+            {isRosinHash&&<div className="ps-box">
+              <div className="ps-box-t">Cold Cure</div>
+              {(form.coldCureBatches||[]).map((c,idx)=>{
+                const linkedPress=(form.pressRuns||[]).find(p=>p.id===c.sourcePressRunId);
+                return(
+                <div key={c.id||idx} style={{background:"rgba(90,120,200,0.06)",border:"1px solid rgba(90,120,200,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#7090f0",textTransform:"uppercase",letterSpacing:"0.05em"}}>Cure {idx+1}</div>
+                    <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                      onClick={()=>{const cs=[...(form.coldCureBatches||[])];cs.splice(idx,1);setF("coldCureBatches",cs);}}>Remove</button>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <label className="ps-lbl">Sourced from press run</label>
+                    <select className="ps-sel" value={c.sourcePressRunId||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],sourcePressRunId:e.target.value};setF("coldCureBatches",cs);}}>
+                      <option value="">— No linked press run —</option>
+                      {(form.pressRuns||[]).map((p,pi)=><option key={p.id||pi} value={p.id}>{p.date||"Press "+(pi+1)} ({p.postPressYieldG||"?"}g)</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+                    <div><label className="ps-lbl">Cure start date</label><input type="date" className="ps-inp" value={c.dateStarted||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],dateStarted:e.target.value};setF("coldCureBatches",cs);}} /></div>
+                    <div><label className="ps-lbl">Cure end date</label><input type="date" className="ps-inp" value={c.dateEnded||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],dateEnded:e.target.value};setF("coldCureBatches",cs);}} /></div>
+                    <div><label className="ps-lbl">Cure temp (°F)</label><input type="number" step="0.5" className="ps-inp" value={c.tempF||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],tempF:e.target.value};setF("coldCureBatches",cs);}} placeholder="38" /></div>
+                  </div>
+                  <div style={{marginBottom:8}}>
+                    <label className="ps-lbl">Resulting consistency</label>
+                    <select className="ps-sel" value={c.resultingConsistency||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],resultingConsistency:e.target.value};setF("coldCureBatches",cs);}}>
+                      <option value="">— Select —</option>
+                      {["Budder / Batter","Jam","Sauce","Diamonds & Sauce","Sugar / Crumble","Shatter-like","Other"].map(o=><option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="ps-lbl">Notes</label><input className="ps-inp" value={c.notes||""} onChange={e=>{const cs=[...(form.coldCureBatches||[])];cs[idx]={...cs[idx],notes:e.target.value};setF("coldCureBatches",cs);}} placeholder="Whip results, terp retention, texture…" /></div>
+                </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(90,120,200,0.08)",border:"1px dashed rgba(90,120,200,0.4)",borderRadius:8,color:"#7090f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const cs=[...(form.coldCureBatches||[])];cs.push({id:crypto.randomUUID(),sourcePressRunId:"",dateStarted:new Date().toISOString().split("T")[0],dateEnded:"",tempF:"",resultingConsistency:"",notes:""});setF("coldCureBatches",cs);}}>
+                + Add cold cure batch
               </button>
             </div>}
 
@@ -2252,7 +2447,7 @@ export default function ProductionScheduler(){
                   </div>
                   <div className="ps-tl" style={{minWidth:twPx,height:RH}}>
                     {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />)}
-                    {tl.map((step,si)=>{const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" \u2192 "+fmtF(step.end)+" ("+step.days+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
+                    {tl.map((step,si)=>{const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" → "+fmtF(step.end)+" ("+step.days+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
                     {todayOff>=0&&todayOff<=total&&<div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />}
                   </div>
                 </div>
