@@ -639,6 +639,18 @@ export default function DataManager(){
         await db.inventory_items.upsert({...inv, id: uid(inv.id)});
       }
 
+      // ── Equipment ──────────────────────────────────────────
+      const equipmentRaw = [
+        {id:"eq_001",name:"Harvest Right Medium Freeze Dryer",cat:"Extraction",make:"Harvest Right",model:"Medium",serial:"HR-MED-20441",location:"Processing Room",purchaseDate:"2025-01-15",warrantyExpires:"2027-01-15",pmFreqDays:"90",lastServiceDate:"2026-05-01",status:"active",notes:"Primary freeze-dry unit for ice water hash."},
+        {id:"eq_002",name:"Low Temp Plates V2 3x5",cat:"Extraction",make:"Low Temp Plates",model:"V2 3x5",serial:"LTP-V2-8834",location:"Processing Room",purchaseDate:"2025-02-01",warrantyExpires:"2026-02-01",pmFreqDays:"180",lastServiceDate:"2026-04-10",status:"active",notes:"Primary rosin press."},
+        {id:"eq_003",name:"GreenBroz 215",cat:"Trimming & Bucking",make:"GreenBroz",model:"215",serial:"GB215-5521",location:"Processing Room",purchaseDate:"2024-11-01",warrantyExpires:"2025-11-01",pmFreqDays:"30",lastServiceDate:"2026-06-15",status:"active",notes:"Primary machine trim unit, blade inspection monthly."},
+        {id:"eq_004",name:"Quest 335 Dehumidifier — FR6",cat:"HVAC & Dehumidification",make:"Quest",model:"335",serial:"Q335-2291",location:"Flower Room 6",purchaseDate:"2024-08-01",warrantyExpires:"2026-08-01",pmFreqDays:"90",lastServiceDate:"2026-06-01",status:"active",notes:"Quarterly drain line check per corrective action from Nov 2024 deviation."},
+        {id:"eq_005",name:"CVault Cure Station",cat:"Drying & Curing",make:"CVault",model:"Commercial 27gal",serial:"CV-27-1145",location:"Dry / Cure Room",purchaseDate:"2024-09-01",warrantyExpires:"",pmFreqDays:"",lastServiceDate:"",status:"active",notes:"Long-term cure storage, humidity-controlled."},
+      ];
+      for (const eq of equipmentRaw) {
+        await db.equipment.upsert({...eq, id: uid(eq.id)});
+      }
+
       // ── Spray Log / Pesticide Applications ──────────────────────
       const sprayLogRaw = [
         {id:"sl_001",date:"2026-06-25",type:"ipm_spray",spaceName:"Veg Room",product:"Regalia Bio-Fungicide",manufacturer:"Marrone Bio Innovations",epaRegNum:"84059-3",rate:"1",rateUnit:"oz/gal",volumeApplied:"12",volumeUnit:"gal",areaApplied:"800",applicationMethod:"Backpack sprayer",targetPest:"Powdery mildew (preventive)",weatherTemp:"71",weatherWind:"2",weatherHumidity:"55",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Routine preventive IPM rotation — week 3 of 4"},

@@ -112,18 +112,26 @@ export default function MotherPlantManager(){
     if(!form.plantCount||form.plantCount<1){ setErr("Plant count must be at least 1."); return; }
     const rec = {
       ...form,
-      id: form.id || "mom_"+Date.now(),
+      id: form.id || crypto.randomUUID(),
       cutLog: form.cutLog || [],
     };
-    if(form.id) setMoms(p=>p.map(m=>m.id===rec.id?rec:m));
-    else setMoms(p=>[...p,rec]);
-    autoPopulateStrains(form.strainName, {source:"Mother Plant Manager"});
-    setForm(null); setErr("");
+    try{
+      const saved = await db.mother_plants.upsert(rec);
+      if(form.id) setMoms(p=>p.map(m=>m.id===saved.id?saved:m));
+      else setMoms(p=>[...p,saved]);
+      autoPopulateStrains(form.strainName, {source:"Mother Plant Manager"});
+      setForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
 
-  function retire(id){
-    setMoms(p=>p.map(m=>m.id===id?{...m,status:"retired"}:m));
-    if(selectedId===id) setSelectedId(null);
+  async function retire(id){
+    const mom = moms.find(m=>m.id===id);
+    if(!mom) return;
+    try{
+      await db.mother_plants.upsert({...mom, status:"retired"});
+      setMoms(p=>p.map(m=>m.id===id?{...m,status:"retired"}:m));
+      if(selectedId===id) setSelectedId(null);
+    }catch(e){ console.error("Retire failed:",e); }
   }
 
   function logCut(){

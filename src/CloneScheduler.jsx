@@ -99,10 +99,13 @@ export default function CloneScheduler(){
   function openAdd(){setForm({...EMPTY_SCHEDULE,vegWeeks:String(facilityVegWeeks),rootDays:String(facilityRootDays)});setErr("");}
   async function save(){
     if(!form.strainName.trim()){setErr("Enter a strain.");return;}
-    const rec={...form,id:form.id||"cs"+Date.now()};
-    if(form.id) setSchedules(p=>p.map(x=>x.id===rec.id?rec:x));
-    else setSchedules(p=>[...p,rec]);
-    setForm(null);setErr("");
+    const rec={...form,id:form.id||crypto.randomUUID()};
+    try{
+      const saved=await db.clone_schedules.upsert(rec);
+      if(form.id) setSchedules(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setSchedules(p=>[...p,saved]);
+      setForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
   async function remove(id){ try{ await db.clone_schedules.delete(id); setSchedules(p=>p.filter(x=>x.id!==id)); }catch(e){ console.error("Delete failed:",e); } }
   function setStatus(id,st){setSchedules(p=>p.map(x=>x.id===id?{...x,status:st}:x));}
