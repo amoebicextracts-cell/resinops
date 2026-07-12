@@ -343,6 +343,317 @@ export default function DataManager(){
   const [coaBatchLinks,setCoaBatchLinks]=useState({}); // sampleId -> harvestBatchId
   const [restoreConfirm,setRestoreConfirm]=useState(false);
   const [statusMsg,setStatusMsg]=useState("");
+  const [demoLoading,setDemoLoading]=useState(false);
+
+  async function loadDemoData(){
+    if (demoLoading) return;
+    setDemoLoading(true);
+    setStatusMsg("Loading demo data…");
+    try {
+      // The records below originally used short human-readable ids (pb_001, gs_001,
+      // s1, etc.) which worked fine in localStorage but are not valid Postgres uuids.
+      // uid() generates a real uuid per fake id and keeps them consistent across
+      // datasets that reference each other (e.g. a production batch's harvestBatchId).
+      const idMap = {};
+      const uid = (fakeId) => { if(!fakeId) return ""; if(!idMap[fakeId]) idMap[fakeId]=crypto.randomUUID(); return idMap[fakeId]; };
+
+      // ── Strains ──────────────────────────────────────────
+      const strainsRaw = [
+        {id:"s1",name:"Gorilla Cake",type:"Hybrid",lineage:"Gorilla Glue #4 × Wedding Cake",breeder:"Archive Seed Bank",thcaAvg:"24.2",thcAvg:"0.21",terpsAvg:"2.8",dominantTerps:"Myrcene, Caryophyllene, Limonene",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"48",aroma:"Earthy, vanilla, diesel",flavor:"Sweet cream, fuel, pine",effects:"Heavy body relaxation with euphoric onset",notes:"Top performer — consistent 24%+ THCa across all runs"},
+        {id:"s2",name:"Black Maple",type:"Hybrid",lineage:"GMO × Maple Syrup",breeder:"In-house selection",thcaAvg:"26.1",thcAvg:"0.23",terpsAvg:"3.1",dominantTerps:"Myrcene, Ocimene, Linalool",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"44",aroma:"Sweet maple, diesel, skunk",flavor:"Syrupy, earthy, kushy",effects:"Deeply relaxing, sleep-promoting",notes:"HLV-free TC stock. Exceptional bag appeal."},
+        {id:"s3",name:"Mango Haze",type:"Sativa-dominant",lineage:"Mango × Super Silver Haze",breeder:"Mr. Nice Seeds",thcaAvg:"21.4",thcAvg:"0.18",terpsAvg:"2.4",dominantTerps:"Terpinolene, Ocimene, Myrcene",vegWeeks:"4",flowerWeeks:"10",yieldGSqFt:"52",aroma:"Tropical mango, citrus, floral",flavor:"Mango, pine, sweet",effects:"Uplifting, creative, energetic",notes:"Highest yielder in the lineup. 10-week flower."},
+        {id:"s4",name:"Blueberry Headband",type:"Hybrid",lineage:"Blueberry × Headband",breeder:"House genetics",thcaAvg:"22.8",thcAvg:"0.20",terpsAvg:"2.2",dominantTerps:"Myrcene, Caryophyllene, Pinene",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"46",aroma:"Blueberry, earthy, floral",flavor:"Berry, cream, pine",effects:"Balanced head and body",notes:"Strong dispensary demand — pre-sold on every run"},
+        {id:"s5",name:"Sour Diesel OG",type:"Sativa-dominant",lineage:"Sour Diesel × OG Kush",breeder:"House genetics",thcaAvg:"23.5",thcAvg:"0.20",terpsAvg:"2.6",dominantTerps:"Caryophyllene, Limonene, Myrcene",vegWeeks:"4",flowerWeeks:"10",yieldGSqFt:"49",aroma:"Diesel, lemon, pine",flavor:"Fuel, citrus, earthy",effects:"Energizing, focus-enhancing",notes:"HLV-free run. Post-TC clean stock."},
+        {id:"s6",name:"Zaza Runtz",type:"Hybrid",lineage:"Zkittlez × Gelato",breeder:"Cookies",thcaAvg:"25.3",thcAvg:"0.22",terpsAvg:"3.3",dominantTerps:"Limonene, Caryophyllene, Linalool",vegWeeks:"4",flowerWeeks:"8",yieldGSqFt:"42",aroma:"Candy, fruity, tropical",flavor:"Sweet, creamy, tropical",effects:"Euphoric, uplifting, creative",notes:"Premium shelf — commands top price point"},
+      ];
+      for (const s of strainsRaw) {
+        await db.strains.upsert({id:uid(s.id),name:s.name,type:s.type,lineage:s.lineage,breeder:s.breeder,thcaAvg:s.thcaAvg,thcAvg:s.thcAvg,terpsAvg:s.terpsAvg,dominantTerpenes:s.dominantTerps,avgVegWeeks:s.vegWeeks,avgFlowerWeeks:s.flowerWeeks,avgYieldGPerSqft:s.yieldGSqFt,aroma:s.aroma,flavor:s.flavor,effects:s.effects,notes:s.notes});
+      }
+
+      // ── Grow Rooms (Grow Map) ───────────────────────────────────
+      const growMapRaw = [
+        {id:"gr1",name:"Flower Room 1",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR1",notes:"Main production room"},
+        {id:"gr2",name:"Flower Room 2",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR2",notes:""},
+        {id:"gr3",name:"Flower Room 3",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR3",notes:""},
+        {id:"gr4",name:"Flower Room 4",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR4",notes:""},
+        {id:"gr5",name:"Flower Room 5",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR5",notes:""},
+        {id:"gr6",name:"Flower Room 6",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR6",notes:""},
+        {id:"gr7",name:"Flower Room 7",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"cleaning",sensorId:"GR-FR7",notes:"Post-harvest cleaning"},
+        {id:"gr8",name:"Flower Room 8",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR8",notes:""},
+        {id:"gr9",name:"Veg Room",type:"Veg",sqft:"800",canopy:"640",maxPlants:"128",lightType:"LED",lightCount:"8",lightWatts:"400",status:"active",sensorId:"GR-VEG",notes:"Mixed strains pre-flower"},
+        {id:"gr10",name:"Mother Room",type:"Mother Room",sqft:"400",canopy:"320",maxPlants:"24",lightType:"LED",lightCount:"4",lightWatts:"400",status:"active",sensorId:"GR-MOM",notes:"6 strains in rotation"},
+        {id:"gr11",name:"Propagation / Clone Room",type:"Propagation",sqft:"300",canopy:"240",maxPlants:"512",lightType:"T5 Fluorescent",lightCount:"8",lightWatts:"54",status:"active",sensorId:"GR-PROP",notes:"Clone propagation trays"},
+        {id:"gr12",name:"Genetics Lab / TC",type:"Genetics Lab / TC",sqft:"150",canopy:"",maxPlants:"",lightType:"LED",lightCount:"2",lightWatts:"100",status:"active",sensorId:"GR-TC",notes:"Tissue culture clean room"},
+      ];
+      for (const g of growMapRaw) {
+        await db.grow_rooms.upsert({id:uid(g.id),name:g.name,roomType:g.type,sqft:g.sqft,canopySqft:g.canopy,maxPlants:g.maxPlants,lightType:g.lightType,lightCount:g.lightCount,lightWatts:g.lightWatts,status:g.status,sensorId:g.sensorId,notes:g.notes});
+      }
+
+      // ── Grow Spaces ──────────────────────────────────────────
+      const growSpacesRaw = [
+        {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_002",name:"FR6 — Black Maple Cycle 4",d:"2026-05-03",veg:"4",flw:"9",strains:[{id:1,name:"Black Maple",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_003",name:"FR7 — Mango Haze Cycle 2",d:"2026-04-26",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"cleaning"},
+        {id:"gs_004",name:"FR8 — Gorilla Cake Cycle 3",d:"2026-06-13",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_005",name:"FR1 — Mango Haze Cycle 3",d:"2026-06-20",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_006",name:"FR2 — Sour Diesel OG Cycle 2",d:"2026-06-27",veg:"4",flw:"10",strains:[{id:1,name:"Sour Diesel OG",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_007",name:"FR3 — Blueberry Headband Cycle 3",d:"2026-07-04",veg:"4",flw:"9",strains:[{id:1,name:"Blueberry Headband",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_008",name:"FR4 — Zaza Runtz Cycle 3",d:"2026-07-11",veg:"4",flw:"8",strains:[{id:1,name:"Zaza Runtz",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active"},
+      ];
+      for (const gs of growSpacesRaw) {
+        await db.grow_spaces.upsert({id:uid(gs.id),roomName:gs.name,cloneDate:gs.d,vegWeeks:gs.veg,flowerWeeks:gs.flw,strains:gs.strains,plantCount:gs.strains.reduce((a,x)=>a+(parseInt(x.plants)||0),0),roomId:gs.growMapId?uid(gs.growMapId):"",status:gs.status});
+      }
+
+      // ── Clone Schedules ──────────────────────────────────
+      const today2 = new Date();
+      const fmt = d => d.toISOString().split("T")[0];
+      const addD = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+      const cloneSchedulesRaw = [
+        {id:"cs_001",strainName:"Black Maple",motherId:"",cutDate:fmt(addD(today2,5)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 6",cutQty:"32",status:"upcoming",notes:"FR6 flips to flower Jul 10 — cuts needed by Jul 5"},
+        {id:"cs_002",strainName:"Gorilla Cake",motherId:"",cutDate:fmt(addD(today2,12)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 5",cutQty:"32",status:"upcoming",notes:"FR5 harvest Jul 17 — next cycle cuts needed Jul 17"},
+        {id:"cs_003",strainName:"Mango Haze",motherId:"",cutDate:fmt(addD(today2,-3)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 7",cutQty:"64",status:"rooting",notes:"Cuts taken Jul 2 — in propagation trays"},
+        {id:"cs_004",strainName:"Blueberry Headband",motherId:"",cutDate:fmt(addD(today2,19)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 3",cutQty:"64",status:"upcoming",notes:"FR3 scheduled flip Aug 1"},
+      ];
+      for (const c of cloneSchedulesRaw) {
+        await db.clone_schedules.upsert({...c, id: uid(c.id), harvestDate: c.cutDate, plannedPlants: c.cutQty});
+      }
+
+      // ── Harvest Batches ─────────────────────────────────
+      const harvestBatchesRaw = [
+        {id:1001,strainName:"Gorilla Cake",spaceName:"Flower Room 5",plants:64,d:"2026-06-28",wetWeightG:36287,totalDryWeight:8165,status:"done",coaSampleId:"KC-NY-2026-0841",labName:"Kaycha Labs NY",thca:"24.1",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2840",s2s:""},a:{weight:"3120",s2s:""},b:{weight:"1490",s2s:""},c:{weight:"420",s2s:""},trim:{weight:"295",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1002,strainName:"Black Maple",spaceName:"Flower Room 6",plants:64,d:"2026-06-21",wetWeightG:33520,totalDryWeight:7620,status:"done",coaSampleId:"KC-NY-2026-0822",labName:"Kaycha Labs NY",thca:"26.0",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2650",s2s:""},a:{weight:"2920",s2s:""},b:{weight:"1380",s2s:""},c:{weight:"390",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1003,strainName:"Mango Haze",spaceName:"Flower Room 7",plants:64,d:"2026-06-14",wetWeightG:38940,totalDryWeight:9280,status:"done",coaSampleId:"KC-NY-2026-0798",labName:"Kaycha Labs NY",thca:"21.3",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"3210",s2s:""},a:{weight:"3640",s2s:""},b:{weight:"1740",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
+        {id:1004,strainName:"Blueberry Headband",spaceName:"Flower Room 1",plants:64,d:"2026-05-31",wetWeightG:34810,totalDryWeight:7940,status:"done",coaSampleId:"KC-NY-2026-0761",labName:"Kaycha Labs NY",thca:"22.7",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2760",s2s:""},a:{weight:"3050",s2s:""},b:{weight:"1440",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1005,strainName:"Sour Diesel OG",spaceName:"Flower Room 2",plants:64,d:"2026-05-24",wetWeightG:36420,totalDryWeight:8290,status:"done",coaSampleId:"KC-NY-2026-0744",labName:"Kaycha Labs NY",thca:"23.4",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2880",s2s:""},a:{weight:"3190",s2s:""},b:{weight:"1510",s2s:""},c:{weight:"430",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+      ];
+      for (const h of harvestBatchesRaw) {
+        await db.harvest_batches.upsert({...h, id: uid(h.id)});
+      }
+
+      // ── QC Tests / COAs ───────────────────────────────
+      const qcTestsRaw = [
+        {id:"q1",strainName:"Gorilla Cake",sampleId:"KC-NY-2026-0841",batchId:1001,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-30",dateReported:"2026-07-05",thca:"24.1",thc:"0.21",totalThc:"21.37",cbd:"0.04",cbg:"0.31",cbn:"0.08",totalTerpenes:"2.84",myrcene:"1.12",caryophyllene:"0.64",limonene:"0.48",linalool:"0.21",humulene:"0.18",ocimene:"0.21",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:180,tab:320,waterActivity:0.561,moistureContent:8.4,foreignMatter:true},
+        {id:"q2",strainName:"Black Maple",sampleId:"KC-NY-2026-0822",batchId:1002,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-23",dateReported:"2026-06-28",thca:"26.0",thc:"0.23",totalThc:"23.03",cbd:"0.03",cbg:"0.28",cbn:"0.06",totalTerpenes:"3.12",myrcene:"1.34",caryophyllene:"0.58",ocimene:"0.44",linalool:"0.38",limonene:"0.21",humulene:"0.17",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:220,tab:280,waterActivity:0.558,moistureContent:8.1,foreignMatter:true},
+        {id:"q3",strainName:"Mango Haze",sampleId:"KC-NY-2026-0798",batchId:1003,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-16",dateReported:"2026-06-21",thca:"21.3",thc:"0.18",totalThc:"18.87",cbd:"0.06",cbg:"0.22",cbn:"0.04",totalTerpenes:"2.41",myrcene:"0.82",terpinolene:"0.64",ocimene:"0.48",limonene:"0.28",caryophyllene:"0.19",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:160,tab:290,waterActivity:0.562,moistureContent:8.6,foreignMatter:true},
+        {id:"q4",strainName:"Blueberry Headband",sampleId:"KC-NY-2026-0761",batchId:1004,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-02",dateReported:"2026-06-07",thca:"22.7",thc:"0.20",totalThc:"20.11",cbd:"0.05",cbg:"0.24",cbn:"0.07",totalTerpenes:"2.23",myrcene:"0.94",caryophyllene:"0.52",pinene:"0.31",linalool:"0.24",limonene:"0.22",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:190,tab:310,waterActivity:0.559,moistureContent:8.3,foreignMatter:true},
+        {id:"q5",strainName:"Sour Diesel OG",sampleId:"KC-NY-2026-0744",batchId:1005,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-05-26",dateReported:"2026-05-31",thca:"23.4",thc:"0.20",totalThc:"20.73",cbd:"0.04",cbg:"0.26",cbn:"0.05",totalTerpenes:"2.61",myrcene:"0.88",caryophyllene:"0.72",limonene:"0.54",humulene:"0.28",pinene:"0.19",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:170,tab:300,waterActivity:0.560,moistureContent:8.2,foreignMatter:true},
+      ];
+      for (const q of qcTestsRaw) {
+        const {id,batchId,...rest} = q;
+        await db.qc_tests.upsert({...rest, id: uid(id), harvestBatchId: uid(batchId), batchId: uid(batchId), batchName: q.strainName+" Harvest", submittedDate: q.dateSubmitted, expectedDate: q.dateReported, receivedDate: q.dateReported, microbialPass: q.microbialsPass, foreignMatterPass: q.foreignMatter});
+      }
+
+      // ── Production Batches ──────────────────────────────
+      const FLOWER_STEPS = [{n:"Trimming",days:3},{n:"Curing",days:14},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+      const PREROLL_STEPS = [{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+      const EXTRACT_STEPS = [{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+      const demoProdBatchesRaw = [
+        {id:"pb_001",name:"GC-2026-07A — Gorilla Cake 3.5g Retail",cat:"whole_flower",sub:"",strains:"Gorilla Cake",d:"2026-07-08",inputAmt:"2840",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~810 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1001,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
+        {id:"pb_002",name:"BM-2026-07A — Black Maple 3.5g Retail",cat:"whole_flower",sub:"",strains:"Black Maple",d:"2026-07-08",inputAmt:"2650",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~757 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1002,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
+        {id:"pb_003",name:"MH-2026-07A — Mango Haze Pre-Roll 1g 5pk",cat:"pre_roll",sub:"",strains:"Mango Haze",d:"2026-07-10",inputAmt:"1740",unit:"g",status:"scheduled",catLabel:"Pre-Roll",subLabel:"",yieldEst:"~1,600 × 5-packs",packagingContainer:"poptop_multi",packagingUnitsPerPack:5,harvestBatchId:1003,harvestGrade:"b",steps:PREROLL_STEPS.map(s=>({...s})),isLinked:false},
+        {id:"pb_004",name:"CP-2026-07A — Mixed Strain Distillate",cat:"extract",sub:"sp_lab10",strains:"Gorilla Cake, Black Maple",d:"2026-07-15",inputAmt:"2200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"Short Path — Lab Society 10L",yieldEst:"~1,760g distillate (80% overall) · 7h 1st pass + 6h 2nd pass",packagingContainer:"applicator_syringe",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false},
+        {id:"pb_005",name:"CP-2026-07A — Mixed Strain H/T (Edibles Grade)",cat:"extract",sub:"distillate",strains:"Gorilla Cake, Black Maple",d:"2026-07-15",inputAmt:"200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"Distillate (Edibles Grade)",yieldEst:"~200g heads/tails fraction",packagingContainer:"glass_jar",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:true,linkedTo:"pb_004"},
+        {id:"pb_006",name:"BH-2026-07A — Blueberry Headband 1g Vape",cat:"vape",sub:"cartridge",strains:"Blueberry Headband",d:"2026-07-20",inputAmt:"1500",unit:"g",status:"scheduled",catLabel:"Vape",subLabel:"Cartridge",yieldEst:"~1,455 × 1g carts",packagingContainer:"individual_tube",vapeHardware:"fg_z510",steps:[{n:"Formulation",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],isLinked:false},
+        {id:"pb_007",name:"ZR-2026-07A — Zaza Runtz 7g Retail",cat:"whole_flower",sub:"",strains:"Zaza Runtz",d:"2026-07-22",inputAmt:"1800",unit:"g",status:"scheduled",catLabel:"Whole Flower",subLabel:"",yieldEst:"~257 × 7g jars",packagingContainer:"cr_glass_jar",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
+        {id:"pb_008",name:"SD-2026-07A — Sour Diesel OG Live Resin",cat:"extract",sub:"live_resin",strains:"Sour Diesel OG",d:"2026-07-18",inputAmt:"3200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"BHO — Live Resin",yieldEst:"~480g live resin",packagingContainer:"glass_jar_5ml",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false},
+      ];
+      for (const p of demoProdBatchesRaw) {
+        const {id,harvestBatchId,linkedTo,...rest} = p;
+        await db.production_batches.upsert({...rest, id: uid(id), harvestBatchId: harvestBatchId?uid(harvestBatchId):"", linkedTo: linkedTo?uid(linkedTo):""});
+      }
+
+      // ── SKUs ──────────────────────────────────────────
+      const skusRaw = [
+        {id:"sku_wf35",product:"Whole Flower 3.5g",sku:"CP-WF-3.5",price:18.00,unit:"each",cat:"whole_flower",notes:"Standard retail 3.5g jar"},
+        {id:"sku_wf7", product:"Whole Flower 7g",  sku:"CP-WF-7",  price:32.00,unit:"each",cat:"whole_flower",notes:""},
+        {id:"sku_wf28",product:"Whole Flower 28g", sku:"CP-WF-28", price:110.00,unit:"each",cat:"whole_flower",notes:"Ounce — wholesale"},
+        {id:"sku_pr1", product:"Pre-Roll 1g",      sku:"CP-PR-1",  price:8.00, unit:"each",cat:"pre_roll",   notes:"Single 1g cone"},
+        {id:"sku_pr5", product:"Pre-Roll 5-pack",  sku:"CP-PR-5",  price:35.00,unit:"each",cat:"pre_roll",   notes:"5x0.5g pack"},
+        {id:"sku_ros", product:"Live Rosin 1g",    sku:"CP-LR-1",  price:65.00,unit:"each",cat:"extract",    notes:"Solventless rosin"},
+        {id:"sku_vape",product:"Vape Cartridge 0.5g",sku:"CP-VC-05",price:45.00,unit:"each",cat:"vape",     notes:"510 thread"},
+      ];
+      for (const s of skusRaw) {
+        await db.skus.upsert({id:uid(s.id),product:s.product,skuCode:s.sku,unitPrice:s.price,category:s.cat,active:true});
+      }
+
+      // ── BOMs ──────────────────────────────────────────
+      const bomsRaw = [
+        {id:"bom_wf",product:"Whole Flower",cat:"whole_flower",
+          items:[
+            {name:"Child-Resistant Glass Jar 2oz",qty:1,unit:"each",unitCost:0.38},
+            {name:"Tamper-Evident Label",qty:1,unit:"each",unitCost:0.08},
+            {name:"Exit Bag",qty:0.1,unit:"each",unitCost:0.12},
+          ],testFee:350,laborCostPerUnit:0.45,notes:""},
+        {id:"bom_pr",product:"Pre-Roll",cat:"pre_roll",
+          items:[
+            {name:"Pre-Roll Cone 110mm",qty:1,unit:"each",unitCost:0.09},
+            {name:"CR Tube 116mm",qty:1,unit:"each",unitCost:0.14},
+          ],testFee:350,laborCostPerUnit:0.22,notes:""},
+        {id:"bom_ros",product:"Live Rosin",cat:"extract",
+          items:[
+            {name:"Glass Jar",qty:1,unit:"each",unitCost:0.38},
+            {name:"Label",qty:1,unit:"each",unitCost:0.08},
+          ],testFee:450,laborCostPerUnit:8.50,notes:"Includes press labor estimate"},
+        {id:"bom_vape",product:"Vape Cartridge",cat:"vape",
+          items:[
+            {name:"510 Cartridge Hardware",qty:1,unit:"each",unitCost:2.80},
+            {name:"Label",qty:1,unit:"each",unitCost:0.08},
+          ],testFee:400,laborCostPerUnit:1.20,notes:""},
+      ];
+      for (const b of bomsRaw) {
+        await db.boms.upsert({id:uid(b.id),product:b.product,items:b.items});
+      }
+
+      // ── GMP Hub ── SOPs / Shifts / Deviations ──────────────────────
+      const sopsRaw = [
+        {id:"sop_001",title:"Cannabis Flower Harvest Procedure",code:"SOP-CULT-001",version:"2.1",category:"Cultivation",status:"approved",approvedBy:"Marcus Webb",approvedDate:"2024-09-15",reviewDate:"2025-09-15",description:"Standard operating procedure for harvesting cannabis flower including pre-harvest inspection, cutting protocol, wet weight recording, and transport to dry room.",steps:["Verify harvest authorization in Metrc and confirm batch ID","Inspect canopy for visible mold or pest damage — halt if found","Set up labeled harvest bins and scale in staging area","Cut plants at base, remove fan leaves, record wet weight per plant","Transport to Dry / Cure Room within 2 hours of cutting","Log wet weight and harvest date in ResinOps Harvest Batches"]},
+        {id:"sop_002",title:"IPM Pesticide Application Protocol",code:"SOP-IPM-001",version:"3.0",category:"Compliance",status:"approved",approvedBy:"Sofia Ramirez",approvedDate:"2024-11-01",reviewDate:"2025-11-01",description:"NY DEC compliant pesticide application procedure covering pre-application checklist, PPE requirements, application technique, and post-application recordkeeping.",steps:["Verify applicator holds valid Category 24 or 1A NY pesticide license","Check EPA registration number on current product label","Confirm PHI and REI — post REI signage on room door","Don full PPE: respirator, goggles, gloves, coveralls","Mix product at label rate — record amount mixed and area to treat","Apply using designated equipment — full canopy coverage required","Log application in ResinOps Pesticide Log immediately after completion","Do not enter room until REI has elapsed"]},
+        {id:"sop_003",title:"COA Review and Batch Release",code:"SOP-QC-001",version:"1.4",category:"Quality Control",status:"approved",approvedBy:"Sofia Ramirez",approvedDate:"2024-10-01",reviewDate:"2025-10-01",description:"Procedure for reviewing Certificate of Analysis results from Kaycha Labs and releasing or holding harvest batches based on NY OCM action limits.",steps:["Receive COA from Kaycha Labs — verify lab ID and sample ID match batch record","Review all panels: cannabinoids, terpenes, microbial, pesticides, heavy metals, water activity","Compare all results against NY OCM action limits","If all panels PASS: update batch status to released in ResinOps and Metrc","If any panel FAILS: immediately place batch on QC Hold in ResinOps","For failed microbial: refer to Remediation SOP-REM-001","Document review in Deviation Register if any result was borderline"]},
+        {id:"sop_004",title:"Tissue Culture Vessel Preparation",code:"SOP-TC-001",version:"1.0",category:"Genetics Lab",status:"approved",approvedBy:"Priya Nair",approvedDate:"2024-03-01",reviewDate:"2025-03-01",description:"Aseptic technique procedure for preparing TC media and inoculating culture vessels using Athena CulturIN system components.",steps:["Wipe all laminar flow hood surfaces with 70% isopropyl alcohol — run hood 15 min before use","Prepare Athena Shoots or Roots media per stage per manufacturer spec","Autoclave media: 121°C / 15 PSI / 20 minutes","Allow media to cool to <50°C before adding heat-sensitive components","Pour media in hood under aseptic conditions — flame tools between uses","Inoculate vessel with prepared explant material","Label with strain, stage, date, and technician initials","Log vessel in ResinOps TC Tracker"]},
+      ];
+      for (const s of sopsRaw) {
+        const contentText = s.description+"\n\nSteps:\n"+s.steps.map((step,i)=>(i+1)+". "+step).join("\n");
+        await db.gmp_sops.upsert({id:uid(s.id),title:s.title,department:s.category,category:s.category,version:s.version,status:s.status,approvedBy:s.approvedBy,content:contentText});
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const shiftsRaw = [
+        {id:"shift_001",date:today,type:"day",lead:"Marcus Webb",startTime:"06:00",endTime:"14:30",spaces:["Flower Room 6","Flower Room 7","Veg Room"],notes:"Standard cultivation shift — fed FR6 and FR7 with Athena PK week 5 protocol. Topped canopy in FR7. No issues.",tasks:[{task:"Nutrient feed FR6 + FR7",done:true},{task:"Canopy inspection all rooms",done:true},{task:"Beneficial insect check clone room",done:true}]},
+        {id:"shift_002",date:today,type:"processing",lead:"Taryn Delacroix",startTime:"07:00",endTime:"15:00",spaces:["Processing Room","Dry / Cure Room"],notes:"Post-harvest processing — Mango Haze cure check. Moisture at 9.1% — one more week. Black Maple packaging complete 2,400 units.",tasks:[{task:"Cure check Mango Haze",done:true},{task:"Black Maple packaging run",done:true},{task:"Trim machine blade inspection",done:true}]},
+      ];
+      for (const sh of shiftsRaw) {
+        await db.gmp_shifts.upsert({id:uid(sh.id),shiftDate:sh.date,department:sh.type,supervisor:sh.lead,notes:sh.notes,entries:[{id:"se_"+uid(sh.id),employeeId:"",timeIn:sh.startTime,timeOut:sh.endTime,batchType:"harvest",batchId:"",hoursWorked:"8",taskNotes:sh.lead+" — "+sh.tasks.map(t=>t.task).join("; ")+" ["+sh.spaces.join(", ")+"]"}]});
+      }
+
+      const deviationsRaw = [
+        {id:"dev_001",date:"2024-11-15",type:"Environmental",severity:"minor",space:"Flower Room 6",title:"RH spike above 65% during lights-off",description:"Relative humidity in Flower Room 6 reached 68% during a 4-hour window on the night of Nov 14-15 due to dehumidifier drain line blockage. No visible mold observed on inspection.",corrective:"Drain line cleared and flushed. Amir Hassan added quarterly drain line check to PM schedule for all Quest 335 units.",preventive:"Added RH high alert threshold of 62% to Growlink monitoring for all flower rooms.",status:"closed",closedDate:"2024-11-16",closedBy:"Marcus Webb"},
+      ];
+      for (const d of deviationsRaw) {
+        await db.gmp_deviations.upsert({id:uid(d.id),title:d.title,description:"["+d.space+"] "+d.title+": "+d.description,severity:d.severity,status:d.status,resolution:d.corrective+" Preventive: "+d.preventive,date:d.date,type:d.type,rootCause:d.description,correctiveAction:d.corrective,preventiveAction:d.preventive});
+      }
+
+      // ── Labor Types ────────────────────────────────────
+      const laborTypesRaw = [
+        {id:"cultivation",n:"Cultivation Team",cat:"cultivation",count:4,rate:22,hrsPerDay:8,notes:"Marcus Webb + 3 cultivation techs"},
+        {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:"Taryn Delacroix + 2 trim techs"},
+        {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:"Devon Park + Tyler Bates"},
+        {id:"lab",n:"Lab / TC Tech",cat:"lab",count:1,rate:24,hrsPerDay:6,notes:"Priya Nair"},
+        {id:"maintenance",n:"Maintenance",cat:"facilities",count:1,rate:25,hrsPerDay:8,notes:"Amir Hassan"},
+      ];
+      for (const l of laborTypesRaw) {
+        await db.labor_types.upsert({id:uid(l.id),name:l.n,category:l.cat,headcount:l.count,hourlyRate:l.rate,notes:l.notes+" ("+l.hrsPerDay+" hrs/day)"});
+      }
+
+      // ── Sales Orders ────────────────────────────────────
+      const salesOrdersRaw = [
+        {id:"so_001",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-07-01",status:"open",importStatus:"confirmed",lines:[{id:"l1",product:"Gorilla Cake 3.5g",qty:100,unitPrice:18,orderTotal:1800},{id:"l2",product:"Black Maple 3.5g",qty:80,unitPrice:20,orderTotal:1600}],notes:"Regular weekly account"},
+        {id:"so_002",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-07-02",status:"open",importStatus:"confirmed",lines:[{id:"l3",product:"Mango Haze Pre-Roll 5pk",qty:200,unitPrice:24,orderTotal:4800}],notes:"Pre-roll program — confirmed"},
+        {id:"so_003",customerName:"Capital District Collective",customerLicense:"OCM-RO-003445",orderDate:"2026-07-03",status:"open",importStatus:"confirmed",lines:[{id:"l4",product:"Blueberry Headband 1g Vape",qty:150,unitPrice:28,orderTotal:4200},{id:"l5",product:"Sour Diesel OG 3.5g",qty:60,unitPrice:19,orderTotal:1140}],notes:"Vape program launching this month"},
+        {id:"so_004",customerName:"Brooklyn Bodega Cannabis",customerLicense:"OCM-RO-004122",orderDate:"2026-07-04",status:"open",importStatus:"pending",lines:[{id:"l6",product:"Zaza Runtz 7g",qty:80,unitPrice:42,orderTotal:3360}],notes:"Waiting on lab results — pending confirmation"},
+        {id:"so_005",customerName:"Finger Lakes Dispensary",customerLicense:"OCM-RO-005678",orderDate:"2026-07-05",status:"open",importStatus:"pending",lines:[{id:"l7",product:"Gorilla Cake 3.5g",qty:60,unitPrice:18,orderTotal:1080},{id:"l8",product:"Black Maple 3.5g",qty:40,unitPrice:20,orderTotal:800}],notes:"New account — pending credit approval"},
+        {id:"so_006",customerName:"Catskill Mountain Wellness",customerLicense:"OCM-RO-006234",orderDate:"2026-07-05",status:"open",importStatus:"waitlist",lines:[{id:"l9",product:"Black Maple 3.5g",qty:100,unitPrice:20,orderTotal:2000}],notes:"Waitlisted — Black Maple sold out until Jul 22 harvest"},
+        {id:"so_007",customerName:"Saratoga Smoke Shop",customerLicense:"OCM-RO-007891",orderDate:"2026-07-06",status:"open",importStatus:"waitlist",lines:[{id:"l10",product:"Zaza Runtz 3.5g",qty:120,unitPrice:22,orderTotal:2640}],notes:"Waitlisted — Zaza Runtz next harvest Jul 25"},
+      ];
+      for (const so of salesOrdersRaw) {
+        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
+      }
+
+      // ── Employees ── set Marcus Webb's Category 24 license to expire in 45 days
+      // so the dashboard's expiring-license alert has something to show
+      try {
+        const employees = await db.employees.list();
+        const targets = employees.filter(e => e.name?.includes("Marcus Webb") || e.pestLicenseCategory?.includes("Category 24"));
+        if (targets.length) {
+          const alertDate = new Date(); alertDate.setDate(alertDate.getDate()+45);
+          const alertDateStr = alertDate.toISOString().split("T")[0];
+          for (const e of targets) await db.employees.upsert({...e, pestLicenseExpiry: alertDateStr});
+        }
+      } catch(e) { console.warn("Employee demo patch skipped:", e.message); }
+
+      // ── Spray Log / Pesticide Applications ──────────────────────
+      const sprayLogRaw = [
+        {id:"sl_001",date:"2026-06-25",type:"ipm_spray",spaceName:"Veg Room",product:"Regalia Bio-Fungicide",manufacturer:"Marrone Bio Innovations",epaRegNum:"84059-3",rate:"1",rateUnit:"oz/gal",volumeApplied:"12",volumeUnit:"gal",areaApplied:"800",applicationMethod:"Backpack sprayer",targetPest:"Powdery mildew (preventive)",weatherTemp:"71",weatherWind:"2",weatherHumidity:"55",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Routine preventive IPM rotation — week 3 of 4"},
+        {id:"sl_002",date:"2026-06-27",type:"ipm_spray",spaceName:"Flower Room 6",product:"Suffoil-X",manufacturer:"BioWorks",epaRegNum:"68113-1-70051",rate:"2",rateUnit:"oz/gal",volumeApplied:"18",volumeUnit:"gal",areaApplied:"1200",applicationMethod:"Backpack sprayer",targetPest:"Russet mites (preventive)",weatherTemp:"73",weatherWind:"1",weatherHumidity:"52",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Pre-flip preventive pass, FR6 flips to flower Jul 10"},
+        {id:"sl_003",date:"2026-07-01",type:"beneficial_release",spaceName:"Propagation / Clone Room",product:"Amblyseius cucumeris",manufacturer:"Koppert Biological Systems",epaRegNum:"",rate:"",rateUnit:"oz/gal",volumeApplied:"",volumeUnit:"gal",areaApplied:"300",applicationMethod:"Sachet release",targetPest:"Thrips (preventive biocontrol)",weatherTemp:"70",weatherWind:"0",weatherHumidity:"58",rei:"0",phi:"0",applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",notes:"Standard biocontrol release — clone room sachets replaced monthly"},
+      ];
+      for (const sl of sprayLogRaw) {
+        await db.spray_log.upsert({...sl, id: uid(sl.id)});
+      }
+
+      // ── TC Tracker, Facility Map, Pheno Hunt ─────────────────────
+      // These three modules have not been migrated off localStorage yet —
+      // db.tc_vessels/facility_map_spaces exist in Supabase but these
+      // components never call them. Seeding directly into the exact
+      // localStorage keys/shapes they actually read is the only way demo
+      // data shows up here until they get a real Supabase migration.
+      try {
+        const tcAccessions = [
+          {id:"tca_001",strainName:"Black Maple",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-05-15",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"clean",notes:"Source from mother room pheno BM-04. HLV-free confirmed via PCR.",status:"active"},
+          {id:"tca_002",strainName:"Gorilla Cake",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-05-20",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"clean",notes:"Standard preservation accession.",status:"active"},
+          {id:"tca_003",strainName:"Sour Diesel OG",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-06-01",initiatedBy:"Priya Nair",purpose:"cleanup",hlvStatus:"clean",notes:"Post-cleanup accession, HLV-free run confirmed.",status:"active"},
+        ];
+        localStorage.setItem("resinops_tc_accessions", JSON.stringify(tcAccessions));
+
+        const tcVessels = [
+          {id:"tcv_001",accessionId:"tca_001",label:"BM-04-A",stage:"multiplication",stageDate:"2026-06-01",mediaBase:"Athena Shoots",mediaLotNum:"AS-2604",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:3,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Clean stock, transitioning to rooting stage next cycle.",log:[]},
+          {id:"tcv_002",accessionId:"tca_002",label:"GC-01-A",stage:"rooting",stageDate:"2026-06-15",mediaBase:"Athena Roots",mediaLotNum:"AR-1092",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:2,explantDate:"2026-05-20",explantSource:"Mother room",notes:"Rooting stage, transitioning to ex vitro acclimatization next cycle.",log:[]},
+          {id:"tcv_003",accessionId:"tca_003",label:"SD-02-A",stage:"explant",stageDate:"2026-06-20",mediaBase:"WPM",mediaLotNum:"WP-3301",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:1,explantDate:"2026-06-01",explantSource:"Mother room",notes:"New accession, initial establishment phase.",log:[]},
+          {id:"tcv_004",accessionId:"tca_001",label:"BM-04-B",stage:"multiplication",stageDate:"2026-05-15",mediaBase:"Athena Shoots",mediaLotNum:"AS-2589",contaminated:true,contamType:"Bacterial",contamDate:"2026-06-14",health:"Quarantined",transferCount:4,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Contamination detected June 14 — bacterial. Quarantined, source review initiated.",log:[]},
+        ];
+        localStorage.setItem("resinops_tc_vessels", JSON.stringify(tcVessels));
+
+        const tcFormulas = [
+          {id:"tcf_001",name:"Standard Multiplication",stage:"stage1",base:"Athena Shoots",volume:1000,agar:7,ph:5.7,pgr1name:"BAP",pgr1mg:0.5,pgr2name:"IBA",pgr2mg:0,notes:"Standard multiplication-stage formula for most cultivars."},
+          {id:"tcf_002",name:"Standard Rooting",stage:"stage3",base:"Athena Roots",volume:1000,agar:6,ph:5.6,pgr1name:"IBA",pgr1mg:1.0,pgr2name:"",pgr2mg:0,notes:"Root-induction formula, lower agar for easier ex vitro transfer."},
+        ];
+        localStorage.setItem("resinops_tc_formulas", JSON.stringify(tcFormulas));
+
+        const facilityRooms = [
+          {id:"fmr_001",name:"Processing Room",type:"Processing Room",sqft:1000,status:"active",assignedBatchIds:[],cleanIntervalDays:3,notes:"Extraction, trimming, packaging",cleanLog:[{date:new Date(Date.now()-2*86400000).toISOString().split("T")[0],type:"Full Sanitation",by:"Tyler Bates",notes:"Post-production full clean",batchId:""}]},
+          {id:"fmr_002",name:"Dry / Cure Room",type:"Dry / Cure Room",sqft:800,status:"active",assignedBatchIds:[],cleanIntervalDays:7,notes:"Drying nets and CVault cure station",cleanLog:[{date:new Date(Date.now()-5*86400000).toISOString().split("T")[0],type:"Surface Wipe-Down",by:"Taryn Delacroix",notes:"Between harvest cycles",batchId:""}]},
+          {id:"fmr_003",name:"Compliance Office",type:"Compliance Office",sqft:150,status:"active",assignedBatchIds:[],cleanIntervalDays:7,notes:"QC sample storage and compliance files",cleanLog:[]},
+          {id:"fmr_004",name:"Storage — Finished Goods",type:"Storage — Finished Goods",sqft:400,status:"active",assignedBatchIds:[],cleanIntervalDays:14,notes:"Packaged product awaiting delivery",cleanLog:[{date:new Date(Date.now()-10*86400000).toISOString().split("T")[0],type:"Deep Clean",by:"Tyler Bates",notes:"Monthly deep clean",batchId:""}]},
+          {id:"fmr_005",name:"Receiving / Shipping",type:"Receiving / Shipping",sqft:200,status:"active",assignedBatchIds:[],cleanIntervalDays:7,notes:"Inbound supplies and outbound orders",cleanLog:[]},
+        ];
+        localStorage.setItem("resinops_facility_map", JSON.stringify(facilityRooms));
+
+        const phenoHunts = [
+          {id:"ph_001",strainName:"Purple Runtz F2",breeder:"In-house",seedSource:"Self-pollinated Zaza Runtz",seedCount:12,germDate:"2026-05-01",notes:"F2 pop from our own Zaza Runtz — hunting for a keeper with tighter internodes.",
+            seeds:[
+              {id:"phs_001",phenoNum:"1",sex:"female",germinated:true,isKeeper:true,stage:"Flower",cloneCutDate:"2026-05-22",testRunLinked:"",coaTHC:"0.19",coaTHCa:"24.8",coaCBD:"0.03",coaTerps:"2.9",scores:{structure:8,aroma:9,vigor:7},observations:"Strong candy-fruit terp profile, tight node spacing. Leading candidate.",archived:false},
+              {id:"phs_002",phenoNum:"2",sex:"female",germinated:true,isKeeper:false,stage:"Flower",cloneCutDate:"2026-05-22",testRunLinked:"",coaTHC:"0.17",coaTHCa:"22.1",coaCBD:"0.04",coaTerps:"2.3",scores:{structure:6,aroma:7,vigor:8},observations:"Good vigor but stretchy, aroma less distinct than #1.",archived:false},
+              {id:"phs_003",phenoNum:"3",sex:"male",germinated:true,isKeeper:false,stage:"Vegetative",cloneCutDate:"",testRunLinked:"",coaTHC:"",coaTHCa:"",coaCBD:"",coaTerps:"",scores:{},observations:"Culled — male.",archived:true},
+            ]},
+          {id:"ph_002",strainName:"Blue Gelonade",breeder:"In-house",seedSource:"Blueberry Headband × Lemonade",seedCount:8,germDate:"2026-06-10",notes:"New cross testing blueberry terps against a citrus-forward line.",
+            seeds:[
+              {id:"phs_004",phenoNum:"1",sex:"unknown",germinated:true,isKeeper:false,stage:"Seedling",cloneCutDate:"",testRunLinked:"",coaTHC:"",coaTHCa:"",coaCBD:"",coaTerps:"",scores:{},observations:"Too early to sex — healthy seedling.",archived:false},
+              {id:"phs_005",phenoNum:"2",sex:"unknown",germinated:true,isKeeper:false,stage:"Seedling",cloneCutDate:"",testRunLinked:"",coaTHC:"",coaTHCa:"",coaCBD:"",coaTerps:"",scores:{},observations:"Healthy seedling, slightly slower to establish than #1.",archived:false},
+            ]},
+        ];
+        localStorage.setItem("resinops_pheno_hunts", JSON.stringify(phenoHunts));
+
+        // Microbial Remediation — flag one harvest batch as aspergillus-positive
+        // so there's something to remediate. Links to the Mango Haze harvest
+        // batch (id 1003) via the same uid() map used when it was created above.
+        const remediationRecords = [
+          {id:"rm_001",sourceType:"harvest",sourceId:uid(1003),strainName:"Mango Haze",weightG:"9280",
+            labName:"Kaycha Labs NY",labReportRef:"KC-NY-2026-0798-R",testDate:"2026-06-21",
+            tyamCfu:"180000",tabCfu:"45000",aspergillus:true,
+            gyPerHour:"1000",turnRequired:true,status:"flagged",retestResult:"",
+            notes:"Aspergillus flagged on initial COA — batch held pending irradiation and retest. Scheduling irradiation run this week."},
+        ];
+        localStorage.setItem("resinops_remediation", JSON.stringify(remediationRecords));
+      } catch(e) { console.warn("TC Tracker / Facility Map / Pheno Hunt demo seed skipped:", e.message); }
+
+      setStatusMsg("✓ Demo data loaded — Supabase modules plus TC Tracker, Facility Map, and Pheno Hunt (localStorage-based) are all populated. Refresh any module to see it. Facility name/license was NOT changed (needs FacilitySettings.jsx field names to do that safely).");
+    } catch(e) {
+      console.error("Demo load error:", e);
+      setStatusMsg("✗ Demo load failed: "+e.message+" — some data may have partially loaded. Check the browser console for details.");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
   const fileRef=useRef();
   const restoreRef=useRef();
 
@@ -1276,240 +1587,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 ))}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} onClick={()=>{
-                  // Facility settings
-                  const demoSettings = {
-                    facilityName:"Cascade Peak Cannabis LLC",dbaName:"Cascade Peak",
-                    licenseNumber:"OCM-AUPR-007891",licenseType:"Adult-Use Cultivator",
-                    state:"NY",address:"1220 Route 17M",city:"Tuxedo",zip:"10987",
-                    phone:"(845) 555-0100",email:"ops@cascadepeak.co",website:"www.cascadepeak.co",
-                    ownerName:"Jordan Cascade",ownerEmail:"j.cascade@cascadepeak.co",ownerPhone:"(845) 555-0101",
-                    timezone:"America/New_York",tagSystem:"Flourish",fiscalYearStart:"01",metrcApiKey:"",
-                  };
-                  localStorage.setItem("resinops_facility_settings",JSON.stringify(demoSettings));
-
-                  // SKU pricing — retail prices by product type
-                  const skus = [
-                    {id:"sku_wf35",product:"Whole Flower 3.5g",sku:"CP-WF-3.5",price:18.00,unit:"each",cat:"whole_flower",notes:"Standard retail 3.5g jar"},
-                    {id:"sku_wf7", product:"Whole Flower 7g",  sku:"CP-WF-7",  price:32.00,unit:"each",cat:"whole_flower",notes:""},
-                    {id:"sku_wf28",product:"Whole Flower 28g", sku:"CP-WF-28", price:110.00,unit:"each",cat:"whole_flower",notes:"Ounce — wholesale"},
-                    {id:"sku_pr1", product:"Pre-Roll 1g",      sku:"CP-PR-1",  price:8.00, unit:"each",cat:"pre_roll",   notes:"Single 1g cone"},
-                    {id:"sku_pr5", product:"Pre-Roll 5-pack",  sku:"CP-PR-5",  price:35.00,unit:"each",cat:"pre_roll",   notes:"5x0.5g pack"},
-                    {id:"sku_ros", product:"Live Rosin 1g",    sku:"CP-LR-1",  price:65.00,unit:"each",cat:"extract",    notes:"Solventless rosin"},
-                    {id:"sku_vape",product:"Vape Cartridge 0.5g",sku:"CP-VC-05",price:45.00,unit:"each",cat:"vape",     notes:"510 thread"},
-                  ];
-                  localStorage.setItem("resinops_skus",JSON.stringify(skus));
-
-                  // BOMs — material cost per unit by product type
-                  const boms = [
-                    {id:"bom_wf",product:"Whole Flower",cat:"whole_flower",
-                      items:[
-                        {name:"Child-Resistant Glass Jar 2oz",qty:1,unit:"each",unitCost:0.38},
-                        {name:"Tamper-Evident Label",qty:1,unit:"each",unitCost:0.08},
-                        {name:"Exit Bag",qty:0.1,unit:"each",unitCost:0.12},
-                      ],testFee:350,laborCostPerUnit:0.45,notes:""},
-                    {id:"bom_pr",product:"Pre-Roll",cat:"pre_roll",
-                      items:[
-                        {name:"Pre-Roll Cone 110mm",qty:1,unit:"each",unitCost:0.09},
-                        {name:"CR Tube 116mm",qty:1,unit:"each",unitCost:0.14},
-                      ],testFee:350,laborCostPerUnit:0.22,notes:""},
-                    {id:"bom_ros",product:"Live Rosin",cat:"extract",
-                      items:[
-                        {name:"Glass Jar",qty:1,unit:"each",unitCost:0.38},
-                        {name:"Label",qty:1,unit:"each",unitCost:0.08},
-                      ],testFee:450,laborCostPerUnit:8.50,notes:"Includes press labor estimate"},
-                    {id:"bom_vape",product:"Vape Cartridge",cat:"vape",
-                      items:[
-                        {name:"510 Cartridge Hardware",qty:1,unit:"each",unitCost:2.80},
-                        {name:"Label",qty:1,unit:"each",unitCost:0.08},
-                      ],testFee:400,laborCostPerUnit:1.20,notes:""},
-                  ];
-                  localStorage.setItem("resinops_boms",JSON.stringify(boms));
-
-                  // Fix license expiry dates — set Marcus Webb's Category 24 to 45 days from now for dashboard alert
-                  const employees = JSON.parse(localStorage.getItem("resinops_employees")||"[]");
-                  if(employees.length){
-                    const alertDate = new Date();
-                    alertDate.setDate(alertDate.getDate()+45);
-                    const alertDateStr = alertDate.toISOString().split("T")[0];
-                    const updated = employees.map(e=>
-                      e.name?.includes("Marcus Webb") || e.pestLicenseCategory?.includes("Category 24")
-                        ? {...e, pestLicenseExpiry: alertDateStr}
-                        : e
-                    );
-                    localStorage.setItem("resinops_employees",JSON.stringify(updated));
-                  }
-
-                  // GMP Hub — pre-load SOPs, a shift log, and a deviation
-                  const today = new Date().toISOString().split("T")[0];
-                  const sops = [
-                    {id:"sop_001",title:"Cannabis Flower Harvest Procedure",code:"SOP-CULT-001",version:"2.1",category:"Cultivation",status:"approved",approvedBy:"Marcus Webb",approvedDate:"2024-09-15",reviewDate:"2025-09-15",description:"Standard operating procedure for harvesting cannabis flower including pre-harvest inspection, cutting protocol, wet weight recording, and transport to dry room.",steps:["Verify harvest authorization in Metrc and confirm batch ID","Inspect canopy for visible mold or pest damage — halt if found","Set up labeled harvest bins and scale in staging area","Cut plants at base, remove fan leaves, record wet weight per plant","Transport to Dry / Cure Room within 2 hours of cutting","Log wet weight and harvest date in ResinOps Harvest Batches"]},
-                    {id:"sop_002",title:"IPM Pesticide Application Protocol",code:"SOP-IPM-001",version:"3.0",category:"Compliance",status:"approved",approvedBy:"Sofia Ramirez",approvedDate:"2024-11-01",reviewDate:"2025-11-01",description:"NY DEC compliant pesticide application procedure covering pre-application checklist, PPE requirements, application technique, and post-application recordkeeping.",steps:["Verify applicator holds valid Category 24 or 1A NY pesticide license","Check EPA registration number on current product label","Confirm PHI and REI — post REI signage on room door","Don full PPE: respirator, goggles, gloves, coveralls","Mix product at label rate — record amount mixed and area to treat","Apply using designated equipment — full canopy coverage required","Log application in ResinOps Pesticide Log immediately after completion","Do not enter room until REI has elapsed"]},
-                    {id:"sop_003",title:"COA Review and Batch Release",code:"SOP-QC-001",version:"1.4",category:"Quality Control",status:"approved",approvedBy:"Sofia Ramirez",approvedDate:"2024-10-01",reviewDate:"2025-10-01",description:"Procedure for reviewing Certificate of Analysis results from Kaycha Labs and releasing or holding harvest batches based on NY OCM action limits.",steps:["Receive COA from Kaycha Labs — verify lab ID and sample ID match batch record","Review all panels: cannabinoids, terpenes, microbial, pesticides, heavy metals, water activity","Compare all results against NY OCM action limits","If all panels PASS: update batch status to released in ResinOps and Metrc","If any panel FAILS: immediately place batch on QC Hold in ResinOps","For failed microbial: refer to Remediation SOP-REM-001","Document review in Deviation Register if any result was borderline"]},
-                    {id:"sop_004",title:"Tissue Culture Vessel Preparation",code:"SOP-TC-001",version:"1.0",category:"Genetics Lab",status:"approved",approvedBy:"Priya Nair",approvedDate:"2024-03-01",reviewDate:"2025-03-01",description:"Aseptic technique procedure for preparing TC media and inoculating culture vessels using Athena CulturIN system components.",steps:["Wipe all laminar flow hood surfaces with 70% isopropyl alcohol — run hood 15 min before use","Prepare Athena Shoots or Roots media per stage per manufacturer spec","Autoclave media: 121°C / 15 PSI / 20 minutes","Allow media to cool to <50°C before adding heat-sensitive components","Pour media in hood under aseptic conditions — flame tools between uses","Inoculate vessel with prepared explant material","Label with strain, stage, date, and technician initials","Log vessel in ResinOps TC Tracker"]},
-                  ];
-                  localStorage.setItem("resinops_sops", JSON.stringify(sops));
-
-                  const shifts = [
-                    {id:"shift_001",date:today,type:"day",lead:"Marcus Webb",startTime:"06:00",endTime:"14:30",spaces:["Flower Room 6","Flower Room 7","Veg Room"],notes:"Standard cultivation shift — fed FR6 and FR7 with Athena PK week 5 protocol. Topped canopy in FR7. No issues.",tasks:[{task:"Nutrient feed FR6 + FR7",done:true},{task:"Canopy inspection all rooms",done:true},{task:"Beneficial insect check clone room",done:true}]},
-                    {id:"shift_002",date:today,type:"processing",lead:"Taryn Delacroix",startTime:"07:00",endTime:"15:00",spaces:["Processing Room","Dry / Cure Room"],notes:"Post-harvest processing — Mango Haze cure check. Moisture at 9.1% — one more week. Black Maple packaging complete 2,400 units.",tasks:[{task:"Cure check Mango Haze",done:true},{task:"Black Maple packaging run",done:true},{task:"Trim machine blade inspection",done:true}]},
-                  ];
-                  localStorage.setItem("resinops_shifts", JSON.stringify(shifts));
-
-                  const deviations = [
-                    {id:"dev_001",date:"2024-11-15",type:"Environmental",severity:"minor",space:"Flower Room 6",title:"RH spike above 65% during lights-off",description:"Relative humidity in Flower Room 6 reached 68% during a 4-hour window on the night of Nov 14-15 due to dehumidifier drain line blockage. No visible mold observed on inspection.",corrective:"Drain line cleared and flushed. Amir Hassan added quarterly drain line check to PM schedule for all Quest 335 units.",preventive:"Added RH high alert threshold of 62% to Growlink monitoring for all flower rooms.",status:"closed",closedDate:"2024-11-16",closedBy:"Marcus Webb"},
-                  ];
-                  localStorage.setItem("resinops_deviations", JSON.stringify(deviations));
-
-                  // Production batches — pre-load so Batch Margin Dashboard and Gantt chart work
-                  const WF=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const PR=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const EX=[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const prodBatches = [
-                    {id:"pb_001",name:"Mango Haze — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Mango Haze",d:"2026-06-11",inputAmt:5820,unit:"g",yieldEst:"5200 units",actual_yield:"5,186 units",harvestBatchId:"HB-2026-0312",status:"complete",steps:WF.map(s=>({...s}))},
-                    {id:"pb_002",name:"Black Maple — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-05-27",inputAmt:5680,unit:"g",yieldEst:"5100 units",actual_yield:"5,092 units",harvestBatchId:"HB-2026-0298",status:"complete",steps:WF.map(s=>({...s}))},
-                    {id:"pb_003",name:"Gorilla Cake — 1g Pre-Rolls",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Gorilla Cake",d:"2026-05-13",inputAmt:1440,unit:"g",yieldEst:"2800 units",actual_yield:"2,792 units",harvestBatchId:"HB-2026-0285",status:"complete",steps:PR.map(s=>({...s}))},
-                    {id:"pb_004",name:"Gorilla Cake — Live Rosin",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-05-12",inputAmt:1800,unit:"g",yieldEst:"680g",actual_yield:"672g",harvestBatchId:"HB-2026-0285",status:"complete",steps:EX.map(s=>({...s}))},
-                    {id:"pb_005",name:"Zaza Runtz — 3.5g Retail",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Zaza Runtz",d:"2026-04-30",inputAmt:4820,unit:"g",yieldEst:"4500 units",actual_yield:"4,488 units",harvestBatchId:"HB-2026-0271",status:"complete",steps:WF.map(s=>({...s}))},
-                    {id:"pb_006",name:"Black Maple — 3.5g Retail (Jul)",cat:"whole_flower",sub:"3.5g",catLabel:"Whole Flower",subLabel:"3.5g Retail",strains:"Black Maple",d:"2026-07-21",inputAmt:0,unit:"g",yieldEst:"~5000 units",actual_yield:"",harvestBatchId:"HB-2026-0401",status:"in_progress",steps:WF.map(s=>({...s}))},
-                    {id:"pb_007",name:"Gorilla Cake — Live Rosin (Jul)",cat:"extract",sub:"rosin",catLabel:"Concentrate",subLabel:"Live Rosin",strains:"Gorilla Cake",d:"2026-07-10",inputAmt:0,unit:"g",yieldEst:"~640g",actual_yield:"",harvestBatchId:"HB-2026-0402",status:"in_progress",steps:EX.map(s=>({...s}))},
-                    {id:"pb_008",name:"Mango Haze — 1g Pre-Rolls (Jul)",cat:"pre_roll",sub:"1g",catLabel:"Pre-Roll",subLabel:"1g",strains:"Mango Haze",d:"2026-07-01",inputAmt:1200,unit:"g",yieldEst:"1500 units",actual_yield:"",harvestBatchId:"HB-2026-0312",status:"in_progress",steps:PR.map(s=>({...s}))},
-                  ];
-                  // Labor types — needed for Labor Dashboard to show demand
-                  const laborTypes = [
-                    {id:"cultivation",n:"Cultivation Team",cat:"cultivation",count:4,rate:22,hrsPerDay:8,notes:"Marcus Webb + 3 cultivation techs"},
-                    {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:"Taryn Delacroix + 2 trim techs"},
-                    {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:"Devon Park + Tyler Bates"},
-                    {id:"lab",n:"Lab / TC Tech",cat:"lab",count:1,rate:24,hrsPerDay:6,notes:"Priya Nair"},
-                    {id:"maintenance",n:"Maintenance",cat:"facilities",count:1,rate:25,hrsPerDay:8,notes:"Amir Hassan"},
-                  ];
-                  localStorage.setItem("resinops_labor_types", JSON.stringify(laborTypes));
-
-                  // Facility map demo spaces
-                  const facilitySpaces = [
-                    {id:"fac_001",name:"Processing Room",type:"Processing Room",sqft:1000,status:"active",cleanIntervalDays:3,assignedBatchIds:["pb_003","pb_004","pb_008"],notes:"Extraction, trimming, packaging",cleanLog:[{id:"cl_001",date:new Date(Date.now()-2*86400000).toISOString().split("T")[0],type:"Full Sanitation",by:"Tyler Bates",notes:"Post-production full clean"}]},
-                    {id:"fac_002",name:"Dry / Cure Room",type:"Dry / Cure Room",sqft:800,status:"active",cleanIntervalDays:7,assignedBatchIds:["pb_001","pb_002"],notes:"Drying nets and CVault cure station",cleanLog:[{id:"cl_002",date:new Date(Date.now()-5*86400000).toISOString().split("T")[0],type:"Surface Wipe-Down",by:"Taryn Delacroix",notes:"Between harvest cycles"}]},
-                    {id:"fac_003",name:"Compliance Office",type:"Compliance Office",sqft:150,status:"active",cleanIntervalDays:7,assignedBatchIds:[],notes:"QC sample storage and compliance files",cleanLog:[]},
-                    {id:"fac_004",name:"Storage — Finished Goods",type:"Storage — Finished Goods",sqft:400,status:"active",cleanIntervalDays:14,assignedBatchIds:[],notes:"Packaged product awaiting delivery",cleanLog:[{id:"cl_003",date:new Date(Date.now()-10*86400000).toISOString().split("T")[0],type:"Deep Clean",by:"Tyler Bates",notes:"Monthly deep clean"}]},
-                    {id:"fac_005",name:"Receiving / Shipping",type:"Receiving / Shipping",sqft:200,status:"active",cleanIntervalDays:7,assignedBatchIds:[],notes:"Inbound supplies and outbound orders",cleanLog:[]},
-                  ];
-                  localStorage.setItem("resinops_facility_map", JSON.stringify(facilitySpaces));
-
-                  // Grow Scheduler — pre-populate active rooms so scheduler shows data immediately
-                  const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r.toISOString().split("T")[0]; };
-                  const growSpaces = [
-                    {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_002",name:"FR6 — Black Maple Cycle 4",d:"2026-05-03",veg:"4",flw:"9",strains:[{id:1,name:"Black Maple",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_003",name:"FR7 — Mango Haze Cycle 2",d:"2026-04-26",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"cleaning"},
-                    {id:"gs_004",name:"FR8 — Gorilla Cake Cycle 3",d:"2026-06-13",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_005",name:"FR1 — Mango Haze Cycle 3",d:"2026-06-20",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_006",name:"FR2 — Sour Diesel OG Cycle 2",d:"2026-06-27",veg:"4",flw:"10",strains:[{id:1,name:"Sour Diesel OG",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_007",name:"FR3 — Blueberry Headband Cycle 3",d:"2026-07-04",veg:"4",flw:"9",strains:[{id:1,name:"Blueberry Headband",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_008",name:"FR4 — Zaza Runtz Cycle 3",d:"2026-07-11",veg:"4",flw:"8",strains:[{id:1,name:"Zaza Runtz",plants:"64"}],growMapId:"",status:"active"},
-                    {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active"},
-                  ];
-                  localStorage.setItem("resinops_spaces", JSON.stringify(growSpaces));
-
-                  // TC Tracker demo vessels
-                  const tcVessels = [
-                    {id:"tc_001",accessionId:"TC-2026-001",strainName:"Black Maple",stage:"multiplication",vesselType:"magenta_box",mediaFormula:"MS-30",transferDate:"2026-06-01",expectedTransfer:"2026-07-01",contaminated:false,notes:"Clean stock — source from mother room pheno BM-04. HLV-free confirmed.",transferCount:3},
-                    {id:"tc_002",accessionId:"TC-2026-002",strainName:"Gorilla Cake",stage:"rooting",vesselType:"culture_tube",mediaFormula:"MS-IBA-1",transferDate:"2026-06-15",expectedTransfer:"2026-07-06",contaminated:false,notes:"Rooting stage — transitioning to ex vitro acclimatization next cycle.",transferCount:2},
-                    {id:"tc_003",accessionId:"TC-2026-003",strainName:"Mango Haze",stage:"establishment",vesselType:"culture_tube",mediaFormula:"WPM-30",transferDate:"2026-06-20",expectedTransfer:"2026-07-11",contaminated:false,notes:"New accession from mother room. Initial establishment phase.",transferCount:1},
-                    {id:"tc_004",accessionId:"TC-2026-004",strainName:"Zaza Runtz",stage:"multiplication",vesselType:"magenta_box",mediaFormula:"MS-30",transferDate:"2026-05-15",expectedTransfer:"2026-06-15",contaminated:true,notes:"Contamination detected June 14 — bacterial. Quarantined. Source review initiated.",transferCount:4},
-                  ];
-                  localStorage.setItem("resinops_tc_vessels", JSON.stringify(tcVessels));
-
-                  // Clone Scheduler demo records
-                  const today2 = new Date();
-                  const fmt = d => d.toISOString().split("T")[0];
-                  const addD = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
-                  const cloneSchedules = [
-                    {id:"cs_001",strainName:"Black Maple",motherId:"",cutDate:fmt(addD(today2,5)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 6",cutQty:"32",status:"upcoming",notes:"FR6 flips to flower Jul 10 — cuts needed by Jul 5"},
-                    {id:"cs_002",strainName:"Gorilla Cake",motherId:"",cutDate:fmt(addD(today2,12)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 5",cutQty:"32",status:"upcoming",notes:"FR5 harvest Jul 17 — next cycle cuts needed Jul 17"},
-                    {id:"cs_003",strainName:"Mango Haze",motherId:"",cutDate:fmt(addD(today2,-3)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 7",cutQty:"64",status:"rooting",notes:"Cuts taken Jul 2 — in propagation trays"},
-                    {id:"cs_004",strainName:"Blueberry Headband",motherId:"",cutDate:fmt(addD(today2,19)),rootDays:"14",vegWeeks:"4",targetRoom:"Flower Room 3",cutQty:"64",status:"upcoming",notes:"FR3 scheduled flip Aug 1"},
-                  ];
-                  localStorage.setItem("resinops_clone_sched", JSON.stringify(cloneSchedules));
-
-                  // ── Strains ──────────────────────────────────────────────
-                  const strains = [
-                    {id:"s1",name:"Gorilla Cake",type:"Hybrid",lineage:"Gorilla Glue #4 × Wedding Cake",breeder:"Archive Seed Bank",thcaAvg:"24.2",thcAvg:"0.21",terpsAvg:"2.8",dominantTerps:"Myrcene, Caryophyllene, Limonene",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"48",aroma:"Earthy, vanilla, diesel",flavor:"Sweet cream, fuel, pine",effects:"Heavy body relaxation with euphoric onset",notes:"Top performer — consistent 24%+ THCa across all runs"},
-                    {id:"s2",name:"Black Maple",type:"Hybrid",lineage:"GMO × Maple Syrup",breeder:"In-house selection",thcaAvg:"26.1",thcAvg:"0.23",terpsAvg:"3.1",dominantTerps:"Myrcene, Ocimene, Linalool",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"44",aroma:"Sweet maple, diesel, skunk",flavor:"Syrupy, earthy, kushy",effects:"Deeply relaxing, sleep-promoting",notes:"HLV-free TC stock. Exceptional bag appeal."},
-                    {id:"s3",name:"Mango Haze",type:"Sativa-dominant",lineage:"Mango × Super Silver Haze",breeder:"Mr. Nice Seeds",thcaAvg:"21.4",thcAvg:"0.18",terpsAvg:"2.4",dominantTerps:"Terpinolene, Ocimene, Myrcene",vegWeeks:"4",flowerWeeks:"10",yieldGSqFt:"52",aroma:"Tropical mango, citrus, floral",flavor:"Mango, pine, sweet",effects:"Uplifting, creative, energetic",notes:"Highest yielder in the lineup. 10-week flower."},
-                    {id:"s4",name:"Blueberry Headband",type:"Hybrid",lineage:"Blueberry × Headband",breeder:"House genetics",thcaAvg:"22.8",thcAvg:"0.20",terpsAvg:"2.2",dominantTerps:"Myrcene, Caryophyllene, Pinene",vegWeeks:"4",flowerWeeks:"9",yieldGSqFt:"46",aroma:"Blueberry, earthy, floral",flavor:"Berry, cream, pine",effects:"Balanced head and body",notes:"Strong dispensary demand — pre-sold on every run"},
-                    {id:"s5",name:"Sour Diesel OG",type:"Sativa-dominant",lineage:"Sour Diesel × OG Kush",breeder:"House genetics",thcaAvg:"23.5",thcAvg:"0.20",terpsAvg:"2.6",dominantTerps:"Caryophyllene, Limonene, Myrcene",vegWeeks:"4",flowerWeeks:"10",yieldGSqFt:"49",aroma:"Diesel, lemon, pine",flavor:"Fuel, citrus, earthy",effects:"Energizing, focus-enhancing",notes:"HLV-free run. Post-TC clean stock."},
-                    {id:"s6",name:"Zaza Runtz",type:"Hybrid",lineage:"Zkittlez × Gelato",breeder:"Cookies",thcaAvg:"25.3",thcAvg:"0.22",terpsAvg:"3.3",dominantTerps:"Limonene, Caryophyllene, Linalool",vegWeeks:"4",flowerWeeks:"8",yieldGSqFt:"42",aroma:"Candy, fruity, tropical",flavor:"Sweet, creamy, tropical",effects:"Euphoric, uplifting, creative",notes:"Premium shelf — commands top price point"},
-                  ];
-                  localStorage.setItem("resinops_strains", JSON.stringify(strains));
-
-                  // ── Grow Map ─────────────────────────────────────────────
-                  const growMap = [
-                    {id:"gr1",name:"Flower Room 1",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR1",notes:"Main production room"},
-                    {id:"gr2",name:"Flower Room 2",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR2",notes:""},
-                    {id:"gr3",name:"Flower Room 3",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR3",notes:""},
-                    {id:"gr4",name:"Flower Room 4",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR4",notes:""},
-                    {id:"gr5",name:"Flower Room 5",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR5",notes:""},
-                    {id:"gr6",name:"Flower Room 6",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR6",notes:""},
-                    {id:"gr7",name:"Flower Room 7",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"cleaning",sensorId:"GR-FR7",notes:"Post-harvest cleaning"},
-                    {id:"gr8",name:"Flower Room 8",type:"Indoor",sqft:"1200",canopy:"960",maxPlants:"64",lightType:"LED",lightCount:"16",lightWatts:"650",status:"active",sensorId:"GR-FR8",notes:""},
-                    {id:"gr9",name:"Veg Room",type:"Veg",sqft:"800",canopy:"640",maxPlants:"128",lightType:"LED",lightCount:"8",lightWatts:"400",status:"active",sensorId:"GR-VEG",notes:"Mixed strains pre-flower"},
-                    {id:"gr10",name:"Mother Room",type:"Mother Room",sqft:"400",canopy:"320",maxPlants:"24",lightType:"LED",lightCount:"4",lightWatts:"400",status:"active",sensorId:"GR-MOM",notes:"6 strains in rotation"},
-                    {id:"gr11",name:"Propagation / Clone Room",type:"Propagation",sqft:"300",canopy:"240",maxPlants:"512",lightType:"T5 Fluorescent",lightCount:"8",lightWatts:"54",status:"active",sensorId:"GR-PROP",notes:"Clone propagation trays"},
-                    {id:"gr12",name:"Genetics Lab / TC",type:"Genetics Lab / TC",sqft:"150",canopy:"",maxPlants:"",lightType:"LED",lightCount:"2",lightWatts:"100",status:"active",sensorId:"GR-TC",notes:"Tissue culture clean room"},
-                  ];
-                  localStorage.setItem("resinops_grow_map", JSON.stringify(growMap));
-
-                  // ── Harvest Batches ──────────────────────────────────────
-                  const hb = [
-                    {id:1001,strainName:"Gorilla Cake",spaceName:"Flower Room 5",plants:64,d:"2026-06-28",wetWeightG:36287,totalDryWeight:8165,status:"done",coaSampleId:"KC-NY-2026-0841",labName:"Kaycha Labs NY",thca:"24.1",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2840",s2s:""},a:{weight:"3120",s2s:""},b:{weight:"1490",s2s:""},c:{weight:"420",s2s:""},trim:{weight:"295",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-                    {id:1002,strainName:"Black Maple",spaceName:"Flower Room 6",plants:64,d:"2026-06-21",wetWeightG:33520,totalDryWeight:7620,status:"done",coaSampleId:"KC-NY-2026-0822",labName:"Kaycha Labs NY",thca:"26.0",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2650",s2s:""},a:{weight:"2920",s2s:""},b:{weight:"1380",s2s:""},c:{weight:"390",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-                    {id:1003,strainName:"Mango Haze",spaceName:"Flower Room 7",plants:64,d:"2026-06-14",wetWeightG:38940,totalDryWeight:9280,status:"done",coaSampleId:"KC-NY-2026-0798",labName:"Kaycha Labs NY",thca:"21.3",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"3210",s2s:""},a:{weight:"3640",s2s:""},b:{weight:"1740",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
-                    {id:1004,strainName:"Blueberry Headband",spaceName:"Flower Room 1",plants:64,d:"2026-05-31",wetWeightG:34810,totalDryWeight:7940,status:"done",coaSampleId:"KC-NY-2026-0761",labName:"Kaycha Labs NY",thca:"22.7",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2760",s2s:""},a:{weight:"3050",s2s:""},b:{weight:"1440",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-                    {id:1005,strainName:"Sour Diesel OG",spaceName:"Flower Room 2",plants:64,d:"2026-05-24",wetWeightG:36420,totalDryWeight:8290,status:"done",coaSampleId:"KC-NY-2026-0744",labName:"Kaycha Labs NY",thca:"23.4",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2880",s2s:""},a:{weight:"3190",s2s:""},b:{weight:"1510",s2s:""},c:{weight:"430",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-                  ];
-                  localStorage.setItem("resinops_harvest_batches", JSON.stringify(hb));
-
-                  // ── QC Tests / COAs ──────────────────────────────────────
-                  const qcTests = [
-                    {id:"q1",strainName:"Gorilla Cake",sampleId:"KC-NY-2026-0841",batchId:1001,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-30",dateReported:"2026-07-05",thca:"24.1",thc:"0.21",totalThc:"21.37",cbd:"0.04",cbg:"0.31",cbn:"0.08",totalTerpenes:"2.84",myrcene:"1.12",caryophyllene:"0.64",limonene:"0.48",linalool:"0.21",humulene:"0.18",ocimene:"0.21",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:180,tab:320,waterActivity:0.561,moistureContent:8.4,foreignMatter:true},
-                    {id:"q2",strainName:"Black Maple",sampleId:"KC-NY-2026-0822",batchId:1002,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-23",dateReported:"2026-06-28",thca:"26.0",thc:"0.23",totalThc:"23.03",cbd:"0.03",cbg:"0.28",cbn:"0.06",totalTerpenes:"3.12",myrcene:"1.34",caryophyllene:"0.58",ocimene:"0.44",linalool:"0.38",limonene:"0.21",humulene:"0.17",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:220,tab:280,waterActivity:0.558,moistureContent:8.1,foreignMatter:true},
-                    {id:"q3",strainName:"Mango Haze",sampleId:"KC-NY-2026-0798",batchId:1003,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-16",dateReported:"2026-06-21",thca:"21.3",thc:"0.18",totalThc:"18.87",cbd:"0.06",cbg:"0.22",cbn:"0.04",totalTerpenes:"2.41",myrcene:"0.82",terpinolene:"0.64",ocimene:"0.48",limonene:"0.28",caryophyllene:"0.19",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:160,tab:290,waterActivity:0.562,moistureContent:8.6,foreignMatter:true},
-                    {id:"q4",strainName:"Blueberry Headband",sampleId:"KC-NY-2026-0761",batchId:1004,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-06-02",dateReported:"2026-06-07",thca:"22.7",thc:"0.20",totalThc:"20.11",cbd:"0.05",cbg:"0.24",cbn:"0.07",totalTerpenes:"2.23",myrcene:"0.94",caryophyllene:"0.52",pinene:"0.31",linalool:"0.24",limonene:"0.22",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:190,tab:310,waterActivity:0.559,moistureContent:8.3,foreignMatter:true},
-                    {id:"q5",strainName:"Sour Diesel OG",sampleId:"KC-NY-2026-0744",batchId:1005,batchType:"harvest",labName:"Kaycha Labs NY",dateSubmitted:"2026-05-26",dateReported:"2026-05-31",thca:"23.4",thc:"0.20",totalThc:"20.73",cbd:"0.04",cbg:"0.26",cbn:"0.05",totalTerpenes:"2.61",myrcene:"0.88",caryophyllene:"0.72",limonene:"0.54",humulene:"0.28",pinene:"0.19",overallPass:true,pesticidesPass:true,heavyMetalsPass:true,microbialsPass:true,tyam:170,tab:300,waterActivity:0.560,moistureContent:8.2,foreignMatter:true},
-                  ];
-                  localStorage.setItem("resinops_qc_tests", JSON.stringify(qcTests));
-
-                  // ── Production Batches ───────────────────────────────────
-                  const FLOWER_STEPS = [{n:"Trimming",days:3},{n:"Curing",days:14},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const PREROLL_STEPS = [{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const EXTRACT_STEPS = [{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-                  const demoProdBatches = [
-                    {id:"pb_001",name:"GC-2026-07A — Gorilla Cake 3.5g Retail",cat:"whole_flower",sub:"",strains:"Gorilla Cake",d:"2026-07-08",inputAmt:"2840",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~810 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1001,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
-                    {id:"pb_002",name:"BM-2026-07A — Black Maple 3.5g Retail",cat:"whole_flower",sub:"",strains:"Black Maple",d:"2026-07-08",inputAmt:"2650",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~757 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1002,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
-                    {id:"pb_003",name:"MH-2026-07A — Mango Haze Pre-Roll 1g 5pk",cat:"pre_roll",sub:"",strains:"Mango Haze",d:"2026-07-10",inputAmt:"1740",unit:"g",status:"scheduled",catLabel:"Pre-Roll",subLabel:"",yieldEst:"~1,600 × 5-packs",packagingContainer:"poptop_multi",packagingUnitsPerPack:5,harvestBatchId:1003,harvestGrade:"b",steps:PREROLL_STEPS.map(s=>({...s})),isLinked:false},
-                    {id:"pb_004",name:"CP-2026-07A — Mixed Strain Distillate",cat:"extract",sub:"sp_lab10",strains:"Gorilla Cake, Black Maple",d:"2026-07-15",inputAmt:"2200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"Short Path — Lab Society 10L",yieldEst:"~1,760g distillate (80% overall) · 7h 1st pass + 6h 2nd pass",packagingContainer:"applicator_syringe",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false},
-                    {id:"pb_005",name:"CP-2026-07A — Mixed Strain H/T (Edibles Grade)",cat:"extract",sub:"distillate",strains:"Gorilla Cake, Black Maple",d:"2026-07-15",inputAmt:"200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"Distillate (Edibles Grade)",yieldEst:"~200g heads/tails fraction",packagingContainer:"glass_jar",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:true,linkedTo:"pb_004"},
-                    {id:"pb_006",name:"BH-2026-07A — Blueberry Headband 1g Vape",cat:"vape",sub:"cartridge",strains:"Blueberry Headband",d:"2026-07-20",inputAmt:"1500",unit:"g",status:"scheduled",catLabel:"Vape",subLabel:"Cartridge",yieldEst:"~1,455 × 1g carts",packagingContainer:"individual_tube",vapeHardware:"fg_z510",steps:[{n:"Formulation",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],isLinked:false},
-                    {id:"pb_007",name:"ZR-2026-07A — Zaza Runtz 7g Retail",cat:"whole_flower",sub:"",strains:"Zaza Runtz",d:"2026-07-22",inputAmt:"1800",unit:"g",status:"scheduled",catLabel:"Whole Flower",subLabel:"",yieldEst:"~257 × 7g jars",packagingContainer:"cr_glass_jar",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false},
-                    {id:"pb_008",name:"SD-2026-07A — Sour Diesel OG Live Resin",cat:"extract",sub:"live_resin",strains:"Sour Diesel OG",d:"2026-07-18",inputAmt:"3200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"BHO — Live Resin",yieldEst:"~480g live resin",packagingContainer:"glass_jar_5ml",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false},
-                  ];
-                  localStorage.setItem("resinops_prod", JSON.stringify(demoProdBatches));
-
-                  // ── Sales Orders ─────────────────────────────────────────
-                  const salesOrders = [
-                    {id:"so_001",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-07-01",status:"open",importStatus:"confirmed",lines:[{id:"l1",product:"Gorilla Cake 3.5g",qty:100,unitPrice:18,orderTotal:1800},{id:"l2",product:"Black Maple 3.5g",qty:80,unitPrice:20,orderTotal:1600}],notes:"Regular weekly account"},
-                    {id:"so_002",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-07-02",status:"open",importStatus:"confirmed",lines:[{id:"l3",product:"Mango Haze Pre-Roll 5pk",qty:200,unitPrice:24,orderTotal:4800}],notes:"Pre-roll program — confirmed"},
-                    {id:"so_003",customerName:"Capital District Collective",customerLicense:"OCM-RO-003445",orderDate:"2026-07-03",status:"open",importStatus:"confirmed",lines:[{id:"l4",product:"Blueberry Headband 1g Vape",qty:150,unitPrice:28,orderTotal:4200},{id:"l5",product:"Sour Diesel OG 3.5g",qty:60,unitPrice:19,orderTotal:1140}],notes:"Vape program launching this month"},
-                    {id:"so_004",customerName:"Brooklyn Bodega Cannabis",customerLicense:"OCM-RO-004122",orderDate:"2026-07-04",status:"open",importStatus:"pending",lines:[{id:"l6",product:"Zaza Runtz 7g",qty:80,unitPrice:42,orderTotal:3360}],notes:"Waiting on lab results — pending confirmation"},
-                    {id:"so_005",customerName:"Finger Lakes Dispensary",customerLicense:"OCM-RO-005678",orderDate:"2026-07-05",status:"open",importStatus:"pending",lines:[{id:"l7",product:"Gorilla Cake 3.5g",qty:60,unitPrice:18,orderTotal:1080},{id:"l8",product:"Black Maple 3.5g",qty:40,unitPrice:20,orderTotal:800}],notes:"New account — pending credit approval"},
-                    {id:"so_006",customerName:"Catskill Mountain Wellness",customerLicense:"OCM-RO-006234",orderDate:"2026-07-05",status:"open",importStatus:"waitlist",lines:[{id:"l9",product:"Black Maple 3.5g",qty:100,unitPrice:20,orderTotal:2000}],notes:"Waitlisted — Black Maple sold out until Jul 22 harvest"},
-                    {id:"so_007",customerName:"Saratoga Smoke Shop",customerLicense:"OCM-RO-007891",orderDate:"2026-07-06",status:"open",importStatus:"waitlist",lines:[{id:"l10",product:"Zaza Runtz 3.5g",qty:120,unitPrice:22,orderTotal:2640}],notes:"Waitlisted — Zaza Runtz next harvest Jul 25"},
-                  ];
-                  localStorage.setItem("resinops_orders", JSON.stringify(salesOrders));
-
-                  setStatusMsg("✓ Demo fully loaded — all 28 modules populated. Navigate to Dashboard to see your live operations view.");
-                }}>
-                  ✨ Load demo facility settings
+                <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={loadDemoData}>
+                  {demoLoading ? "Loading demo data…" : "✨ Load demo facility settings"}
                 </button>
                 <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} onClick={()=>{
                   if(!window.confirm("This will permanently delete ALL data in ResinOps. Are you sure? This cannot be undone.")) return;
