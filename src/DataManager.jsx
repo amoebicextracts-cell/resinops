@@ -650,12 +650,24 @@ export default function DataManager(){
         {id:"inv_001",n:"Child-Resistant Glass Jar 2oz",cat:"Packaging",uom:"each",reorderAt:"500",reorderQty:"5000",vm:"average",notes:"Primary packaging for whole flower 3.5g/7g."},
         {id:"inv_002",n:"Tamper-Evident Label",cat:"Packaging",uom:"each",reorderAt:"1000",reorderQty:"10000",vm:"average",notes:"NY OCM compliant labels, printed per SKU."},
         {id:"inv_003",n:"Pre-Roll Cone 110mm",cat:"Packaging",uom:"each",reorderAt:"2000",reorderQty:"20000",vm:"average",notes:""},
-        {id:"inv_004",n:"Athena Pro Grow",cat:"Nutrients",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Primary flower-stage nutrient line."},
-        {id:"inv_005",n:"Athena Pro Core",cat:"Nutrients",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Veg-stage base nutrient."},
-        {id:"inv_006",n:"55-Gallon Butane (n-Butane)",cat:"Solvents",uom:"lb",reorderAt:"100",reorderQty:"500",vm:"fifo",requiresCoc:true,notes:"Extraction solvent, hydrocarbon-certified."},
+        {id:"inv_004",n:"Athena Pro Grow",cat:"Nutrients & Amendments",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Primary flower-stage nutrient line."},
+        {id:"inv_005",n:"Athena Pro Core",cat:"Nutrients & Amendments",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Veg-stage base nutrient."},
+        {id:"inv_006",n:"55-Gallon Butane (n-Butane)",cat:"Extraction Solvents",uom:"lb",reorderAt:"100",reorderQty:"500",vm:"fifo",requiresCoc:true,notes:"Extraction solvent, hydrocarbon-certified."},
       ];
       for (const inv of inventoryRaw) {
         await db.inventory_items.upsert({...inv, id: uid(inv.id)});
+      }
+
+      // ── Vendors ────────────────────────────────────────────
+      const vendorsRaw = [
+        {id:"vnd_001",n:"Pacific Packaging Supply",vendorType:"supply",contact:"Kim Osei",phone:"(503) 555-0141",email:"orders@pacpacksupply.com",leadDays:"7",notes:"Primary packaging vendor — jars, labels, exit bags."},
+        {id:"vnd_002",n:"Athena Agriculture",vendorType:"supply",contact:"Rebecca Lund",phone:"(800) 555-0142",email:"sales@athenaag.com",leadDays:"5",notes:"Nutrient line supplier."},
+        {id:"vnd_003",n:"Koppert Biological Systems",vendorType:"supply",contact:"Dennis Farrow",phone:"(831) 555-0143",email:"orders@koppert.us",leadDays:"10",notes:"Beneficial insects for IPM program."},
+        {id:"vnd_004",n:"Empire Hydrocarbon Solutions",vendorType:"supply",contact:"Wade Mercer",phone:"(518) 555-0144",email:"sales@empirehydro.com",leadDays:"14",notes:"n-Butane and propane, hydrocarbon-certified deliveries."},
+        {id:"vnd_005",n:"Hudson Valley HVAC Service",vendorType:"service",contact:"Renata Cole",phone:"(845) 555-0145",email:"service@hvhvac.com",leadDays:"3",notes:"Dehumidifier and HVAC preventive maintenance contractor."},
+      ];
+      for (const v of vendorsRaw) {
+        await db.vendors.upsert({...v, id: uid(v.id)});
       }
 
       // ── Equipment ──────────────────────────────────────────
@@ -674,7 +686,7 @@ export default function DataManager(){
       const sprayLogRaw = [
         {id:"sl_001",date:"2026-06-25",type:"ipm_spray",spaceName:"Veg Room",product:"Regalia Bio-Fungicide",manufacturer:"Marrone Bio Innovations",epaRegNum:"84059-3",rate:"1",rateUnit:"oz/gal",volumeApplied:"12",volumeUnit:"gal",areaApplied:"800",applicationMethod:"Backpack sprayer",targetPest:"Powdery mildew (preventive)",weatherTemp:"71",weatherWind:"2",weatherHumidity:"55",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Routine preventive IPM rotation — week 3 of 4"},
         {id:"sl_002",date:"2026-06-27",type:"ipm_spray",spaceName:"Flower Room 6",product:"Suffoil-X",manufacturer:"BioWorks",epaRegNum:"68113-1-70051",rate:"2",rateUnit:"oz/gal",volumeApplied:"18",volumeUnit:"gal",areaApplied:"1200",applicationMethod:"Backpack sprayer",targetPest:"Russet mites (preventive)",weatherTemp:"73",weatherWind:"1",weatherHumidity:"52",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Pre-flip preventive pass, FR6 flips to flower Jul 10"},
-        {id:"sl_003",date:"2026-07-01",type:"beneficial_release",spaceName:"Propagation / Clone Room",product:"Amblyseius cucumeris",manufacturer:"Koppert Biological Systems",epaRegNum:"",rate:"",rateUnit:"oz/gal",volumeApplied:"",volumeUnit:"gal",areaApplied:"300",applicationMethod:"Sachet release",targetPest:"Thrips (preventive biocontrol)",weatherTemp:"70",weatherWind:"0",weatherHumidity:"58",rei:"0",phi:"0",applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",notes:"Standard biocontrol release — clone room sachets replaced monthly"},
+        {id:"sl_003",date:"2026-07-01",type:"beneficial_release",spaceName:"Propagation / Clone Room",product:"Amblyseius cucumeris",manufacturer:"Koppert Biological Systems",epaRegNum:"",rate:"1000",rateUnit:"insects/plant",volumeApplied:"",volumeUnit:"gal",areaApplied:"300",applicationMethod:"Sachet release",targetPest:"Thrips (preventive biocontrol)",weatherTemp:"70",weatherWind:"0",weatherHumidity:"58",rei:"0",phi:"0",applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",notes:"Standard biocontrol release — clone room sachets replaced monthly"},
       ];
       for (const sl of sprayLogRaw) {
         await db.spray_log.upsert({...sl, id: uid(sl.id)});

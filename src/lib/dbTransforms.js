@@ -368,15 +368,21 @@ const FIELD_OVERRIDES = {
   },
 };
 
-// Build reverse maps (Supabase → app) automatically
+// Build reverse maps (Supabase → app) automatically.
+// Multiple app-side field names can legitimately map to the same db column —
+// e.g. a legacy alias plus the real current component field name. Collect
+// ALL of them per column instead of keeping only the first, so every valid
+// app-side name gets populated on read regardless of which order they were
+// declared in. (Previously only the first-declared alias won, which meant
+// whichever name a component actually used could silently come back empty
+// even though saving worked fine — the bug behind several "field not
+// populating" reports this session.)
 const REVERSE_OVERRIDES = {};
 for (const [table, map] of Object.entries(FIELD_OVERRIDES)) {
   REVERSE_OVERRIDES[table] = {};
   for (const [appKey, dbKey] of Object.entries(map)) {
-    // Only store first mapping for each db column (avoid conflicts)
-    if (!REVERSE_OVERRIDES[table][dbKey]) {
-      REVERSE_OVERRIDES[table][dbKey] = appKey;
-    }
+    if (!REVERSE_OVERRIDES[table][dbKey]) REVERSE_OVERRIDES[table][dbKey] = [];
+    REVERSE_OVERRIDES[table][dbKey].push(appKey);
   }
 }
 
@@ -410,7 +416,8 @@ export function transformForDb(tableName, record) {
 
 /**
  * Transform a record from Supabase format back to app format.
- * Renames snake_case columns back to camelCase app field names.
+ * Renames snake_case columns back to every camelCase app field name that
+ * maps to them.
  */
 export function transformFromDb(tableName, record) {
   if (!record) return record;
@@ -418,13 +425,15 @@ export function transformFromDb(tableName, record) {
   if (!reverseMap) return record;
 
   const result = { ...record };
-  for (const [dbKey, appKey] of Object.entries(reverseMap)) {
-    if (dbKey in result && dbKey !== appKey) {
-      result[appKey] = result[dbKey];
-      // Keep the snake_case version too for compatibility
+  for (const [dbKey, appKeys] of Object.entries(reverseMap)) {
+    if (dbKey in result) {
+      for (const appKey of appKeys) {
+        if (dbKey !== appKey) result[appKey] = result[dbKey];
+      }
     }
   }
   return result;
 }
 
 export { SCHEMAS };
+
