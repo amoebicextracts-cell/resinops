@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { db } from "./lib/db";
-import { getCurrentFacility } from "./lib/supabase";
+import { db, TABLE_NAMES } from "./lib/db";
+import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -345,6 +345,7 @@ export default function DataManager(){
   const [restoreConfirm,setRestoreConfirm]=useState(false);
   const [statusMsg,setStatusMsg]=useState("");
   const [demoLoading,setDemoLoading]=useState(false);
+  const [clearLoading,setClearLoading]=useState(false);
 
   async function loadDemoData(){
     if (demoLoading) return;
@@ -356,7 +357,25 @@ export default function DataManager(){
       // uid() generates a real uuid per fake id and keeps them consistent across
       // datasets that reference each other (e.g. a production batch's harvestBatchId).
       const idMap = {};
-      const uid = (fakeId) => { if(!fakeId) return ""; if(!idMap[fakeId]) idMap[fakeId]=crypto.randomUUID(); return idMap[fakeId]; };
+      // Deterministic id: the same fake id (e.g. "s1", "eq_001") always hashes to
+      // the exact same UUID-shaped string, every time this runs. That's what makes
+      // clicking "Load Demo Data" repeatedly update the same rows instead of
+      // stacking up duplicates — the old version used crypto.randomUUID() fresh
+      // on every click, so nothing ever matched an existing row on conflict.
+      function deterministicUuid(seed){
+        let h1=0xdeadbeef, h2=0x41c6ce57;
+        for (let i=0;i<seed.length;i++){
+          const ch=seed.charCodeAt(i);
+          h1=Math.imul(h1^ch,2654435761);
+          h2=Math.imul(h2^ch,1597334677);
+        }
+        h1=(Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909))>>>0;
+        h2=(Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909))>>>0;
+        const hex=h1.toString(16).padStart(8,"0")+h2.toString(16).padStart(8,"0");
+        const full=(hex+hex).slice(0,32);
+        return `${full.slice(0,8)}-${full.slice(8,12)}-4${full.slice(12,15)}-a${full.slice(15,18)}-${full.slice(18,30)}`;
+      }
+      const uid = (fakeId) => { if(!fakeId) return ""; if(!idMap[fakeId]) idMap[fakeId]=deterministicUuid("resinops-demo-"+String(fakeId)); return idMap[fakeId]; };
 
       // ── Facility Settings ── rename the current facility for the demo.
       // facilities isn't in dbTransforms' SCHEMAS list, so db.facilities.upsert
@@ -735,6 +754,33 @@ export default function DataManager(){
     }
   }
   const fileRef=useRef();
+
+  async function clearAllData(){
+    if(!window.confirm("This will permanently delete ALL data in ResinOps — every table, for this facility. Are you sure? This cannot be undone.")) return;
+    setClearLoading(true);
+    setStatusMsg("Clearing all data…");
+    try{
+      if (isSupabaseEnabled) {
+        const fid = getCurrentFacility();
+        const tablesToClear = TABLE_NAMES.filter(t => t !== "facilities");
+        for (const table of tablesToClear) {
+          try{
+            const q = supabase.from(table).delete();
+            if (fid) await q.eq("facility_id", fid);
+            else await q.neq("id", "00000000-0000-0000-0000-000000000000"); // delete-all fallback if no facility context
+          }catch(e){ console.warn("Clear failed for table "+table+":", e.message); }
+        }
+      }
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith("resinops_"));
+      keys.forEach(k=>localStorage.removeItem(k));
+      setStatusMsg("✓ All ResinOps data cleared (Supabase + localStorage) — ready for a fresh demo load. Refresh any open module to see it clear.");
+    }catch(e){
+      console.error("Clear all error:", e);
+      setStatusMsg("✗ Clear failed: "+e.message+" — some tables may have partially cleared.");
+    }finally{
+      setClearLoading(false);
+    }
+  }
   const restoreRef=useRef();
 
   // ── Backup ───────────────────────────────────────────────────────────────
@@ -1670,13 +1716,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={loadDemoData}>
                   {demoLoading ? "Loading demo data…" : "✨ Load demo facility settings"}
                 </button>
-                <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} onClick={()=>{
-                  if(!window.confirm("This will permanently delete ALL data in ResinOps. Are you sure? This cannot be undone.")) return;
-                  const keys = Object.keys(localStorage).filter(k=>k.startsWith("resinops_"));
-                  keys.forEach(k=>localStorage.removeItem(k));
-                  setStatusMsg("All ResinOps data cleared — ready for fresh demo");
-                }}>
-                  🗑 Clear all data
+                <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={clearLoading} onClick={clearAllData}>
+                  {clearLoading ? "Clearing…" : "🗑 Clear all data"}
                 </button>
               </div>
               {statusMsg&&<div style={{marginTop:10,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}

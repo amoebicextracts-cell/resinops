@@ -146,6 +146,8 @@ function makeTable(tableName) {
 }
 
 // ── The db object — use this everywhere ──────────────────────
+export const TABLE_NAMES = Object.keys(LS_KEYS);
+
 export const db = Object.fromEntries(
   Object.keys(LS_KEYS).map(table => [table, makeTable(table)])
 );
