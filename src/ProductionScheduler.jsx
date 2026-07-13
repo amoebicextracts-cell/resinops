@@ -2643,7 +2643,7 @@ export default function ProductionScheduler(){
             {batches.map((b,idx)=>{
               const tl=timelines[idx];const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
               return(
-                <div key={b.id} className="ps-row" style={{height:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
+                <div key={b.id} className="ps-row" style={{minHeight:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
                   <div className="ps-left" style={{height:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
                     <div style={{fontSize:12,fontWeight:600,color:b.isLinked?"#8090d0":"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.isLinked?"↳ ":""}{b.name}</div>
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
