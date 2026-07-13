@@ -648,7 +648,7 @@ export default function DataManager(){
       console.log("DIAG: uid('gs_009') =", uid("gs_009"));
       try {
         const diagSpaces = await db.grow_spaces.list();
-        console.log("DIAG: grow_spaces currently in DB:", diagSpaces.map(s=>({id:s.id, roomName:s.roomName})));
+        console.log("DIAG: grow_spaces currently in DB:", JSON.stringify(diagSpaces.map(s=>({id:s.id, roomName:s.roomName}))));
       } catch(e) {
         console.log("DIAG: grow_spaces.list() failed:", e.message);
       }
