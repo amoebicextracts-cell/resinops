@@ -661,6 +661,18 @@ export default function DataManager(){
         await db.inventory_items.upsert({...inv, id: uid(inv.id)});
       }
 
+      // ── Vendors ────────────────────────────────────────────
+      const vendorsRaw = [
+        {id:"vnd_001",n:"Pacific Packaging Supply",vendorType:"supply",contact:"Kim Osei",phone:"(503) 555-0141",email:"orders@pacpacksupply.com",leadDays:"7",notes:"Primary packaging vendor — jars, labels, exit bags."},
+        {id:"vnd_002",n:"Athena Agriculture",vendorType:"supply",contact:"Rebecca Lund",phone:"(800) 555-0142",email:"sales@athenaag.com",leadDays:"5",notes:"Nutrient line supplier."},
+        {id:"vnd_003",n:"Koppert Biological Systems",vendorType:"supply",contact:"Dennis Farrow",phone:"(831) 555-0143",email:"orders@koppert.us",leadDays:"10",notes:"Beneficial insects for IPM program."},
+        {id:"vnd_004",n:"Empire Hydrocarbon Solutions",vendorType:"supply",contact:"Wade Mercer",phone:"(518) 555-0144",email:"sales@empirehydro.com",leadDays:"14",notes:"n-Butane and propane, hydrocarbon-certified deliveries."},
+        {id:"vnd_005",n:"Hudson Valley HVAC Service",vendorType:"service",contact:"Renata Cole",phone:"(845) 555-0145",email:"service@hvhvac.com",leadDays:"3",notes:"Dehumidifier and HVAC preventive maintenance contractor."},
+      ];
+      for (const v of vendorsRaw) {
+        await db.vendors.upsert({...v, id: uid(v.id)});
+      }
+
       // ── Purchase Orders (mix of received and pending, to show the workflow) ──
       const purchaseOrdersRaw = [
         {id:"po_001",poNum:"PO-0001",vendorId:uid("vnd_001"),date:"2026-06-10",expectedDelivery:"2026-06-17",status:"received",
@@ -702,18 +714,6 @@ export default function DataManager(){
           }];
         }
         await db.inventory_items.upsert(updated);
-      }
-
-      // ── Vendors ────────────────────────────────────────────
-      const vendorsRaw = [
-        {id:"vnd_001",n:"Pacific Packaging Supply",vendorType:"supply",contact:"Kim Osei",phone:"(503) 555-0141",email:"orders@pacpacksupply.com",leadDays:"7",notes:"Primary packaging vendor — jars, labels, exit bags."},
-        {id:"vnd_002",n:"Athena Agriculture",vendorType:"supply",contact:"Rebecca Lund",phone:"(800) 555-0142",email:"sales@athenaag.com",leadDays:"5",notes:"Nutrient line supplier."},
-        {id:"vnd_003",n:"Koppert Biological Systems",vendorType:"supply",contact:"Dennis Farrow",phone:"(831) 555-0143",email:"orders@koppert.us",leadDays:"10",notes:"Beneficial insects for IPM program."},
-        {id:"vnd_004",n:"Empire Hydrocarbon Solutions",vendorType:"supply",contact:"Wade Mercer",phone:"(518) 555-0144",email:"sales@empirehydro.com",leadDays:"14",notes:"n-Butane and propane, hydrocarbon-certified deliveries."},
-        {id:"vnd_005",n:"Hudson Valley HVAC Service",vendorType:"service",contact:"Renata Cole",phone:"(845) 555-0145",email:"service@hvhvac.com",leadDays:"3",notes:"Dehumidifier and HVAC preventive maintenance contractor."},
-      ];
-      for (const v of vendorsRaw) {
-        await db.vendors.upsert({...v, id: uid(v.id)});
       }
 
       // ── Equipment ──────────────────────────────────────────
