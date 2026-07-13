@@ -643,6 +643,16 @@ export default function DataManager(){
         await db.employees.upsert({...e, id: uid(e.id)});
       }
 
+      // ── TEMP DIAGNOSTIC — remove after we find the bug ──────
+      console.log("DIAG: uid('gs_002') =", uid("gs_002"));
+      console.log("DIAG: uid('gs_009') =", uid("gs_009"));
+      try {
+        const diagSpaces = await db.grow_spaces.list();
+        console.log("DIAG: grow_spaces currently in DB:", diagSpaces.map(s=>({id:s.id, roomName:s.roomName})));
+      } catch(e) {
+        console.log("DIAG: grow_spaces.list() failed:", e.message);
+      }
+
       // ── Cultivation Inputs ────────────────────────────────
       const cultivationInputsRaw = [
         {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:uid("gs_002"),spaceName:"FR6 — Black Maple Cycle 4",applicatorId:uid("emp_001"),applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
