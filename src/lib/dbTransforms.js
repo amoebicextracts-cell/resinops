@@ -29,6 +29,7 @@ const SCHEMAS = {
   sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id'],
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','notes'],
+  employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes'],
   import_history: ['id','created_at','facility_id','imported_by','data_type','file_name','record_count','status','error_message','raw_preview'],
   vendors: ['id','created_at','updated_at','facility_id','name','vendor_type','contact','phone','email','lead_days','notes'],
   purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],
@@ -314,6 +315,13 @@ const FIELD_OVERRIDES = {
     n: 'name',
     cat: 'category',
     count: 'headcount',
+  },
+  employees: {
+    hireDate: 'hire_date',
+    pestLicenseNum: 'pest_license_num',
+    pestLicenseCategory: 'pest_license_category',
+    pestLicenseState: 'pest_license_state',
+    pestLicenseExpiry: 'pest_license_expiry',
   },
   import_history: {
     importedBy: 'imported_by',
