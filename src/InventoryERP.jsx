@@ -345,6 +345,8 @@ export default function InventoryERP() {
   const [vendorForm, setVendorForm] = useState(null);
   const [poForm, setPoForm] = useState(null);
   const [receiveModal, setReceiveModal] = useState(null); // {po, receiving: {itemId, qty, cost}}
+  const [newItemLineIdx, setNewItemLineIdx] = useState(null); // which PO line is creating a new item inline
+  const [newItemDraft, setNewItemDraft] = useState({n:"",cat:ITEM_CATS[0],uom:"each"});
   const [adjustModal, setAdjustModal] = useState(null); // {item}
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
@@ -440,7 +442,24 @@ export default function InventoryERP() {
     setPoForm(f=>({...f, items:[...f.items,{itemId:"",qty:"",unitCost:""}]}));
   }
   function setPOLine(i,k,v) {
+    if (k==="itemId" && v==="__new__") {
+      setNewItemLineIdx(i);
+      setNewItemDraft({n:"",cat:ITEM_CATS[0],uom:"each"});
+      return;
+    }
     setPoForm(f=>({...f, items:f.items.map((l,idx)=>idx===i?{...l,[k]:v}:l)}));
+  }
+  async function createItemInline(lineIdx) {
+    if (!newItemDraft.n.trim()) { setErr("Enter a name for the new item."); return; }
+    const item = { id:crypto.randomUUID(), n:newItemDraft.n.trim(), cat:newItemDraft.cat, uom:newItemDraft.uom,
+      reorderAt:0, reorderQty:0, vm:"average", notes:"", lots:[], lastCost:0 };
+    try{
+      const saved = await db.inventory_items.upsert(item);
+      setItems(p=>[...p,saved]);
+      setPoForm(f=>({...f, items:f.items.map((l,idx)=>idx===lineIdx?{...l,itemId:saved.id}:l)}));
+      setNewItemLineIdx(null);
+      setErr("");
+    }catch(e){ setErr("Couldn't create item: "+e.message); }
   }
   async function savePO() {
     if (!poForm.vendorId) { setErr("Select a vendor."); return; }
@@ -684,11 +703,27 @@ export default function InventoryERP() {
                 <div style={{marginBottom:10}}>
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Line Items</div>
                   {poForm.items.map((line,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"flex-end"}}>
-                      <div><label className="erp-lbl">Item</label><select className="erp-sel" value={line.itemId} onChange={e=>setPOLine(i,"itemId",e.target.value)}><option value="">— Select item —</option>{items.map(x=><option key={x.id} value={x.id}>{x.n}</option>)}</select></div>
+                    <div key={i}>
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"flex-end"}}>
+                      <div><label className="erp-lbl">Item</label><select className="erp-sel" value={line.itemId} onChange={e=>setPOLine(i,"itemId",e.target.value)}><option value="">— Select item —</option><option value="__new__">+ Add new item…</option>{items.map(x=><option key={x.id} value={x.id}>{x.n}</option>)}</select></div>
                       <div><label className="erp-lbl">Qty ({items.find(x=>x.id===line.itemId)?.uom||"units"})</label><input type="number" className="erp-inp" value={line.qty} onChange={e=>setPOLine(i,"qty",e.target.value)} /></div>
                       <div><label className="erp-lbl">Unit cost ($)</label><input type="number" className="erp-inp" step="0.01" value={line.unitCost} onChange={e=>setPOLine(i,"unitCost",e.target.value)} /></div>
                       <button className="erp-danger" style={{marginBottom:0}} onClick={()=>setPoForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)}))}>✕</button>
+                    </div>
+                    {newItemLineIdx===i && (
+                      <div style={{background:"var(--surface-2)",border:"1px dashed var(--accent)",borderRadius:8,padding:"10px 12px",marginTop:-2,marginBottom:10}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--accent-2)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>New Inventory Item</div>
+                        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
+                          <div><label className="erp-lbl">Name</label><input className="erp-inp" value={newItemDraft.n} onChange={e=>setNewItemDraft(d=>({...d,n:e.target.value}))} placeholder="e.g. 2oz Glass Jar" autoFocus /></div>
+                          <div><label className="erp-lbl">Category</label><select className="erp-sel" value={newItemDraft.cat} onChange={e=>setNewItemDraft(d=>({...d,cat:e.target.value}))}>{ITEM_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
+                          <div><label className="erp-lbl">Unit</label><select className="erp-sel" value={newItemDraft.uom} onChange={e=>setNewItemDraft(d=>({...d,uom:e.target.value}))}>{UOMS.map(u=><option key={u}>{u}</option>)}</select></div>
+                        </div>
+                        <div style={{display:"flex",gap:8}}>
+                          <button type="button" className="erp-btn erp-primary" onClick={()=>createItemInline(i)}>Create &amp; use this item</button>
+                          <button type="button" className="erp-btn erp-secondary" onClick={()=>{setNewItemLineIdx(null);setPOLine(i,"itemId","");}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     </div>
                   ))}
                   <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"4px 10px",marginTop:4}} onClick={addPOLine}>+ Add line</button>
