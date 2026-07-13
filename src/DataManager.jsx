@@ -637,9 +637,9 @@ export default function DataManager(){
 
       // ── Cultivation Inputs ────────────────────────────────
       const cultivationInputsRaw = [
-        {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:"",product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
-        {id:"ci_002",date:"2026-06-25",type:"beneficial_insect",spaceId:"",species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"1000",releaseUnit:"insects/plant",notes:"Preventive thrips biocontrol release, clone room."},
-        {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:"",product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
+        {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:uid("gs_002"),applicatorId:uid("emp_001"),product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
+        {id:"ci_002",date:"2026-06-25",type:"beneficial_insect",spaceId:uid("gs_009"),applicatorId:uid("emp_002"),species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"5",releaseUnit:"insects/sqft",notes:"Preventive thrips biocontrol release, clone room."},
+        {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:uid("gs_009"),applicatorId:uid("emp_001"),product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
       ];
       for (const ci of cultivationInputsRaw) {
         await db.cultivation_inputs.upsert({...ci, id: uid(ci.id)});
@@ -653,9 +653,55 @@ export default function DataManager(){
         {id:"inv_004",n:"Athena Pro Grow",cat:"Nutrients & Amendments",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Primary flower-stage nutrient line."},
         {id:"inv_005",n:"Athena Pro Core",cat:"Nutrients & Amendments",uom:"lb",reorderAt:"10",reorderQty:"50",vm:"average",notes:"Veg-stage base nutrient."},
         {id:"inv_006",n:"55-Gallon Butane (n-Butane)",cat:"Extraction Solvents",uom:"lb",reorderAt:"100",reorderQty:"500",vm:"fifo",requiresCoc:true,notes:"Extraction solvent, hydrocarbon-certified."},
+        {id:"inv_007",n:"Regalia Bio-Fungicide",cat:"IPM Products",uom:"gal",reorderAt:"2",reorderQty:"5",vm:"average",notes:"Preventive fungicide, OMRI listed."},
+        {id:"inv_008",n:"Suffoil-X",cat:"IPM Products",uom:"gal",reorderAt:"2",reorderQty:"5",vm:"average",notes:"Horticultural oil, mite/insect preventive."},
+        {id:"inv_009",n:"Amblyseius cucumeris Sachets",cat:"IPM Products",uom:"each",reorderAt:"50",reorderQty:"200",vm:"fifo",notes:"Predatory mite sachets for thrips control — monthly replacement."},
       ];
       for (const inv of inventoryRaw) {
         await db.inventory_items.upsert({...inv, id: uid(inv.id)});
+      }
+
+      // ── Purchase Orders (mix of received and pending, to show the workflow) ──
+      const purchaseOrdersRaw = [
+        {id:"po_001",poNum:"PO-0001",vendorId:uid("vnd_001"),date:"2026-06-10",expectedDelivery:"2026-06-17",status:"received",
+          items:[{itemId:uid("inv_001"),qty:5000,unitCost:0.38,receivedQty:5000},{itemId:uid("inv_002"),qty:10000,unitCost:0.08,receivedQty:10000}],notes:"Standard packaging restock."},
+        {id:"po_002",poNum:"PO-0002",vendorId:uid("vnd_002"),date:"2026-06-15",expectedDelivery:"2026-06-20",status:"received",
+          items:[{itemId:uid("inv_004"),qty:50,unitCost:42.00,receivedQty:50},{itemId:uid("inv_005"),qty:50,unitCost:38.00,receivedQty:50}],notes:"Monthly nutrient restock."},
+        {id:"po_003",poNum:"PO-0003",vendorId:uid("vnd_004"),date:"2026-06-05",expectedDelivery:"2026-06-19",status:"received",
+          items:[{itemId:uid("inv_006"),qty:500,unitCost:3.20,receivedQty:500}],notes:"Quarterly hydrocarbon solvent order — CoC required on receipt."},
+        {id:"po_004",poNum:"PO-0004",vendorId:uid("vnd_003"),date:"2026-07-08",expectedDelivery:"2026-07-15",status:"sent",
+          items:[{itemId:uid("inv_009"),qty:200,unitCost:4.50,receivedQty:0}],notes:"Restocking predatory mite sachets — awaiting delivery."},
+      ];
+      for (const po of purchaseOrdersRaw) {
+        await db.purchase_orders.upsert({...po, id: uid(po.id)});
+      }
+
+      // ── Backfill lots + CoC on items received above (mirrors what confirmReceive()
+      // does when you click Receive in the UI — done directly here since demo data
+      // isn't clicked through the actual receiving flow) ──
+      const receivedLots = [
+        {itemFakeId:"inv_001", poFakeId:"po_001", qty:5000, cost:0.38, date:"2026-06-17"},
+        {itemFakeId:"inv_002", poFakeId:"po_001", qty:10000, cost:0.08, date:"2026-06-17"},
+        {itemFakeId:"inv_004", poFakeId:"po_002", qty:50, cost:42.00, date:"2026-06-20"},
+        {itemFakeId:"inv_005", poFakeId:"po_002", qty:50, cost:38.00, date:"2026-06-20"},
+        {itemFakeId:"inv_006", poFakeId:"po_003", qty:500, cost:3.20, date:"2026-06-19"},
+      ];
+      // Refetch items so we can safely merge lots onto the just-created records
+      const allInvItems = await db.inventory_items.list();
+      for (const rl of receivedLots) {
+        const itemId = uid(rl.itemFakeId);
+        const item = allInvItems.find(x=>x.id===itemId);
+        if (!item) continue;
+        const lot = {id: uid(rl.itemFakeId+"-lot-"+rl.poFakeId), date: rl.date, qty: rl.qty, remaining: rl.qty, costPerUnit: rl.cost, poId: uid(rl.poFakeId)};
+        const updated = {...item, lots:[...(item.lots||[]).filter(l=>l.poId!==lot.poId), lot], lastCost: rl.cost};
+        if (rl.itemFakeId==="inv_006") {
+          updated.cocs = [{
+            id: uid("coc-inv_006-po_003"), lotNum:"EHS-2026-0619", supplier:"Empire Hydrocarbon Solutions",
+            issueDate:"2026-06-19", expiryDate:"2027-06-19", docRef:"CoC-EHS-06192026",
+            status:"pass", notes:"Purity spec verified — hydrocarbon-grade n-Butane, <10ppm residual.",
+          }];
+        }
+        await db.inventory_items.upsert(updated);
       }
 
       // ── Vendors ────────────────────────────────────────────
@@ -686,7 +732,7 @@ export default function DataManager(){
       const sprayLogRaw = [
         {id:"sl_001",date:"2026-06-25",type:"ipm_spray",spaceName:"Veg Room",product:"Regalia Bio-Fungicide",manufacturer:"Marrone Bio Innovations",epaRegNum:"84059-3",rate:"1",rateUnit:"oz/gal",volumeApplied:"12",volumeUnit:"gal",areaApplied:"800",applicationMethod:"Backpack sprayer",targetPest:"Powdery mildew (preventive)",weatherTemp:"71",weatherWind:"2",weatherHumidity:"55",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Routine preventive IPM rotation — week 3 of 4"},
         {id:"sl_002",date:"2026-06-27",type:"ipm_spray",spaceName:"Flower Room 6",product:"Suffoil-X",manufacturer:"BioWorks",epaRegNum:"68113-1-70051",rate:"2",rateUnit:"oz/gal",volumeApplied:"18",volumeUnit:"gal",areaApplied:"1200",applicationMethod:"Backpack sprayer",targetPest:"Russet mites (preventive)",weatherTemp:"73",weatherWind:"1",weatherHumidity:"52",rei:"4",phi:"0",applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",notes:"Pre-flip preventive pass, FR6 flips to flower Jul 10"},
-        {id:"sl_003",date:"2026-07-01",type:"beneficial_release",spaceName:"Propagation / Clone Room",product:"Amblyseius cucumeris",manufacturer:"Koppert Biological Systems",epaRegNum:"",rate:"1000",rateUnit:"insects/plant",volumeApplied:"",volumeUnit:"gal",areaApplied:"300",applicationMethod:"Sachet release",targetPest:"Thrips (preventive biocontrol)",weatherTemp:"70",weatherWind:"0",weatherHumidity:"58",rei:"0",phi:"0",applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",notes:"Standard biocontrol release — clone room sachets replaced monthly"},
+        {id:"sl_003",date:"2026-07-01",type:"beneficial_release",spaceName:"Propagation / Clone Room",product:"Amblyseius cucumeris",manufacturer:"Koppert Biological Systems",epaRegNum:"",rate:"5",rateUnit:"insects/sqft",volumeApplied:"",volumeUnit:"gal",areaApplied:"300",applicationMethod:"Sachet release",targetPest:"Thrips (preventive biocontrol)",weatherTemp:"70",weatherWind:"0",weatherHumidity:"58",rei:"0",phi:"0",applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",notes:"Standard biocontrol release — clone room sachets replaced monthly"},
       ];
       for (const sl of sprayLogRaw) {
         await db.spray_log.upsert({...sl, id: uid(sl.id)});

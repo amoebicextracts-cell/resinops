@@ -208,15 +208,25 @@ function CocTab({items, setItems}) {
   const expiringSoon=allCocs.filter(c=>c.expiryDate&&Math.ceil((new Date(c.expiryDate)-new Date())/86400000)<30&&Math.ceil((new Date(c.expiryDate)-new Date())/86400000)>=0);
   const expired=allCocs.filter(c=>c.expiryDate&&new Date(c.expiryDate)<new Date()&&c.status!=="fail");
 
-  function saveCoc(){
+  async function saveCoc(){
     if(!cocForm.lotNum.trim()){setCocErr("Lot number required");return;}
     if(!cocItemId){setCocErr("Select an item");return;}
-    const newCoc={...cocForm,id:"coc_"+Date.now()};
-    setItems(prev=>prev.map(it=>it.id===cocItemId?{...it,cocs:[...(it.cocs||[]),newCoc]}:it));
-    setCocForm(null);setCocErr("");
+    const newCoc={...cocForm,id:crypto.randomUUID()};
+    const item = items.find(it=>it.id===cocItemId);
+    const updated = {...item, cocs:[...(item.cocs||[]),newCoc]};
+    try{
+      const saved = await db.inventory_items.upsert(updated);
+      setItems(prev=>prev.map(it=>it.id===saved.id?saved:it));
+      setCocForm(null);setCocErr("");
+    }catch(e){ setCocErr("Save failed: "+e.message); }
   }
-  function removeCoc(itemId,cocId){
-    setItems(prev=>prev.map(it=>it.id===itemId?{...it,cocs:(it.cocs||[]).filter(c=>c.id!==cocId)}:it));
+  async function removeCoc(itemId,cocId){
+    const item = items.find(it=>it.id===itemId);
+    const updated = {...item, cocs:(item.cocs||[]).filter(c=>c.id!==cocId)};
+    try{
+      const saved = await db.inventory_items.upsert(updated);
+      setItems(prev=>prev.map(it=>it.id===saved.id?saved:it));
+    }catch(e){ console.error("Remove CoC failed:",e); }
   }
 
   return(
