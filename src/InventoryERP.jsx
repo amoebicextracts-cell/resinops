@@ -377,8 +377,14 @@ export default function InventoryERP() {
   useEffect(()=>{
     async function load(){
       try{
-        const inv = await db.inventory_items.list();
+        const [inv, vnd, po] = await Promise.all([
+          db.inventory_items.list(),
+          db.vendors.list(),
+          db.purchase_orders.list(),
+        ]);
         setItems(inv);
+        setVendors(vnd);
+        setPOs(po);
       }catch(e){ console.error("InventoryERP load error:",e); }
       setLoading(false);
     }
@@ -389,30 +395,43 @@ export default function InventoryERP() {
   const setVF = (k,v) => setVendorForm(f=>({...f,[k]:v}));
 
   // Item CRUD
-  function saveItem() {
+  async function saveItem() {
     if (!itemForm.n?.trim()) { setErr("Enter an item name."); return; }
-    const item = { id:itemForm.id||"i"+Date.now(), n:itemForm.n.trim(), cat:itemForm.cat, uom:itemForm.uom,
+    const item = { id:itemForm.id||crypto.randomUUID(), n:itemForm.n.trim(), cat:itemForm.cat, uom:itemForm.uom,
       reorderAt:parseFloat(itemForm.reorderAt)||0, reorderQty:parseFloat(itemForm.reorderQty)||0,
       vm:itemForm.vm, notes:itemForm.notes||"",
       lots: itemForm.lots||[], lastCost: itemForm.lastCost||0 };
-    if (itemForm.id) setItems(p=>p.map(x=>x.id===itemForm.id?item:x));
-    else setItems(p=>[...p,item]);
-    setItemForm(null); setErr("");
+    try{
+      const saved = await db.inventory_items.upsert(item);
+      if (itemForm.id) setItems(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setItems(p=>[...p,saved]);
+      setItemForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function removeItem(id) { setItems(p=>p.filter(x=>x.id!==id)); }
+  async function removeItem(id) {
+    try{ await db.inventory_items.delete(id); setItems(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Delete failed:",e); }
+  }
 
   // Vendor CRUD
-  function saveVendor() {
+  async function saveVendor() {
     if (!vendorForm.n?.trim()) { setErr("Enter a vendor name."); return; }
-    const v = { id:vendorForm.id||"v"+Date.now(), ...vendorForm, n:vendorForm.n.trim() };
-    if (vendorForm.id) setVendors(p=>p.map(x=>x.id===vendorForm.id?v:x));
-    else setVendors(p=>[...p,v]);
-    setVendorForm(null); setErr("");
+    const v = { id:vendorForm.id||crypto.randomUUID(), ...vendorForm, n:vendorForm.n.trim() };
+    try{
+      const saved = await db.vendors.upsert(v);
+      if (vendorForm.id) setVendors(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setVendors(p=>[...p,saved]);
+      setVendorForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
+  }
+  async function removeVendor(id) {
+    try{ await db.vendors.delete(id); setVendors(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Delete failed:",e); }
   }
 
   // PO creation
   function openNewPO() {
-    setPoForm({id:"po"+Date.now(), poNum:"PO-"+String(pos.length+1).padStart(4,"0"),
+    setPoForm({id:crypto.randomUUID(), poNum:"PO-"+String(pos.length+1).padStart(4,"0"),
       vendorId:vendors[0]?.id||"", date:new Date().toISOString().split("T")[0],
       expectedDelivery:"", status:"draft",
       items:[], notes:""});
@@ -423,38 +442,49 @@ export default function InventoryERP() {
   function setPOLine(i,k,v) {
     setPoForm(f=>({...f, items:f.items.map((l,idx)=>idx===i?{...l,[k]:v}:l)}));
   }
-  function savePO() {
+  async function savePO() {
     if (!poForm.vendorId) { setErr("Select a vendor."); return; }
     if (!poForm.items.length) { setErr("Add at least one item."); return; }
-    const po = {...poForm, items:poForm.items.map(l=>({...l, qty:parseFloat(l.qty)||0, unitCost:parseFloat(l.unitCost)||0, receivedQty:0}))};
-    setPOs(p=>[...p.filter(x=>x.id!==po.id),po]);
-    setPoForm(null); setErr("");
+    const po = {...poForm, items:poForm.items.map(l=>({...l, qty:parseFloat(l.qty)||0, unitCost:parseFloat(l.unitCost)||0, receivedQty:l.receivedQty||0}))};
+    try{
+      const saved = await db.purchase_orders.upsert(po);
+      setPOs(p=>[...p.filter(x=>x.id!==saved.id),saved]);
+      setPoForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
 
   // Receive PO
   function openReceive(po) {
     setReceiveModal({po, lines: po.items.map(l=>({...l, receiveNow:String(Math.max(0,l.qty-(l.receivedQty||0)))}))});
   }
-  function confirmReceive() {
+  async function confirmReceive() {
     const {po, lines} = receiveModal;
     const newItems = [...items];
     const newPOItems = [...po.items];
+    const changedItemIdxs = new Set();
     lines.forEach((l,i) => {
       const qty = parseFloat(l.receiveNow)||0;
       if (!qty) return;
       const itemIdx = newItems.findIndex(x=>x.id===l.itemId);
       if (itemIdx>=0) {
-        const lot = { id:"lot"+Date.now()+i, date:po.date, qty, remaining:qty, costPerUnit:l.unitCost, poId:po.id };
+        const lot = { id:crypto.randomUUID(), date:po.date, qty, remaining:qty, costPerUnit:l.unitCost, poId:po.id };
         newItems[itemIdx] = {...newItems[itemIdx], lots:[...(newItems[itemIdx].lots||[]),lot], lastCost:l.unitCost };
+        changedItemIdxs.add(itemIdx);
       }
       newPOItems[i] = {...newPOItems[i], receivedQty:(newPOItems[i].receivedQty||0)+qty};
     });
     const allReceived = newPOItems.every(l => (l.receivedQty||0) >= l.qty);
     const anyReceived = newPOItems.some(l => (l.receivedQty||0) > 0);
     const status = allReceived?"received":anyReceived?"partial":"sent";
-    setPOs(p=>p.map(x=>x.id===po.id?{...x,items:newPOItems,status}:x));
-    setItems(newItems);
-    setReceiveModal(null);
+    try{
+      await Promise.all([
+        ...Array.from(changedItemIdxs).map(idx=>db.inventory_items.upsert(newItems[idx])),
+        db.purchase_orders.upsert({...po, items:newPOItems, status}),
+      ]);
+      setPOs(p=>p.map(x=>x.id===po.id?{...x,items:newPOItems,status}:x));
+      setItems(newItems);
+      setReceiveModal(null);
+    }catch(e){ setErr("Receive failed: "+e.message); }
   }
 
   // Manual stock adjustment
@@ -626,7 +656,7 @@ export default function InventoryERP() {
                         <td>{v.leadDays||"—"} days</td>
                         <td><div style={{display:"flex",gap:6}}>
                           <button className="erp-btn erp-secondary" style={{padding:"3px 7px",fontSize:10}} onClick={()=>{setVendorForm(v);setErr("");}}>Edit</button>
-                          <button className="erp-danger" onClick={()=>setVendors(p=>p.filter(x=>x.id!==v.id))}>✕</button>
+                          <button className="erp-danger" onClick={()=>removeVendor(v.id)}>✕</button>
                         </div></td>
                       </tr>
                     ))}

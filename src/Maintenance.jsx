@@ -74,12 +74,18 @@ export default function Maintenance() {
   useEffect(()=>{
     async function load(){
       try{
-        const [eq, lt]=await Promise.all([
+        const [eq, lt, wo, loto, vnd]=await Promise.all([
           db.equipment.list(),
           db.labor_types.list(),
+          db.work_orders.list(),
+          db.loto_log.list(),
+          db.vendors.list(),
         ]);
         setEquipment(eq);
         setLaborTypes(lt);
+        setWorkOrders(wo);
+        setLotoLog(loto);
+        setVendors(vnd);
       }catch(e){ console.error("Maintenance load error:",e); }
       setLoading(false);
     }
@@ -96,30 +102,42 @@ export default function Maintenance() {
 
   function openAddWO() { setForm({...EMPTY_WO}); setErr(""); }
   function openEditWO(wo) { setForm({...wo}); setErr(""); }
-  function saveWO() {
+  async function saveWO() {
     if (!form.title.trim()) { setErr("Enter a title."); return; }
     const lt = laborTypes.find(x=>x.id===form.laborTypeId);
     const laborCost = (parseFloat(form.laborHours)||0) * (lt?.rate||0);
     const totalCost = laborCost + (parseFloat(form.partsCost)||0);
-    const wo = { ...form, id: form.id || "wo"+Date.now(), laborCost, totalCost };
-    if (form.id) setWorkOrders(p=>p.map(x=>x.id===wo.id?wo:x));
-    else setWorkOrders(p=>[...p,wo]);
-    setForm(null); setErr("");
+    const wo = { ...form, id: form.id || crypto.randomUUID(), laborCost, totalCost };
+    try{
+      const saved = await db.work_orders.upsert(wo);
+      if (form.id) setWorkOrders(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setWorkOrders(p=>[...p,saved]);
+      setForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function removeWO(id) { setWorkOrders(p=>p.filter(x=>x.id!==id)); }
+  async function removeWO(id) {
+    try{ await db.work_orders.delete(id); setWorkOrders(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Delete failed:",e); }
+  }
 
   function openAddLoto() { setLotoForm({...EMPTY_LOTO}); setErr(""); }
   function openEditLoto(l) { setLotoForm({...l}); setErr(""); }
-  function saveLoto() {
+  async function saveLoto() {
     if (!lotoForm.equipId) { setErr("Select the equipment being locked out."); return; }
     if (!lotoForm.lockedBy.trim()) { setErr("Enter the technician applying lockout."); return; }
     const status = lotoForm.verifiedSafe && lotoForm.reenergizedBy ? "closed" : "open";
-    const rec = { ...lotoForm, id: lotoForm.id || "loto"+Date.now(), status };
-    if (lotoForm.id) setLotoLog(p=>p.map(x=>x.id===rec.id?rec:x));
-    else setLotoLog(p=>[...p,rec]);
-    setLotoForm(null); setErr("");
+    const rec = { ...lotoForm, id: lotoForm.id || crypto.randomUUID(), status };
+    try{
+      const saved = await db.loto_log.upsert(rec);
+      if (lotoForm.id) setLotoLog(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setLotoLog(p=>[...p,saved]);
+      setLotoForm(null); setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function removeLoto(id) { setLotoLog(p=>p.filter(x=>x.id!==id)); }
+  async function removeLoto(id) {
+    try{ await db.loto_log.delete(id); setLotoLog(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Delete failed:",e); }
+  }
 
   const openWOs = workOrders.filter(w=>w.status!=="resolved");
   const openLOTOs = lotoLog.filter(l=>l.status==="open");

@@ -43,6 +43,10 @@ const LS_KEYS = {
   labor_types:        'resinops_labor_types',
   import_history:     'resinops_import_history',
   employees:          'resinops_employees',
+  vendors:            'resinops_vendors_v2',
+  purchase_orders:    'resinops_purchase_orders',
+  work_orders:        'resinops_work_orders',
+  loto_log:           'resinops_loto_log',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

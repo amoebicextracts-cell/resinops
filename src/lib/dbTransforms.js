@@ -27,9 +27,13 @@ const SCHEMAS = {
   skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active'],
   boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines'],
   sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id'],
-  inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots'],
+  inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','notes'],
   import_history: ['id','created_at','facility_id','imported_by','data_type','file_name','record_count','status','error_message','raw_preview'],
+  vendors: ['id','created_at','updated_at','facility_id','name','vendor_type','contact','phone','email','lead_days','notes'],
+  purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],
+  work_orders: ['id','created_at','updated_at','facility_id','title','category','equipment_id','severity','reported_by','reported_date','status','assigned_to','down_start','down_end','labor_type_id','labor_hours','parts_cost','vendor_id','description','resolution_notes','labor_cost','total_cost'],
+  loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -302,6 +306,7 @@ const FIELD_OVERRIDES = {
     reorderAt: 'reorder_at',
     reorderQty: 'reorder_qty',
     requiresCoc: 'requires_coc',
+    lastCost: 'last_cost',
   },
   labor_types: {
     hourlyRate: 'hourly_rate',
@@ -317,6 +322,41 @@ const FIELD_OVERRIDES = {
     recordCount: 'record_count',
     errorMessage: 'error_message',
     rawPreview: 'raw_preview',
+  },
+  vendors: {
+    n: 'name',
+    vendorType: 'vendor_type',
+    leadDays: 'lead_days',
+  },
+  purchase_orders: {
+    poNum: 'po_num',
+    vendorId: 'vendor_id',
+    date: 'order_date',
+    expectedDelivery: 'expected_delivery',
+  },
+  work_orders: {
+    cat: 'category',
+    equipId: 'equipment_id',
+    reportedBy: 'reported_by',
+    reportedDate: 'reported_date',
+    assignedTo: 'assigned_to',
+    downStart: 'down_start',
+    downEnd: 'down_end',
+    laborTypeId: 'labor_type_id',
+    laborHours: 'labor_hours',
+    partsCost: 'parts_cost',
+    vendorId: 'vendor_id',
+    resolutionNotes: 'resolution_notes',
+    laborCost: 'labor_cost',
+    totalCost: 'total_cost',
+  },
+  loto_log: {
+    equipId: 'equipment_id',
+    lockedBy: 'locked_by',
+    lockTime: 'lock_time',
+    reenergizedBy: 'reenergized_by',
+    reenergizeTime: 'reenergize_time',
+    verifiedSafe: 'verified_safe',
   },
 };
 
