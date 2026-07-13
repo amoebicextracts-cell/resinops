@@ -760,20 +760,31 @@ export default function DataManager(){
     setClearLoading(true);
     setStatusMsg("Clearing all data…");
     try{
+      let stillFailing = [];
       if (isSupabaseEnabled) {
         const fid = getCurrentFacility();
-        const tablesToClear = TABLE_NAMES.filter(t => t !== "facilities");
-        for (const table of tablesToClear) {
-          try{
+        let remaining = TABLE_NAMES.filter(t => t !== "facilities");
+        // Multi-pass: some tables can't be cleared until other tables that
+        // reference them (foreign keys) are cleared first. Rather than hand-map
+        // every dependency, just retry whatever's left a few times — each pass
+        // clears whatever it can, so dependency order resolves itself.
+        for (let pass=0; pass<6 && remaining.length>0; pass++){
+          const failedThisPass = [];
+          for (const table of remaining) {
             const q = supabase.from(table).delete();
-            if (fid) await q.eq("facility_id", fid);
-            else await q.neq("id", "00000000-0000-0000-0000-000000000000"); // delete-all fallback if no facility context
-          }catch(e){ console.warn("Clear failed for table "+table+":", e.message); }
+            const { error } = fid ? await q.eq("facility_id", fid) : await q.neq("id","00000000-0000-0000-0000-000000000000");
+            if (error) failedThisPass.push(table);
+          }
+          remaining = failedThisPass;
         }
+        stillFailing = remaining;
+        if (stillFailing.length) console.warn("Could not fully clear these tables after retries:", stillFailing);
       }
       const keys = Object.keys(localStorage).filter(k=>k.startsWith("resinops_"));
       keys.forEach(k=>localStorage.removeItem(k));
-      setStatusMsg("✓ All ResinOps data cleared (Supabase + localStorage) — ready for a fresh demo load. Refresh any open module to see it clear.");
+      setStatusMsg(stillFailing.length
+        ? "⚠ Cleared most data, but these tables wouldn't fully clear even after retries: "+stillFailing.join(", ")+" — check the console for details."
+        : "✓ All ResinOps data cleared (Supabase + localStorage) — ready for a fresh demo load. Refresh any open module to see it clear.");
     }catch(e){
       console.error("Clear all error:", e);
       setStatusMsg("✗ Clear failed: "+e.message+" — some tables may have partially cleared.");

@@ -28,7 +28,6 @@ const LS_KEYS = {
   tc_vessels:         'resinops_tc_vessels',
   production_batches: 'resinops_prod',
   qc_tests:           'resinops_qc_tests',
-  qc_holds:           'resinops_qc_holds',
   cultivation_inputs: 'resinops_cult_inputs',
   spray_log:          'resinops_spray_log',
   gmp_sops:           'resinops_sops',
