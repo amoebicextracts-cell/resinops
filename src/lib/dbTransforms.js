@@ -17,7 +17,7 @@ const SCHEMAS = {
   clone_schedules: ['id','created_at','updated_at','facility_id','strain_name','mother_id','cut_date','root_days','veg_weeks','target_room','cut_qty','status','notes','space_id','planned_plants','harvest_date'],
   mother_plants: ['id','created_at','updated_at','facility_id','strain_name','room_name','established_date','cycle_weeks','avg_cuts_per_cycle','avg_root_rate_pct','status','metrc_tag','notes','room_id','introduced_date','plant_count','cuts_per_plant_per_cycle','cut_log'],
   tc_vessels: ['id','created_at','updated_at','facility_id','accession_id','strain_name','stage','vessel_type','media_formula','transfer_date','expected_transfer','transfer_count','contaminated','notes'],
-  cultivation_inputs: ['id','created_at','facility_id','application_date','room_name','grow_space_id','input_type','product_name','manufacturer','rate','rate_unit','area_treated','applied_by','notes','epa_reg_num','volume_applied','volume_unit','cost_per_unit','total_cost','rei_hours','phi_days','application_method','target_pest','temp_f','wind_mph','humidity_pct','species','supplier','release_rate','release_unit'],
+  cultivation_inputs: ['id','created_at','facility_id','application_date','room_name','grow_space_id','input_type','product_name','manufacturer','rate','rate_unit','area_treated','applied_by','notes','epa_reg_num','volume_applied','volume_unit','cost_per_unit','total_cost','rei_hours','phi_days','application_method','target_pest','temp_f','wind_mph','humidity_pct','species','supplier','release_rate','release_unit','applicator_name','applicator_license_num'],
   spray_log: ['id','created_at','facility_id','application_date','applicator_name','applicator_license','room_name','product_name','epa_reg_number','target_pest','application_method','rate','rate_unit','area_treated','area_unit','rei_hours','phi_days','temp_f','wind_mph','humidity_pct','notes','spray_type','space_id','manufacturer','volume_applied','volume_unit','applicator_id'],
   equipment: ['id','created_at','updated_at','facility_id','name','category','manufacturer','model','serial_number','purchase_date','warranty_expiry','location','status','pm_interval_days','last_pm_date','next_pm_date','notes','asset_tag','purchase_price','vendor_id'],
   facility_map_spaces: ['id','created_at','updated_at','facility_id','name','space_type','sqft','current_batch_id','cleaning_interval_days','last_cleaned_date','status','notes'],
@@ -256,6 +256,8 @@ const FIELD_OVERRIDES = {
     supplier: 'supplier',
     releaseRate: 'release_rate',
     releaseUnit: 'release_unit',
+    applicatorName: 'applicator_name',
+    applicatorLicenseNum: 'applicator_license_num',
   },
   spray_log: {
     applicationDate: 'application_date',

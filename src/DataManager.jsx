@@ -643,20 +643,10 @@ export default function DataManager(){
         await db.employees.upsert({...e, id: uid(e.id)});
       }
 
-      // ── TEMP DIAGNOSTIC — remove after we find the bug ──────
-      console.log("DIAG: uid('gs_002') =", uid("gs_002"));
-      console.log("DIAG: uid('gs_009') =", uid("gs_009"));
-      try {
-        const diagSpaces = await db.grow_spaces.list();
-        console.log("DIAG: grow_spaces currently in DB:", JSON.stringify(diagSpaces.map(s=>({id:s.id, roomName:s.roomName}))));
-      } catch(e) {
-        console.log("DIAG: grow_spaces.list() failed:", e.message);
-      }
-
       // ── Cultivation Inputs ────────────────────────────────
       const cultivationInputsRaw = [
         {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:uid("gs_002"),spaceName:"FR6 — Black Maple Cycle 4",applicatorId:uid("emp_001"),applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
-        {id:"ci_002",date:"2026-06-25",type:"beneficial",spaceId:uid("gs_009"),spaceName:"Veg — Mixed Strains",applicatorId:uid("emp_002"),applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"5",releaseUnit:"insects/sqft",rate:"5",rateUnit:"insects/sqft",costPerUnit:"0.0225",totalCost:"6.75",notes:"Preventive thrips biocontrol release, clone room."},
+        {id:"ci_002",date:"2026-06-25",type:"beneficial",spaceId:uid("gs_009"),spaceName:"Veg — Mixed Strains",applicatorId:uid("emp_002"),applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"5",releaseUnit:"insects/sqft",rate:"5",rateUnit:"insects/sqft",areaApplied:"1200",costPerUnit:"0.0225",totalCost:"6.75",notes:"Preventive thrips biocontrol release, clone room."},
         {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:uid("gs_009"),spaceName:"Veg — Mixed Strains",applicatorId:uid("emp_001"),applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
       ];
       for (const ci of cultivationInputsRaw) {
