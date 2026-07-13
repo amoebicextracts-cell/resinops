@@ -637,9 +637,9 @@ export default function DataManager(){
 
       // ── Cultivation Inputs ────────────────────────────────
       const cultivationInputsRaw = [
-        {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:uid("gs_002"),applicatorId:uid("emp_001"),product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
-        {id:"ci_002",date:"2026-06-25",type:"beneficial_insect",spaceId:uid("gs_009"),applicatorId:uid("emp_002"),species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"5",releaseUnit:"insects/sqft",notes:"Preventive thrips biocontrol release, clone room."},
-        {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:uid("gs_009"),applicatorId:uid("emp_001"),product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
+        {id:"ci_001",date:"2026-06-20",type:"nutrient",spaceId:uid("gs_002"),spaceName:"FR6 — Black Maple Cycle 4",applicatorId:uid("emp_001"),applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",product:"Athena Pro Grow",manufacturer:"Athena",rate:"3",rateUnit:"g/gal",volumeApplied:"200",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.85",totalCost:"370",applicationMethod:"Fertigation",notes:"Standard weekly feed, Flower Room 6, week 5 PK protocol."},
+        {id:"ci_002",date:"2026-06-25",type:"beneficial",spaceId:uid("gs_009"),spaceName:"Veg — Mixed Strains",applicatorId:uid("emp_002"),applicatorName:"Sofia Ramirez",applicatorLicenseNum:"NY-PEST-2291",species:"Amblyseius cucumeris",supplier:"Koppert Biological Systems",releaseRate:"5",releaseUnit:"insects/sqft",rate:"5",rateUnit:"insects/sqft",costPerUnit:"0.0225",totalCost:"6.75",notes:"Preventive thrips biocontrol release, clone room."},
+        {id:"ci_003",date:"2026-07-01",type:"nutrient",spaceId:uid("gs_009"),spaceName:"Veg — Mixed Strains",applicatorId:uid("emp_001"),applicatorName:"Marcus Webb",applicatorLicenseNum:"NY-PEST-1847",product:"Athena Pro Core",manufacturer:"Athena",rate:"2.5",rateUnit:"g/gal",volumeApplied:"180",volumeUnit:"gal",areaApplied:"1200",costPerUnit:"1.60",totalCost:"288",applicationMethod:"Fertigation",notes:"Veg-stage feed, Veg Room."},
       ];
       for (const ci of cultivationInputsRaw) {
         await db.cultivation_inputs.upsert({...ci, id: uid(ci.id)});
@@ -676,13 +676,15 @@ export default function DataManager(){
       // ── Purchase Orders (mix of received and pending, to show the workflow) ──
       const purchaseOrdersRaw = [
         {id:"po_001",poNum:"PO-0001",vendorId:uid("vnd_001"),date:"2026-06-10",expectedDelivery:"2026-06-17",status:"received",
-          items:[{itemId:uid("inv_001"),qty:5000,unitCost:0.38,receivedQty:5000},{itemId:uid("inv_002"),qty:10000,unitCost:0.08,receivedQty:10000}],notes:"Standard packaging restock."},
+          items:[{itemId:uid("inv_001"),qty:5000,unitCost:0.38,receivedQty:5000},{itemId:uid("inv_002"),qty:10000,unitCost:0.08,receivedQty:10000},{itemId:uid("inv_003"),qty:20000,unitCost:0.09,receivedQty:20000}],notes:"Standard packaging restock."},
         {id:"po_002",poNum:"PO-0002",vendorId:uid("vnd_002"),date:"2026-06-15",expectedDelivery:"2026-06-20",status:"received",
           items:[{itemId:uid("inv_004"),qty:50,unitCost:42.00,receivedQty:50},{itemId:uid("inv_005"),qty:50,unitCost:38.00,receivedQty:50}],notes:"Monthly nutrient restock."},
         {id:"po_003",poNum:"PO-0003",vendorId:uid("vnd_004"),date:"2026-06-05",expectedDelivery:"2026-06-19",status:"received",
           items:[{itemId:uid("inv_006"),qty:500,unitCost:3.20,receivedQty:500}],notes:"Quarterly hydrocarbon solvent order — CoC required on receipt."},
         {id:"po_004",poNum:"PO-0004",vendorId:uid("vnd_003"),date:"2026-07-08",expectedDelivery:"2026-07-15",status:"sent",
           items:[{itemId:uid("inv_009"),qty:200,unitCost:4.50,receivedQty:0}],notes:"Restocking predatory mite sachets — awaiting delivery."},
+        {id:"po_005",poNum:"PO-0005",vendorId:uid("vnd_003"),date:"2026-06-01",expectedDelivery:"2026-06-08",status:"received",
+          items:[{itemId:uid("inv_007"),qty:5,unitCost:68.00,receivedQty:5},{itemId:uid("inv_008"),qty:5,unitCost:54.00,receivedQty:5},{itemId:uid("inv_009"),qty:100,unitCost:4.50,receivedQty:100}],notes:"Initial IPM chemical + sachet stock — prior to PO-0004 restock."},
       ];
       for (const po of purchaseOrdersRaw) {
         await db.purchase_orders.upsert({...po, id: uid(po.id)});
@@ -694,9 +696,13 @@ export default function DataManager(){
       const receivedLots = [
         {itemFakeId:"inv_001", poFakeId:"po_001", qty:5000, cost:0.38, date:"2026-06-17"},
         {itemFakeId:"inv_002", poFakeId:"po_001", qty:10000, cost:0.08, date:"2026-06-17"},
+        {itemFakeId:"inv_003", poFakeId:"po_001", qty:20000, cost:0.09, date:"2026-06-17"},
         {itemFakeId:"inv_004", poFakeId:"po_002", qty:50, cost:42.00, date:"2026-06-20"},
         {itemFakeId:"inv_005", poFakeId:"po_002", qty:50, cost:38.00, date:"2026-06-20"},
         {itemFakeId:"inv_006", poFakeId:"po_003", qty:500, cost:3.20, date:"2026-06-19"},
+        {itemFakeId:"inv_007", poFakeId:"po_005", qty:5, cost:68.00, date:"2026-06-08"},
+        {itemFakeId:"inv_008", poFakeId:"po_005", qty:5, cost:54.00, date:"2026-06-08"},
+        {itemFakeId:"inv_009", poFakeId:"po_005", qty:100, cost:4.50, date:"2026-06-08"},
       ];
       // Refetch items so we can safely merge lots onto the just-created records
       const allInvItems = await db.inventory_items.list();

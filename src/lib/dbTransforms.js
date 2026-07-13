@@ -154,6 +154,7 @@ const FIELD_OVERRIDES = {
   grow_spaces: {
     roomId: 'room_id',
     roomName: 'room_name',
+    name: 'room_name',
     cloneDate: 'clone_date',
     vegWeeks: 'veg_weeks',
     flowerWeeks: 'flower_weeks',
