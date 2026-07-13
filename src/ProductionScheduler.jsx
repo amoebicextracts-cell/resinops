@@ -1086,7 +1086,7 @@ const CSS=`
 `;
 
 const EMPTY={
-  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",
+  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",inputMaterialType:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
   overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",vapeInputTerpPct:"0",
   additiveTHC:"35",additiveTerpPct:"50",targetBlendTHC:"85",
@@ -1115,18 +1115,27 @@ function loadHarvestBatches(){ return []; } // loaded async now
 const GRADE_LABELS={a:"A-Bud",b:"B-Bud",c:"C-Bud",trim:"Trim"};
 
 export default function ProductionScheduler(){
-  const harvestBatches = loadHarvestBatches();
   const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
-  const availableHarvest = harvestBatches.filter(hb => hb.status==="done" && Object.values(hb.grades||{}).some(g=>parseFloat(g.weight)>0));
-  function selectHarvestGrade(hbId, grade) {
-    const hb = harvestBatches.find(h=>h.id===parseInt(hbId));
-    if (!hb) return;
-    const g = hb.grades[grade];
-    if (!g) return;
-    setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags}));
-  }
   const[batches,setBatches]=useState([]);
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
+  const availableHarvest = harvestBatchesData.filter(hb => hb.status==="done" && (hb.isFreshFrozen || Object.values(hb.grades||{}).some(g=>parseFloat(g.weight)>0)));
+  function harvestInputMaterialType(hb, grade) {
+    if (!hb) return "";
+    if (hb.isFreshFrozen) return "Fresh Frozen";
+    if (grade === "trim") return "Dry Trim";
+    return "Dry Bud";
+  }
+  function selectHarvestGrade(hbId, grade) {
+    const hb = harvestBatchesData.find(h=>h.id===hbId);
+    if (!hb) return;
+    if (hb.isFreshFrozen) {
+      setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:"fresh_frozen", inputAmt:String(hb.wetWeightG||0), unit:"g", strains: hb.strainName, inputMaterialType:"Fresh Frozen"}));
+      return;
+    }
+    const g = hb.grades[grade];
+    if (!g) return;
+    setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags, inputMaterialType: harvestInputMaterialType(hb, grade)}));
+  }
   const[inventoryData,setInventoryData]=useState([]);
   const[loading,setLoading]=useState(true);
 
@@ -1274,7 +1283,7 @@ export default function ProductionScheduler(){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[]});
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",inputSource:b.harvestBatchId?"harvest":"manual",inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[]});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
@@ -1290,7 +1299,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
 
     const mainId=formMode==="edit"?editId:Date.now();
     const mainBatch={...base,id:mainId};
@@ -1387,7 +1396,7 @@ export default function ProductionScheduler(){
               {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
               <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
               <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
-              {isFlowerCat(form.cat) && availableHarvest.length>0 && (
+              {(isFlowerCat(form.cat)||form.cat==="extract") && availableHarvest.length>0 && (
                 <div style={{gridColumn:"span 2"}}>
                   <label className="ps-lbl">Input source</label>
                   <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -1396,14 +1405,25 @@ export default function ProductionScheduler(){
                   </div>
                   {form.inputSource==="harvest" && (
                     <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
-                      <select className="ps-sel" value={form.harvestBatchId} onChange={e=>setForm(f=>({...f,harvestBatchId:e.target.value}))}>
+                      <select className="ps-sel" value={form.harvestBatchId} onChange={e=>{
+                        const hbId=e.target.value;
+                        const hb=harvestBatchesData.find(h=>h.id===hbId);
+                        if (hb?.isFreshFrozen) selectHarvestGrade(hbId,"fresh_frozen");
+                        else setForm(f=>({...f,harvestBatchId:hbId,harvestGrade:"",inputMaterialType:""}));
+                      }}>
                         <option value="">— Select harvest batch —</option>
-                        {availableHarvest.map(hb=><option key={hb.id} value={hb.id}>{hb.strainName} — {hb.spaceName||"manual"} ({fmtF(new Date(hb.d+"T12:00:00"))})</option>)}
+                        {availableHarvest.map(hb=><option key={hb.id} value={hb.id}>{hb.strainName} — {hb.spaceName||"manual"} ({fmtF(new Date(hb.d+"T12:00:00"))}){hb.isFreshFrozen?" [Fresh Frozen]":""}</option>)}
                       </select>
-                      <select className="ps-sel" value={form.harvestGrade} onChange={e=>selectHarvestGrade(form.harvestBatchId,e.target.value)} disabled={!form.harvestBatchId}>
-                        <option value="">— Grade —</option>
-                        {form.harvestBatchId && harvestBatches.find(h=>h.id===parseInt(form.harvestBatchId)) && Object.entries(harvestBatches.find(h=>h.id===parseInt(form.harvestBatchId)).grades).filter(([k,g])=>parseFloat(g.weight)>0).map(([k,g])=><option key={k} value={k}>{GRADE_LABELS[k]} ({g.weight}g)</option>)}
-                      </select>
+                      {(()=>{
+                        const selectedHb=harvestBatchesData.find(h=>h.id===form.harvestBatchId);
+                        if (selectedHb?.isFreshFrozen) return <div className="ps-inp" style={{display:"flex",alignItems:"center",color:"var(--accent-2)",fontWeight:600}}>Fresh Frozen ({selectedHb.wetWeightG||0}g)</div>;
+                        return (
+                          <select className="ps-sel" value={form.harvestGrade} onChange={e=>selectHarvestGrade(form.harvestBatchId,e.target.value)} disabled={!form.harvestBatchId}>
+                            <option value="">— Grade —</option>
+                            {selectedHb && Object.entries(selectedHb.grades||{}).filter(([k,g])=>parseFloat(g.weight)>0).map(([k,g])=><option key={k} value={k}>{GRADE_LABELS[k]} ({g.weight}g)</option>)}
+                          </select>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

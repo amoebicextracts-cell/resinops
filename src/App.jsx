@@ -22,6 +22,7 @@ class ErrorBoundary extends Component {
 }
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
+import YieldDashboard from "./YieldDashboard.jsx";
 import HarvestBatches from "./HarvestBatches.jsx";
 import Remediation from "./Remediation.jsx";
 import GrowMap from "./GrowMap.jsx";
@@ -270,6 +271,14 @@ const MODULES = [
     description: "Track every production batch from intake to live inventory",
     isScheduler: true,
     sectionBreak: "Processing",
+  },
+  {
+    id: "yield-dashboard",
+    label: "Yield Dashboard",
+    icon: "📊",
+    available: true,
+    description: "Cultivation and extraction yield per strain, segmented by Fresh Frozen / Dry Bud / Dry Trim input material",
+    isScheduler: true,
   },
   {
     id: "remediation",
@@ -1245,7 +1254,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1416,6 +1425,7 @@ export default function ResinOps() {
             {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
             {activeModule === "production" ? <ProductionScheduler /> : null}
+            {activeModule === "yield-dashboard" ? <YieldDashboard /> : null}
             {activeModule === "harvest" ? <HarvestBatches /> : null}
             {activeModule === "remediation" ? <Remediation /> : null}
             {activeModule === "grow-map" ? <GrowMap /> : null}

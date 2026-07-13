@@ -124,14 +124,31 @@ export default function HarvestBatches() {
       labName: r.labName||r.lab_name||r["Lab Name"]||"",
       thca: r.thca||r.thca_pct||r["THCa %"]||r["THCa"]||"",
       notes: r.notes||r["Notes"]||"",
-      grades: (r.grades && !Array.isArray(r.grades)) ? r.grades : {
-        aa:{weight: r.grade_aa||r.grade_aa_g||r["Grade AA (g)"]||"", s2s:""},
-        a: {weight: r.grade_a||r.grade_a_g||r["Grade A (g)"]||"", s2s:""},
-        b: {weight: r.grade_b||r.grade_b_g||r["Grade B (g)"]||"", s2s:""},
-        c: {weight: r.grade_c||r.grade_c_g||r["Grade C (g)"]||"", s2s:""},
-        trim:{weight: r.trim||r.trim_g||r["Trim (g)"]||"", s2s:""},
-        waste:{weight: r.waste||r.waste_g||r["Waste (g)"]||"", s2s:""},
-      },
+      isFreshFrozen: r.isFreshFrozen||r.is_fresh_frozen||false,
+      splitFromBatchId: r.splitFromBatchId||r.split_from_batch_id||"",
+      freshFrozenSplits: Array.isArray(r.freshFrozenSplits) ? r.freshFrozenSplits : (Array.isArray(r.fresh_frozen_splits) ? r.fresh_frozen_splits : []),
+      grades: (()=>{
+        const defaults = {
+          aa:{weight:"",s2s:""}, a:{weight:"",s2s:""}, b:{weight:"",s2s:""},
+          c:{weight:"",s2s:""}, trim:{weight:"",s2s:""}, waste:{weight:"",s2s:""},
+        };
+        const legacyFallback = {
+          aa:{weight: r.grade_aa||r.grade_aa_g||r["Grade AA (g)"]||"", s2s:""},
+          a: {weight: r.grade_a||r.grade_a_g||r["Grade A (g)"]||"", s2s:""},
+          b: {weight: r.grade_b||r.grade_b_g||r["Grade B (g)"]||"", s2s:""},
+          c: {weight: r.grade_c||r.grade_c_g||r["Grade C (g)"]||"", s2s:""},
+          trim:{weight: r.trim||r.trim_g||r["Trim (g)"]||"", s2s:""},
+          waste:{weight: r.waste||r.waste_g||r["Waste (g)"]||"", s2s:""},
+        };
+        const incoming = (r.grades && !Array.isArray(r.grades) && Object.keys(r.grades).length>0) ? r.grades : null;
+        if (!incoming) return legacyFallback;
+        // Merge over full defaults so every key is always present, even for
+        // rows saved before the grades jsonb column existed (which default
+        // to {}) or rows only missing a subset of grade keys.
+        const merged = {...defaults};
+        Object.keys(incoming).forEach(k=>{ merged[k] = {weight:"", s2s:"", ...incoming[k]}; });
+        return merged;
+      })(),
       steps: Array.isArray(r.steps) && r.steps.length > 0
         ? r.steps
         : STEPS_DEFAULT.map(s=>({...s})),
@@ -165,6 +182,7 @@ export default function HarvestBatches() {
       trimmerCount:"4", gramsPerTrimmerDay:"350",
       trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},
       grades: { aa:{weight:"",s2s:""}, a:{weight:"",s2s:""}, b:{weight:"",s2s:""}, c:{weight:"",s2s:""}, trim:{weight:"",s2s:""}, waste:{weight:"",s2s:""} },
+      freshFrozenSplits: [],
       status:"open",
     };
   }
@@ -197,20 +215,60 @@ export default function HarvestBatches() {
     if (!form.strainName.trim()) { setErr("Enter or select a strain."); return false; }
     if (!form.d) { setErr("Select a harvest date."); return false; }
     if (!form.wetWeightG || parseFloat(form.wetWeightG)<=0) { setErr("Enter wet weight."); return false; }
+    const ffTotal = (form.freshFrozenSplits||[]).reduce((s,x)=>s+(parseFloat(x.weightG)||0),0);
+    if (ffTotal > parseFloat(form.wetWeightG)) { setErr("Fresh Frozen allocations ("+ffTotal.toLocaleString()+"g) exceed total wet weight ("+parseFloat(form.wetWeightG).toLocaleString()+"g)."); return false; }
     return true;
   }
 
   async function saveBatch() {
     if (!validate()) return;
-    const batch = { ...form, id: formMode==="edit" ? form.id : crypto.randomUUID(),
+    const parentId = formMode==="edit" ? form.id : crypto.randomUUID();
+    const batch = { ...form, id: parentId,
       plants: parseInt(form.plants)||0, wetWeightG: parseFloat(form.wetWeightG)||0,
       spaceName: selSpace?.name||"", totalDryWeight,
       status: totalDryWeight>0 ? "done" : "open" };
     try {
+      // Process Fresh Frozen splits first — each one creates or syncs its own
+      // independent harvest batch record, ready for extraction with no
+      // drying/bucking/trim steps. METRC tag stays blank until the METRC API
+      // integration is live; that's a future update to this same record.
+      const updatedSplits = [];
+      const childBatches = [];
+      for (const split of (form.freshFrozenSplits||[])) {
+        const childId = split.splitBatchId || crypto.randomUUID();
+        const child = {
+          id: childId,
+          strainName: form.strainName,
+          spaceId: form.spaceId,
+          spaceName: selSpace?.name||"",
+          plants: 0,
+          d: split.dateAllocated || form.d,
+          wetWeightG: parseFloat(split.weightG)||0,
+          totalDryWeight: 0,
+          status: "done",
+          isFreshFrozen: true,
+          splitFromBatchId: parentId,
+          grades: {},
+          notes: split.notes||"",
+          metrcTag: split.metrcTag||"",
+          steps: [],
+        };
+        const savedChild = await db.harvest_batches.upsert(child);
+        childBatches.push(normalizeBatch(savedChild));
+        updatedSplits.push({...split, splitBatchId: childId});
+      }
+      batch.freshFrozenSplits = updatedSplits;
+
       const saved = await db.harvest_batches.upsert(batch);
       const normalized = normalizeBatch(saved);
-      if (formMode==="edit") setBatches(p=>p.map(b=>b.id===normalized.id?normalized:b));
-      else setBatches(p=>[...p,normalized]);
+      setBatches(p=>{
+        let next = formMode==="edit" ? p.map(b=>b.id===normalized.id?normalized:b) : [...p,normalized];
+        childBatches.forEach(cb=>{
+          const idx = next.findIndex(b=>b.id===cb.id);
+          next = idx>=0 ? next.map(b=>b.id===cb.id?cb:b) : [...next,cb];
+        });
+        return next;
+      });
       autoPopulateStrains(form.strainName, { source: "Harvest Batches" });
       closeForm();
     } catch(e) { setErr("Save failed: "+e.message); }
@@ -286,6 +344,44 @@ export default function HarvestBatches() {
 
             <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10}}>
               <div><label className="hb-lbl">Wet weight at harvest (grams)</label><input type="number" min="0" step="1" className="hb-inp" value={form.wetWeightG} onChange={e=>setF("wetWeightG",e.target.value)} placeholder="22700" /><div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>{form.wetWeightG?((parseFloat(form.wetWeightG)||0)/LBS_TO_G).toFixed(1)+" lbs":""}</div></div>
+            </div>
+
+            {/* Fresh Frozen Allocation */}
+            <div className="hb-box">
+              <div className="hb-box-t">Fresh Frozen Allocation</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>Split off a portion (or all) of this harvest's wet weight for fresh frozen processing — skips drying/bucking/trim entirely and becomes its own harvest batch, ready to select as an extraction input. Leave empty if none of this harvest goes fresh frozen.</div>
+              {(form.freshFrozenSplits||[]).map((s,idx)=>{
+                const linkedBatch = batches.find(b=>b.id===s.splitBatchId);
+                return(
+                  <div key={s.id||idx} style={{background:"rgba(80,180,220,0.06)",border:"1px solid rgba(80,180,220,0.2)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#78c8f0",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                        Fresh Frozen Split {idx+1}{linkedBatch?" — Harvest Batch created":""}
+                      </div>
+                      <button style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:6,color:"var(--danger)",fontSize:11,padding:"3px 8px",cursor:"pointer"}}
+                        onClick={()=>{const fs=[...(form.freshFrozenSplits||[])];fs.splice(idx,1);setF("freshFrozenSplits",fs);}}>Remove</button>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:8}}>
+                      <div><label className="hb-lbl">Date allocated</label><input type="date" className="hb-inp" value={s.dateAllocated||""} onChange={e=>{const fs=[...(form.freshFrozenSplits||[])];fs[idx]={...fs[idx],dateAllocated:e.target.value};setF("freshFrozenSplits",fs);}} /></div>
+                      <div><label className="hb-lbl">Weight (g)</label><input type="number" min="0" step="1" className="hb-inp" value={s.weightG||""} onChange={e=>{const fs=[...(form.freshFrozenSplits||[])];fs[idx]={...fs[idx],weightG:e.target.value};setF("freshFrozenSplits",fs);}} /></div>
+                      <div><label className="hb-lbl">Notes</label><input className="hb-inp" value={s.notes||""} onChange={e=>{const fs=[...(form.freshFrozenSplits||[])];fs[idx]={...fs[idx],notes:e.target.value};setF("freshFrozenSplits",fs);}} placeholder="Which plants/rows, freezer location…" /></div>
+                    </div>
+                    {linkedBatch && <div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>→ Harvest Batch created · METRC tag: {linkedBatch.metrcTag||"pending METRC API integration"}</div>}
+                  </div>
+                );
+              })}
+              <button style={{width:"100%",padding:"7px",background:"rgba(80,180,220,0.08)",border:"1px dashed rgba(80,180,220,0.4)",borderRadius:8,color:"#78c8f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
+                onClick={()=>{const fs=[...(form.freshFrozenSplits||[])];fs.push({id:crypto.randomUUID(),dateAllocated:form.d,weightG:"",notes:"",splitBatchId:""});setF("freshFrozenSplits",fs);}}>
+                + Add Fresh Frozen split
+              </button>
+              {(()=>{
+                const ffTotal=(form.freshFrozenSplits||[]).reduce((a,x)=>a+(parseFloat(x.weightG)||0),0);
+                const remaining=(parseFloat(form.wetWeightG)||0)-ffTotal;
+                if(ffTotal<=0) return null;
+                return(<div style={{fontSize:11,marginTop:8,color:remaining<0?"var(--danger)":"var(--accent-2)"}}>
+                  Fresh Frozen allocated: {ffTotal.toLocaleString()}g · Remaining for drying: {remaining.toLocaleString()}g
+                </div>);
+              })()}
             </div>
 
             {/* Bucking machine */}
@@ -403,8 +499,8 @@ export default function HarvestBatches() {
               {GRADES.map(g=>(
                 <div key={g.k} style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:10,marginBottom:8,alignItems:"center"}}>
                   <span className={"hb-grade-pill grade-"+g.k}>{g.l}</span>
-                  <input type="number" min="0" step="0.1" className="hb-inp" placeholder="Weight (g)" value={form.grades[g.k].weight} onChange={e=>setGrade(g.k,"weight",e.target.value)} />
-                  <input className="hb-inp" placeholder="S2S package tag" value={form.grades[g.k].s2s} onChange={e=>setGrade(g.k,"s2s",e.target.value)} />
+                  <input type="number" min="0" step="0.1" className="hb-inp" placeholder="Weight (g)" value={form.grades[g.k]?.weight||""} onChange={e=>setGrade(g.k,"weight",e.target.value)} />
+                  <input className="hb-inp" placeholder="S2S package tag" value={form.grades[g.k]?.s2s||""} onChange={e=>setGrade(g.k,"s2s",e.target.value)} />
                 </div>
               ))}
               {totalDryWeight>0 && <div style={{fontSize:13,fontWeight:600,color:"var(--accent-2)",marginTop:6}}>Total dry weight: {totalDryWeight.toFixed(1)}g ({(totalDryWeight/LBS_TO_G).toFixed(2)} lbs)</div>}
@@ -435,7 +531,7 @@ export default function HarvestBatches() {
                   {batches.map(b=>(
                     <tr key={b.id}>
                       <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-3)"}}>{b.id||"—"}</td>
-                      <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}</td>
+                      <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}{b.isFreshFrozen&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(80,180,220,0.15)",color:"#78c8f0"}}>FRESH FROZEN</span>}</td>
                       <td>{b.spaceName||"—"}</td>
                       <td>{b.plants}</td>
                       <td>{b.wetWeightG?`${parseFloat(b.wetWeightG)||0}g `:<span style={{color:"var(--text-3)"}}>—</span>}{b.wetWeightG?<span style={{fontSize:10,color:"var(--text-3)"}}>({((parseFloat(b.wetWeightG)||0)/LBS_TO_G).toFixed(1)} lbs)</span>:null}</td>
