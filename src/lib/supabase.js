@@ -3,9 +3,16 @@
 // src/lib/supabase.js
 // ============================================================
 import { createClient } from '@supabase/supabase-js';
+import { isPasswordRecoveryUrl } from './auth.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Supabase consumes recovery tokens and clears the URL while the client is
+// initializing. Capture the intent first so React cannot miss the recovery
+// event and treat the temporary recovery session as a normal sign-in.
+export const passwordRecoveryFromInitialUrl = typeof window !== 'undefined'
+  && isPasswordRecoveryUrl(window.location.href);
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('ResinOps: Supabase env vars not set — running in localStorage mode');
