@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import { auth } from './lib/db.js'
-import { isSupabaseEnabled, setCurrentFacility, setCurrentFacilityRole, supabase } from './lib/supabase.js'
+import { isSupabaseEnabled, passwordRecoveryFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, supabase } from './lib/supabase.js'
 import { isPasswordRecoveryEvent } from './lib/auth.js'
 
 async function fetchAndSetFacility(userId) {
@@ -30,7 +30,7 @@ async function fetchAndSetFacility(userId) {
 
 function Root() {
   const [user, setUser] = useState(undefined); // undefined=loading
-  const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.pathname === '/reset-password');
+  const [passwordRecovery, setPasswordRecovery] = useState(passwordRecoveryFromInitialUrl);
   const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
