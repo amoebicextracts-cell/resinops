@@ -51,13 +51,14 @@ try {
 
     $secretMount = "type=bind,source=$temporaryDirectory,target=/run/resinops-secrets,readonly"
     $backupMount = "type=bind,source=$OutputDirectory,target=/backups"
+    $connectionCommand = 'cp /run/resinops-secrets/pgpass /tmp/pgpass && chmod 0600 /tmp/pgpass && export PGPASSFILE=/tmp/pgpass && exec "$@"'
     $dumpArguments = @(
         'run', '--rm',
         '--mount', $secretMount,
         '--mount', $backupMount,
         $DockerImage,
         'sh', '-c',
-        'cp /run/resinops-secrets/pgpass /tmp/pgpass && chmod 0600 /tmp/pgpass && export PGPASSFILE=/tmp/pgpass && exec "$@"',
+        $connectionCommand,
         'resinops-pg-dump',
         'pg_dump',
         '--host', $HostName,
@@ -77,6 +78,23 @@ try {
     & docker run --rm --mount "$backupMount,readonly" $DockerImage pg_restore --list "/backups/$backupName" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'The backup archive could not be read by pg_restore.' }
 
+    $rowCountSql = @'
+select json_build_object(
+  'facilities', (select count(*) from public.facilities),
+  'facility_members', (select count(*) from public.facility_members),
+  'profiles', (select count(*) from public.profiles),
+  'inventory_items', (select count(*) from public.inventory_items),
+  'production_batches', (select count(*) from public.production_batches),
+  'audit_logs', (select count(*) from public.audit_logs)
+)::text;
+'@
+    $rowCountOutput = & docker run --rm --mount $secretMount $DockerImage `
+        sh -c $connectionCommand resinops-psql `
+        psql --host $HostName --port $Port --username $User --dbname $Database `
+        --set ON_ERROR_STOP=1 --tuples-only --no-align --command $rowCountSql
+    if ($LASTEXITCODE -ne 0) { throw 'Core row counts could not be captured.' }
+    $rowCounts = ($rowCountOutput -join '').Trim() | ConvertFrom-Json
+
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $backupPath).Hash.ToLowerInvariant()
     $manifest = [ordered]@{
         projectRef = $projectRef
@@ -87,6 +105,7 @@ try {
         bytes = (Get-Item -LiteralPath $backupPath).Length
         sha256 = $hash
         archiveListingVerified = $true
+        rowCounts = $rowCounts
     }
     $manifest | ConvertTo-Json | Set-Content -Encoding utf8 -LiteralPath $manifestPath
     $verified = $true
