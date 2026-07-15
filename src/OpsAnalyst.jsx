@@ -184,6 +184,9 @@ export default function OpsAnalyst() {
       <div className="oa-wrap">
         <div className="oa-header">
           <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>AI Operations Analyst</div>
+          <div style={{background:"rgba(80,130,180,0.09)",border:"1px solid rgba(80,130,180,0.22)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--text-2)",lineHeight:1.45}}>
+            AI output is decision support, not an approved SOP or compliance determination. Verify safety-critical, pesticide, extraction, engineering, product-release, and regulatory actions against current labels, equipment manuals, facility procedures, lab results, and applicable rules before acting.
+          </div>
           <div style={{fontSize:12,color:"var(--text-3)",marginBottom:12}}>Ask plain-English questions about your facility data — harvests, revenue, compliance, strain performance, and more</div>
 
           {!hasData&&(
