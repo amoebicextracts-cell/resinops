@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      HEALTH_URL: https://resinops-deploy.vercel.app/api/health
+      HEALTH_URL: https://app.resinops.com/api/health
       SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.PRODUCTION_SUPABASE_ANON_KEY }}
       SMOKE_USER_EMAIL: ${{ secrets.PRODUCTION_SMOKE_USER_EMAIL }}
