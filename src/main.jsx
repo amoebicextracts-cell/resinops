@@ -4,6 +4,7 @@ import App from './App.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import { auth } from './lib/db.js'
 import { isSupabaseEnabled, setCurrentFacility, setCurrentFacilityRole, supabase } from './lib/supabase.js'
+import { isPasswordRecoveryEvent } from './lib/auth.js'
 
 async function fetchAndSetFacility(userId) {
   if (!supabase || !userId) return;
@@ -29,6 +30,8 @@ async function fetchAndSetFacility(userId) {
 
 function Root() {
   const [user, setUser] = useState(undefined); // undefined=loading
+  const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.pathname === '/reset-password');
+  const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
     if (!isSupabaseEnabled) {
@@ -42,7 +45,12 @@ function Root() {
       setUser(u);
     });
     // Listen for future auth changes
-    const { data: { subscription } } = auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
+      if (isPasswordRecoveryEvent(event)) {
+        setPasswordRecovery(true);
+        setUser(session?.user || null);
+        return;
+      }
       const u = session?.user || null;
       if (u) await fetchAndSetFacility(u.id);
       else {
@@ -53,6 +61,15 @@ function Root() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  if (passwordRecovery) {
+    return <AuthScreen initialMode="recovery" onRecoveryComplete={notice => {
+      window.history.replaceState({}, '', '/');
+      setAuthNotice(notice);
+      setPasswordRecovery(false);
+      setUser(null);
+    }} />;
+  }
 
   // Loading
   if (user === undefined) {
@@ -65,7 +82,7 @@ function Root() {
 
   // Not logged in — show auth screen
   if (isSupabaseEnabled && !user) {
-    return <AuthScreen onAuth={u => setUser(u)} />;
+    return <AuthScreen initialNotice={authNotice} onAuth={u => setUser(u)} />;
   }
 
   // Logged in or localStorage mode — show app

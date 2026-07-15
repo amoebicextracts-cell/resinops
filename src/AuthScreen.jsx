@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { auth, facilities } from "./lib/db";
-import { isSupabaseEnabled } from "./lib/supabase";
+import { auth } from "./lib/db";
+import { MIN_PASSWORD_LENGTH, passwordResetRedirect, passwordValidationError } from "./lib/auth";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -18,81 +18,70 @@ const CSS = `
   .auth-btn{width:100%;padding:12px;background:#2d5a3d;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;margin-top:8px;transition:background 0.15s;}
   .auth-btn:hover{background:#4a7c59;}
   .auth-btn:disabled{opacity:0.5;cursor:not-allowed;}
-  .auth-btn.secondary{background:transparent;border:1px solid #2d5a3d;color:#7a9a7a;margin-top:8px;}
+  .auth-btn.secondary{background:transparent;border:1px solid #2d5a3d;color:#7a9a7a;}
   .auth-btn.secondary:hover{border-color:#4a7c59;color:#ffffff;}
-  .auth-divider{text-align:center;color:#3a5a3a;font-size:12px;margin:16px 0;position:relative;}
-  .auth-divider::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:#2d5a3d;}
-  .auth-divider span{background:#1a2e1a;padding:0 12px;position:relative;}
   .auth-error{background:rgba(200,74,74,0.15);border:1px solid rgba(200,74,74,0.4);border-radius:8px;padding:10px 14px;font-size:12px;color:#e05555;margin-bottom:14px;}
-  .auth-success{background:rgba(74,124,89,0.15);border:1px solid rgba(74,124,89,0.4);border-radius:8px;padding:10px 14px;font-size:12px;color:#4a7c59;margin-bottom:14px;}
+  .auth-success{background:rgba(74,124,89,0.15);border:1px solid rgba(74,124,89,0.4);border-radius:8px;padding:10px 14px;font-size:12px;color:#86b795;margin-bottom:14px;}
   .auth-field{margin-bottom:16px;}
   .auth-toggle{text-align:center;font-size:13px;color:#7a9a7a;margin-top:20px;}
-  .auth-toggle a{color:#4a7c59;cursor:pointer;font-weight:600;text-decoration:underline;}
-  .auth-toggle a:hover{color:#97bc62;}
+  .auth-toggle a,.auth-link{color:#4a7c59;cursor:pointer;font-weight:600;text-decoration:underline;}
 `;
 
-export default function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("signin"); // signin | signup | forgot
+export default function AuthScreen({ onAuth, initialMode = "signin", initialNotice = "", onRecoveryComplete }) {
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [facilityName, setFacilityName] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState(initialNotice);
+
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setError("");
+    setSuccess("");
+  }
 
   async function handleSignIn() {
     setLoading(true); setError("");
-    const { data, error } = await auth.signIn(email, password);
-    if (error) { setError(error.message); setLoading(false); return; }
-    onAuth(data.user);
-    setLoading(false);
-  }
-
-  async function handleSignUp() {
-    if (!fullName.trim()) { setError("Full name is required"); return; }
-    if (!facilityName.trim()) { setError("Facility name is required"); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
-    setLoading(true); setError("");
-
-    const { data, error: signUpError } = await auth.signUp(email, password, fullName);
-    console.log("Signup result:", { data, error: signUpError });
-    if (signUpError) {
-      setError(signUpError.message || signUpError.msg || JSON.stringify(signUpError));
-      setLoading(false);
-      return;
-    }
-    if (!data?.user) {
-      setError("No user returned — check Supabase Authentication settings");
-      setLoading(false);
-      return;
-    }
-
-    // Store facility name locally for now — will sync to Supabase after first login
-    localStorage.setItem("resinops_pending_facility_name", facilityName);
-    setSuccess("Account created! You can now sign in.");
-    setMode("signin");
+    const { data, error: signInError } = await auth.signIn(email.trim(), password);
+    if (signInError) { setError(signInError.message); setLoading(false); return; }
+    onAuth?.(data.user);
     setLoading(false);
   }
 
   async function handleForgotPassword() {
-    if (!email.trim()) { setError("Enter your email first, then click Forgot password."); return; }
+    if (!email.trim()) { setError("Enter your email address."); return; }
     setLoading(true); setError("");
-    const { error } = await auth.resetPassword ? await auth.resetPassword(email) : await (async()=>{
-      const { data: sb } = await import("./lib/supabase");
-      if (!sb.supabase) return { error: { message: "Supabase not configured" } };
-      return await sb.supabase.auth.resetPasswordForEmail(email, { redirectTo: "https://app.resinops.com" });
-    })();
-    if (error) { setError(error.message); }
-    else { setSuccess("Password reset email sent. Check your inbox."); }
+    const { error: resetError } = await auth.resetPassword(
+      email.trim(),
+      passwordResetRedirect(window.location.origin),
+    );
+    if (resetError) setError(resetError.message);
+    else setSuccess("If an account exists for that address, a password reset email is on its way.");
     setLoading(false);
   }
 
-  function handleKey(e) {
-    if (e.key === "Enter") {
-      if (mode === "signin") handleSignIn();
-      else if (mode === "signup") handleSignUp();
+  async function handleRecovery() {
+    const validationError = passwordValidationError(password, passwordConfirmation);
+    if (validationError) { setError(validationError); return; }
+    setLoading(true); setError("");
+    const { error: updateError } = await auth.updatePassword(password);
+    if (updateError) {
+      setError(updateError.message || "This reset link is invalid or expired. Request a new one.");
+      setLoading(false);
+      return;
     }
+    await auth.signOut('global');
+    onRecoveryComplete?.("Password updated. Sign in with your new password.");
+    setLoading(false);
+  }
+
+  function handleKey(event) {
+    if (event.key !== "Enter") return;
+    if (mode === "signin") handleSignIn();
+    else if (mode === "forgot") handleForgotPassword();
+    else if (mode === "recovery") handleRecovery();
   }
 
   return (
@@ -105,38 +94,69 @@ export default function AuthScreen({ onAuth }) {
             <div className="auth-logo-sub">Cannabis Operations Platform</div>
           </div>
 
-          {error && <div className="auth-error">{error}</div>}
-          {success && <div className="auth-success">{success}</div>}
+          {error && <div className="auth-error" role="alert">{error}</div>}
+          {success && <div className="auth-success" role="status">{success}</div>}
 
           {mode === "signin" && <>
             <div className="auth-title">Sign in</div>
             <div className="auth-sub">Access your facility dashboard</div>
             <div className="auth-field">
-              <label className="auth-lbl">Email</label>
-              <input className="auth-inp" type="email" value={email}
-                onChange={e=>setEmail(e.target.value)} onKeyDown={handleKey}
-                placeholder="you@example.com" autoFocus />
+              <label className="auth-lbl" htmlFor="signin-email">Email</label>
+              <input id="signin-email" className="auth-inp" type="email" value={email}
+                onChange={event=>setEmail(event.target.value)} onKeyDown={handleKey}
+                placeholder="you@example.com" autoComplete="email" autoFocus />
             </div>
             <div className="auth-field">
-              <label className="auth-lbl">Password</label>
-              <input className="auth-inp" type="password" value={password}
-                onChange={e=>setPassword(e.target.value)} onKeyDown={handleKey}
-                placeholder="••••••••" />
+              <label className="auth-lbl" htmlFor="signin-password">Password</label>
+              <input id="signin-password" className="auth-inp" type="password" value={password}
+                onChange={event=>setPassword(event.target.value)} onKeyDown={handleKey}
+                autoComplete="current-password" />
             </div>
             <button className="auth-btn" onClick={handleSignIn} disabled={loading || !email || !password}>
               {loading ? "Signing in..." : "Sign In"}
             </button>
             <div style={{textAlign:"center",marginTop:10}}>
-              <a onClick={handleForgotPassword} style={{fontSize:12,color:"#4a7c59",cursor:"pointer",textDecoration:"underline"}}>Forgot password?</a>
+              <button className="auth-link" onClick={()=>changeMode("forgot")} style={{fontSize:12,background:"none",border:"none"}}>Forgot password?</button>
             </div>
             <div className="auth-toggle">
-              Need an account? <a href="https://resinops.com/#waitlist" target="_blank" rel="noopener">Request access</a>
+              Need an account? <a href="https://resinops.com/#waitlist" target="_blank" rel="noopener noreferrer">Request access</a>
             </div>
           </>}
 
-          {/* Sign-up disabled — accounts created by admin via Supabase dashboard */}
+          {mode === "forgot" && <>
+            <div className="auth-title">Reset your password</div>
+            <div className="auth-sub">We'll email you a secure link to choose a new password.</div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="reset-email">Email</label>
+              <input id="reset-email" className="auth-inp" type="email" value={email}
+                onChange={event=>setEmail(event.target.value)} onKeyDown={handleKey}
+                placeholder="you@example.com" autoComplete="email" autoFocus />
+            </div>
+            <button className="auth-btn" onClick={handleForgotPassword} disabled={loading || !email}>
+              {loading ? "Sending..." : "Send Reset Link"}
+            </button>
+            <button className="auth-btn secondary" onClick={()=>changeMode("signin")} disabled={loading}>Back to Sign In</button>
+          </>}
 
-          {/* Local mode disabled for production */}
+          {mode === "recovery" && <>
+            <div className="auth-title">Choose a new password</div>
+            <div className="auth-sub">Use at least {MIN_PASSWORD_LENGTH} characters. Afterward, you'll sign in again on all devices.</div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="new-password">New Password</label>
+              <input id="new-password" className="auth-inp" type="password" value={password}
+                onChange={event=>setPassword(event.target.value)} onKeyDown={handleKey}
+                autoComplete="new-password" autoFocus />
+            </div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="confirm-password">Confirm New Password</label>
+              <input id="confirm-password" className="auth-inp" type="password" value={passwordConfirmation}
+                onChange={event=>setPasswordConfirmation(event.target.value)} onKeyDown={handleKey}
+                autoComplete="new-password" />
+            </div>
+            <button className="auth-btn" onClick={handleRecovery} disabled={loading || !password || !passwordConfirmation}>
+              {loading ? "Updating..." : "Update Password"}
+            </button>
+          </>}
         </div>
       </div>
     </>
