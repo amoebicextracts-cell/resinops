@@ -168,9 +168,21 @@ export const auth = {
     return { data, error };
   },
 
-  signOut: async () => {
+  signOut: async (scope = 'local') => {
     if (!isSupabaseEnabled) return;
-    await supabase.auth.signOut();
+    return supabase.auth.signOut({ scope });
+  },
+
+  resetPassword: async (email, redirectTo) => {
+    if (!isSupabaseEnabled) return { error: new Error('Supabase not configured') };
+    return supabase.auth.resetPasswordForEmail(email, { redirectTo });
+  },
+
+  updatePassword: async (password, currentPassword) => {
+    if (!isSupabaseEnabled) return { error: new Error('Supabase not configured') };
+    const attributes = { password };
+    if (currentPassword) attributes.current_password = currentPassword;
+    return supabase.auth.updateUser(attributes);
   },
 
   getSession: async () => {

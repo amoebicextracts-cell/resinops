@@ -3,6 +3,7 @@ import { auth } from "./lib/db";
 import { supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { tokenizeInlineMarkdown } from "./lib/markdown";
+import { MIN_PASSWORD_LENGTH, passwordValidationError } from "./lib/auth";
 
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false,error:null}; }
@@ -1101,11 +1102,12 @@ export default function ResinOps() {
   }
 
   async function handleChangePassword() {
-    if (acctNewPw.length < 6) { setAcctMsg({text:"Password must be at least 6 characters.",type:"err"}); return; }
-    if (acctNewPw !== acctConfirmPw) { setAcctMsg({text:"Passwords don't match.",type:"err"}); return; }
+    if (!acctCurrentPw) { setAcctMsg({text:"Enter your current password.",type:"err"}); return; }
+    const validationError = passwordValidationError(acctNewPw, acctConfirmPw);
+    if (validationError) { setAcctMsg({text:validationError,type:"err"}); return; }
     setAcctLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: acctNewPw });
+      const { error } = await auth.updatePassword(acctNewPw, acctCurrentPw);
       if (error) throw error;
       setAcctMsg({text:"Password updated successfully.",type:"ok"});
       setAcctCurrentPw(""); setAcctNewPw(""); setAcctConfirmPw("");
@@ -1598,8 +1600,12 @@ export default function ResinOps() {
             {acctTab==="password" && (
               <>
                 <div className="acct-field">
+                  <label className="acct-lbl">Current Password</label>
+                  <input className="acct-inp" type="password" value={acctCurrentPw} onChange={e=>setAcctCurrentPw(e.target.value)} autoComplete="current-password" />
+                </div>
+                <div className="acct-field">
                   <label className="acct-lbl">New Password</label>
-                  <input className="acct-inp" type="password" value={acctNewPw} onChange={e=>setAcctNewPw(e.target.value)} placeholder="Minimum 6 characters" />
+                  <input className="acct-inp" type="password" value={acctNewPw} onChange={e=>setAcctNewPw(e.target.value)} placeholder={`Minimum ${MIN_PASSWORD_LENGTH} characters`} autoComplete="new-password" />
                 </div>
                 <div className="acct-field">
                   <label className="acct-lbl">Confirm New Password</label>
