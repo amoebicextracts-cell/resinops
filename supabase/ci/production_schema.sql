@@ -47,6 +47,28 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Reproduce the two mutable-search-path helpers reported by the hosted
+-- security advisor so the stabilization migration must harden them.
+create or replace function public.handle_updated_at()
+returns trigger
+language plpgsql
+as $function$
+begin
+  new.updated_at = now();
+  return new;
+end
+$function$;
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $function$
+begin
+  new.updated_at = now();
+  return new;
+end
+$function$;
+
 do $business_tables$
 declare
   table_name text;

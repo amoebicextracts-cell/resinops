@@ -20,7 +20,7 @@ Integration credentials must never be collected by the browser or stored in faci
 
 The launch-foundation migration defines five roles: `owner`, `admin`, `manager`, `member`, and `viewer`. Owners and admins manage facility settings and memberships; managers and members may change operational records; viewers are read-only. Destructive operational actions require an owner or admin. Every accepted facility member may read that facility's audit history, but browser clients cannot alter it.
 
-Do not apply the adoption migration directly to production. Validate it on a Supabase preview branch using two separate facilities, then run the security and performance advisors before rollout.
+The adoption migration was applied to production on July 15, 2026 after disposable Postgres validation. Any follow-up migration must pass the same two-facility pgTAP suite, production smoke checks, and the Supabase security and performance advisors.
 
 The in-process request limiter is defense in depth for a warm serverless instance. Before high-volume or multi-tenant production use, replace it with a shared durable limiter and alert on repeated `401`, `403`, and `429` responses.
 
