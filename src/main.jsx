@@ -3,19 +3,23 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import { auth } from './lib/db.js'
-import { isSupabaseEnabled, setCurrentFacility, supabase } from './lib/supabase.js'
+import { isSupabaseEnabled, setCurrentFacility, setCurrentFacilityRole, supabase } from './lib/supabase.js'
 
 async function fetchAndSetFacility(userId) {
   if (!supabase || !userId) return;
+  setCurrentFacility(null);
+  setCurrentFacilityRole(null);
   try {
     const { data } = await supabase
       .from('facility_members')
-      .select('facility_id')
+      .select('facility_id, role')
       .eq('user_id', userId)
+      .not('accepted_at', 'is', null)
       .limit(1)
       .single();
     if (data?.facility_id) {
       setCurrentFacility(data.facility_id);
+      setCurrentFacilityRole(data.role);
       console.log('Facility set:', data.facility_id);
     }
   } catch (e) {
@@ -41,6 +45,10 @@ function Root() {
     const { data: { subscription } } = auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user || null;
       if (u) await fetchAndSetFacility(u.id);
+      else {
+        setCurrentFacility(null);
+        setCurrentFacilityRole(null);
+      }
       setUser(u);
     });
     return () => subscription.unsubscribe();
