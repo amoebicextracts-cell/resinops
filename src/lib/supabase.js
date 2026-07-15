@@ -20,6 +20,9 @@ export const isSupabaseEnabled = !!supabase;
 
 // ── Current facility context ──────────────────────────────────
 let _currentFacilityId = null;
+let _currentFacilityRole = null;
 
 export function setCurrentFacility(id) { _currentFacilityId = id; }
 export function getCurrentFacility() { return _currentFacilityId; }
+export function setCurrentFacilityRole(role) { _currentFacilityRole = role || null; }
+export function getCurrentFacilityRole() { return _currentFacilityRole; }

@@ -14,4 +14,12 @@ Set these only in the deployment environment:
 
 METRC credentials are not required while vendor access is pending. Leave them unset and keep `METRC_WRITES_ENABLED` unset; the API returns a controlled `503` response instead of attempting a call.
 
+Integration credentials must never be collected by the browser or stored in facility rows. Configure approved private-beta integrations only as server-side deployment secrets.
+
+## Facility access
+
+The launch-foundation migration defines five roles: `owner`, `admin`, `manager`, `member`, and `viewer`. Owners and admins manage facility settings and memberships; managers and members may change operational records; viewers are read-only. Destructive operational actions require an owner or admin. Every accepted facility member may read that facility's audit history, but browser clients cannot alter it.
+
+Do not apply the adoption migration directly to production. Validate it on a Supabase preview branch using two separate facilities, then run the security and performance advisors before rollout.
+
 The in-process request limiter is defense in depth for a warm serverless instance. Before high-volume or multi-tenant production use, replace it with a shared durable limiter and alert on repeated `401`, `403`, and `429` responses.
