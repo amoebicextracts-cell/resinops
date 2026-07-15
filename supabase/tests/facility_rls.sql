@@ -32,25 +32,25 @@ select is(
   'an owner reads only their facility'
 );
 
-select is(
-  (with changed as (
+select results_eq(
+  $$with changed as (
     update public.facilities
     set facility_name = 'Blocked cross-tenant update'
     where id = 'b0000000-0000-0000-0000-000000000002'
     returning id
-  ) select count(*) from changed),
-  0::bigint,
+  ) select count(*)::bigint from changed$$,
+  $$values (0::bigint)$$,
   'an owner cannot update another facility'
 );
 
-select is(
-  (with changed as (
+select results_eq(
+  $$with changed as (
     update public.facilities
     set facility_name = 'RLS Facility A Updated'
     where id = 'a0000000-0000-0000-0000-000000000001'
     returning id
-  ) select count(*) from changed),
-  1::bigint,
+  ) select count(*)::bigint from changed$$,
+  $$values (1::bigint)$$,
   'an owner can update their facility'
 );
 
@@ -71,25 +71,25 @@ select is(
   'a viewer reads their facility'
 );
 
-select is(
-  (with changed as (
+select results_eq(
+  $$with changed as (
     update public.facilities
     set facility_name = 'Blocked viewer update'
     where id = 'a0000000-0000-0000-0000-000000000001'
     returning id
-  ) select count(*) from changed),
-  0::bigint,
+  ) select count(*)::bigint from changed$$,
+  $$values (0::bigint)$$,
   'a viewer cannot update facility settings'
 );
 
-select is(
-  (with changed as (
+select results_eq(
+  $$with changed as (
     update public.facility_members
     set role = 'admin'
     where user_id = '30000000-0000-0000-0000-000000000003'
     returning id
-  ) select count(*) from changed),
-  0::bigint,
+  ) select count(*)::bigint from changed$$,
+  $$values (0::bigint)$$,
   'a viewer cannot promote their own membership'
 );
 
