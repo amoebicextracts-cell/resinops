@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(11);
 
 select is(
   (
@@ -115,6 +115,68 @@ select is(
   ),
   0::bigint,
   'security-definer functions use an empty fixed search path'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname = any (array['handle_updated_at', 'set_updated_at'])
+      and not coalesce(procedure.proconfig, array[]::text[]) @> array['search_path=""']
+  ),
+  0::bigint,
+  'timestamp trigger functions use an empty fixed search path'
+);
+
+select is(
+  (
+    select count(*)
+    from (values
+      ('boms'), ('clone_schedules'), ('cultivation_inputs'), ('employees'),
+      ('equipment'), ('facility_map_spaces'), ('gmp_deviations'), ('gmp_shifts'),
+      ('gmp_sops'), ('grow_rooms'), ('grow_spaces'), ('harvest_batches'),
+      ('import_history'), ('inventory_items'), ('labor_types'), ('loto_log'),
+      ('mother_plants'), ('production_batches'), ('purchase_orders'), ('qc_tests'),
+      ('sales_orders'), ('skus'), ('spray_log'), ('strains'), ('tc_vessels'),
+      ('vendors'), ('work_orders')
+    ) as target(table_name)
+    where not exists (
+      select 1
+      from pg_attribute as attribute
+      join pg_index as index_definition
+        on index_definition.indrelid = attribute.attrelid
+       and index_definition.indkey[0] = attribute.attnum
+       and index_definition.indisvalid
+       and index_definition.indisready
+      where attribute.attrelid = format('public.%I', target.table_name)::regclass
+        and attribute.attname = 'facility_id'
+        and not attribute.attisdropped
+    )
+  ),
+  0::bigint,
+  'every tenant table has an index led by facility_id'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_attribute as attribute
+    where attribute.attrelid = 'public.facilities'::regclass
+      and attribute.attname = 'created_by'
+      and not attribute.attisdropped
+      and not exists (
+        select 1
+        from pg_index as index_definition
+        where index_definition.indrelid = attribute.attrelid
+          and index_definition.indkey[0] = attribute.attnum
+          and index_definition.indisvalid
+          and index_definition.indisready
+      )
+  ),
+  0::bigint,
+  'facilities.created_by has a covering index'
 );
 
 select * from finish();
