@@ -30,6 +30,7 @@ export async function authorizeFacility(auth, facilityId, licenseNumber) {
     .select('facility_id')
     .eq('facility_id', facilityId)
     .eq('user_id', auth.user.id)
+    .not('accepted_at', 'is', null)
     .maybeSingle();
   if (membershipError) return { error: 'Unable to verify facility access', status: 503 };
   if (!membership) return { error: 'Facility access denied', status: 403 };

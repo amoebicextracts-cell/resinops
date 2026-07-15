@@ -202,7 +202,8 @@ export const facilities = {
     const { data, error } = await supabase
       .from('facility_members')
       .select('*, facility:facilities(*)')
-      .eq('user_id', (await auth.getUser())?.id);
+      .eq('user_id', (await auth.getUser())?.id)
+      .not('accepted_at', 'is', null);
     if (error) throw error;
     return (data || []).map(m => m.facility);
   },
@@ -222,12 +223,13 @@ export const facilities = {
 
     // Add creator as owner
     const user = await auth.getUser();
-    await supabase.from('facility_members').insert({
+    const { error: membershipError } = await supabase.from('facility_members').insert({
       facility_id: facility.id,
       user_id: user.id,
       role: 'owner',
       accepted_at: new Date().toISOString(),
     });
+    if (membershipError) throw membershipError;
 
     return facility;
   },
