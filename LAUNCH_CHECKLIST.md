@@ -13,19 +13,21 @@ This checklist separates the private beta from general availability. An LLC, EIN
 - [x] CI runs application tests and a production build on every pull request.
 - [x] API responses include request references and defensive headers.
 - [x] `/api/health` provides a credential-free liveness check.
-- [ ] Apply the facility migration to a Supabase preview branch and run the database tests.
+- [x] Apply the tested facility migration to production with a locked pre-migration snapshot.
 - [ ] Verify two-facility isolation manually with owner, manager, member, and viewer accounts.
-- [ ] Run Supabase security and performance advisors after the preview migration.
+- [x] Run Supabase security and performance advisors after the production migration.
 - [ ] Verify the complete backup and restore procedure with non-production data.
 
 ## Deployment gates
 
-- [ ] Merge the endpoint-hardening PR.
-- [ ] Merge the launch-foundation PR after preview database sign-off.
+- [x] Merge the endpoint-hardening PR.
+- [x] Merge the launch-foundation and database-test PRs.
 - [ ] Configure production-only Supabase and AI environment variables in Vercel.
 - [ ] Keep all METRC credentials and `METRC_WRITES_ENABLED` unset.
 - [ ] Confirm `app.resinops.com` is the only production application origin.
-- [ ] Monitor `/api/health` and alert on repeated `401`, `403`, `429`, and `5xx` responses.
+- [x] Add scheduled `/api/health` and optional tenant-isolation smoke testing.
+- [ ] Alert on repeated `401`, `403`, `429`, and `5xx` responses.
+- [ ] After upgrading Supabase from Free to Pro, enable leaked-password protection and clear its advisor warning.
 - [ ] Document rollback steps for both the web deployment and database migration.
 
 ## Beta operations

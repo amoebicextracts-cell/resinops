@@ -1,0 +1,33 @@
+name: Production Smoke
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  health-and-tenant-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEALTH_URL: https://resinops-deploy.vercel.app/api/health
+      SUPABASE_URL: ${{ secrets.PRODUCTION_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.PRODUCTION_SUPABASE_ANON_KEY }}
+      SMOKE_USER_EMAIL: ${{ secrets.PRODUCTION_SMOKE_USER_EMAIL }}
+      SMOKE_USER_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_USER_PASSWORD }}
+      SMOKE_FACILITY_ID: ${{ secrets.PRODUCTION_SMOKE_FACILITY_ID }}
+      SMOKE_FORBIDDEN_FACILITY_ID: ${{ secrets.PRODUCTION_SMOKE_FORBIDDEN_FACILITY_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check production health and tenant isolation
+        run: node scripts/production-smoke.mjs
