@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./lib/db";
+import { authenticatedApiFetch } from "./lib/api";
 
 const CSS = `
   .oa-wrap{display:flex;flex-direction:column;height:100%;padding:0;}
@@ -130,10 +131,11 @@ export default function OpsAnalyst() {
       const systemPrompt = buildSystemPrompt(data);
       const history = [...messages, userMsg].map(m=>({role:m.role,content:m.content}));
 
-      const res = await fetch("/api/import", {
+      const res = await authenticatedApiFetch("/api/import", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
+          purpose: 'operations-analyst',
           system: systemPrompt,
           prompt: q,
           history: messages.slice(0,-1), // all prior messages except the one we just added

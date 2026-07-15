@@ -1,13 +1,36 @@
+import { authenticateRequest } from './_auth.js';
+import {
+  applyCors,
+  checkRateLimit,
+  isOriginAllowed,
+  validateAiPayload,
+} from './_request-security.js';
+
 export default async function handler(req, res) {
+  applyCors(req, res);
+  if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== "POST") {
+    res.setHeader('Allow', 'POST, OPTIONS');
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { system, prompt, history = [] } = req.body;
+  const auth = await authenticateRequest(req);
+  if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
-  if (!prompt) {
-    return res.status(400).json({ error: "prompt is required" });
+  const limited = checkRateLimit(`ai:${auth.user.id}`, { limit: 30, windowMs: 60_000 });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfterSeconds));
+    return res.status(429).json({ error: 'Too many AI requests. Try again shortly.' });
   }
+
+  const validationError = validateAiPayload(req.body);
+  if (validationError) return res.status(400).json({ error: validationError });
+
+  const { system, prompt, history = [], purpose = 'general-chat' } = req.body;
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'AI service is not configured' });
 
   // Build messages array — support multi-turn history for collaborative features
   const messages = [
@@ -16,7 +39,7 @@ export default async function handler(req, res) {
   ];
 
   // Use higher token limit for import operations (large CSVs need room)
-  const isImport = !history.length && (prompt.includes("File contents:") || prompt.includes("File name:"));
+  const isImport = purpose === 'data-import';
   const max_tokens = isImport ? 4000 : 1000;
 
   try {
@@ -24,7 +47,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
@@ -72,7 +95,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data);
   } catch (err) {
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    console.error('AI import proxy error:', err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 

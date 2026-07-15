@@ -14,13 +14,29 @@ const SYSTEM_PROMPTS = {
 };
 
 export default async function handler(req, res) {
+  applyCors(req, res);
+  if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== "POST") {
+    res.setHeader('Allow', 'POST, OPTIONS');
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const auth = await authenticateRequest(req);
+  if (auth.error) return res.status(auth.status).json({ error: auth.error });
+
+  const limited = checkRateLimit(`chat:${auth.user.id}`, { limit: 30, windowMs: 60_000 });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfterSeconds));
+    return res.status(429).json({ error: 'Too many AI requests. Try again shortly.' });
+  }
+
+  const validationError = validateChatPayload(req.body);
+  if (validationError) return res.status(400).json({ error: validationError });
+
   const { module, messages } = req.body;
 
-  if (!module || !messages || !Array.isArray(messages)) {
+  if (!module) {
     return res.status(400).json({ error: "Invalid request body" });
   }
 
@@ -31,7 +47,7 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "API key not configured" });
+    return res.status(503).json({ error: "AI service is not configured" });
   }
 
   try {
@@ -83,3 +99,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+import { authenticateRequest } from './_auth.js';
+import {
+  applyCors,
+  checkRateLimit,
+  isOriginAllowed,
+  validateChatPayload,
+} from './_request-security.js';
