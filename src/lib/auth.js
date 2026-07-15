@@ -15,3 +15,15 @@ export function passwordResetRedirect(origin) {
 export function isPasswordRecoveryEvent(event) {
   return event === 'PASSWORD_RECOVERY';
 }
+
+export function isPasswordRecoveryUrl(urlLike) {
+  const href = typeof urlLike === 'string' ? urlLike : urlLike?.href;
+  if (!href) return false;
+
+  const url = new URL(href, 'https://app.resinops.com');
+  const hashParameters = new URLSearchParams(url.hash.replace(/^#/, ''));
+
+  return url.pathname === '/reset-password'
+    || url.searchParams.get('type') === 'recovery'
+    || hashParameters.get('type') === 'recovery';
+}
