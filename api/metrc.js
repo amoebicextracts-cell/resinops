@@ -8,6 +8,7 @@ import {
   isOriginAllowed,
   validateMetrcPayload,
 } from './_request-security.js';
+import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 // ResinOps V2 — METRC API Proxy
 // api/metrc.js — Vercel serverless function
 //
@@ -204,6 +205,7 @@ async function metrcRequest(state, softwareKey, userKey, licenseNumber, action, 
 
 // Main handler
 export default async function handler(req, res) {
+  const requestId = initializeApiRequest(req, res);
   applyCors(req, res);
   if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -254,7 +256,7 @@ export default async function handler(req, res) {
     const data = await metrcRequest(state.toUpperCase(), softwareKey, userKey, licenseNumber, action, params, body);
     return res.status(200).json({ data });
   } catch (err) {
-    console.error('METRC API error:', err);
-    return res.status(502).json({ error: 'METRC request failed' });
+    logApiError({ requestId, route: 'metrc', userId: auth.user.id, facilityId }, err);
+    return sendApiError(res, 502, 'METRC request failed', requestId);
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { db, TABLE_NAMES } from "./lib/db";
 import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
-import { authenticatedApiFetch } from "./lib/api";
+import { authenticatedApiFetch, formatApiError } from "./lib/api";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -294,7 +294,7 @@ ${coaInstructions}`;
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err.error || "Server error " + resp.status);
+    throw new Error(formatApiError(resp, err, "Server error " + resp.status));
   }
   const data = await resp.json();
   const text = data.content?.map(b => b.text || "").join("").trim();
