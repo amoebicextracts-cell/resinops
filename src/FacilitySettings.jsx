@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
-import { supabase, getCurrentFacility } from "./lib/supabase";
+import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
+import { canAdministerFacility } from "./lib/roles";
 
 const LICENSE_TYPES = [
   "Adult-Use Cultivator","Adult-Use Processor","Adult-Use Distributor",
@@ -30,7 +31,7 @@ const DEFAULTS = {
   facilityName:"",dbaName:"",licenseNumber:"",licenseType:"Adult-Use Processor",
   state:"NY",address:"",city:"",zip:"",phone:"",email:"",website:"",
   ownerName:"",ownerEmail:"",ownerPhone:"",
-  timezone:"America/New_York",metrcApiKey:"",flourishApiKey:"",biotrackApiKey:"",greenAnalyticsApiKey:"",kaychaApiKey:"",distruApiKey:"",
+  timezone:"America/New_York",
   fiscalYearStart:"01",tagSystem:"METRC",
 };
 
@@ -62,12 +63,6 @@ export default function FacilitySettings(){
               website: data.website||"",
               timezone: data.timezone||"America/New_York",
               fiscalYearStart: data.fiscal_year_start ? String(data.fiscal_year_start).padStart(2,'0') : "01",
-              metrcApiKey: data.metrc_api_key||"",
-              flourishApiKey: data.flourish_api_key||"",
-              biotrackApiKey: data.biotrack_api_key||"",
-              kaychaApiKey: data.kaycha_api_key||"",
-              greenAnalyticsApiKey: data.green_analytics_api_key||"",
-              distruApiKey: data.distru_api_key||"",
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -82,6 +77,11 @@ export default function FacilitySettings(){
   async function save(){
     const fid = getCurrentFacility();
     if(fid && supabase){
+      if(!canAdministerFacility(getCurrentFacilityRole())){
+        setErr("Only facility owners and admins can change these settings.");
+        setTimeout(()=>setErr(""),4000);
+        return;
+      }
       try{
         const { error } = await supabase.from('facilities').update({
           facility_name: settings.facilityName,
@@ -96,12 +96,6 @@ export default function FacilitySettings(){
           website: settings.website,
           timezone: settings.timezone,
           fiscal_year_start: parseInt(settings.fiscalYearStart)||1,
-          metrc_api_key: settings.metrcApiKey||null,
-          flourish_api_key: settings.flourishApiKey||null,
-          biotrack_api_key: settings.biotrackApiKey||null,
-          kaycha_api_key: settings.kaychaApiKey||null,
-          green_analytics_api_key: settings.greenAnalyticsApiKey||null,
-          distru_api_key: settings.distruApiKey||null,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;
@@ -128,7 +122,7 @@ export default function FacilitySettings(){
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             {saved&&<span className="fs-saved">✓ Saved</span>}
-            <button className="fs-btn fs-primary" onClick={save}>Save settings</button>
+            <button className="fs-btn fs-primary" onClick={save} disabled={!!supabase&&!canAdministerFacility(getCurrentFacilityRole())}>Save settings</button>
           </div>
         </div>
 
@@ -175,33 +169,9 @@ export default function FacilitySettings(){
               <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>V2 Integration Hub</div>
               <span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:10,background:"rgba(90,63,160,0.15)",color:"#9080f0"}}>COMING IN V2</span>
             </div>
-            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Store your API credentials now. When V2 launches, flip one switch and ResinOps connects to your existing compliance and seed-to-sale systems automatically — no re-entry, no migration.</div>
-
-            {[
-              {name:"METRC",logo:"🌿",desc:"NY OCM compliant seed-to-sale tracking — plant tags, harvest lots, inventory transfers",field:"metrcApiKey",placeholder:"Paste your METRC Software API key"},
-              {name:"Flourish",logo:"🌱",desc:"Cannabis ERP — inventory, POS, compliance reporting integration",field:"flourishApiKey",placeholder:"Paste your Flourish API key"},
-              {name:"BioTrack",logo:"🔬",desc:"State-mandated tracking for WA, NM, and other BioTrack states",field:"biotrackApiKey",placeholder:"Paste your BioTrack API key"},
-              {name:"Green Analytics",logo:"🧪",desc:"Licensed cannabis testing lab — auto-pull COA results when samples are released",field:"greenAnalyticsApiKey",placeholder:"Paste your Green Analytics API key (coming soon)"},
-              {name:"Kaycha Labs",logo:"🧫",desc:"Auto-pull COA results when samples are released — no manual CSV upload",field:"kaychaApiKey",placeholder:"Paste your Kaycha Labs API key (when available)"},
-              {name:"Distru",logo:"📦",desc:"Distribution platform — pull confirmed orders directly into ResinOps sales pipeline",field:"distruApiKey",placeholder:"Paste your Distru API key"},
-            ].map(({name,logo,desc,field,placeholder})=>(
-              <div key={field} style={{background:"var(--surface)",borderRadius:8,padding:"10px 12px",marginBottom:8,border:"1px solid var(--border-2)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                  <span style={{fontSize:16}}>{logo}</span>
-                  <div style={{fontWeight:600,fontSize:12,color:"var(--text)"}}>{name}</div>
-                  <div style={{fontSize:10,color:"var(--text-3)",flex:1}}>{desc}</div>
-                  <div style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:8,
-                    background:settings[field]?"rgba(74,124,89,0.15)":"rgba(100,100,100,0.1)",
-                    color:settings[field]?"var(--accent-2)":"var(--text-3)"}}>
-                    {settings[field]?"Key stored ✓":"Not configured"}
-                  </div>
-                </div>
-                <input className="fs-inp" value={settings[field]||""} onChange={e=>setF(field,e.target.value)} placeholder={placeholder} style={{fontSize:11}} />
-              </div>
-            ))}
-
-            <div style={{marginTop:10,padding:"8px 12px",background:"rgba(90,63,160,0.08)",borderRadius:7,fontSize:11,color:"var(--text-2)"}}>
-              🔒 API keys are stored locally in your browser and are never transmitted to any server. V2 will use encrypted cloud storage with zero-knowledge architecture.
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>Integration credentials are never collected in the browser or stored in facility records.</div>
+            <div style={{padding:"10px 12px",background:"rgba(90,63,160,0.08)",borderRadius:7,fontSize:11,color:"var(--text-2)"}}>
+              During private beta, approved integrations are configured by ResinOps administrators as server-only deployment secrets. METRC remains disabled until vendor credentials are available and verified.
             </div>
           </div>
         </div>
