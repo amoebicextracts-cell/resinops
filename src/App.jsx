@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, Component } from "react";
 import { auth } from "./lib/db";
 import { supabase, isSupabaseEnabled } from "./lib/supabase";
+import { authenticatedApiFetch } from "./lib/api";
+import { tokenizeInlineMarkdown } from "./lib/markdown";
 
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false,error:null}; }
@@ -1008,7 +1010,7 @@ function renderMarkdown(text) {
     } else if (line.match(/^[-*] /)) {
       const items = [];
       while (i < lines.length && lines[i].match(/^[-*] /)) {
-        items.push(<li key={i} dangerouslySetInnerHTML={{ __html: inlineFormat(lines[i].slice(2)) }} />);
+        items.push(<li key={i}>{renderInlineMarkdown(lines[i].slice(2), `ul-${i}`)}</li>);
         i++;
       }
       result.push(<ul key={`ul-${i}`}>{items}</ul>);
@@ -1016,24 +1018,27 @@ function renderMarkdown(text) {
     } else if (line.match(/^\d+\. /)) {
       const items = [];
       while (i < lines.length && lines[i].match(/^\d+\. /)) {
-        items.push(<li key={i} dangerouslySetInnerHTML={{ __html: inlineFormat(lines[i].replace(/^\d+\. /, "")) }} />);
+        items.push(<li key={i}>{renderInlineMarkdown(lines[i].replace(/^\d+\. /, ""), `ol-${i}`)}</li>);
         i++;
       }
       result.push(<ol key={`ol-${i}`}>{items}</ol>);
       continue;
     } else if (line.trim() !== "") {
-      result.push(<p key={i} dangerouslySetInnerHTML={{ __html: inlineFormat(line) }} />);
+      result.push(<p key={i}>{renderInlineMarkdown(line, `p-${i}`)}</p>);
     }
     i++;
   }
   return result;
 }
 
-function inlineFormat(text) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>");
+function renderInlineMarkdown(text, keyPrefix) {
+  return tokenizeInlineMarkdown(text).map((token, index) => {
+    const key = `${keyPrefix}-${index}`;
+    if (token.type === 'strong') return <strong key={key}>{token.value}</strong>;
+    if (token.type === 'code') return <code key={key}>{token.value}</code>;
+    if (token.type === 'em') return <em key={key}>{token.value}</em>;
+    return <span key={key}>{token.value}</span>;
+  });
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -1227,10 +1232,11 @@ export default function ResinOps() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/import', {
+      const res = await authenticatedApiFetch('/api/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          purpose: 'general-chat',
           system: "You are an expert cannabis operations consultant with 25 years of experience across cultivation, extraction, processing, compliance, and business management. You have deep knowledge of NY OCM regulations, NY DEC pesticide requirements, METRC, extraction methods (R-134a, CO2, hydrocarbon, ethanol, solventless), GMP practices, and cannabis business operations. Answer questions clearly and specifically. When relevant, reference NY-specific regulations, licensing requirements, and best practices for licensed cannabis operators.",
           prompt: query,
           history: messages.filter(m => typeof m.content === 'string').slice(-10),

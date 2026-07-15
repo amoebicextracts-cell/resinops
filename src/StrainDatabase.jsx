@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { authenticatedApiFetch } from "./lib/api";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
@@ -39,7 +40,7 @@ const EMPTY_STRAIN={
 };
 
 async function callDescriptionAPI(messages, systemPrompt){
-  const resp=await fetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:systemPrompt,prompt:messages[messages.length-1].content,history:messages.slice(0,-1)})});
+  const resp=await authenticatedApiFetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({purpose:'strain-description',system:systemPrompt,prompt:messages[messages.length-1].content,history:messages.slice(0,-1)})});
   const data=await resp.json();
   return data.content?.map(b=>b.text).join("")||"";
 }

@@ -1,4 +1,13 @@
 // ============================================================
+
+import { authenticateRequest, authorizeFacility } from './_auth.js';
+import {
+  applyCors,
+  checkRateLimit,
+  isMetrcWriteAction,
+  isOriginAllowed,
+  validateMetrcPayload,
+} from './_request-security.js';
 // ResinOps V2 — METRC API Proxy
 // api/metrc.js — Vercel serverless function
 //
@@ -22,7 +31,7 @@ const METRC_STATES = {
   AK: 'api-ak', AL: 'api-al', AZ: 'api-az', CA: 'api-ca',
   CO: 'api-co', IL: 'api-il', LA: 'api-la', MA: 'api-ma',
   MD: 'api-md', ME: 'api-me', MI: 'api-mi', MO: 'api-mo',
-  MT: 'api-mt', NM: 'api-nm', NV: 'api-nv', NY: 'api-mn',
+  MT: 'api-mt', NM: 'api-nm', NV: 'api-nv', NY: 'api-ny',
   OH: 'api-oh', OK: 'api-ok', OR: 'api-or', WA: 'api-wa',
   WV: 'api-wv',
 };
@@ -122,7 +131,7 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function metrcRequest(state, softwareKey, userKey, licenseNumber, action, params = {}, body = null, method = null) {
+async function metrcRequest(state, softwareKey, userKey, licenseNumber, action, params = {}, body = null) {
   const subdomain = METRC_STATES[state.toUpperCase()];
   if (!subdomain) throw new Error(`State ${state} not supported by METRC`);
 
@@ -140,21 +149,23 @@ async function metrcRequest(state, softwareKey, userKey, licenseNumber, action, 
   // Build URL
   const baseUrl = `https://${subdomain}.metrc.com`;
   let path = endpoint.path;
+  const safeParams = { ...params };
 
   // Replace path params like {id}
-  if (params._pathId) {
-    path = path.replace('{id}', params._pathId);
-    delete params._pathId;
+  if (safeParams._pathId != null) {
+    path = path.replace('{id}', encodeURIComponent(String(safeParams._pathId)));
+    delete safeParams._pathId;
   }
+  if (path.includes('{id}')) throw new Error('METRC path id is required');
 
   // Build query string — always include licenseNumber
   const queryParams = new URLSearchParams({
     licenseNumber,
-    ...params,
+    ...safeParams,
   });
 
   const url = `${baseUrl}${path}?${queryParams.toString()}`;
-  const httpMethod = method || endpoint.method;
+  const httpMethod = endpoint.method;
 
   // Auth — METRC uses HTTP Basic Auth
   // Software API key is username, User API key is password
@@ -193,41 +204,57 @@ async function metrcRequest(state, softwareKey, userKey, licenseNumber, action, 
 
 // Main handler
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  applyCors(req, res);
+  if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const {
     action,
     state,
     licenseNumber,
+    facilityId,
     params = {},
     body = null,
-    method = null,
   } = req.body || {};
 
-  // Validate required fields
-  if (!action) return res.status(400).json({ error: 'action is required' });
-  if (!state)  return res.status(400).json({ error: 'state is required' });
-  if (!licenseNumber) return res.status(400).json({ error: 'licenseNumber is required' });
+  const validationError = validateMetrcPayload(req.body, METRC_STATES, ENDPOINTS);
+  if (validationError) return res.status(400).json({ error: validationError });
+
+  const auth = await authenticateRequest(req);
+  if (auth.error) return res.status(auth.status).json({ error: auth.error });
+  const access = await authorizeFacility(auth, facilityId, licenseNumber);
+  if (access.error) return res.status(access.status).json({ error: access.error });
+
+  const limited = checkRateLimit(`metrc:${auth.user.id}:${facilityId}`, { limit: 60, windowMs: 60_000 });
+  if (!limited.allowed) {
+    res.setHeader('Retry-After', String(limited.retryAfterSeconds));
+    return res.status(429).json({ error: 'Too many METRC requests. Try again shortly.' });
+  }
+
+  const endpoint = ENDPOINTS[action];
+  if (isMetrcWriteAction(endpoint) && process.env.METRC_WRITES_ENABLED !== 'true') {
+    return res.status(403).json({ error: 'METRC write operations are disabled' });
+  }
 
   // Get API keys from environment — NEVER from the request
   const softwareKey = process.env.METRC_SOFTWARE_KEY;
-  const userKey = process.env[`METRC_USER_KEY_${licenseNumber.replace(/-/g,'_').toUpperCase()}`]
+  const licenseKey = licenseNumber.replace(/[^A-Z0-9]/gi, '_').toUpperCase();
+  const userKey = process.env[`METRC_USER_KEY_${licenseKey}`]
     || process.env.METRC_USER_KEY; // fallback for single-operator
 
-  if (!softwareKey) return res.status(500).json({ error: 'METRC_SOFTWARE_KEY not configured' });
-  if (!userKey)     return res.status(500).json({ error: 'METRC user key not configured for this license' });
+  if (!softwareKey || !userKey) {
+    return res.status(503).json({ error: 'METRC integration is not configured yet' });
+  }
 
   try {
-    const data = await metrcRequest(state, softwareKey, userKey, licenseNumber, action, params, body, method);
+    const data = await metrcRequest(state.toUpperCase(), softwareKey, userKey, licenseNumber, action, params, body);
     return res.status(200).json({ data });
   } catch (err) {
-    console.error('METRC API error:', err.message);
-    return res.status(502).json({ error: err.message });
+    console.error('METRC API error:', err);
+    return res.status(502).json({ error: 'METRC request failed' });
   }
 }

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { db, TABLE_NAMES } from "./lib/db";
 import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
+import { authenticatedApiFetch } from "./lib/api";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -286,10 +287,10 @@ Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|
 ${mappingRule}
 ${coaInstructions}`;
 
-  const resp = await fetch("/api/import", {
+  const resp = await authenticatedApiFetch("/api/import", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, prompt }),
+    body: JSON.stringify({ purpose: 'data-import', system, prompt }),
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
