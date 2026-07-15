@@ -9,6 +9,7 @@
 
 import { db } from './db';
 import { getCurrentFacility } from './supabase';
+import { authenticatedApiFetch } from './api';
 
 // ── State configuration ───────────────────────────────────────
 export const METRC_STATES = {
@@ -26,7 +27,7 @@ export const METRC_STATES = {
   MT: { name: 'Montana',      abbr: 'MT', subdomain: 'api-mt' },
   NM: { name: 'New Mexico',   abbr: 'NM', subdomain: 'api-nm' },
   NV: { name: 'Nevada',       abbr: 'NV', subdomain: 'api-nv' },
-  NY: { name: 'New York',     abbr: 'NY', subdomain: 'api-mn' },
+  NY: { name: 'New York',     abbr: 'NY', subdomain: 'api-ny' },
   OH: { name: 'Ohio',         abbr: 'OH', subdomain: 'api-oh' },
   OK: { name: 'Oklahoma',     abbr: 'OK', subdomain: 'api-ok' },
   OR: { name: 'Oregon',       abbr: 'OR', subdomain: 'api-or' },
@@ -36,11 +37,11 @@ export const METRC_STATES = {
 
 // ── Core API call ─────────────────────────────────────────────
 export async function metrcCall(action, state, licenseNumber, params = {}, body = null, method = null) {
-  const res = await fetch('/api/metrc', {
+  const res = await authenticatedApiFetch('/api/metrc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, state, licenseNumber, params, body, method }),
-  });
+    body: JSON.stringify({ action, state, licenseNumber, params, body }),
+  }, { includeFacility: true });
 
   const json = await res.json();
   if (!res.ok || json.error) throw new Error(json.error || `METRC call failed: ${action}`);
