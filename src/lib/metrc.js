@@ -9,7 +9,7 @@
 
 import { db } from './db';
 import { getCurrentFacility } from './supabase';
-import { authenticatedApiFetch, formatApiError } from './api';
+import { authenticatedApiFetch } from './api';
 
 // ── State configuration ───────────────────────────────────────
 export const METRC_STATES = {
@@ -44,7 +44,7 @@ export async function metrcCall(action, state, licenseNumber, params = {}, body 
   }, { includeFacility: true });
 
   const json = await res.json();
-  if (!res.ok || json.error) throw new Error(formatApiError(res, json, `METRC call failed: ${action}`));
+  if (!res.ok || json.error) throw new Error(json.error || `METRC call failed: ${action}`);
   return json.data;
 }
 

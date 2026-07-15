@@ -5,10 +5,8 @@ import {
   isOriginAllowed,
   validateAiPayload,
 } from './_request-security.js';
-import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 
 export default async function handler(req, res) {
-  const requestId = initializeApiRequest(req, res);
   applyCors(req, res);
   if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -61,12 +59,8 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      await response.json().catch(() => ({}));
-      logApiError(
-        { requestId, route: 'import', userId: auth.user.id, upstreamStatus: response.status },
-        new Error(`AI provider returned status ${response.status}`),
-      );
-      return sendApiError(res, 502, "AI service request failed", requestId);
+      const err = await response.json().catch(() => ({}));
+      return res.status(response.status).json({ error: err.error?.message || "Anthropic API error" });
     }
 
     const data = await response.json();
@@ -101,8 +95,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data);
   } catch (err) {
-    logApiError({ requestId, route: 'import', userId: auth.user.id }, err);
-    return sendApiError(res, 500, "Internal server error", requestId);
+    console.error('AI import proxy error:', err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 

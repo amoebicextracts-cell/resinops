@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, Component } from "react";
 import { auth } from "./lib/db";
 import { supabase, isSupabaseEnabled } from "./lib/supabase";
-import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { authenticatedApiFetch } from "./lib/api";
 import { tokenizeInlineMarkdown } from "./lib/markdown";
 
 class ErrorBoundary extends Component {
@@ -14,7 +14,7 @@ class ErrorBoundary extends Component {
         <div style={{padding:32,textAlign:"center"}}>
           <div style={{fontSize:28,marginBottom:12}}>⚠️</div>
           <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:8}}>Module Error</div>
-          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16,maxWidth:420,margin:"0 auto 16px"}}>Try this module again, then reload ResinOps if the problem continues. Export a backup before changing or clearing any data, and include the module name when reporting the issue.</div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16,maxWidth:420,margin:"0 auto 16px"}}>{String(this.state.error?.message||"Unknown error")} — this is often caused by data from a previous import. Try clearing this module's data in Data &amp; Imports → Backup → Clear all data.</div>
           <button style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",cursor:"pointer",fontSize:13,fontWeight:600}} onClick={()=>this.setState({hasError:false,error:null})}>Try again</button>
         </div>
       );
@@ -1243,11 +1243,11 @@ export default function ResinOps() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(formatApiError(res, data, 'AI request failed'));
+      if (!res.ok) throw new Error(data.error || 'Server error');
       const reply = data.content?.map((b) => b.text || '').join('') || 'Something went wrong. Please try again.';
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
-    } catch (error) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: error?.message || 'Connection error. Check your network and try again.' }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Connection error. Check your network and try again.' }]);
     } finally {
       setLoading(false);
     }

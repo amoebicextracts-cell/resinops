@@ -28,7 +28,6 @@ export function applyCors(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  res.setHeader('Access-Control-Expose-Headers', 'X-Request-ID');
 }
 
 export function isOriginAllowed(origin, env = process.env) {

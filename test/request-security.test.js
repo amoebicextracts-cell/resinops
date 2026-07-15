@@ -25,16 +25,6 @@ test('CORS rejects unknown origins and supports configured preview origins', () 
   assert.equal(isOriginAllowed(undefined, {}), true);
 });
 
-test('CORS exposes request references to approved browser clients', async () => {
-  const { applyCors } = await import('../api/_request-security.js');
-  const headers = new Map();
-  applyCors(
-    { headers: { origin: 'https://app.resinops.com' } },
-    { setHeader: (key, value) => headers.set(key, value) },
-  );
-  assert.equal(headers.get('Access-Control-Expose-Headers'), 'X-Request-ID');
-});
-
 test('AI payload validation bounds purpose, history, and body size', () => {
   assert.equal(validateAiPayload({ purpose: 'general-chat', prompt: 'hello', history: [] }), null);
   assert.match(validateAiPayload({ purpose: 'anything', prompt: 'hello' }), /purpose/i);

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./lib/db";
-import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { authenticatedApiFetch } from "./lib/api";
 
 const CSS = `
   .oa-wrap{display:flex;flex-direction:column;height:100%;padding:0;}
@@ -142,11 +142,11 @@ export default function OpsAnalyst() {
         })
       });
       const json = await res.json();
-      if(!res.ok || json.error) throw new Error(formatApiError(res, json, 'AI request failed'));
+      if(json.error) throw new Error(json.error);
       const reply = json.content?.[0]?.text || "I couldn't generate a response. Please try again.";
       setMessages(prev=>[...prev,{role:"assistant",content:reply}]);
     } catch(e) {
-      setMessages(prev=>[...prev,{role:"assistant",content:e?.message||"Error connecting to AI. Please check your connection and try again."}]);
+      setMessages(prev=>[...prev,{role:"assistant",content:"Error connecting to AI. Please check your connection and try again."}]);
     }
     setLoading(false);
   }
