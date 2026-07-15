@@ -14,7 +14,9 @@ It replaces permissive tenant policies with facility-scoped roles, removes brows
 6. Run Supabase security and performance advisors and resolve any new findings.
 7. Deploy the compatible application release, back up production, schedule a maintenance window, and apply only after preview sign-off.
 
-Run `supabase test db` against the preview environment to execute the tenant-isolation checks in `tests/facility_rls.sql`.
+Every pull request that changes `supabase/` now runs an isolated database job. The job starts a disposable local Supabase database, adds the production-shaped fixture from `ci/production_schema.sql`, applies the real adoption migration, and runs the pgTAP tenant-isolation and security-invariant suites. The fixture exists only in the CI runner and is never part of a hosted deployment.
+
+Run `supabase test db` against a preview environment to execute the same checks manually. Supabase-hosted preview branches require the Pro plan; until that upgrade, GitHub Actions provides the no-production-impact validation gate.
 
 This is an adoption migration, not a complete schema baseline. Capturing a reproducible baseline and adding database-level integration tests are required before general availability.
 
