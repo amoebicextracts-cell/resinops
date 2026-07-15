@@ -23,3 +23,5 @@ The launch-foundation migration defines five roles: `owner`, `admin`, `manager`,
 Do not apply the adoption migration directly to production. Validate it on a Supabase preview branch using two separate facilities, then run the security and performance advisors before rollout.
 
 The in-process request limiter is defense in depth for a warm serverless instance. Before high-volume or multi-tenant production use, replace it with a shared durable limiter and alert on repeated `401`, `403`, and `429` responses.
+
+Every hosted API response includes an `X-Request-ID`. User-facing API failures include that reference so an operator can report it without sharing request bodies or credentials. `/api/health` is a public liveness endpoint and intentionally reports no dependency configuration or secret status.

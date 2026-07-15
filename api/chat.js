@@ -14,6 +14,7 @@ const SYSTEM_PROMPTS = {
 };
 
 export default async function handler(req, res) {
+  const requestId = initializeApiRequest(req, res);
   applyCors(req, res);
   if (!isOriginAllowed(req.headers?.origin)) return res.status(403).json({ error: 'Origin not allowed' });
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -95,8 +96,8 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
-    console.error("Proxy error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    logApiError({ requestId, route: 'chat', userId: auth.user.id }, err);
+    return sendApiError(res, 500, "Internal server error", requestId);
   }
 }
 import { authenticateRequest } from './_auth.js';
@@ -106,3 +107,4 @@ import {
   isOriginAllowed,
   validateChatPayload,
 } from './_request-security.js';
+import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
