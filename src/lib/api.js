@@ -1,4 +1,5 @@
 import { getCurrentFacility, isSupabaseEnabled, supabase } from './supabase';
+export { formatApiError } from './apiErrors.js';
 
 export async function authenticatedApiFetch(path, options = {}, { includeFacility = false } = {}) {
   if (!isSupabaseEnabled || !supabase) {
