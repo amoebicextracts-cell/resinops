@@ -14,9 +14,10 @@ This checklist separates the private beta from general availability. An LLC, EIN
 - [x] API responses include request references and defensive headers.
 - [x] `/api/health` provides a credential-free liveness check.
 - [x] Apply the tested facility migration to production with a locked pre-migration snapshot.
+- [x] Exercise owner, admin, manager, member, and viewer permissions across two facilities in the disposable pgTAP suite.
 - [ ] Verify two-facility isolation manually with owner, manager, member, and viewer accounts.
 - [x] Run Supabase security and performance advisors after the production migration.
-- [ ] Verify the complete backup and restore procedure with non-production data.
+- [x] Verify the complete backup and restore procedure in a disposable local database.
 
 ## Deployment gates
 
@@ -28,16 +29,16 @@ This checklist separates the private beta from general availability. An LLC, EIN
 - [x] Add scheduled `/api/health` and optional tenant-isolation smoke testing.
 - [ ] Alert on repeated `401`, `403`, `429`, and `5xx` responses.
 - [ ] After upgrading Supabase from Free to Pro, enable leaked-password protection and clear its advisor warning.
-- [ ] Document rollback steps for both the web deployment and database migration.
+- [x] Document rollback steps for both the web deployment and database migration.
 
 ## Beta operations
 
 - [ ] Start with 1–3 invited facilities and named operator contacts.
 - [ ] Require operators to export a backup before their first production-data import.
 - [ ] Give testers one support channel and ask them to include the displayed request reference.
-- [ ] Define incident severity, response ownership, and customer-notification rules.
+- [x] Define incident severity, response ownership, and customer-notification rules.
 - [ ] Publish plain-language privacy, acceptable-use, and beta data-retention terms.
-- [ ] Review AI advice disclaimers for safety-critical extraction, pesticide, facility, and compliance workflows.
+- [x] Add and review an AI decision-support warning for safety-critical extraction, pesticide, facility, product-release, and compliance workflows.
 - [ ] Collect weekly feedback by workflow, not only by feature request.
 
 ## General-availability gates

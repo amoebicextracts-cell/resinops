@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-const DEFAULT_HEALTH_URL = 'https://resinops-deploy.vercel.app/api/health';
+const DEFAULT_HEALTH_URL = 'https://app.resinops.com/api/health';
 
 async function readJson(response, label) {
   const body = await response.text();
