@@ -131,7 +131,7 @@ export default function SprayLog(){
     };
   }
 
-  function save(){
+  async function save(){
     if(!form.date){setErr("Enter application date.");return;}
     if(!form.product){setErr("Enter the product name.");return;}
     if(!form.epaRegNum){setErr("EPA registration number is required for NY DEC compliance.");return;}
@@ -140,17 +140,25 @@ export default function SprayLog(){
     const applicator=employees.find(e=>e.id===form.applicatorId);
     const rec={
       ...form,
-      id:form.id||"sl_"+Date.now(),
+      id:form.id||crypto.randomUUID(),
       spaceName:space?.name||form.spaceName||"",
       applicatorName:applicator?.name||form.applicatorName||"",
       applicatorLicenseNum:applicator?.pestLicenseNum||form.applicatorLicenseNum||"",
     };
-    if(form.id) setRecords(p=>p.map(x=>x.id===rec.id?rec:x));
-    else setRecords(p=>[...p,rec]);
-    setForm(null);setErr("");
+    try{
+      const saved=await db.spray_log.upsert(rec);
+      if(form.id) setRecords(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setRecords(p=>[...p,saved]);
+      setForm(null);setErr("");
+    }catch(e){ setErr("Could not save: "+(e.message||e)); }
   }
 
-  function remove(id){setRecords(p=>p.filter(x=>x.id!==id));}
+  async function remove(id){
+    try{
+      await db.spray_log.delete(id);
+      setRecords(p=>p.filter(x=>x.id!==id));
+    }catch(e){ setErr("Could not delete: "+(e.message||e)); }
+  }
 
   function exportCSV(){
     const facility={}; // TODO: load from db.facilities

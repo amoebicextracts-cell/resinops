@@ -100,7 +100,7 @@ export default function SalesOrders() {
   function setPct(batchId, v) { setPresellOverrides(p=>({...p,[batchId]:v})); }
 
   // ── Order form ──────────────────────────────────────────────────────────
-  function openNewOrder() { setOrderForm({...EMPTY_ORDER, id:"so"+Date.now()}); setErr(""); }
+  function openNewOrder() { setOrderForm({...EMPTY_ORDER, id:crypto.randomUUID()}); setErr(""); }
   function openEditOrder(o) { setOrderForm({...o}); setErr(""); }
   function addLine() { setOrderForm(f=>({...f, lines:[...f.lines, {id:"ln"+Date.now()+Math.random(), batchId:"", qty:"", unitPrice:""}]})); }
   function setLine(i,k,v) {
@@ -117,19 +117,34 @@ export default function SalesOrders() {
   }
   function removeLine(i) { setOrderForm(f=>({...f, lines:f.lines.filter((_,idx)=>idx!==i)})); }
 
-  function saveOrder() {
+  async function saveOrder() {
     if (!orderForm.customerName.trim()) { setErr("Enter a customer name."); return; }
     if (!orderForm.lines.length) { setErr("Add at least one line item."); return; }
     for (const l of orderForm.lines) {
       if (!l.batchId || !l.qty || parseInt(l.qty)<=0) { setErr("Every line needs a batch and quantity."); return; }
     }
-    const isEdit = orders.some(o=>o.id===orderForm.id);
-    if (isEdit) setOrders(p=>p.map(o=>o.id===orderForm.id?orderForm:o));
-    else setOrders(p=>[...p,orderForm]);
-    setOrderForm(null); setErr("");
+    try{
+      const saved = await db.sales_orders.upsert(orderForm);
+      const isEdit = orders.some(o=>o.id===saved.id);
+      if (isEdit) setOrders(p=>p.map(o=>o.id===saved.id?saved:o));
+      else setOrders(p=>[...p,saved]);
+      setOrderForm(null); setErr("");
+    }catch(e){ setErr("Could not save: "+(e.message||e)); }
   }
-  function setOrderStatus(id, status) { setOrders(p=>p.map(o=>o.id===id?{...o,status}:o)); }
-  function removeOrder(id) { setOrders(p=>p.filter(o=>o.id!==id)); }
+  async function setOrderStatus(id, status) {
+    const order = orders.find(o=>o.id===id);
+    if (!order) return;
+    try{
+      const saved = await db.sales_orders.upsert({...order, status});
+      setOrders(p=>p.map(o=>o.id===id?saved:o));
+    }catch(e){ setErr("Could not update status: "+(e.message||e)); }
+  }
+  async function removeOrder(id) {
+    try{
+      await db.sales_orders.delete(id);
+      setOrders(p=>p.filter(o=>o.id!==id));
+    }catch(e){ setErr("Could not delete: "+(e.message||e)); }
+  }
 
   function lineTotal(l) { return (parseFloat(l.qty)||0)*(parseFloat(l.unitPrice)||0); }
   function orderTotal(o) { return o.lines.reduce((a,l)=>a+lineTotal(l),0); }

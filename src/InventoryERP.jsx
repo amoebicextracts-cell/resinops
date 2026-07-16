@@ -376,14 +376,17 @@ export default function InventoryERP() {
     e.target.value = "";
   }
 
-  function confirmCSVImport() {
+  async function confirmCSVImport() {
     if (!csvPreview || !csvPreview.rows.length) return;
     const newItems = csvPreview.rows.map(r => {
-      const lot = r.stock > 0 ? [{ id:"lot"+Date.now()+Math.random(), date:new Date().toISOString().split("T")[0], qty:r.stock, remaining:r.stock, costPerUnit:r.cost, poId:"csv_import" }] : [];
-      return { id:"i"+Date.now()+Math.random(), n:r.n, cat:r.cat, uom:r.uom, reorderAt:r.reorderAt, reorderQty:r.reorderQty, vm:r.vm, notes:"Imported from CSV", lots:lot, lastCost:r.cost };
+      const lot = r.stock > 0 ? [{ id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty:r.stock, remaining:r.stock, costPerUnit:r.cost, poId:"csv_import" }] : [];
+      return { id:crypto.randomUUID(), n:r.n, cat:r.cat, uom:r.uom, reorderAt:r.reorderAt, reorderQty:r.reorderQty, vm:r.vm, notes:"Imported from CSV", lots:lot, lastCost:r.cost };
     });
-    setItems(p => [...p, ...newItems]);
-    setCsvPreview(null); setCsvFileName("");
+    try{
+      const saved = await Promise.all(newItems.map(item=>db.inventory_items.upsert(item)));
+      setItems(p => [...p, ...saved]);
+      setCsvPreview(null); setCsvFileName(""); setErr("");
+    }catch(e){ setErr("Import failed: "+e.message); }
   }
 
   useEffect(()=>{
@@ -517,14 +520,18 @@ export default function InventoryERP() {
   }
 
   // Manual stock adjustment
-  function confirmAdjust() {
+  async function confirmAdjust() {
     const {item, adjQty, adjCost, adjNote} = adjustModal;
     const qty = parseFloat(adjQty)||0;
     const cost = parseFloat(adjCost)||itemCost(item)||0;
-    if (!qty) { setReceiveModal(null); return; }
-    const lot = { id:"lot"+Date.now(), date:new Date().toISOString().split("T")[0], qty:Math.abs(qty), remaining:Math.max(0,qty), costPerUnit:cost, poId:"manual", note:adjNote||"" };
-    setItems(p=>p.map(x=>x.id===item.id?{...x,lots:[...(x.lots||[]),lot],lastCost:cost}:x));
-    setAdjustModal(null);
+    if (!qty) { setAdjustModal(null); return; }
+    const lot = { id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty:Math.abs(qty), remaining:Math.max(0,qty), costPerUnit:cost, poId:"manual", note:adjNote||"" };
+    const updated = {...item, lots:[...(item.lots||[]),lot], lastCost:cost};
+    try{
+      const saved = await db.inventory_items.upsert(updated);
+      setItems(p=>p.map(x=>x.id===saved.id?saved:x));
+      setAdjustModal(null); setErr("");
+    }catch(e){ setErr("Adjustment failed: "+e.message); }
   }
 
   const filteredItems = items.filter(x => x.n.toLowerCase().includes(search.toLowerCase()) || x.cat.toLowerCase().includes(search.toLowerCase()));

@@ -103,14 +103,23 @@ export default function Equipment() {
   function openEdit(eq) { setForm({...eq}); setErr(""); }
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  function save() {
+  async function save() {
     if (!form.name.trim()) { setErr("Enter equipment name."); return; }
-    const eq = { ...form, id: form.id || "eq"+Date.now() };
-    if (form.id) setEquipment(p=>p.map(x=>x.id===eq.id?eq:x));
-    else setEquipment(p=>[...p,eq]);
-    setForm(null); setErr("");
+    const eq = { ...form, id: form.id || crypto.randomUUID() };
+    try{
+      const saved = await db.equipment.upsert(eq);
+      if (form.id) setEquipment(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setEquipment(p=>[...p,saved]);
+      setForm(null); setErr("");
+    }catch(e){ setErr("Could not save: "+(e.message||e)); }
   }
-  function remove(id) { setEquipment(p=>p.filter(x=>x.id!==id)); setServiceLog(p=>p.filter(x=>x.equipId!==id)); }
+  async function remove(id) {
+    try{
+      await db.equipment.delete(id);
+      setEquipment(p=>p.filter(x=>x.id!==id));
+      setServiceLog(p=>p.filter(x=>x.equipId!==id));
+    }catch(e){ setErr("Could not delete: "+(e.message||e)); }
+  }
 
   function openService(eq) { setServiceForm({ equipId:eq.id, date:new Date().toISOString().split("T")[0], type:"pm", tech:"", vendorId:"", cost:"", notes:"" }); }
   function saveService() {
