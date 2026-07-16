@@ -100,10 +100,10 @@ export default function QCTesting(){
   }
 
   function calcOverall(f){
-    if(f.microbialPass===false||f.pesticidesPass===false||f.heavyMetalsPass===false||f.foreignMatterPass===false) return false;
-    if(f.aspergillus===false||f.salmonella===false||f.stec===false||f.ecoli===false) return false;
-    if(f.microbialPass===true&&f.pesticidesPass!==false&&f.heavyMetalsPass!==false) return true;
-    return null;
+    const panels=[f.microbialPass,f.pesticidesPass,f.heavyMetalsPass,f.foreignMatterPass,f.aspergillus,f.salmonella,f.stec,f.ecoli];
+    if(panels.some(v=>v===false)) return false;
+    if(panels.every(v=>v===true)) return true;
+    return null; // any panel still untested (N/T) — hold at pending, don't auto-pass
   }
 
   async function save(){
