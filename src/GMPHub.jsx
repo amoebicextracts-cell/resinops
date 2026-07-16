@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtDT(dt){return dt?new Date(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
@@ -56,26 +57,33 @@ export default function GMPHub(){
   const [shifts,setShifts]=useState([]);
   const [signoffs,setSignoffs]=useState([]);
   const [qcTests,setQcTests]=useState([]);
+  const [cultInputs,setCultInputs]=useState([]);
+  const [facility,setFacility]=useState({});
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [so,dv,sh,sig,qc,emp,hb,pb]=await Promise.all([
+        const facilityId=getCurrentFacility();
+        const [so,dv,sh,sig,qc,ci,emp,hb,pb,facRes]=await Promise.all([
           db.gmp_sops.list(),
           db.gmp_deviations.list(),
           db.gmp_shifts.list(),
           db.gmp_signoffs.list(),
           db.qc_tests.list(),
+          db.cultivation_inputs.list(),
           db.employees.list(),
           db.harvest_batches.list(),
           db.production_batches.list(),
+          facilityId?supabase.from('facilities').select('*').eq('id',facilityId).single():Promise.resolve({data:null}),
         ]);
         setSops(so);
         setDeviations(dv);
         setShifts(sh);
         setSignoffs(sig);
         setQcTests(qc.map(t=>({...t,batchId:t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId})));
+        setCultInputs(ci);
+        setFacility(facRes?.data||{});
         setEmployees(emp);
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
@@ -162,10 +170,9 @@ export default function GMPHub(){
     const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
     const batchQcTests=qcTests.filter(t=>t.batchType===type&&String(t.batchId)===id);
     const batchShiftEntries=shifts.flatMap(sh=>(sh.entries||[]).filter(e=>e.batchType===type&&String(e.batchId)===id).map(e=>({...e,shiftDate:sh.date,department:sh.department})));
-    const cultivationInputs=type==="harvest"?JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]").filter(ci=>{
-      const sp=JSON.parse(localStorage.getItem("resinops_spaces")||"[]").find(s=>String(s.id)===String(ci.spaceId));
-      return sp&&batch.spaceName&&sp.name===batch.spaceName;
-    }):[];
+    const batchCultInputs=type==="harvest"&&batch.spaceName
+      ?cultInputs.filter(ci=>ci.spaceName===batch.spaceName)
+      :[];
     return(
       <div>
         <div style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
@@ -193,10 +200,10 @@ export default function GMPHub(){
           </div>
         )}
 
-        {cultivationInputs.length>0&&(
-          <div className="batch-section"><div className="batch-section-t">🌿 Cultivation Inputs ({cultivationInputs.length})</div>
+        {batchCultInputs.length>0&&(
+          <div className="batch-section"><div className="batch-section-t">🌿 Cultivation Inputs ({batchCultInputs.length})</div>
             <table className="gh-tbl"><thead><tr><th>Date</th><th>Type</th><th>Product</th><th>Rate</th><th>Applicator</th></tr></thead>
-              <tbody>{cultivationInputs.map(ci=><tr key={ci.id}><td style={{whiteSpace:"nowrap"}}>{fmtD(ci.date)}</td><td style={{fontSize:11}}>{ci.type}</td><td>{ci.product||ci.species}</td><td style={{fontSize:11}}>{ci.rate} {ci.rateUnit}</td><td style={{fontSize:11}}>{ci.applicatorName||"In-house"}</td></tr>)}</tbody>
+              <tbody>{batchCultInputs.map(ci=><tr key={ci.id}><td style={{whiteSpace:"nowrap"}}>{fmtD(ci.date)}</td><td style={{fontSize:11}}>{ci.type}</td><td>{ci.product||ci.species}</td><td style={{fontSize:11}}>{ci.rate} {ci.rateUnit}</td><td style={{fontSize:11}}>{ci.applicatorName||"In-house"}</td></tr>)}</tbody>
             </table>
           </div>
         )}
@@ -227,7 +234,7 @@ export default function GMPHub(){
           </div>
         )}
 
-        {[batchSignoffs,batchShiftEntries,cultivationInputs,batchQcTests,batchDevs].every(a=>!a.length)&&(
+        {[batchSignoffs,batchShiftEntries,batchCultInputs,batchQcTests,batchDevs].every(a=>!a.length)&&(
           <div style={{color:"var(--text-3)",fontSize:12,padding:16,textAlign:"center"}}>No GMP records attached to this batch yet. Add sign-offs, log inputs, and enter QC results to build the batch record.</div>
         )}
       </div>
@@ -371,7 +378,6 @@ export default function GMPHub(){
               </div>
               {batchRecordId.id&&(
                 <button className="gh-btn gh-secondary" style={{whiteSpace:"nowrap"}} onClick={()=>{
-                  const facility=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
                   const {type,id}=batchRecordId;
                   const batch=type==="harvest"?harvestBatches.find(b=>String(b.id)===id):prodBatches.find(b=>String(b.id)===id);
                   if(!batch) return;
@@ -395,8 +401,8 @@ export default function GMPHub(){
                   </style></head><body>
                   <h1>GMP Batch Record — ${type==="harvest"?batch.strainName:batch.name}</h1>
                   <div class="meta">
-                    <div class="meta-item"><div class="meta-label">Facility</div><div class="meta-value">${facility.facilityName||"—"}</div></div>
-                    <div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${facility.licenseNumber||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">Facility</div><div class="meta-value">${facility.facility_name||"—"}</div></div>
+                    <div class="meta-item"><div class="meta-label">License</div><div class="meta-value">${facility.license_number||"—"}</div></div>
                     <div class="meta-item"><div class="meta-label">Batch ID</div><div class="meta-value">${batch.id||"—"}</div></div>
                     <div class="meta-item"><div class="meta-label">Date</div><div class="meta-value">${batch.d||"—"}</div></div>
                     <div class="meta-item"><div class="meta-label">Space</div><div class="meta-value">${batch.spaceName||batch.strains||"—"}</div></div>
@@ -409,7 +415,7 @@ export default function GMPHub(){
                   <h2>Deviations (${batchDevs.length})</h2>
                   ${batchDevs.length?`<table><thead><tr><th>Type</th><th>Severity</th><th>Title</th><th>Status</th><th>Corrective Action</th></tr></thead><tbody>${devRows}</tbody></table>`:`<div class="empty">No deviations recorded for this batch.</div>`}
                   <div class="footer">
-                    <span>${facility.facilityName||""} · ${facility.licenseNumber||""}</span>
+                    <span>${facility.facility_name||""} · ${facility.license_number||""}</span>
                     <span>GMP Batch Record — Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</span>
                     <span>Page 1 of 1</span>
                   </div>
