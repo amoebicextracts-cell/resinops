@@ -1198,7 +1198,23 @@ export default function ResinOps() {
         + '</div><div class="body">' + body + '</div></div>';
     }).join('<hr>');
 
-        const blob = new Blob([html], { type: 'text/html' });
+    const title = (mod?.label || 'Chat') + ' — ' + date;
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${esc(title)}</title><style>
+      body{font-family:Arial,sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.6;color:#222;}
+      h1{font-size:20px;margin:0 0 4px;color:#1a3a28;}
+      .subtitle{color:#888;font-size:13px;margin-bottom:24px;}
+      .msg{margin-bottom:20px;}
+      .who{font-weight:700;margin-bottom:6px;font-size:13px;}
+      .who.user{color:#1a3a28;}.who.ai{color:#4a7c59;}
+      .body p{margin:0 0 8px;}.body ul{margin:8px 0;padding-left:24px;}.body h3{font-size:16px;margin:16px 0 8px;}.body h4{font-size:14px;margin:14px 0 6px;}
+      hr{border:none;border-top:1px solid #ddd;margin:20px 0;}
+    </style></head><body>
+      <h1>${esc(mod?.label || 'Chat')}</h1>
+      <div class="subtitle">${esc(date)}</div>
+      ${rows}
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

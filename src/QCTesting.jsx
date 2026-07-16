@@ -79,7 +79,7 @@ export default function QCTesting(){
           db.harvest_batches.list(),
           db.production_batches.list(),
         ]);
-        setTests(qc);
+        setTests(qc.map(t=>({...t,batchId:t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId})));
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
       }catch(e){ console.error("QCTesting load error:",e); }
@@ -110,11 +110,15 @@ export default function QCTesting(){
     const hasIdentity = form.batchId || form.batchName || form.strainName || form.sampleId;
     if(!hasIdentity){setErr("Provide at least a strain name or sample ID to save this record.");return;}
     const overall=form.overallPass??calcOverall(form);
+    const isHarvest=form.batchType==="harvest";
     const rec={...form,id:form.id||crypto.randomUUID(),overallPass:overall,
       status:form.receivedDate?"complete":form.submittedDate?"submitted":"pending",
-      onHold:overall===false};
+      onHold:overall===false,
+      harvestBatchId:isHarvest?(form.batchId||null):null,
+      productionBatchId:isHarvest?null:(form.batchId||null)};
     try{
       const saved=await db.qc_tests.upsert(rec);
+      saved.batchId=isHarvest?saved.harvestBatchId:saved.productionBatchId;
       if(form.id) setTests(p=>p.map(x=>x.id===saved.id?saved:x));
       else setTests(p=>[...p,saved]);
 
@@ -131,7 +135,7 @@ export default function QCTesting(){
             setHarvestBatches(p=>[...p,savedHb]);
           }catch(e){ console.error("Auto harvest batch failed:",e); }
         }
-      } else if(overall===true&&form.batchId){
+      } else if(overall===true&&form.batchId&&isHarvest){
         // Mark linked harvest batch complete
         const hb=harvestBatches.find(b=>String(b.id)===String(form.batchId));
         if(hb){
@@ -139,6 +143,15 @@ export default function QCTesting(){
             await db.harvest_batches.upsert({...hb,status:"complete",coaSampleId:form.sampleId,thca:form.thca||hb.thca});
             setHarvestBatches(p=>p.map(b=>String(b.id)===String(form.batchId)?{...b,status:"complete"}:b));
           }catch(e){ console.error("Harvest batch update failed:",e); }
+        }
+      } else if(overall===true&&form.batchId&&!isHarvest){
+        // Mark linked production batch complete
+        const pb=prodBatches.find(b=>String(b.id)===String(form.batchId));
+        if(pb){
+          try{
+            const savedPb=await db.production_batches.upsert({...pb,status:"complete"});
+            setProdBatches(p=>p.map(b=>String(b.id)===String(form.batchId)?savedPb:b));
+          }catch(e){ console.error("Production batch update failed:",e); }
         }
       }
 

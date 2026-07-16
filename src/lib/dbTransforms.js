@@ -144,7 +144,6 @@ const FIELD_OVERRIDES = {
     sampleId: 'sample_id',
     harvestBatchId: 'harvest_batch_id',
     productionBatchId: 'production_batch_id',
-    batchId: 'harvest_batch_id',
     batchName: 'batch_name',
     batchType: 'batch_type',
     labName: 'lab_name',

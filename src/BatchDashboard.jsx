@@ -38,14 +38,16 @@ export default function BatchDashboard(){
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, sk, b, lt, ci]=await Promise.all([
+        const [pb, hb, sk, b, lt, ci, qc]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.skus.list(),
           db.boms.list(),
           db.labor_types.list(),
           db.cultivation_inputs.list(),
+          db.qc_tests.list(),
         ]);
+        setQcHolds(qc.filter(t=>t.onHold).map(t=>String(t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId)));
         setProdBatches(pb.filter(x=>!x.isLinked));
         setHarvestBatches(hb.map(h=>({
           ...h,
