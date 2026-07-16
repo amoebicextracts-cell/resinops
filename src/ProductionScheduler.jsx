@@ -1295,48 +1295,58 @@ export default function ProductionScheduler(){
     return true;
   }
 
-  function saveBatch(){
+  async function saveBatch(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
     const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
 
-    const mainId=formMode==="edit"?editId:Date.now();
+    const mainId=formMode==="edit"?editId:crypto.randomUUID();
     const mainBatch={...base,id:mainId};
 
-    if(formMode==="edit"){
-      setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,mainBatch];});
-    } else {
-      const newBatches=[mainBatch];
-      // Auto-create HTE linked batch for THCa isolate
-      if(form.cat==="extract"&&(form.sub==="thca_ff"||form.sub==="thca_trim")){
-        const isFf=form.sub==="thca_ff";
-        const htePct=isFf?0.06:0.03;const hteG=inputG*htePct;
-        const hteBatch={...base,id:Date.now()+2,name:form.name.trim()+" — HTE (Terpene Fraction)",isLinked:true,linkedTo:mainId,yieldEst:`~${hteG.toFixed(1)}g HTE (${isFf?"~6% of fresh frozen biomass":"~3% of dry trim"})`,actual_yield:"",s2s_barcode:""};
-        newBatches.push(hteBatch);
-      }
-      // Auto-create linked heads/tails batch for distillate and all distillation apparatus subs
-      const isDistillationSub = form.sub==="distillate"||form.sub?.startsWith("sp_")||form.sub?.startsWith("wfe_");
-      if(form.cat==="extract"&&isDistillationSub){
-        const spec=DISTILLATION_SPECS[form.sub];
-        let ht;
-        if(spec){
-          const p1=inputG*spec.pass1Yield;
-          const p2=p1*spec.pass2Yield;
-          ht=Math.round(p1-p2);
-        } else {
-          const crude=inputG*0.18;const total=crude*0.70;ht=Math.round(total*0.20);
+    try{
+      if(formMode==="edit"){
+        const saved=await db.production_batches.upsert(mainBatch);
+        setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,saved];});
+      } else {
+        const newBatches=[mainBatch];
+        // Auto-create HTE linked batch for THCa isolate
+        if(form.cat==="extract"&&(form.sub==="thca_ff"||form.sub==="thca_trim")){
+          const isFf=form.sub==="thca_ff";
+          const htePct=isFf?0.06:0.03;const hteG=inputG*htePct;
+          const hteBatch={...base,id:crypto.randomUUID(),name:form.name.trim()+" — HTE (Terpene Fraction)",isLinked:true,linkedTo:mainId,yieldEst:`~${hteG.toFixed(1)}g HTE (${isFf?"~6% of fresh frozen biomass":"~3% of dry trim"})`,actual_yield:"",s2s_barcode:""};
+          newBatches.push(hteBatch);
         }
-        const htBatch={...base,id:Date.now()+1,name:form.name.trim()+" — Heads/Tails (Edibles Grade)",isLinked:true,linkedTo:mainId,cat:"extract",sub:"distillate",catLabel:"Concentrate",subLabel:"Edibles-Grade Oil",yieldEst:`~${ht.toLocaleString()}g edibles-grade oil`,actual_yield:"",s2s_barcode:""};
-        newBatches.push(htBatch);
+        // Auto-create linked heads/tails batch for distillate and all distillation apparatus subs
+        const isDistillationSub = form.sub==="distillate"||form.sub?.startsWith("sp_")||form.sub?.startsWith("wfe_");
+        if(form.cat==="extract"&&isDistillationSub){
+          const spec=DISTILLATION_SPECS[form.sub];
+          let ht;
+          if(spec){
+            const p1=inputG*spec.pass1Yield;
+            const p2=p1*spec.pass2Yield;
+            ht=Math.round(p1-p2);
+          } else {
+            const crude=inputG*0.18;const total=crude*0.70;ht=Math.round(total*0.20);
+          }
+          const htBatch={...base,id:crypto.randomUUID(),name:form.name.trim()+" — Heads/Tails (Edibles Grade)",isLinked:true,linkedTo:mainId,cat:"extract",sub:"distillate",catLabel:"Concentrate",subLabel:"Edibles-Grade Oil",yieldEst:`~${ht.toLocaleString()}g edibles-grade oil`,actual_yield:"",s2s_barcode:""};
+          newBatches.push(htBatch);
+        }
+        const saved=await Promise.all(newBatches.map(b=>db.production_batches.upsert(b)));
+        setBatches(p=>[...p,...saved]);
       }
-      setBatches(p=>[...p,...newBatches]);
-    }
-    autoPopulateStrains(form.strains, { source: "Production Scheduler" });
-    closeForm();
+      autoPopulateStrains(form.strains, { source: "Production Scheduler" });
+      closeForm();
+    }catch(e){ setFormErr("Could not save: "+(e.message||e)); }
   }
 
-  function removeBatch(id){setBatches(p=>p.filter(b=>b.id!==id&&b.linkedTo!==id));}
+  async function removeBatch(id){
+    const linkedIds=batches.filter(b=>b.linkedTo===id).map(b=>b.id);
+    try{
+      await Promise.all([id,...linkedIds].map(bid=>db.production_batches.delete(bid)));
+      setBatches(p=>p.filter(b=>b.id!==id&&b.linkedTo!==id));
+    }catch(e){ setFormErr("Could not delete: "+(e.message||e)); }
+  }
 
   const timelines=batches.map(b=>{
     if(!b.d||!Array.isArray(b.steps)||b.steps.length===0) return [];
