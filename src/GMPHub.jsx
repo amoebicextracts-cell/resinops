@@ -55,16 +55,18 @@ export default function GMPHub(){
   const [deviations,setDeviations]=useState([]);
   const [shifts,setShifts]=useState([]);
   const [signoffs,setSignoffs]=useState([]);
+  const [qcTests,setQcTests]=useState([]);
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [so,dv,sh,sig,emp,hb,pb]=await Promise.all([
+        const [so,dv,sh,sig,qc,emp,hb,pb]=await Promise.all([
           db.gmp_sops.list(),
           db.gmp_deviations.list(),
           db.gmp_shifts.list(),
           db.gmp_signoffs.list(),
+          db.qc_tests.list(),
           db.employees.list(),
           db.harvest_batches.list(),
           db.production_batches.list(),
@@ -73,6 +75,7 @@ export default function GMPHub(){
         setDeviations(dv);
         setShifts(sh);
         setSignoffs(sig);
+        setQcTests(qc.map(t=>({...t,batchId:t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId})));
         setEmployees(emp);
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
@@ -157,7 +160,7 @@ export default function GMPHub(){
     if(!batch) return <div style={{color:"var(--text-3)",padding:16}}>Batch not found.</div>;
     const batchSignoffs=signoffs.filter(s=>s.batchType===type&&String(s.batchId)===id);
     const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
-    const qcTests=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]").filter(t=>t.batchType===type&&String(t.batchId)===id);
+    const batchQcTests=qcTests.filter(t=>t.batchType===type&&String(t.batchId)===id);
     const batchShiftEntries=shifts.flatMap(sh=>(sh.entries||[]).filter(e=>e.batchType===type&&String(e.batchId)===id).map(e=>({...e,shiftDate:sh.date,department:sh.department})));
     const cultivationInputs=type==="harvest"?JSON.parse(localStorage.getItem("resinops_cult_inputs")||"[]").filter(ci=>{
       const sp=JSON.parse(localStorage.getItem("resinops_spaces")||"[]").find(s=>String(s.id)===String(ci.spaceId));
@@ -198,9 +201,9 @@ export default function GMPHub(){
           </div>
         )}
 
-        {qcTests.length>0&&(
-          <div className="batch-section"><div className="batch-section-t">🔬 QC / Lab Tests ({qcTests.length})</div>
-            {qcTests.map(t=>(
+        {batchQcTests.length>0&&(
+          <div className="batch-section"><div className="batch-section-t">🔬 QC / Lab Tests ({batchQcTests.length})</div>
+            {batchQcTests.map(t=>(
               <div key={t.id} style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:12,marginBottom:6}}>
                 <span style={{fontWeight:500}}>{t.labName}</span>
                 <span>{t.sampleId}</span>
@@ -224,7 +227,7 @@ export default function GMPHub(){
           </div>
         )}
 
-        {[batchSignoffs,batchShiftEntries,cultivationInputs,qcTests,batchDevs].every(a=>!a.length)&&(
+        {[batchSignoffs,batchShiftEntries,cultivationInputs,batchQcTests,batchDevs].every(a=>!a.length)&&(
           <div style={{color:"var(--text-3)",fontSize:12,padding:16,textAlign:"center"}}>No GMP records attached to this batch yet. Add sign-offs, log inputs, and enter QC results to build the batch record.</div>
         )}
       </div>
@@ -374,7 +377,7 @@ export default function GMPHub(){
                   if(!batch) return;
                   const batchSignoffs=signoffs.filter(s=>s.batchType===type&&String(s.batchId)===id);
                   const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
-                  const qcRecs=JSON.parse(localStorage.getItem("resinops_qc_tests")||"[]").filter(t=>t.batchType===type&&String(t.batchId)===id);
+                  const qcRecs=qcTests.filter(t=>t.batchType===type&&String(t.batchId)===id);
                   const signoffRows=batchSignoffs.map(s=>`<tr><td>${s.stepName||""}</td><td>${s.performedById||""}</td><td>${s.verifiedById||"—"}</td><td>${s.timestamp?new Date(s.timestamp).toLocaleString():"—"}</td><td>${s.notes||"—"}</td></tr>`).join("");
                   const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.corrective||"—"}</td></tr>`).join("");
                   const qcRow=qcRecs.map(t=>`<tr><td>${t.labName||""}</td><td>${t.sampleId||""}</td><td>${t.thca||"—"}%</td><td>${t.totalTerpenes||"—"}%</td><td style="color:${t.overallPass?"#2d5a3d":"#c04040"};font-weight:600;">${t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</td></tr>`).join("");
