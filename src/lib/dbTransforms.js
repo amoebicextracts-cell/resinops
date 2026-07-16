@@ -35,6 +35,8 @@ const SCHEMAS = {
   purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],
   work_orders: ['id','created_at','updated_at','facility_id','title','category','equipment_id','severity','reported_by','reported_date','status','assigned_to','down_start','down_end','labor_type_id','labor_hours','parts_cost','vendor_id','description','resolution_notes','labor_cost','total_cost'],
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
+  remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
+  gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -429,6 +431,28 @@ const FIELD_OVERRIDES = {
     reenergizedBy: 'reenergized_by',
     reenergizeTime: 'reenergize_time',
     verifiedSafe: 'verified_safe',
+  },
+  remediation: {
+    sourceType: 'source_type',
+    sourceId: 'source_id',
+    strainName: 'strain_name',
+    weightG: 'weight_g',
+    labName: 'lab_name',
+    labReportRef: 'lab_report_ref',
+    testDate: 'test_date',
+    tyamCfu: 'tyam_cfu',
+    tabCfu: 'tab_cfu',
+    gyPerHour: 'gy_per_hour',
+    turnRequired: 'turn_required',
+    retestResult: 'retest_result',
+  },
+  gmp_signoffs: {
+    batchType: 'batch_type',
+    batchId: 'batch_id',
+    stepName: 'step_name',
+    performedById: 'performed_by_id',
+    verifiedById: 'verified_by_id',
+    timestamp: 'performed_at',
   },
 };
 
