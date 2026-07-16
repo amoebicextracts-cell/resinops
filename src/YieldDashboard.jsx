@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { matchesStrain, splitStrains } from "./strainUtils.js";
 
 const LBS_TO_G = 453.592;
 function n(v){const f=parseFloat(v);return isNaN(f)?0:f;}
@@ -46,13 +47,13 @@ function collect(pbs, extractFn){
 function aggregateStrainYields(harvestBatches, prodBatches){
   const names=new Set();
   harvestBatches.forEach(h=>{ if(h.strainName) names.add(h.strainName); });
-  prodBatches.forEach(p=>{ if(p.strains) names.add(p.strains); });
+  prodBatches.forEach(p=>{ splitStrains(p.strains).forEach(n=>names.add(n)); });
 
   return Array.from(names).sort().map(strainName=>{
     const lc=strainName.toLowerCase();
     const hbs=harvestBatches.filter(h=>h.strainName?.toLowerCase()===lc && !h.isFreshFrozen);
     const ffHbs=harvestBatches.filter(h=>h.strainName?.toLowerCase()===lc && h.isFreshFrozen);
-    const pbs=prodBatches.filter(p=>p.strains?.toLowerCase()?.includes(lc));
+    const pbs=prodBatches.filter(p=>matchesStrain(p.strains, strainName));
 
     const wetWeights=hbs.map(h=>n(h.wetWeightG)).filter(Boolean);
     const dryWeights=hbs.map(h=>n(h.totalDryWeight)).filter(Boolean);

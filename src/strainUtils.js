@@ -7,6 +7,28 @@
 import { db } from './lib/db';
 
 /**
+ * Splits a batch's free-text `strains` field into individual, trimmed
+ * strain names. The field is a comma-separated list for multi-strain
+ * blends (a single strain has one element).
+ */
+export function splitStrains(strainsField) {
+  if (!strainsField) return [];
+  return String(strainsField).split(",").map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Whether `targetName` is one of the individual strains in a batch's
+ * `strains` field — an exact match per comma-separated segment, not a
+ * substring match. A plain `.includes()` check would let "Kush" match
+ * unrelated batches like "OG Kush" or "Kush Mints".
+ */
+export function matchesStrain(strainsField, targetName) {
+  if (!targetName) return false;
+  const target = targetName.trim().toLowerCase();
+  return splitStrains(strainsField).some(s => s.toLowerCase() === target);
+}
+
+/**
  * Accepts a single name string, an array of names, or a comma-separated string.
  * For any name not already in the database, creates a stub entry.
  * Returns the array of names that were newly created.

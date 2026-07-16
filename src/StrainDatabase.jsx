@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { matchesStrain } from "./strainUtils.js";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
@@ -131,7 +132,7 @@ export default function StrainDatabase(){
   // Pull harvest + production data for this strain
   function aggregateData(strainName){
     const hbs=harvestBatches.filter(b=>b.strainName?.toLowerCase()===strainName?.toLowerCase());
-    const pbs=prodBatches.filter(b=>b.strains?.toLowerCase()?.includes(strainName?.toLowerCase()));
+    const pbs=prodBatches.filter(b=>matchesStrain(b.strains, strainName));
     const dryWeights=hbs.map(b=>b.totalDryWeight||0).filter(Boolean);
     const avgDryG=dryWeights.length?Math.round(dryWeights.reduce((a,v)=>a+v)/dryWeights.length):null;
     const washYields=[];

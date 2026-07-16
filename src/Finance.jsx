@@ -81,7 +81,7 @@ const CSS = `
 // ── COGS calculator for a batch ────────────────────────────────────────────
 function calcBatchCOGS(batch, boms, cogsRecords, items, laborTypes, facility) {
   const record = cogsRecords.find(r => r.batchId === batch.id) || {};
-  const bom = boms.find(b => batch.cat && b.catSub && b.catSub.startsWith(batch.cat)) || null;
+  const bom = boms.find(b => batch.cat && b.catSub === batch.cat + "|" + (batch.sub || "")) || null;
   const inputLbs = (parseFloat(batch.inputAmt)||0) * (batch.unit==="lb"||batch.unit==="lbs"?1:batch.unit==="kg"?2.205:1/453.592);
   // Extract unit count from yieldEst string
   const unitMatch = batch.yieldEst?.match(/[\d,]+(?=\s*×|units|cones|carts|AIOs|bottles)/);
