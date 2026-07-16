@@ -54,16 +54,17 @@ export default function GMPHub(){
   const [sops,setSops]=useState([]);
   const [deviations,setDeviations]=useState([]);
   const [shifts,setShifts]=useState([]);
-  const [signoffs,setSignoffs]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_signoffs")||"[]");}catch{return[];}});
+  const [signoffs,setSignoffs]=useState([]);
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [so,dv,sh,emp,hb,pb]=await Promise.all([
+        const [so,dv,sh,sig,emp,hb,pb]=await Promise.all([
           db.gmp_sops.list(),
           db.gmp_deviations.list(),
           db.gmp_shifts.list(),
+          db.gmp_signoffs.list(),
           db.employees.list(),
           db.harvest_batches.list(),
           db.production_batches.list(),
@@ -71,6 +72,7 @@ export default function GMPHub(){
         setSops(so);
         setDeviations(dv);
         setShifts(sh);
+        setSignoffs(sig);
         setEmployees(emp);
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
@@ -87,8 +89,6 @@ export default function GMPHub(){
   const [shiftEntries,setShiftEntries]=useState([]);
   const [batchRecordId,setBatchRecordId]=useState({type:"harvest",id:""});
   const [err,setErr]=useState("");
-
-  useEffect(()=>{localStorage.setItem("resinops_signoffs",JSON.stringify(signoffs));},[signoffs]);
 
   function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
 
@@ -132,12 +132,21 @@ export default function GMPHub(){
   function calcHours(tin,tout){if(!tin||!tout)return "";const d=(new Date("1970-01-01T"+tout)-new Date("1970-01-01T"+tin))/3600000;return d>0?d.toFixed(2):"";}
 
   // ── Sign-offs ──
-  function saveSo(){
+  async function saveSo(){
     if(!soForm.stepName.trim()||!soForm.performedById){setErr("Step name and performed-by are required.");return;}
-    const s={...soForm,id:soForm.id||"so"+Date.now()};
-    if(soForm.id) setSignoffs(p=>p.map(x=>x.id===s.id?s:x));
-    else setSignoffs(p=>[...p,s]);
-    setSoForm(null);setErr("");
+    const s={...soForm,id:soForm.id||crypto.randomUUID()};
+    try{
+      const saved=await db.gmp_signoffs.upsert(s);
+      if(soForm.id) setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setSignoffs(p=>[...p,saved]);
+      setSoForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
+  }
+  async function removeSo(id){
+    try{
+      await db.gmp_signoffs.delete(id);
+      setSignoffs(p=>p.filter(x=>x.id!==id));
+    }catch(e){ setErr("Could not delete: "+e.message); }
   }
 
   // ── Batch Record ──
@@ -336,7 +345,7 @@ export default function GMPHub(){
                     <td>{empName(s.performedById)}</td><td>{s.verifiedById?empName(s.verifiedById):"—"}</td>
                     <td style={{fontSize:11,whiteSpace:"nowrap"}}>{fmtDT(s.timestamp)}</td>
                     <td style={{fontSize:11,color:"var(--text-3)"}}>{s.notes||"—"}</td>
-                    <td><button className="gh-sm gh-del" onClick={()=>setSignoffs(p=>p.filter(x=>x.id!==s.id))}>✕</button></td>
+                    <td><button className="gh-sm gh-del" onClick={()=>removeSo(s.id)}>✕</button></td>
                   </tr>);
                 })}</tbody>
               </table>

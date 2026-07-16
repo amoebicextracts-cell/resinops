@@ -76,14 +76,14 @@ export default function Remediation() {
   useEffect(()=>{
     async function load(){
       try{
-        const [hb, pb] = await Promise.all([
+        const [hb, pb, rm] = await Promise.all([
           db.harvest_batches.list(),
           db.production_batches.list(),
+          db.remediation.list(),
         ]);
         setHarvestBatches(hb);
         setProdBatches(pb.filter(x=>!x.isLinked));
-        // remediation not in db mapping yet - keep localStorage fallback
-        try{ setRecords(JSON.parse(localStorage.getItem("resinops_remediation")||"[]")); }catch{}
+        setRecords(rm);
       }catch(e){ console.error("Remediation load error:",e); }
       setLoading(false);
     }
@@ -121,16 +121,24 @@ export default function Remediation() {
     return true;
   }
 
-  function save() {
+  async function save() {
     if (!validate()) return;
     const dose = calcDose(form.tyamCfu, form.tabCfu, form.aspergillus, form.gyPerHour, form.turnRequired, form.weightG);
-    const rec = { ...form, id: form.id || "rm"+Date.now(), dose };
-    if (form.id) setRecords(p => p.map(x => x.id===rec.id ? rec : x));
-    else setRecords(p => [...p, rec]);
-    autoPopulateStrains(form.strainName, { source: "Microbial Remediation" });
-    closeForm();
+    const rec = { ...form, id: form.id || crypto.randomUUID(), dose };
+    try{
+      const saved = await db.remediation.upsert(rec);
+      if (form.id) setRecords(p => p.map(x => x.id===saved.id ? saved : x));
+      else setRecords(p => [...p, saved]);
+      autoPopulateStrains(form.strainName, { source: "Microbial Remediation" });
+      closeForm();
+    }catch(e){ setErr("Could not save: "+(e.message||e)); }
   }
-  function remove(id) { setRecords(p => p.filter(x => x.id !== id)); }
+  async function remove(id) {
+    try{
+      await db.remediation.delete(id);
+      setRecords(p => p.filter(x => x.id !== id));
+    }catch(e){ setErr("Could not delete: "+(e.message||e)); }
+  }
   function setStatus(id, status) { setRecords(p => p.map(x => x.id===id ? {...x, status} : x)); }
 
   const liveDose = form ? calcDose(form.tyamCfu, form.tabCfu, form.aspergillus, form.gyPerHour, form.turnRequired, form.weightG) : null;
