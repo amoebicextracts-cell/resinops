@@ -62,19 +62,25 @@ export default function SalesOrders() {
   const [presellOverrides, setPresellOverrides] = useState({});
   const [defaultPct, setDefaultPct] = useState(50);
   const [orders, setOrders] = useState([]);
+  const [qcHolds, setQcHolds] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [o, pb, sk]=await Promise.all([
+        const [o, pb, sk, qc]=await Promise.all([
           db.sales_orders.list(),
           db.production_batches.list(),
           db.skus.list(),
+          db.qc_tests.list(),
         ]);
         setOrders(o);
         setBatches(pb.filter(x=>!x.isLinked));
         setSkus(sk);
+        setQcHolds(new Set(
+          qc.filter(t=>t.onHold&&t.batchType==="production"&&t.productionBatchId)
+            .map(t=>String(t.productionBatchId))
+        ));
       }catch(e){ console.error("SalesOrders load error:",e); }
       setLoading(false);
     }
@@ -93,8 +99,9 @@ export default function SalesOrders() {
     const cap = Math.floor(baseUnits * (parseFloat(pct)||0) / 100);
     const committed = orders.filter(o=>o.status!=="canceled").reduce((a,o)=>
       a + o.lines.filter(l=>l.batchId===b.id).reduce((aa,l)=>aa+(parseInt(l.qty)||0),0), 0);
-    const available = Math.max(0, cap - committed);
-    return { estUnits, actualUnits, baseUnits, pct, cap, committed, available, isActual: !!actualUnits };
+    const onHold = qcHolds.has(String(b.id));
+    const available = onHold ? 0 : Math.max(0, cap - committed);
+    return { estUnits, actualUnits, baseUnits, pct, cap, committed, available, isActual: !!actualUnits, onHold };
   }
 
   function setPct(batchId, v) { setPresellOverrides(p=>({...p,[batchId]:v})); }
@@ -108,7 +115,7 @@ export default function SalesOrders() {
       if (idx!==i) return l;
       const updated = {...l,[k]:v};
       if (k==="batchId") {
-        const b = batches.find(x=>x.id===parseInt(v));
+        const b = batches.find(x=>String(x.id)===String(v));
         const sku = skus.find(s=>b && s.product && b.catLabel && s.product.toLowerCase().includes(b.catLabel.toLowerCase().split(" ")[0]));
         if (sku) updated.unitPrice = String(sku.price);
       }
@@ -122,6 +129,11 @@ export default function SalesOrders() {
     if (!orderForm.lines.length) { setErr("Add at least one line item."); return; }
     for (const l of orderForm.lines) {
       if (!l.batchId || !l.qty || parseInt(l.qty)<=0) { setErr("Every line needs a batch and quantity."); return; }
+      if (qcHolds.has(String(l.batchId))) {
+        const b = batches.find(x=>String(x.id)===String(l.batchId));
+        setErr("\""+(b?.name||"A batch")+"\" is on QC hold and cannot be sold. Remove or replace that line to save this order.");
+        return;
+      }
     }
     try{
       const saved = await db.sales_orders.upsert(orderForm);
@@ -194,10 +206,6 @@ export default function SalesOrders() {
           );
         })()}
 
-        <div style={{background:"rgba(90,120,200,0.08)",border:"1px solid rgba(90,120,200,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#7090f0"}}>
-          Runs on this device only — holds and availability won't sync across other computers until this moves to a shared backend (v2).
-        </div>
-
         <div className="so-tabs">
           {[["availability","📋 Availability Board"],["orders","🧾 Orders & Holds"]].map(([v,l])=>(
             <button key={v} className={"so-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
@@ -225,13 +233,13 @@ export default function SalesOrders() {
                       const cls = av.available===0?"avail-none":av.available<av.cap*0.2?"avail-low":"avail-good";
                       return (
                         <tr key={b.id}>
-                          <td style={{fontWeight:500,color:"var(--text)"}}>{b.name}</td>
+                          <td style={{fontWeight:500,color:"var(--text)"}}>{b.name}{av.onHold&&<span className="so-pill avail-none" style={{marginLeft:8}}>🔒 QC HOLD</span>}</td>
                           <td style={{fontSize:11}}>{b.catLabel}{b.subLabel?" — "+b.subLabel:""}</td>
                           <td style={{fontSize:11}}>{fmtN(av.baseUnits)}{av.isActual?" (actual)":" (est.)"}</td>
-                          <td><input type="number" min="0" max="100" className="so-num" value={av.pct} onChange={e=>setPct(b.id,e.target.value)} /></td>
+                          <td><input type="number" min="0" max="100" className="so-num" value={av.pct} onChange={e=>setPct(b.id,e.target.value)} disabled={av.onHold} /></td>
                           <td>{fmtN(av.cap)}</td>
                           <td style={{color:av.committed>0?"var(--amber)":"var(--text-3)"}}>{fmtN(av.committed)}</td>
-                          <td><span className={"so-pill "+cls}>{fmtN(av.available)} avail.</span></td>
+                          <td><span className={"so-pill "+cls}>{av.onHold?"blocked":fmtN(av.available)+" avail."}</span></td>
                         </tr>
                       );
                     })}
@@ -273,14 +281,17 @@ export default function SalesOrders() {
 
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Line Items</div>
                   {orderForm.lines.map((l,i) => {
-                    const b = batches.find(x=>x.id===parseInt(l.batchId));
+                    const b = batches.find(x=>String(x.id)===String(l.batchId));
                     const av = b ? batchAvailability(b) : null;
                     return (
                       <div key={l.id} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"flex-end"}}>
-                        <div><label className="so-lbl">Batch / product {av && "("+av.available+" available)"}</label>
+                        <div><label className="so-lbl">Batch / product {av && (av.onHold ? <span style={{color:"var(--danger)"}}>(🔒 on QC hold — cannot sell)</span> : "("+av.available+" available)")}</label>
                           <select className="so-sel" value={l.batchId} onChange={e=>setLine(i,"batchId",e.target.value)}>
                             <option value="">— Select batch —</option>
-                            {batches.map(bx=><option key={bx.id} value={bx.id}>{bx.name} — {bx.catLabel}</option>)}
+                            {batches.map(bx=>{
+                              const held=qcHolds.has(String(bx.id));
+                              return <option key={bx.id} value={bx.id} disabled={held}>{bx.name} — {bx.catLabel}{held?" (QC hold)":""}</option>;
+                            })}
                           </select>
                         </div>
                         <div><label className="so-lbl">Qty</label><input type="number" min="1" className="so-inp" value={l.qty} onChange={e=>setLine(i,"qty",e.target.value)} /></div>
