@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
+import { SUBS } from "./ProductionScheduler.jsx";
 
 const LBS_TO_G = 453.592;
 
@@ -105,7 +106,8 @@ export default function Remediation() {
     : prodBatches.map(b => {
         const m = b.yieldEst?.match(/([\d,]+(?:\.\d+)?)\s*g/);
         const wG = m ? parseFloat(m[1].replace(/,/g,"")) : (b.unit==="g" ? b.inputAmt : b.unit==="lbs" ? b.inputAmt*LBS_TO_G : b.unit==="kg" ? b.inputAmt*1000 : 0);
-        return { id: b.id, label: b.name + " — " + b.catLabel + (b.subLabel?" / "+b.subLabel:""), strain: b.strains||"", weightG: wG };
+        const subLabel = SUBS[b.cat]?.find(s=>s.v===b.sub)?.l || "";
+        return { id: b.id, label: b.name + " — " + b.catLabel + (subLabel?" / "+subLabel:""), strain: b.strains||"", weightG: wG };
       });
 
   function selectSource(id) {

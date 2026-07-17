@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { SUBS } from "./ProductionScheduler.jsx";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n,d=1){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
@@ -91,8 +92,12 @@ export default function BatchDashboard(){
 
   // Build enriched batch rows
   const rows=prodBatches.map(b=>{
+    // subLabel is never persisted (derived display string, same as
+    // ProductionScheduler.jsx's own list rendering) — derive it here
+    // rather than reading a field that's always undefined on a loaded row.
+    const subLabel=SUBS[b.cat]?.find(s=>s.v===b.sub)?.l||"";
     const units=extractUnits(b.yieldEst)||extractGrams(b.yieldEst)/1000;
-    const price=getSkuPrice(b.catLabel||b.cat,b.subLabel);
+    const price=getSkuPrice(b.catLabel||b.cat,subLabel);
     const bomCost=getBomCost(b.catLabel||b.cat);
     const estimatedRevenue=units*price;
     const materialCost=bomCost*units;
@@ -103,7 +108,7 @@ export default function BatchDashboard(){
     const margin=estimatedRevenue>0?(grossProfit/estimatedRevenue)*100:null;
     const onHold=qcHolds.includes(String(b.id));
     const hasActual=!!b.actual_yield;
-    return{...b,units,price,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual,bomCost};
+    return{...b,subLabel,units,price,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual,bomCost};
   });
 
   const harvestRows=harvestBatches.map(b=>{
