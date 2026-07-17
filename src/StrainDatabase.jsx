@@ -63,7 +63,7 @@ function normalizeStrainType(raw){
 function normalizeStrain(r){
   return {
     ...r,
-    id: r.id || "str_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+    id: r.id,
     name: r.name || r.cultivar_name || r.strain_name || r.strain || r["Cultivar Name"] || r["Strain Name"] || "",
     type: normalizeStrainType(r.type || r.strain_type || r["Strain Type"] || r["Type"] || ""),
     parentage: r.parentage || r.genetic_cross || r.genetic_cross_lineage || r.lineage || r["Genetic Cross / Lineage"] || r["Lineage"] || r["Genetics"] || "",

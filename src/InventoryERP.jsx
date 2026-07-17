@@ -146,56 +146,6 @@ const EMPTY_ITEM = {
 const EMPTY_VENDOR = {n:"",vendorType:"supply",contact:"",phone:"",email:"",leadDays:"7",notes:""};
 const EMPTY_PO = {vendorId:"",date:"",items:[],notes:""};
 
-const ITEM_CAT_MAP = {
-  "packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","container":"Packaging","exit":"Packaging","mylar":"Packaging",
-  "solvent":"Extraction Solvents","butane":"Extraction Solvents","propane":"Extraction Solvents","ethanol":"Extraction Solvents","co2":"Extraction Solvents",
-  "extraction consumable":"Extraction Consumables","filter":"Extraction Consumables","membrane":"Extraction Consumables",
-  "post-harvest":"Post-Harvest Supplies","trim":"Post-Harvest Supplies","harvest":"Post-Harvest Supplies",
-  "pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","tube":"Pre-Roll Supplies","tip":"Pre-Roll Supplies",
-  "vape":"Vape Hardware","cartridge":"Vape Hardware","disposable":"Vape Hardware","510":"Vape Hardware",
-  "edible":"Edible Ingredients","ingredient":"Edible Ingredients",
-  "lab":"Lab Supplies","compliance":"Lab Supplies","sample bag":"Lab Supplies","swab":"Lab Supplies",
-  "nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","fertilizer":"Nutrients & Amendments","ph up":"Nutrients & Amendments","ph down":"Nutrients & Amendments",
-  "media":"Growing Media","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","rockwool":"Growing Media",
-  "ipm":"IPM Products","pesticide":"IPM Products","insecticide":"IPM Products","fungicide":"IPM Products","beneficial":"IPM Products",
-  "cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","tray":"Cultivation Supplies","stake":"Cultivation Supplies",
-  "clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","isopropyl":"Cleaning & Sanitation","alcohol":"Cleaning & Sanitation","bleach":"Cleaning & Sanitation",
-};
-
-function normalizeItemCat(raw){
-  if(!raw) return "Other";
-  if(ITEM_CATS.includes(raw)) return raw;
-  const lower = raw.toLowerCase();
-  // Check if Claude returned a close but not exact match (e.g. case difference)
-  const exactCI = ITEM_CATS.find(c => c.toLowerCase() === lower);
-  if(exactCI) return exactCI;
-  for(const [k,v] of Object.entries(ITEM_CAT_MAP)){ if(lower.includes(k)) return v; }
-  return "Other";
-}
-
-function normalizeItem(r){
-  const name = r.n || r.name || r.item_name || r.item || r.description || r.item_description || r["Item Name"] || r["Item"] || r["Description"] || "";
-  const rawCat = r.cat || r.category || r.item_category || r["Category"] || "";
-  const stock = parseFloat(r.stock ?? r.current_stock ?? r.qty ?? r.quantity ?? r["Current Stock"] ?? 0) || 0;
-  const cost = parseFloat(r.cost ?? r.unit_cost ?? r.cost_per_unit ?? r["Unit Cost"] ?? 0) || 0;
-  const lots = Array.isArray(r.lots) ? r.lots :
-    (stock > 0 ? [{ id:"lot_imp_"+Date.now()+Math.random(), date:new Date().toISOString().split("T")[0], qty:stock, remaining:stock, costPerUnit:cost, poId:"ai_import" }] : []);
-  return {
-    ...r,
-    id: r.id || "inv_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-    n: name,
-    cat: normalizeItemCat(rawCat),
-    uom: r.uom || r.unit || r.unit_of_measure || r["Unit of Measure"] || r["UoM"] || "each",
-    reorderAt: parseFloat(r.reorderAt ?? r.reorder_at ?? r.reorder_point ?? r["Reorder At"] ?? 0) || 0,
-    reorderQty: parseFloat(r.reorderQty ?? r.reorder_qty ?? r.reorder_quantity ?? r["Reorder Qty"] ?? 0) || 0,
-    vm: ["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())
-      ? (r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase() : "average",
-    lots,
-    lastCost: cost || r.lastCost || 0,
-    notes: r.notes || r["Notes"] || "",
-  };
-}
-
 // ── CocTab component — hooks at top level ────────────────────────────────────
 function CocTab({items, setItems}) {
   const EMPTY_COC={lotNum:"",supplier:"",issueDate:"",expiryDate:"",docRef:"",status:"pending",

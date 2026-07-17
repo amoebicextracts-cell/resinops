@@ -93,49 +93,6 @@ export default function SprayLog(){
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
-  function normalizeRecord(r, spaces){
-    const spaceName = (()=>{
-      const direct = r.spaceName||r.space_name||r.grow_space___room||r.grow_space_room||r.grow_space||r["Grow Space / Room"]||r["Grow Space"]||r["Space"]||r["Room"]||"";
-      if(direct) return direct;
-      const key = Object.keys(r).find(k=>k.toLowerCase().includes("space")||k.toLowerCase().includes("room")||k.toLowerCase().includes("grow_space"));
-      return key ? String(r[key]||"") : "";
-    })();
-    const spaceId = r.spaceId||(spaces.find(s=>s.name===spaceName)?.id||"");
-    const applicatorName = r.applicatorName||r.licensed_applicator||r.applicator_name||r["Licensed Applicator"]||r["Applicator"]||"";
-    const applicatorLicenseNum = r.applicatorLicenseNum||r.pesticide_license___||r.pesticide_license||r["Pesticide License #"]||r["Pesticide License Number"]||"";
-    return {
-      ...EMPTY,
-      ...r,
-      id: r.id||"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-      type: r.type||"ipm_spray",
-      date: r.date||r.application_date||r["Application Date"]||"",
-      spaceName,spaceId,
-      product: (()=>{
-        const direct = r.product||r.product___pesticide_name||r.product_pesticide_name||r.pesticide_name||r["Product / Pesticide Name"]||r["Product"]||r["Pesticide Name"]||r["Chemical"]||"";
-        if(direct) return direct;
-        const key = Object.keys(r).find(k=>k.toLowerCase().includes("product")||k.toLowerCase().includes("pesticide")||k.toLowerCase().includes("chemical"));
-        return key ? String(r[key]||"") : "";
-      })(),
-      manufacturer: r.manufacturer||r["Manufacturer"]||r["Brand"]||"",
-      epaRegNum: r.epaRegNum||r.epa_registration_number||r.epa_reg_number||r["EPA Registration Number"]||r["EPA Reg #"]||"",
-      rate: (()=>{const raw=String(r.rate||r.label_rate||r["Label Rate"]||"");const m=raw.match(/^([\d.]+)/);return m?m[1]:raw;})(),
-      rateUnit: (()=>{const raw=String(r.rate||r.label_rate||r["Label Rate"]||"");const m=raw.match(/^[\d.]+\s*(.*)/);return r.rateUnit||r.rate_unit||(m&&m[1]?m[1]:"oz/gal");})(),
-      volumeApplied: String(r.volumeApplied||r.amount_mixed||r.amount_mixed_gallons||r["Amount Mixed (gallons)"]||r["Amount Mixed"]||""),
-      volumeUnit: r.volumeUnit||r.volume_unit||"gal",
-      areaApplied: (()=>{ const d=String(r.areaApplied||r.area_treated||r.area_treated_sq_ft||r["Area Treated (sq ft)"]||r["Area Treated"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("area")); return k?String(r[k]||""):""; })(),
-      applicationMethod: r.applicationMethod||r.application_equipment||r["Application Equipment"]||"Backpack sprayer",
-      targetPest: (()=>{ const d=r.targetPest||r.target_pest___disease||r.target_pest_disease||r.target_pest||r["Target Pest / Disease"]||r["Target Pest"]||""; if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("pest")||k.toLowerCase().includes("target_pest")); return k?String(r[k]||""):""; })(),
-      weatherTemp: (()=>{ const d=String(r.weatherTemp||r.temp_at_application||r.temp_at_application__f__||r["Temp at Application (F)"]||r["Temp"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("temp")); return k?String(r[k]||""):""; })(),
-      weatherWind: (()=>{ const d=String(r.weatherWind||r.wind_speed__mph__||r.wind_speed||r["Wind Speed (mph)"]||r["Wind Speed"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("wind")); return k?String(r[k]||""):""; })(),
-      weatherHumidity: (()=>{ const d=String(r.weatherHumidity||r.relative_humidity____||r.relative_humidity||r["Relative Humidity (%)"]||r["RH"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("humid")||k.toLowerCase().includes("relative")); return k?String(r[k]||""):""; })(),
-      rei: (()=>{ const d=String(r.rei||r.re_entry_interval__hrs__||r.re_entry_interval||r["Re-Entry Interval (hrs)"]||r["REI"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("rei")||k.toLowerCase().includes("re_entry")); return k?String(r[k]||""):""; })(),
-      phi: (()=>{ const d=String(r.phi||r.pre_harvest_interval__days__||r.pre_harvest_interval||r["Pre-Harvest Interval (days)"]||r["PHI"]||""); if(d) return d; const k=Object.keys(r).find(k=>k.toLowerCase().includes("phi")||k.toLowerCase().includes("pre_harvest")); return k?String(r[k]||""):""; })(),
-      applicatorName,applicatorLicenseNum,
-      applicatorId: r.applicatorId||"",
-      notes: r.notes||r["Notes"]||"",
-    };
-  }
-
   async function save(){
     if(!form.date){setErr("Enter application date.");return;}
     if(!form.product){setErr("Enter the product name.");return;}
