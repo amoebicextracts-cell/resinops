@@ -9,7 +9,7 @@
 // Valid columns per table (from Supabase schema)
 const SCHEMAS = {
   strains: ['id','created_at','updated_at','facility_id','name','type','lineage','breeder','thca_avg','thc_avg','cbd_avg','terps_avg','dominant_terps','veg_weeks','flower_weeks','yield_g_sqft','aroma','flavor','effects','ai_description','notes'],
-  harvest_batches: ['id','created_at','updated_at','facility_id','created_by','batch_number','strain_name','grow_space_id','room_name','harvest_date','plant_count','wet_weight_g','total_dry_weight_g','status','grade_aa_g','grade_a_g','grade_b_g','grade_c_g','trim_g','waste_g','trim_aa','trim_a','trim_b','trim_c','coa_sample_id','lab_name','thca_pct','metrc_tag','metrc_plant_batch','notes','steps','grades','trim_methods','fresh_frozen_splits','is_fresh_frozen','split_from_batch_id'],
+  harvest_batches: ['id','created_at','updated_at','facility_id','created_by','batch_number','strain_name','grow_space_id','room_name','harvest_date','plant_count','wet_weight_g','total_dry_weight_g','status','grade_aa_g','grade_a_g','grade_b_g','grade_c_g','trim_g','waste_g','trim_aa','trim_a','trim_b','trim_c','coa_sample_id','lab_name','thca_pct','metrc_tag','metrc_plant_batch','notes','steps','grades','trim_methods','fresh_frozen_splits','is_fresh_frozen','split_from_batch_id','buck_machine','buck_throughput','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day'],
   production_batches: ['id','created_at','updated_at','facility_id','created_by','name','category','subcategory','cat_label','strains','scheduled_date','status','input_amt','input_unit','input_material','input_potency_pct','harvest_batch_id','harvest_grade','yield_est','actual_yield','packaging_container','packaging_units_per_pack','pkg_size','vape_hardware','vape_input_type','vape_start_potency','vape_input_terp_pct','target_blend_thc','vape_terp_pct','additive_thc','additive_terp_pct','piece_weight_g','cb_blend_components','cb_targets','cb_blend_result','distillation_apparatus','linked_coc_ids','is_linked','linked_to','metrc_tag','steps','formulation_result','notes','wash_events','freeze_dry_cycles','press_runs','cold_cure_batches','dewax_passes','purge_runs','diamond_sauce_batches','input_material_type'],
   qc_tests: ['id','created_at','updated_at','facility_id','strain_name','sample_id','harvest_batch_id','production_batch_id','batch_type','lab_name','date_submitted','date_reported','thca','cbd','thc','total_thc','cbg','cbn','cbc','thcv','total_terpenes','myrcene','caryophyllene','limonene','linalool','humulene','ocimene','terpinolene','pinene','overall_pass','pesticides_pass','heavy_metals_pass','microbials_pass','foreign_matter','water_activity','moisture_content','tyam','tab','on_hold','hold_reason','notes','batch_name','submitted_date','expected_date','received_date','cbda','total_cannabinoids','bisabolol','valencene','other_terps','aspergillus','salmonella','stec','ecoli','microbial_pass'],
   grow_rooms: ['id','created_at','updated_at','facility_id','created_by','name','room_type','sqft','canopy_sqft','max_plants','light_type','light_count','light_watts','sensor_id','status','reset_days','notes','last_harvest_date'],
@@ -90,6 +90,13 @@ const FIELD_OVERRIDES = {
     freshFrozenSplits: 'fresh_frozen_splits',
     isFreshFrozen: 'is_fresh_frozen',
     splitFromBatchId: 'split_from_batch_id',
+    buckMachine: 'buck_machine',
+    buckThroughput: 'buck_throughput',
+    trimType: 'trim_type',
+    trimMachine: 'trim_machine',
+    trimThroughput: 'trim_throughput',
+    trimmerCount: 'trimmer_count',
+    gramsPerTrimmerDay: 'grams_per_trimmer_day',
   },
   production_batches: {
     cat: 'category',
