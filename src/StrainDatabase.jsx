@@ -251,7 +251,7 @@ Rules:
   // Import keeper phenos as strains
   function importFromPheno(hunt,seed){
     const existing=strains.find(s=>s.name.toLowerCase()===hunt.strainName.toLowerCase());
-    const base=existing||{...EMPTY_STRAIN,name:hunt.strainName,breeder:hunt.breeder||"",id:"str"+Date.now()};
+    const base=existing||{...EMPTY_STRAIN,name:hunt.strainName,breeder:hunt.breeder||"",id:crypto.randomUUID()};
     setForm({...base,
       thcaAvg:seed.coaTHCa||base.thcaAvg,
       thcAvg:seed.coaTHC||base.thcAvg,
