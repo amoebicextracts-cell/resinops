@@ -221,7 +221,7 @@ export default function Scheduler() {
     const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     const record = {
-      id: crypto.randomUUID(), name: form.name.trim(), strains: JSON.stringify(strains), strain: strains.map(s=>s.name).join(", "),
+      id: crypto.randomUUID(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
       d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||""
     };
     try {
@@ -239,7 +239,7 @@ export default function Scheduler() {
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
     const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
-    const updated = { name: form.name.trim(), strains: JSON.stringify(strains), strain: strains.map(s=>s.name).join(", "),
+    const updated = { name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
         d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" };
     try {
       const existing = spaces.find(sp => sp.id === editId);
