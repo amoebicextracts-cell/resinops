@@ -83,6 +83,7 @@ export default function FacilityMap(){
   const [form, setForm] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [cleanForm, setCleanForm] = useState(null);
+  const [addBatchId, setAddBatchId] = useState("");
   const [err, setErr] = useState("");
 
 
@@ -300,13 +301,27 @@ export default function FacilityMap(){
                         <div style={{marginBottom:12}}>
                           <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Active production batches</div>
                           {(selected.assignedBatchIds||[]).length===0?(
-                            <div style={{fontSize:12,color:"var(--text-3)"}}>No batches assigned to this space</div>
+                            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:8}}>No batches assigned to this space</div>
                           ):prodBatches.filter(b=>(selected.assignedBatchIds||[]).includes(b.id)).map(b=>(
-                            <div key={b.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 8px",background:"var(--surface-2)",borderRadius:6,marginBottom:4,fontSize:12}}>
+                            <div key={b.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 8px",background:"var(--surface-2)",borderRadius:6,marginBottom:4,fontSize:12}}>
                               <span style={{color:"var(--text)"}}>{b.name}</span>
-                              <span style={{color:"var(--accent-2)",fontSize:10,fontWeight:600}}>{b.status?.replace("_"," ").toUpperCase()}</span>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <span style={{color:"var(--accent-2)",fontSize:10,fontWeight:600}}>{b.status?.replace("_"," ").toUpperCase()}</span>
+                                <button className="fm-sm fm-del" onClick={()=>toggleBatch(selected.id,b.id)}>✕</button>
+                              </div>
                             </div>
                           ))}
+                          {(()=>{
+                            const unassigned = prodBatches.filter(b=>!(selected.assignedBatchIds||[]).includes(b.id));
+                            if(!unassigned.length) return null;
+                            return (
+                              <select className="fm-sel" style={{marginTop:4}} value={addBatchId}
+                                onChange={e=>{ if(e.target.value){ toggleBatch(selected.id,e.target.value); setAddBatchId(""); } }}>
+                                <option value="">+ Assign a batch to this space…</option>
+                                {unassigned.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+                              </select>
+                            );
+                          })()}
                         </div>
 
                         {/* Log cleaning button */}
