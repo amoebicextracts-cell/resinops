@@ -753,33 +753,31 @@ export default function DataManager(){
         await db.spray_log.upsert({...sl, id: uid(sl.id)});
       }
 
-      // ── TC Tracker, Facility Map, Pheno Hunt ─────────────────────
-      // These three modules have not been migrated off localStorage yet —
-      // db.tc_vessels/facility_map_spaces exist in Supabase but these
-      // components never call them. Seeding directly into the exact
-      // localStorage keys/shapes they actually read is the only way demo
-      // data shows up here until they get a real Supabase migration.
+      // ── TC Tracker, Facility Map ──────────────────────────────────
+      // Both are now wired to real tables (db.tc_accessions/tc_vessels/
+      // tc_formulas, db.facility_map_spaces) — seed through db.*upsert()
+      // like every other Supabase-backed module above, not localStorage.
       try {
         const tcAccessions = [
-          {id:"tca_001",strainName:"Black Maple",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-05-15",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"clean",notes:"Source from mother room pheno BM-04. HLV-free confirmed via PCR.",status:"active"},
-          {id:"tca_002",strainName:"Gorilla Cake",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-05-20",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"clean",notes:"Standard preservation accession.",status:"active"},
-          {id:"tca_003",strainName:"Sour Diesel OG",sourceType:"mother_plant",sourceId:"",initiatedDate:"2026-06-01",initiatedBy:"Priya Nair",purpose:"cleanup",hlvStatus:"clean",notes:"Post-cleanup accession, HLV-free run confirmed.",status:"active"},
+          {id:"tca_001",strainName:"Black Maple",sourceType:"mother_plant",initiatedDate:"2026-05-15",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"cleared",notes:"Source from mother room pheno BM-04. HLV-free confirmed via PCR.",status:"active"},
+          {id:"tca_002",strainName:"Gorilla Cake",sourceType:"mother_plant",initiatedDate:"2026-05-20",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"cleared",notes:"Standard preservation accession.",status:"active"},
+          {id:"tca_003",strainName:"Sour Diesel OG",sourceType:"mother_plant",initiatedDate:"2026-06-01",initiatedBy:"Priya Nair",purpose:"hlv_cleanup",hlvStatus:"cleared",notes:"Post-cleanup accession, HLV-free run confirmed.",status:"active"},
         ];
-        localStorage.setItem("resinops_tc_accessions", JSON.stringify(tcAccessions));
+        for (const a of tcAccessions) await db.tc_accessions.upsert({...a, id:uid(a.id)});
 
         const tcVessels = [
-          {id:"tcv_001",accessionId:"tca_001",label:"BM-04-A",stage:"stage2",stageDate:"2026-06-01",mediaBase:"Athena Shoots",mediaLotNum:"AS-2604",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:3,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Clean stock, transitioning to rooting stage next cycle.",log:[]},
-          {id:"tcv_002",accessionId:"tca_002",label:"GC-01-A",stage:"stage3",stageDate:"2026-06-15",mediaBase:"Athena Roots",mediaLotNum:"AR-1092",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:2,explantDate:"2026-05-20",explantSource:"Mother room",notes:"Rooting stage, transitioning to ex vitro acclimatization next cycle.",log:[]},
-          {id:"tcv_003",accessionId:"tca_003",label:"SD-02-A",stage:"explant",stageDate:"2026-06-20",mediaBase:"WPM",mediaLotNum:"WP-3301",contaminated:false,contamType:"",contamDate:"",health:"Good",transferCount:1,explantDate:"2026-06-01",explantSource:"Mother room",notes:"New accession, initial establishment phase.",log:[]},
+          {id:"tcv_001",accessionId:"tca_001",label:"BM-04-A",stage:"stage2",stageDate:"2026-06-01",mediaBase:"Athena Shoots",mediaLotNum:"AS-2604",contaminated:false,health:"Good",transferCount:3,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Clean stock, transitioning to rooting stage next cycle.",log:[]},
+          {id:"tcv_002",accessionId:"tca_002",label:"GC-01-A",stage:"stage3",stageDate:"2026-06-15",mediaBase:"Athena Roots",mediaLotNum:"AR-1092",contaminated:false,health:"Good",transferCount:2,explantDate:"2026-05-20",explantSource:"Mother room",notes:"Rooting stage, transitioning to ex vitro acclimatization next cycle.",log:[]},
+          {id:"tcv_003",accessionId:"tca_003",label:"SD-02-A",stage:"explant",stageDate:"2026-06-20",mediaBase:"WPM",mediaLotNum:"WP-3301",contaminated:false,health:"Good",transferCount:1,explantDate:"2026-06-01",explantSource:"Mother room",notes:"New accession, initial establishment phase.",log:[]},
           {id:"tcv_004",accessionId:"tca_001",label:"BM-04-B",stage:"stage2",stageDate:"2026-05-15",mediaBase:"Athena Shoots",mediaLotNum:"AS-2589",contaminated:true,contamType:"Bacterial (cloudy media)",contamDate:"2026-06-14",health:"Poor — consider discard",transferCount:4,explantDate:"2026-05-15",explantSource:"Mother room pheno BM-04",notes:"Contamination detected June 14 — bacterial. Quarantined, source review initiated.",log:[]},
         ];
-        localStorage.setItem("resinops_tc_vessels", JSON.stringify(tcVessels));
+        for (const v of tcVessels) await db.tc_vessels.upsert({...v, id:uid(v.id), accessionId:uid(v.accessionId)});
 
         const tcFormulas = [
           {id:"tcf_001",name:"Standard Multiplication",stage:"stage1",base:"Athena Shoots",volume:1000,agar:7,ph:5.7,pgr1name:"BAP",pgr1mg:0.5,pgr2name:"IBA",pgr2mg:0,notes:"Standard multiplication-stage formula for most cultivars."},
           {id:"tcf_002",name:"Standard Rooting",stage:"stage3",base:"Athena Roots",volume:1000,agar:6,ph:5.6,pgr1name:"IBA",pgr1mg:1.0,pgr2name:"",pgr2mg:0,notes:"Root-induction formula, lower agar for easier ex vitro transfer."},
         ];
-        localStorage.setItem("resinops_tc_formulas", JSON.stringify(tcFormulas));
+        for (const f of tcFormulas) await db.tc_formulas.upsert({...f, id:uid(f.id)});
 
         const facilityRooms = [
           {id:"fmr_001",name:"Processing Room",type:"Processing Room",sqft:1000,status:"active",assignedBatchIds:[],cleanIntervalDays:3,notes:"Extraction, trimming, packaging",cleanLog:[{date:new Date(Date.now()-2*86400000).toISOString().split("T")[0],type:"Full Sanitation",by:"Tyler Bates",notes:"Post-production full clean",batchId:""}]},
@@ -788,7 +786,7 @@ export default function DataManager(){
           {id:"fmr_004",name:"Storage — Finished Goods",type:"Storage — Finished Goods",sqft:400,status:"active",assignedBatchIds:[],cleanIntervalDays:14,notes:"Packaged product awaiting delivery",cleanLog:[{date:new Date(Date.now()-10*86400000).toISOString().split("T")[0],type:"Deep Clean",by:"Tyler Bates",notes:"Monthly deep clean",batchId:""}]},
           {id:"fmr_005",name:"Receiving / Shipping",type:"Receiving / Shipping",sqft:200,status:"active",assignedBatchIds:[],cleanIntervalDays:7,notes:"Inbound supplies and outbound orders",cleanLog:[]},
         ];
-        localStorage.setItem("resinops_facility_map", JSON.stringify(facilityRooms));
+        for (const r of facilityRooms) await db.facility_map_spaces.upsert({...r, id:uid(r.id)});
 
         const phenoHunts = [
           {id:"ph_001",strainName:"Purple Runtz F2",breeder:"In-house",seedSource:"Self-pollinated Zaza Runtz",seedCount:12,germDate:"2026-05-01",notes:"F2 pop from our own Zaza Runtz — hunting for a keeper with tighter internodes.",
@@ -815,10 +813,10 @@ export default function DataManager(){
             gyPerHour:"1000",turnRequired:true,status:"flagged",retestResult:"",
             notes:"Aspergillus flagged on initial COA — batch held pending irradiation and retest. Scheduling irradiation run this week."},
         ];
-        localStorage.setItem("resinops_remediation", JSON.stringify(remediationRecords));
-      } catch(e) { console.warn("TC Tracker / Facility Map / Pheno Hunt demo seed skipped:", e.message); }
+        for (const rec of remediationRecords) await db.remediation.upsert({...rec, id:uid(rec.id)});
+      } catch(e) { console.warn("TC Tracker / Facility Map / Remediation demo seed skipped:", e.message); }
 
-      setStatusMsg("✓ Demo data loaded — Supabase modules plus TC Tracker, Facility Map, and Pheno Hunt (localStorage-based) are all populated. Refresh any module to see it. Facility name/license was NOT changed (needs FacilitySettings.jsx field names to do that safely).");
+      setStatusMsg("✓ Demo data loaded — Supabase modules (including TC Tracker and Facility Map) plus Pheno Hunt (localStorage-based) are all populated. Refresh any module to see it. Facility name/license was NOT changed (needs FacilitySettings.jsx field names to do that safely).");
     } catch(e) {
       console.error("Demo load error:", e);
       setStatusMsg("✗ Demo load failed: "+e.message+" — some data may have partially loaded. Check the browser console for details.");
@@ -836,6 +834,9 @@ export default function DataManager(){
       let stillFailing = [];
       if (isSupabaseEnabled) {
         const fid = getCurrentFacility();
+        if (!fid) {
+          throw new Error("No active facility selected — refusing to clear data (this would otherwise delete every tenant's records, not just yours). Reload the app and select a facility, then try again.");
+        }
         let remaining = TABLE_NAMES.filter(t => t !== "facilities");
         // Multi-pass: some tables can't be cleared until other tables that
         // reference them (foreign keys) are cleared first. Rather than hand-map
@@ -844,8 +845,7 @@ export default function DataManager(){
         for (let pass=0; pass<6 && remaining.length>0; pass++){
           const failedThisPass = [];
           for (const table of remaining) {
-            const q = supabase.from(table).delete();
-            const { error } = fid ? await q.eq("facility_id", fid) : await q.neq("id","00000000-0000-0000-0000-000000000000");
+            const { error } = await supabase.from(table).delete().eq("facility_id", fid);
             if (error) failedThisPass.push(table);
           }
           remaining = failedThisPass;
