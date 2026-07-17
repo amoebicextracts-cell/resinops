@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
 
@@ -53,39 +54,70 @@ const EMPTY_HUNT={strainName:"",breeder:"",seedSource:"",seedCount:"",germDate:"
 const EMPTY_SEED={phenoNum:"",sex:"unknown",germinated:true,isKeeper:false,stage:"Germination",cloneCutDate:"",testRunLinked:"",coaTHC:"",coaTHCa:"",coaCBD:"",coaTerps:"",scores:{},observations:"",archived:false};
 
 export default function PhenoHunt(){
-  const [hunts,setHunts]=useState(()=>{try{return JSON.parse(localStorage.getItem("resinops_pheno_hunts")||"[]");}catch{return[];}});
+  const [hunts,setHunts]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [activeHuntId,setActiveHuntId]=useState(null);
   const [huntForm,setHuntForm]=useState(null);
   const [seedForm,setSeedForm]=useState(null);
   const [err,setErr]=useState("");
 
-  useEffect(()=>{localStorage.setItem("resinops_pheno_hunts",JSON.stringify(hunts));},[hunts]);
+  useEffect(()=>{
+    async function load(){
+      try{ setHunts(await db.pheno_hunts.list()); }
+      catch(e){ console.error("PhenoHunt load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const activeHunt=hunts.find(h=>h.id===activeHuntId);
 
-  function saveHunt(){
+  async function saveHunt(){
     if(!huntForm.strainName.trim()){setErr("Enter a strain name.");return;}
     const seeds=huntForm.id?undefined:Array.from({length:parseInt(huntForm.seedCount)||0},(_,i)=>({...EMPTY_SEED,id:"s"+Date.now()+i,phenoNum:String(i+1)}));
-    const h={...huntForm,id:huntForm.id||"ph"+Date.now(),seeds:huntForm.seeds||seeds||[]};
-    if(huntForm.id) setHunts(p=>p.map(x=>x.id===h.id?h:x));
-    else setHunts(p=>[...p,h]);
-    autoPopulateStrains(huntForm.strainName, { breeder: huntForm.breeder, source: "Pheno Hunt Tracker" });
-    setHuntForm(null);setErr("");
+    const h={...huntForm,id:huntForm.id||crypto.randomUUID(),seeds:huntForm.seeds||seeds||[]};
+    try{
+      const saved=await db.pheno_hunts.upsert(h);
+      if(huntForm.id) setHunts(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setHunts(p=>[...p,saved]);
+      autoPopulateStrains(huntForm.strainName, { breeder: huntForm.breeder, source: "Pheno Hunt Tracker" });
+      setHuntForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function removeHunt(id){setHunts(p=>p.filter(x=>x.id!==id));if(activeHuntId===id)setActiveHuntId(null);}
+  async function removeHunt(id){
+    try{
+      await db.pheno_hunts.delete(id);
+      setHunts(p=>p.filter(x=>x.id!==id));
+      if(activeHuntId===id)setActiveHuntId(null);
+    }catch(e){ console.error("Delete failed:",e); }
+  }
 
   function openSeedForm(seed){setSeedForm(seed?{...seed}:{...EMPTY_SEED,id:"s"+Date.now(),phenoNum:String((activeHunt?.seeds?.length||0)+1)});setErr("");}
-  function saveSeed(){
+  async function saveSeed(){
     if(!seedForm.phenoNum){setErr("Enter a pheno number.");return;}
-    setHunts(p=>p.map(h=>{
-      if(h.id!==activeHuntId)return h;
-      const seeds=seedForm._isNew!==false&&!h.seeds.find(s=>s.id===seedForm.id)?[...h.seeds,seedForm]:h.seeds.map(s=>s.id===seedForm.id?seedForm:s);
-      return{...h,seeds};
-    }));
-    setSeedForm(null);setErr("");
+    const hunt=hunts.find(h=>h.id===activeHuntId);
+    const seeds=seedForm._isNew!==false&&!hunt.seeds.find(s=>s.id===seedForm.id)?[...hunt.seeds,seedForm]:hunt.seeds.map(s=>s.id===seedForm.id?seedForm:s);
+    try{
+      const saved=await db.pheno_hunts.upsert({...hunt,seeds});
+      setHunts(p=>p.map(h=>h.id===activeHuntId?saved:h));
+      setSeedForm(null);setErr("");
+    }catch(e){ setErr("Save failed: "+e.message); }
   }
-  function removeSeed(seedId){setHunts(p=>p.map(h=>h.id===activeHuntId?{...h,seeds:h.seeds.filter(s=>s.id!==seedId)}:h));}
-  function toggleKeeper(seedId){setHunts(p=>p.map(h=>h.id!==activeHuntId?h:{...h,seeds:h.seeds.map(s=>s.id===seedId?{...s,isKeeper:!s.isKeeper,stage:!s.isKeeper?"Keeper":s.stage}:s)}));}
+  async function removeSeed(seedId){
+    const hunt=hunts.find(h=>h.id===activeHuntId);
+    try{
+      const saved=await db.pheno_hunts.upsert({...hunt,seeds:hunt.seeds.filter(s=>s.id!==seedId)});
+      setHunts(p=>p.map(h=>h.id===activeHuntId?saved:h));
+    }catch(e){ console.error("Delete failed:",e); }
+  }
+  async function toggleKeeper(seedId){
+    const hunt=hunts.find(h=>h.id===activeHuntId);
+    const seeds=hunt.seeds.map(s=>s.id===seedId?{...s,isKeeper:!s.isKeeper,stage:!s.isKeeper?"Keeper":s.stage}:s);
+    try{
+      const saved=await db.pheno_hunts.upsert({...hunt,seeds});
+      setHunts(p=>p.map(h=>h.id===activeHuntId?saved:h));
+    }catch(e){ console.error("Keeper toggle save failed:",e); }
+  }
 
   function totalScore(seed){
     const vals=Object.values(seed.scores||{}).filter(v=>v>0);
@@ -93,6 +125,8 @@ export default function PhenoHunt(){
   }
 
   const setScore=(k,v)=>setSeedForm(f=>({...f,scores:{...f.scores,[k]:v}}));
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading pheno hunts…</div>);
 
   return(
     <>

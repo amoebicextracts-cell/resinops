@@ -753,10 +753,11 @@ export default function DataManager(){
         await db.spray_log.upsert({...sl, id: uid(sl.id)});
       }
 
-      // ── TC Tracker, Facility Map ──────────────────────────────────
-      // Both are now wired to real tables (db.tc_accessions/tc_vessels/
-      // tc_formulas, db.facility_map_spaces) — seed through db.*upsert()
-      // like every other Supabase-backed module above, not localStorage.
+      // ── TC Tracker, Facility Map, Pheno Hunt ─────────────────────
+      // All three are now wired to real tables (db.tc_accessions/
+      // tc_vessels/tc_formulas, db.facility_map_spaces, db.pheno_hunts) —
+      // seed through db.*upsert() like every other Supabase-backed module
+      // above, not localStorage.
       try {
         const tcAccessions = [
           {id:"tca_001",strainName:"Black Maple",sourceType:"mother_plant",initiatedDate:"2026-05-15",initiatedBy:"Priya Nair",purpose:"preservation",hlvStatus:"cleared",notes:"Source from mother room pheno BM-04. HLV-free confirmed via PCR.",status:"active"},
@@ -801,7 +802,7 @@ export default function DataManager(){
               {id:"phs_005",phenoNum:"2",sex:"unknown",germinated:true,isKeeper:false,stage:"Seedling",cloneCutDate:"",testRunLinked:"",coaTHC:"",coaTHCa:"",coaCBD:"",coaTerps:"",scores:{},observations:"Healthy seedling, slightly slower to establish than #1.",archived:false},
             ]},
         ];
-        localStorage.setItem("resinops_pheno_hunts", JSON.stringify(phenoHunts));
+        for (const h of phenoHunts) await db.pheno_hunts.upsert({...h, id:uid(h.id)});
 
         // Microbial Remediation — flag one harvest batch as aspergillus-positive
         // so there's something to remediate. Links to the Mango Haze harvest
@@ -814,9 +815,9 @@ export default function DataManager(){
             notes:"Aspergillus flagged on initial COA — batch held pending irradiation and retest. Scheduling irradiation run this week."},
         ];
         for (const rec of remediationRecords) await db.remediation.upsert({...rec, id:uid(rec.id)});
-      } catch(e) { console.warn("TC Tracker / Facility Map / Remediation demo seed skipped:", e.message); }
+      } catch(e) { console.warn("TC Tracker / Facility Map / Pheno Hunt / Remediation demo seed skipped:", e.message); }
 
-      setStatusMsg("✓ Demo data loaded — Supabase modules (including TC Tracker and Facility Map) plus Pheno Hunt (localStorage-based) are all populated. Refresh any module to see it. Facility name/license was NOT changed (needs FacilitySettings.jsx field names to do that safely).");
+      setStatusMsg("✓ Demo data loaded — all Supabase modules (including TC Tracker, Facility Map, and Pheno Hunt) are populated. Refresh any module to see it. Facility name/license was NOT changed (needs FacilitySettings.jsx field names to do that safely).");
     } catch(e) {
       console.error("Demo load error:", e);
       setStatusMsg("✗ Demo load failed: "+e.message+" — some data may have partially loaded. Check the browser console for details.");

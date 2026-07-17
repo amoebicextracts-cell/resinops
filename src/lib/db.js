@@ -48,6 +48,7 @@ const LS_KEYS = {
   vendors:            'resinops_vendors_v2',
   purchase_orders:    'resinops_purchase_orders',
   work_orders:        'resinops_work_orders',
+  pheno_hunts:        'resinops_pheno_hunts',
   loto_log:           'resinops_loto_log',
   remediation:        'resinops_remediation',
   gmp_signoffs:       'resinops_signoffs',

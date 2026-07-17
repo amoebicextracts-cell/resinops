@@ -42,6 +42,7 @@ const SCHEMAS = {
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes'],
   cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other'],
+  pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -511,6 +512,12 @@ const FIELD_OVERRIDES = {
   },
   cultivation_costs: {
     spaceId: 'grow_space_id',
+  },
+  pheno_hunts: {
+    strainName: 'strain_name',
+    seedSource: 'seed_source',
+    seedCount: 'seed_count',
+    germDate: 'germ_date',
   },
 };
 
