@@ -49,6 +49,7 @@ const LS_KEYS = {
   purchase_orders:    'resinops_purchase_orders',
   work_orders:        'resinops_work_orders',
   pheno_hunts:        'resinops_pheno_hunts',
+  metrc_transfer_manifests: 'resinops_metrc_transfer_manifests',
   loto_log:           'resinops_loto_log',
   remediation:        'resinops_remediation',
   gmp_signoffs:       'resinops_signoffs',

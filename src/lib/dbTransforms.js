@@ -43,6 +43,7 @@ const SCHEMAS = {
   cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other'],
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
+  metrc_transfer_manifests: ['id','created_at','updated_at','facility_id','created_by','sales_order_id','destination_facility_name','destination_license_number','transfer_type','planned_route','estimated_departure','estimated_arrival','driver_name','driver_license_number','vehicle_make','vehicle_model','vehicle_license_plate','phone_for_questions','packages','metrc_transfer_id','status','notes'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -525,6 +526,22 @@ const FIELD_OVERRIDES = {
     seedSource: 'seed_source',
     seedCount: 'seed_count',
     germDate: 'germ_date',
+  },
+  metrc_transfer_manifests: {
+    salesOrderId: 'sales_order_id',
+    destinationFacilityName: 'destination_facility_name',
+    destinationLicenseNumber: 'destination_license_number',
+    transferType: 'transfer_type',
+    plannedRoute: 'planned_route',
+    estimatedDeparture: 'estimated_departure',
+    estimatedArrival: 'estimated_arrival',
+    driverName: 'driver_name',
+    driverLicenseNumber: 'driver_license_number',
+    vehicleMake: 'vehicle_make',
+    vehicleModel: 'vehicle_model',
+    vehicleLicensePlate: 'vehicle_license_plate',
+    phoneForQuestions: 'phone_for_questions',
+    metrcTransferId: 'metrc_transfer_id',
   },
 };
 

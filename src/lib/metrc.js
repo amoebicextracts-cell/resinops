@@ -423,6 +423,38 @@ export async function recordLabTest(state, licenseNumber, labTestData) {
   return metrcCall('labtests.record', state, licenseNumber, {}, body, 'POST');
 }
 
+export async function createMetrcOutgoingTransfer(state, licenseNumber, manifestData) {
+  // Best-effort payload shape based on general METRC Transfers API
+  // conventions — NOT verified against live METRC API docs (no API key
+  // was available to test against when this was written). Confirm field
+  // names and the endpoint path (see api/metrc.js's transfers.create_outgoing
+  // comment) against your state's official METRC API documentation before
+  // enabling METRC_WRITES_ENABLED for this action.
+  const body = [{
+    TransporterFacilityLicenseNumber: licenseNumber,
+    RecipientLicenseNumber: manifestData.destinationLicenseNumber,
+    TransferTypeName: manifestData.transferType || 'Wholesale Manifest',
+    PlannedRoute: manifestData.plannedRoute || '',
+    EstimatedDepartureDateTime: manifestData.estimatedDeparture,
+    EstimatedArrivalDateTime: manifestData.estimatedArrival,
+    Transporters: [{
+      DriverName: manifestData.driverName,
+      DriverOccupationalLicenseNumber: manifestData.driverLicenseNumber,
+      VehicleMake: manifestData.vehicleMake,
+      VehicleModel: manifestData.vehicleModel,
+      VehicleLicensePlateNumber: manifestData.vehicleLicensePlate,
+      PhoneNumberForQuestions: manifestData.phoneForQuestions,
+    }],
+    Packages: (manifestData.packages || []).map(p => ({
+      PackageLabel: p.packageLabel,
+      GrossWeight: p.grossWeight,
+      GrossUnitOfWeightName: p.grossUnitOfWeight || 'Grams',
+      WholesalePrice: p.wholesalePrice || null,
+    })),
+  }];
+  return metrcCall('transfers.create_outgoing', state, licenseNumber, {}, body, 'POST');
+}
+
 // ── Utilities ─────────────────────────────────────────────────
 function thirtyDaysAgo() {
   const d = new Date();

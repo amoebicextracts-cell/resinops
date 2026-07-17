@@ -84,6 +84,12 @@ const ENDPOINTS = {
   'transfers.outgoing':     { path: '/transfers/v1/outgoing',      method: 'GET' },
   'transfers.rejected':     { path: '/transfers/v1/rejected',      method: 'GET' },
   'transfers.create':       { path: '/transfers/v1/external/incoming', method: 'POST' },
+  // NOT verified against live METRC API docs (no API key available to test
+  // against as of when this was added) — unlike every other endpoint above,
+  // which either pre-dates this addition or mirrors one that does. Confirm
+  // the exact path and payload shape against your state's official METRC
+  // API documentation before enabling METRC_WRITES_ENABLED for this action.
+  'transfers.create_outgoing': { path: '/transfers/v1/outgoing', method: 'POST' },
   'transfers.deliveries':   { path: '/transfers/v1/{id}/deliveries', method: 'GET' },
   'transfers.packages':     { path: '/transfers/v1/delivery/{id}/packages', method: 'GET' },
 
