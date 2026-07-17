@@ -59,13 +59,15 @@ export default function GMPHub(){
   const [qcTests,setQcTests]=useState([]);
   const [cultInputs,setCultInputs]=useState([]);
   const [facility,setFacility]=useState({});
+  const [facilityRooms,setFacilityRooms]=useState([]);
+  const [growRooms,setGrowRooms]=useState([]);
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
         const facilityId=getCurrentFacility();
-        const [so,dv,sh,sig,qc,ci,emp,hb,pb,facRes]=await Promise.all([
+        const [so,dv,sh,sig,qc,ci,emp,hb,pb,facRes,fm,gr]=await Promise.all([
           db.gmp_sops.list(),
           db.gmp_deviations.list(),
           db.gmp_shifts.list(),
@@ -76,6 +78,8 @@ export default function GMPHub(){
           db.harvest_batches.list(),
           db.production_batches.list(),
           facilityId?supabase.from('facilities').select('*').eq('id',facilityId).single():Promise.resolve({data:null}),
+          db.facility_map_spaces.list(),
+          db.grow_rooms.list(),
         ]);
         setSops(so);
         setDeviations(dv);
@@ -87,6 +91,8 @@ export default function GMPHub(){
         setEmployees(emp);
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
+        setFacilityRooms(fm);
+        setGrowRooms(gr);
       }catch(e){ console.error("GMPHub load error:",e); }
       setLoading(false);
     }
@@ -433,8 +439,6 @@ export default function GMPHub(){
         {/* ── CLEANING LOG ── */}
         {tab==="cleaning"&&(()=>{
           // Read cleaning logs from both Facility Map and Grow Map rooms
-          const facilityRooms=JSON.parse(localStorage.getItem("resinops_facility_map")||"[]");
-          const growRooms=JSON.parse(localStorage.getItem("resinops_grow_map")||"[]");
           const allRooms=[...facilityRooms,...growRooms];
           const allCleanLogs=allRooms.flatMap(r=>(r.cleanLog||[]).map(c=>({...c,roomName:r.name,roomType:r.type||""})))
             .sort((a,b)=>new Date(b.date)-new Date(a.date));

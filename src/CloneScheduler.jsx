@@ -108,7 +108,14 @@ export default function CloneScheduler(){
     }catch(e){ setErr("Save failed: "+e.message); }
   }
   async function remove(id){ try{ await db.clone_schedules.delete(id); setSchedules(p=>p.filter(x=>x.id!==id)); }catch(e){ console.error("Delete failed:",e); } }
-  function setStatus(id,st){setSchedules(p=>p.map(x=>x.id===id?{...x,status:st}:x));}
+  async function setStatus(id,st){
+    const sc=schedules.find(x=>x.id===id);
+    if(!sc) return;
+    try{
+      const saved=await db.clone_schedules.upsert({...sc,status:st});
+      setSchedules(p=>p.map(x=>x.id===id?saved:x));
+    }catch(e){ console.error("Status update failed:",e); }
+  }
 
   function urgencyClass(cutDate){
     if(!cutDate) return "cs-ok";

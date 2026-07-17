@@ -151,18 +151,17 @@ export default function MotherPlantManager(){
       setMoms(p=>p.map(m=>m.id===selectedId?saved:m));
     }catch(e){ setErr("Cut log save failed: "+e.message); return; }
 
-    // Suggest to Clone Scheduler — store as a suggested batch
-    const cloneSuggestions = []; // TODO: move to db layer
-    cloneSuggestions.push({
-      id: "cs_"+Date.now(),
-      strainName: selected.strainName,
-      sourceMotherIds: [selectedId],
-      suggestedCutDate: cutForm.date,
-      quantity: cutsThisCycle,
-      status: "suggested",
-      notes: "From Mother Plant Manager cut log",
-    });
-    // clone suggestions will be persisted in a future update
+    // Suggest to Clone Scheduler — a real entry the cultivation team can
+    // review and fill in room/veg/root details for.
+    try{
+      await db.clone_schedules.upsert({
+        id: crypto.randomUUID(),
+        strainName: selected.strainName,
+        plannedPlants: cutsThisCycle,
+        status: "upcoming",
+        notes: "Suggested from Mother Plant Manager — "+selected.strainName+" cut logged "+fmtD(cutForm.date),
+      });
+    }catch(e){ console.error("Clone Scheduler suggestion failed:",e); }
 
     setCutForm(null); setErr("");
   }
