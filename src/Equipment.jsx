@@ -91,8 +91,14 @@ export default function Equipment() {
   useEffect(()=>{
     async function load(){
       try{
-        const eq = await db.equipment.list();
+        const [eq, sl, vd] = await Promise.all([
+          db.equipment.list(),
+          db.equipment_service_log.list(),
+          db.vendors.list(),
+        ]);
         setEquipment(eq);
+        setServiceLog(sl);
+        setVendors(vd);
       }catch(e){ console.error("Equipment load error:",e); }
       setLoading(false);
     }
@@ -122,11 +128,17 @@ export default function Equipment() {
   }
 
   function openService(eq) { setServiceForm({ equipId:eq.id, date:new Date().toISOString().split("T")[0], type:"pm", tech:"", vendorId:"", cost:"", notes:"" }); }
-  function saveService() {
-    const rec = {...serviceForm, id:"svc"+Date.now()};
-    setServiceLog(p=>[...p, rec]);
-    setEquipment(p=>p.map(x=>x.id===serviceForm.equipId?{...x,lastServiceDate:serviceForm.date}:x));
-    setServiceForm(null);
+  async function saveService() {
+    const rec = {...serviceForm, id:crypto.randomUUID()};
+    try{
+      const [savedLog, savedEquip] = await Promise.all([
+        db.equipment_service_log.upsert(rec),
+        db.equipment.upsert({...equipment.find(x=>x.id===serviceForm.equipId), lastServiceDate:serviceForm.date}),
+      ]);
+      setServiceLog(p=>[...p, savedLog]);
+      setEquipment(p=>p.map(x=>x.id===savedEquip.id?savedEquip:x));
+      setServiceForm(null);
+    }catch(e){ setErr("Could not save service record: "+(e.message||e)); }
   }
 
   const today = new Date();
@@ -253,6 +265,7 @@ export default function Equipment() {
                 <div><label className="eq-lbl">Cost ($)</label><input type="number" step="0.01" className="eq-inp" value={serviceForm.cost} onChange={e=>setServiceForm(f=>({...f,cost:e.target.value}))} /></div>
                 <div><label className="eq-lbl">Notes</label><input className="eq-inp" value={serviceForm.notes} onChange={e=>setServiceForm(f=>({...f,notes:e.target.value}))} /></div>
               </div>
+              {err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
               <div style={{display:"flex",gap:8}}>
                 <button className="eq-btn eq-primary" onClick={saveService}>Save</button>
                 <button className="eq-btn eq-secondary" onClick={()=>setServiceForm(null)}>Cancel</button>

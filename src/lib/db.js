@@ -40,6 +40,7 @@ const LS_KEYS = {
   sales_orders:       'resinops_orders',
   inventory_items:    'resinops_inventory',
   equipment:          'resinops_equipment',
+  equipment_service_log: 'resinops_equipment_service_log',
   facility_map_spaces:'resinops_facility_map',
   labor_types:        'resinops_labor_types',
   import_history:     'resinops_import_history',
