@@ -26,6 +26,8 @@ const LS_KEYS = {
   mother_plants:      'resinops_mothers',
   strains:            'resinops_strains',
   tc_vessels:         'resinops_tc_vessels',
+  tc_accessions:      'resinops_tc_accessions',
+  tc_formulas:        'resinops_tc_formulas',
   production_batches: 'resinops_prod',
   qc_tests:           'resinops_qc_tests',
   cultivation_inputs: 'resinops_cult_inputs',

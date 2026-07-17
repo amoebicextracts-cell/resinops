@@ -59,10 +59,26 @@ const EMPTY_CLEAN = {
 export default function FacilityMap(){
   const [prodBatches, setProdBatches] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [rooms, setRooms] = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("resinops_facility_map")||"[]"); }catch{ return []; }
-  });
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [rm, pb, emp] = await Promise.all([
+          db.facility_map_spaces.list(),
+          db.production_batches.list(),
+          db.employees.list(),
+        ]);
+        setRooms(rm);
+        setProdBatches(pb.filter(b=>!b.isLinked));
+        setEmployees(emp);
+      }catch(e){ console.error("FacilityMap load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
+
   const [tab, setTab] = useState("rooms");
   const [form, setForm] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -81,29 +97,39 @@ export default function FacilityMap(){
     return daysAgo(lastClean) >= parseInt(r.cleanIntervalDays)-1;
   });
 
-  function saveRoom(){
+  async function saveRoom(){
     if(!form.name.trim()){ setErr("Room name is required."); return; }
-    const rec = {...form, id: form.id||"fac_"+Date.now(), cleanLog: form.cleanLog||[]};
-    if(form.id) setRooms(p=>p.map(r=>r.id===rec.id?rec:r));
-    else setRooms(p=>[...p,rec]);
-    setForm(null); setErr("");
+    const rec = {...form, id: form.id||crypto.randomUUID(), cleanLog: form.cleanLog||[]};
+    try{
+      const saved = await db.facility_map_spaces.upsert(rec);
+      if(form.id) setRooms(p=>p.map(r=>r.id===saved.id?saved:r));
+      else setRooms(p=>[...p,saved]);
+      setForm(null); setErr("");
+    }catch(e){ console.error("Facility space save failed:",e); setErr("Save failed: "+e.message); }
   }
 
-  function logClean(){
+  async function logClean(){
     if(!cleanForm.by.trim()){ setErr("Enter who performed the cleaning."); return; }
     const entry = {...cleanForm, id:"cl_"+Date.now()};
-    setRooms(p=>p.map(r=>r.id===selectedId?{...r,cleanLog:[...(r.cleanLog||[]),entry]}:r));
-    setCleanForm(null); setErr("");
+    const updated = {...selected, cleanLog:[...(selected.cleanLog||[]),entry]};
+    try{
+      const saved = await db.facility_map_spaces.upsert(updated);
+      setRooms(p=>p.map(r=>r.id===selectedId?saved:r));
+      setCleanForm(null); setErr("");
+    }catch(e){ console.error("Cleaning log save failed:",e); setErr("Save failed: "+e.message); }
   }
 
-  function toggleBatch(roomId, batchId){
-    setRooms(p=>p.map(r=>{
-      if(r.id!==roomId) return r;
-      const has = (r.assignedBatchIds||[]).includes(batchId);
-      return {...r, assignedBatchIds: has
-        ? r.assignedBatchIds.filter(id=>id!==batchId)
-        : [...(r.assignedBatchIds||[]), batchId]};
-    }));
+  async function toggleBatch(roomId, batchId){
+    const room = rooms.find(r=>r.id===roomId);
+    if(!room) return;
+    const has = (room.assignedBatchIds||[]).includes(batchId);
+    const updated = {...room, assignedBatchIds: has
+      ? room.assignedBatchIds.filter(id=>id!==batchId)
+      : [...(room.assignedBatchIds||[]), batchId]};
+    try{
+      const saved = await db.facility_map_spaces.upsert(updated);
+      setRooms(p=>p.map(r=>r.id===roomId?saved:r));
+    }catch(e){ console.error("Batch assignment save failed:",e); }
   }
 
   const allCleanLogs = rooms.flatMap(r=>(r.cleanLog||[]).map(c=>({...c,roomName:r.name,roomId:r.id}))).sort((a,b)=>new Date(b.date)-new Date(a.date));

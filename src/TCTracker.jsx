@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
 
@@ -93,16 +94,36 @@ const EMPTY_MEDIA_FORMULA = {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function TCTracker(){
-  const mothers = JSON.parse(localStorage.getItem("resinops_mothers")||"[]");
-  const allRooms = [
-    ...JSON.parse(localStorage.getItem("resinops_spaces")||"[]"),
-    ...JSON.parse(localStorage.getItem("resinops_grow_map")||"[]"),
-  ];
+  const [mothers, setMothers] = useState([]);
+  const [allRooms, setAllRooms] = useState([]);
 
   // State
-  const [accessions, setAccessions] = useState(()=>{ try{ return JSON.parse(localStorage.getItem("resinops_tc_accessions")||"[]"); }catch{ return []; } });
-  const [vessels,    setVessels]    = useState(()=>{ try{ return JSON.parse(localStorage.getItem("resinops_tc_vessels")||"[]"); }catch{ return []; } });
-  const [formulas,   setFormulas]   = useState(()=>{ try{ return JSON.parse(localStorage.getItem("resinops_tc_formulas")||"[]"); }catch{ return []; } });
+  const [accessions, setAccessions] = useState([]);
+  const [vessels,    setVessels]    = useState([]);
+  const [formulas,   setFormulas]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const [acc, vsl, frm, mom, sp, gm] = await Promise.all([
+          db.tc_accessions.list(),
+          db.tc_vessels.list(),
+          db.tc_formulas.list(),
+          db.mother_plants.list(),
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+        ]);
+        setAccessions(acc);
+        setVessels(vsl);
+        setFormulas(frm);
+        setMothers(mom);
+        setAllRooms([...sp, ...gm.filter(g=>!sp.some(s=>s.name===g.name))]);
+      }catch(e){ console.error("TCTracker load error:",e); }
+      setLoading(false);
+    }
+    load();
+  },[]);
 
   const [tab,           setTab]           = useState("vessels");
   const [stageFilter,   setStageFilter]   = useState("all");
@@ -113,11 +134,6 @@ export default function TCTracker(){
   const [transferModal, setTransferModal] = useState(null); // vessel being transferred
   const [transferDest,  setTransferDest]  = useState({roomId:"", plantCount:1, notes:""});
   const [err, setErr] = useState("");
-
-  // Persist
-  useEffect(()=>{ localStorage.setItem("resinops_tc_accessions", JSON.stringify(accessions)); }, [accessions]);
-  useEffect(()=>{ localStorage.setItem("resinops_tc_vessels",    JSON.stringify(vessels)); },    [vessels]);
-  useEffect(()=>{ localStorage.setItem("resinops_tc_formulas",   JSON.stringify(formulas)); },   [formulas]);
 
   const setAF = (k,v) => setAccForm(f=>({...f,[k]:v}));
   const setVF = (k,v) => setVesselForm(f=>({...f,[k]:v}));
@@ -131,22 +147,25 @@ export default function TCTracker(){
   const contamRate     = vessels.length>0 ? Math.round((vessels.filter(v=>v.contaminated).length/vessels.length)*100) : 0;
 
   // ── Accession save ─────────────────────────────────────────────────────────
-  function saveAccession(){
+  async function saveAccession(){
     if(!accForm.strainName){ setErr("Strain name is required."); return; }
-    const rec = {...accForm, id: accForm.id||"acc_"+Date.now()};
-    if(accForm.id) setAccessions(p=>p.map(a=>a.id===rec.id?rec:a));
-    else setAccessions(p=>[...p,rec]);
-    autoPopulateStrains(accForm.strainName, {source:"TC Tracker"});
-    setAccForm(null); setErr("");
+    const rec = {...accForm, id: accForm.id||crypto.randomUUID()};
+    try{
+      const saved = await db.tc_accessions.upsert(rec);
+      if(accForm.id) setAccessions(p=>p.map(a=>a.id===saved.id?saved:a));
+      else setAccessions(p=>[...p,saved]);
+      autoPopulateStrains(accForm.strainName, {source:"TC Tracker"});
+      setAccForm(null); setErr("");
+    }catch(e){ console.error("Accession save failed:",e); setErr("Save failed: "+e.message); }
   }
 
   // ── Vessel save ────────────────────────────────────────────────────────────
-  function saveVessel(){
+  async function saveVessel(){
     if(!vesselForm.accessionId){ setErr("Link this vessel to an accession (strain)."); return; }
     if(!vesselForm.label){ setErr("Enter a vessel label / ID."); return; }
     const rec = {
       ...vesselForm,
-      id: vesselForm.id||"vsl_"+Date.now(),
+      id: vesselForm.id||crypto.randomUUID(),
       log: vesselForm.log||[],
     };
     // Add log entry for new stage if changed
@@ -159,13 +178,16 @@ export default function TCTracker(){
         by: vesselForm._loggedBy||"",
       }];
     }
-    if(vesselForm.id) setVessels(p=>p.map(v=>v.id===rec.id?rec:v));
-    else setVessels(p=>[...p,rec]);
-    setVesselForm(null); setErr("");
+    try{
+      const saved = await db.tc_vessels.upsert(rec);
+      if(vesselForm.id) setVessels(p=>p.map(v=>v.id===saved.id?saved:v));
+      else setVessels(p=>[...p,saved]);
+      setVesselForm(null); setErr("");
+    }catch(e){ console.error("Vessel save failed:",e); setErr("Save failed: "+e.message); }
   }
 
   // ── Mark contaminated ──────────────────────────────────────────────────────
-  function markContaminated(vessel, contamType){
+  async function markContaminated(vessel, contamType){
     const updated = {...vessel,
       contaminated:true, contamType,
       contamDate: new Date().toISOString().split("T")[0],
@@ -176,11 +198,14 @@ export default function TCTracker(){
         notes:"Contamination: "+contamType,
       }],
     };
-    setVessels(p=>p.map(v=>v.id===vessel.id?updated:v));
+    try{
+      const saved = await db.tc_vessels.upsert(updated);
+      setVessels(p=>p.map(v=>v.id===vessel.id?saved:v));
+    }catch(e){ console.error("Contamination flag save failed:",e); }
   }
 
   // ── Advance stage ──────────────────────────────────────────────────────────
-  function advanceStage(vessel){
+  async function advanceStage(vessel){
     const stages = TC_STAGES.map(s=>s.id);
     const activeStages = stages.filter(s=>s!=="failed"&&s!=="transferred");
     const idx = activeStages.indexOf(vessel.stage);
@@ -197,16 +222,18 @@ export default function TCTracker(){
         notes:"Advanced to "+TC_STAGES.find(s=>s.id===nextStage)?.label,
       }],
     };
-    setVessels(p=>p.map(v=>v.id===vessel.id?updated:v));
+    try{
+      const saved = await db.tc_vessels.upsert(updated);
+      setVessels(p=>p.map(v=>v.id===vessel.id?saved:v));
+    }catch(e){ console.error("Stage advance save failed:",e); }
   }
 
   // ── Transfer to Mother Room ────────────────────────────────────────────────
-  function confirmTransfer(){
+  async function confirmTransfer(){
     if(!transferDest.roomId){ setErr("Select the destination room."); return; }
     const vessel = transferModal;
     const accession = accessions.find(a=>a.id===vessel.accessionId);
 
-    // Mark vessel as transferred
     const updatedVessel = {...vessel,
       stage:"transferred",
       stageDate: new Date().toISOString().split("T")[0],
@@ -217,12 +244,8 @@ export default function TCTracker(){
         notes:"Transferred to mother room. "+transferDest.notes,
       }],
     };
-    setVessels(p=>p.map(v=>v.id===vessel.id?updatedVessel:v));
-
-    // Create Mother Plant Manager entry — status "acclimating"
-    const moms = JSON.parse(localStorage.getItem("resinops_mothers")||"[]");
     const newMom = {
-      id: "mom_tc_"+Date.now(),
+      id: crypto.randomUUID(),
       strainName: accession?.strainName||"Unknown",
       roomId: transferDest.roomId,
       plantCount: parseInt(transferDest.plantCount)||1,
@@ -230,25 +253,32 @@ export default function TCTracker(){
       cycleWeeks: 9,
       cutsPerPlantPerCycle: 8,
       status: "acclimating",
-      sourceType: "tc",
-      sourceTCVesselId: vessel.id,
-      notes: "TC-originated. In acclimation dome — not ready for cuts yet. "+transferDest.notes,
+      notes: "TC-originated (vessel "+vessel.label+"). In acclimation dome — not ready for cuts yet. "+transferDest.notes,
       cutLog:[],
     };
-    localStorage.setItem("resinops_mothers", JSON.stringify([...moms, newMom]));
-
-    setTransferModal(null);
-    setTransferDest({roomId:"", plantCount:1, notes:""});
-    setErr("");
+    try{
+      const [savedVessel, savedMom] = await Promise.all([
+        db.tc_vessels.upsert(updatedVessel),
+        db.mother_plants.upsert(newMom),
+      ]);
+      setVessels(p=>p.map(v=>v.id===vessel.id?savedVessel:v));
+      setMothers(p=>[...p,savedMom]);
+      setTransferModal(null);
+      setTransferDest({roomId:"", plantCount:1, notes:""});
+      setErr("");
+    }catch(e){ console.error("Transfer save failed:",e); setErr("Transfer failed: "+e.message); }
   }
 
   // ── Formula save ───────────────────────────────────────────────────────────
-  function saveFormula(){
+  async function saveFormula(){
     if(!formulaForm.name){ setErr("Formula name is required."); return; }
-    const rec = {...formulaForm, id: formulaForm.id||"form_"+Date.now()};
-    if(formulaForm.id) setFormulas(p=>p.map(f=>f.id===rec.id?rec:f));
-    else setFormulas(p=>[...p,rec]);
-    setFormulaForm(null); setErr("");
+    const rec = {...formulaForm, id: formulaForm.id||crypto.randomUUID()};
+    try{
+      const saved = await db.tc_formulas.upsert(rec);
+      if(formulaForm.id) setFormulas(p=>p.map(f=>f.id===saved.id?saved:f));
+      else setFormulas(p=>[...p,saved]);
+      setFormulaForm(null); setErr("");
+    }catch(e){ console.error("Formula save failed:",e); setErr("Save failed: "+e.message); }
   }
 
   // ── Filtered vessels ───────────────────────────────────────────────────────
@@ -261,6 +291,8 @@ export default function TCTracker(){
   }).sort((a,b)=>new Date(b.stageDate)-new Date(a.stageDate));
 
   const stageInfo = (id) => TC_STAGES.find(s=>s.id===id)||TC_STAGES[0];
+
+  if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading TC Tracker…</div>);
 
   return(
     <>
