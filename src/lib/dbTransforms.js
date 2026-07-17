@@ -37,6 +37,8 @@ const SCHEMAS = {
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes'],
+  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
+  cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -454,6 +456,24 @@ const FIELD_OVERRIDES = {
     performedById: 'performed_by_id',
     verifiedById: 'verified_by_id',
     timestamp: 'performed_at',
+  },
+  cogs_records: {
+    batchId: 'production_batch_id',
+    materialCostOverride: 'material_cost_override',
+    overrideMaterials: 'override_materials',
+    manualMaterials: 'manual_materials',
+    laborCostOverride: 'labor_cost_override',
+    testFee: 'test_fee',
+    cultCost: 'cult_cost',
+    actualUnits: 'actual_units',
+    deductTrigger: 'deduct_trigger',
+    unitsSold: 'units_sold',
+    skuPriceId: 'sku_price_id',
+    revPerUnit: 'rev_per_unit',
+    totalRevOverride: 'total_rev_override',
+  },
+  cultivation_costs: {
+    spaceId: 'grow_space_id',
   },
 };
 

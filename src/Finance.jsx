@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 
 const fmtC = n => "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -157,13 +157,15 @@ export default function Finance() {
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
           db.grow_spaces.list(),
           db.inventory_items.list(),
           db.labor_types.list(),
+          db.cogs_records.list(),
+          db.cultivation_costs.list(),
         ]);
         setBoms(b);
         setSkus(sk);
@@ -171,6 +173,8 @@ export default function Finance() {
         setSpaces(sp);
         setItems(inv);
         setLaborTypes(lt);
+        setCogsRecs(cr);
+        setCultCosts(cc);
       }catch(e){ console.error("Finance load error:",e); }
       setLoading(false);
     }
@@ -184,12 +188,34 @@ export default function Finance() {
   const [editSku, setEditSku]   = useState(null);
   const [editCult, setEditCult] = useState(null);
 
+  // Debounced persistence: keep UI updates instant (every keystroke updates
+  // local state so COGS/P&L figures recalculate live) while collapsing the
+  // actual db.upsert() calls to one per ~600ms pause in typing.
+  const saveTimers = useRef({});
+  function scheduleSave(timerKey, table, record) {
+    clearTimeout(saveTimers.current[timerKey]);
+    saveTimers.current[timerKey] = setTimeout(async () => {
+      try { await db[table].upsert(record); }
+      catch(e){ console.error(table+" save failed:", e); }
+    }, 600);
+  }
+
   function getRecord(batchId) { return cogsRecs.find(r=>r.batchId===batchId)||{}; }
   function setRecord(batchId, updates) {
     setCogsRecs(p => {
       const idx = p.findIndex(r=>r.batchId===batchId);
-      if (idx>=0) return p.map(r=>r.batchId===batchId?{...r,...updates}:r);
-      return [...p, {batchId,...updates}];
+      const merged = idx>=0 ? {...p[idx],...updates} : {id:crypto.randomUUID(),batchId,...updates};
+      scheduleSave("cogs_"+batchId, "cogs_records", merged);
+      return idx>=0 ? p.map(r=>r.batchId===batchId?merged:r) : [...p, merged];
+    });
+  }
+
+  function setCultCost(spaceId, updates) {
+    setCultCosts(p => {
+      const idx = p.findIndex(c=>c.spaceId===spaceId);
+      const merged = idx>=0 ? {...p[idx],...updates} : {id:crypto.randomUUID(),spaceId,...updates};
+      scheduleSave("cult_"+spaceId, "cultivation_costs", merged);
+      return idx>=0 ? p.map(c=>c.spaceId===spaceId?merged:c) : [...p, merged];
     });
   }
 
@@ -533,13 +559,13 @@ export default function Finance() {
                           <td>{sp.strain||"—"}</td>
                           <td>{sp.plants||"—"}</td>
                           <td>
-                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.media||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCosts(p=>{const i=p.findIndex(c=>c.spaceId===sp.id);const u={...(p[i]||{spaceId:sp.id}),media:e.target.value};return i>=0?p.map((c,idx)=>idx===i?u:c):[...p,u];})} /> : fmtC(cc.media||0)}
+                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.media||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{media:e.target.value})} /> : fmtC(cc.media||0)}
                           </td>
                           <td>
-                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.nutrients||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCosts(p=>{const i=p.findIndex(c=>c.spaceId===sp.id);const u={...(p[i]||{spaceId:sp.id}),nutrients:e.target.value};return i>=0?p.map((c,idx)=>idx===i?u:c):[...p,u];})} /> : fmtC(cc.nutrients||0)}
+                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.nutrients||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{nutrients:e.target.value})} /> : fmtC(cc.nutrients||0)}
                           </td>
                           <td>
-                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.ipm||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCosts(p=>{const i=p.findIndex(c=>c.spaceId===sp.id);const u={...(p[i]||{spaceId:sp.id}),ipm:e.target.value};return i>=0?p.map((c,idx)=>idx===i?u:c):[...p,u];})} /> : fmtC(cc.ipm||0)}
+                            {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.ipm||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{ipm:e.target.value})} /> : fmtC(cc.ipm||0)}
                           </td>
                           <td style={{fontWeight:500,color:"var(--accent-2)"}}>{fmtC(total)}</td>
                           <td><button className={"fin-btn fin-sm "+(isEditing?"fin-secondary":"fin-edit")} onClick={()=>setEditCult(isEditing?null:sp.id)}>{isEditing?"Done":"Edit"}</button></td>

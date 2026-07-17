@@ -48,6 +48,8 @@ const LS_KEYS = {
   loto_log:           'resinops_loto_log',
   remediation:        'resinops_remediation',
   gmp_signoffs:       'resinops_signoffs',
+  cogs_records:       'resinops_cogs_records',
+  cultivation_costs:  'resinops_cult_costs',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
