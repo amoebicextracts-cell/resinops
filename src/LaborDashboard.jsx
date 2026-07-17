@@ -219,14 +219,16 @@ export default function LaborDashboard() {
               <div style={{fontSize:13,fontWeight:600,color:"var(--amber)",marginBottom:3}}>⚠ No labor types configured</div>
               <div style={{fontSize:12,color:"var(--text-3)"}}>Labor demand calculations require configured labor types with headcounts and hourly rates. Load the demo or set up in Labor Setup.</div>
             </div>
-            <button onClick={()=>{
-              const laborTypes=[
-                {id:"cultivation",n:"Cultivation Team",cat:"cultivation",count:4,rate:22,hrsPerDay:8,notes:""},
-                {id:"postharvest",n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18,hrsPerDay:8,notes:""},
-                {id:"processing",n:"Processing Team",cat:"processing",count:2,rate:20,hrsPerDay:8,notes:""},
+            <button onClick={async()=>{
+              const defaults=[
+                {n:"Cultivation Team",cat:"cultivation",count:4,rate:22},
+                {n:"Post-Harvest Team",cat:"post_harvest",count:3,rate:18},
+                {n:"Processing Team",cat:"processing",count:2,rate:20},
               ];
-              // labor types saved via LaborManager
-              window.location.reload();
+              try{
+                const saved=await Promise.all(defaults.map(t=>db.labor_types.upsert({...t,id:crypto.randomUUID()})));
+                setLaborTypes(saved);
+              }catch(e){ console.error("Load defaults failed:",e); }
             }} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>
               Load defaults
             </button>

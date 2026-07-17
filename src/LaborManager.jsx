@@ -134,10 +134,13 @@ export default function LaborManager() {
     catch(e) { setErr("Delete failed: "+e.message); }
   }
 
-  function resetDefaults() {
-    if (window.confirm("Reset labor types to defaults? This will overwrite your current roster.")) {
-      setTypes(DEFAULT_LABOR_TYPES);
-    }
+  async function resetDefaults() {
+    if (!window.confirm("Reset labor types to defaults? This will overwrite your current roster.")) return;
+    try {
+      await Promise.all(types.map(t => db.labor_types.delete(t.id)));
+      const saved = await Promise.all(DEFAULT_LABOR_TYPES.map(t => db.labor_types.upsert({...t, id: crypto.randomUUID()})));
+      setTypes(saved);
+    } catch(e) { setErr("Reset failed: "+e.message); }
   }
 
   const totalHeadcount = types.reduce((a,t) => a+t.count, 0);
