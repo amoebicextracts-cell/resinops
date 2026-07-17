@@ -130,7 +130,6 @@ export default function TCTracker(){
   const [accForm,       setAccForm]       = useState(null);
   const [vesselForm,    setVesselForm]    = useState(null);
   const [formulaForm,   setFormulaForm]   = useState(null);
-  const [selectedAcc,   setSelectedAcc]   = useState(null);
   const [transferModal, setTransferModal] = useState(null); // vessel being transferred
   const [transferDest,  setTransferDest]  = useState({roomId:"", plantCount:1, notes:""});
   const [err, setErr] = useState("");

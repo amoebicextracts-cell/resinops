@@ -141,7 +141,6 @@ export default function Remediation() {
       setRecords(p => p.filter(x => x.id !== id));
     }catch(e){ setErr("Could not delete: "+(e.message||e)); }
   }
-  function setStatus(id, status) { setRecords(p => p.map(x => x.id===id ? {...x, status} : x)); }
 
   const liveDose = form ? calcDose(form.tyamCfu, form.tabCfu, form.aspergillus, form.gyPerHour, form.turnRequired, form.weightG) : null;
 

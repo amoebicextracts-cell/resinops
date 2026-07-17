@@ -2109,6 +2109,7 @@ export default function ProductionScheduler(){
             })()}
 
             {/* Legacy: flower-only packaging calc fallback (hidden but keeps logic alive) */}
+            {/* eslint-disable-next-line no-constant-binary-expression -- deliberately disabled, not a bug */}
             {false&&isFlower&&<div className="ps-box">
               <div className="ps-box-t">Packaging Calculator</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>

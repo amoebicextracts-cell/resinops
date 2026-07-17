@@ -296,7 +296,6 @@ function CocTab({items, setItems}) {
 
 export default function InventoryERP() {
   const [tab, setTab] = useState("items");
-  const [cocModal, setCocModal] = useState(null); // {item, cocForm}
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState([]);
