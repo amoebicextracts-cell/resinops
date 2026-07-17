@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 import {
   testMetrcConnection, syncAll, syncRooms, syncStrains,
   syncHarvests, syncLabResults, syncPackages, syncEmployees,
@@ -131,6 +132,15 @@ export default function MetrcHub() {
         setQcTests(qc);
         setGrowRoomsList(gr);
         setManifests(mf);
+        // License number belongs to the real facility record, not the
+        // localStorage-only settings blob — nothing else ever writes
+        // resinops_facility_settings in Supabase mode, so it read back
+        // blank regardless of what's on file for the facility.
+        const fid = getCurrentFacility();
+        if (fid && supabase) {
+          const { data } = await supabase.from('facilities').select('license_number').eq('id', fid).single();
+          if (data?.license_number) setLicenseNumber(data.license_number);
+        }
       } catch (e) { console.error("MetrcHub load error:", e); }
     }
     load();
