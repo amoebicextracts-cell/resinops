@@ -77,10 +77,11 @@ function lsSet(table, data) {
 function lsUpsert(table, record) {
   const rows = lsGet(table);
   const id = record.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${table}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`);
-  const withId = { ...record, id, updated_at: new Date().toISOString() };
   const idx = rows.findIndex(r => String(r.id) === String(id));
+  const existing = idx >= 0 ? rows[idx] : null;
+  const withId = { ...record, id, created_at: existing?.created_at || record.created_at || new Date().toISOString(), updated_at: new Date().toISOString() };
   if (idx >= 0) rows[idx] = withId;
-  else rows.push({ ...withId, created_at: withId.created_at || new Date().toISOString() });
+  else rows.push(withId);
   lsSet(table, rows);
   return withId;
 }
