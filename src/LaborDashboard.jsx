@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 import { STEP_LABOR } from "./LaborManager.jsx";
 
 // ── Date helpers ───────────────────────────────────────────────────────────
@@ -123,6 +124,11 @@ export default function LaborDashboard() {
         setLaborTypes(lt);
         setBatches(pb);
         setSpaces(sp);
+        const fid = getCurrentFacility();
+        if(fid && supabase){
+          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
+          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1)});
+        }
       }catch(e){ console.error("LaborDashboard load error:",e); }
       setLoading(false);
     }

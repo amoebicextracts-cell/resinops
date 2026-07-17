@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 const fmtC = n => "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -175,6 +176,11 @@ export default function Finance() {
         setLaborTypes(lt);
         setCogsRecs(cr);
         setCultCosts(cc);
+        const fid = getCurrentFacility();
+        if(fid && supabase){
+          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
+          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1)});
+        }
       }catch(e){ console.error("Finance load error:",e); }
       setLoading(false);
     }

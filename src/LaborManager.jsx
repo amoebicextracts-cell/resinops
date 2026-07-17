@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 export const DEFAULT_LABOR_TYPES = [
   {id:"lt_1", n:"Director of Operations",       cat:"Management",   count:1, rate:75},
@@ -96,17 +97,46 @@ export default function LaborManager() {
   const [facility, setFacility] = useState({shiftHours:"8",shiftsPerDay:"1"});
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const facilityLoaded = useRef(false);
 
   useEffect(()=>{
     async function load(){
       try{
         const lt = await db.labor_types.list();
         setTypes(lt);
+        const fid = getCurrentFacility();
+        if(fid && supabase){
+          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
+          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1)});
+        }
       }catch(e){ console.error("LaborManager load error:",e); }
+      facilityLoaded.current = true;
       setLoading(false);
     }
     load();
   },[]);
+
+  // Debounced persistence to facilities.shift_hours/shifts_per_day — skips
+  // the initial load-triggered update via facilityLoaded, matching the
+  // ~600ms collapse-into-one-write pattern Finance.jsx uses for COGS edits.
+  const saveTimer = useRef(null);
+  useEffect(()=>{
+    if(!facilityLoaded.current) return;
+    const fid = getCurrentFacility();
+    if(!fid || !supabase) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async()=>{
+      try{
+        await supabase.from('facilities').update({
+          shift_hours: parseFloat(facility.shiftHours)||8,
+          shifts_per_day: parseInt(facility.shiftsPerDay)||1,
+          updated_at: new Date().toISOString(),
+        }).eq('id', fid);
+      }catch(e){ console.error("Facility shift settings save failed:", e); }
+    }, 600);
+    return ()=>clearTimeout(saveTimer.current);
+  },[facility.shiftHours, facility.shiftsPerDay]);
+
   const [form, setForm] = useState(null); // null = hidden, {} = new, {id} = edit
   const [err, setErr] = useState("");
 
