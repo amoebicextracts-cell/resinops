@@ -155,6 +155,30 @@ export default function QCTesting(){
         }
       }
 
+      // Auto-flag a failed microbial panel for remediation
+      if(form.microbialPass===false){
+        try{
+          const sourceId=form.batchId||saved.id;
+          const sourceType=isHarvest?"harvest":"production";
+          const already=(await db.remediation.list()).some(r=>String(r.sourceId)===String(sourceId)&&r.sourceType===sourceType);
+          if(!already){
+            await db.remediation.upsert({
+              id:crypto.randomUUID(),
+              sourceType, sourceId,
+              strainName:form.strainName||"Unknown",
+              labName:form.labName,
+              labReportRef:form.sampleId,
+              testDate:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
+              tyamCfu:form.tyam,
+              tabCfu:form.tab,
+              aspergillus:form.aspergillus===true,
+              status:"flagged",
+              notes:"Auto-flagged from failed microbial panel on QC test "+(form.sampleId||"(no sample ID)"),
+            });
+          }
+        }catch(e){ console.error("Auto remediation flag failed:",e); }
+      }
+
       // Update strain catalogue with COA averages
       if(overall===true&&form.strainName){
         try{

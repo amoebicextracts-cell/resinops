@@ -567,7 +567,14 @@ export default function InventoryERP() {
             <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
               <input className="erp-inp" placeholder="Search items..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:260}} />
               <div style={{fontSize:10,color:"var(--text-3)",fontStyle:"italic"}}>QuickBooks / accounting software API bridge coming in v2</div>
-              <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setItems(DEFAULT_ITEMS)}>Reset defaults</button>
+              <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={async()=>{
+                if(!window.confirm("Reset inventory items to defaults? This will overwrite your current item list.")) return;
+                try{
+                  await Promise.all(items.map(item=>db.inventory_items.delete(item.id)));
+                  const saved=await Promise.all(DEFAULT_ITEMS.map(item=>db.inventory_items.upsert({...item,id:crypto.randomUUID()})));
+                  setItems(saved);
+                }catch(e){ console.error("Reset defaults failed:",e); }
+              }}>Reset defaults</button>
               <button className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={downloadTemplate}>↓ Download CSV template</button>
               <label className="erp-btn erp-secondary" style={{fontSize:11,padding:"5px 10px",cursor:"pointer",margin:0}}>
                 ↑ Upload CSV
