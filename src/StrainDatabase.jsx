@@ -106,16 +106,16 @@ export default function StrainDatabase(){
   useEffect(()=>{
     async function load(){
       try{
-        const [s, hb, pb]=await Promise.all([
+        const [s, hb, pb, ph]=await Promise.all([
           db.strains.list(),
           db.harvest_batches.list(),
           db.production_batches.list(),
+          db.pheno_hunts.list(),
         ]);
         setStrains(s.map(normalizeStrain));
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
-        // phenoHunts not in db.js mapping yet — keep localStorage fallback
-        try{ setPhenoHunts(JSON.parse(localStorage.getItem("resinops_pheno_hunts")||"[]")); }catch{}
+        setPhenoHunts(ph);
       }catch(e){ console.error("StrainDatabase load error:",e); }
       setLoading(false);
     }
