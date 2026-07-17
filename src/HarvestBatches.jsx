@@ -366,7 +366,7 @@ export default function HarvestBatches() {
                       <div><label className="hb-lbl">Weight (g)</label><input type="number" min="0" step="1" className="hb-inp" value={s.weightG||""} onChange={e=>{const fs=[...(form.freshFrozenSplits||[])];fs[idx]={...fs[idx],weightG:e.target.value};setF("freshFrozenSplits",fs);}} /></div>
                       <div><label className="hb-lbl">Notes</label><input className="hb-inp" value={s.notes||""} onChange={e=>{const fs=[...(form.freshFrozenSplits||[])];fs[idx]={...fs[idx],notes:e.target.value};setF("freshFrozenSplits",fs);}} placeholder="Which plants/rows, freezer location…" /></div>
                     </div>
-                    {linkedBatch && <div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>→ Harvest Batch created · METRC tag: {linkedBatch.metrcTag||"pending METRC API integration"}</div>}
+                    {linkedBatch && <div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>→ Harvest Batch created · METRC tag: {linkedBatch.metrcTag||"not yet assigned"}</div>}
                   </div>
                 );
               })}
