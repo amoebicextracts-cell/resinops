@@ -264,11 +264,15 @@ export async function syncLabResults(state, licenseNumber, onProgress) {
 
   if (!Array.isArray(results)) return { synced: 0 };
 
+  const existing = await db.qc_tests.list();
+  const bySampleId = new Map(existing.filter(t => t.sampleId).map(t => [t.sampleId, t.id]));
+
   let synced = 0;
   for (const test of results) {
     const normalized = normalizeLabTest(test);
     await db.qc_tests.upsert({
       ...normalized,
+      id: bySampleId.get(normalized.sample_id) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
     });
 
@@ -350,9 +354,13 @@ export async function syncTransfers(state, licenseNumber, onProgress) {
   ]);
 
   // Map outgoing transfers → sales orders
+  const existingOrders = await db.sales_orders.list();
+  const byTransferId = new Map(existingOrders.filter(o => o.metrcTransferId).map(o => [String(o.metrcTransferId), o.id]));
+
   let synced = 0;
   for (const transfer of (Array.isArray(outgoing) ? outgoing : [])) {
     await db.sales_orders.upsert({
+      id: byTransferId.get(String(transfer.Id)) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
       customer_name: transfer.RecipientFacilityName,
       customer_license: transfer.RecipientFacilityLicenseNumber,

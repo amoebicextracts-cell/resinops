@@ -29,7 +29,7 @@ const SCHEMAS = {
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],
   skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active','channel'],
   boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines'],
-  sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id'],
+  sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id','metrc_transfer_id'],
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','notes'],
   employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes','metrc_license_number','metrc_license_expiry'],
@@ -451,6 +451,7 @@ const FIELD_OVERRIDES = {
     orderDate: 'order_date',
     importStatus: 'import_status',
     distruOrderId: 'distru_order_id',
+    metrcTransferId: 'metrc_transfer_id',
   },
   inventory_items: {
     valuationMethod: 'valuation_method',
