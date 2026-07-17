@@ -523,6 +523,38 @@ export default function GMPHub(){
               </div>
             )}
             {deviations.length===0&&!devForm&&<div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>No deviations logged. Good.</div>}
+            {deviations.length>1&&!devForm&&(()=>{
+              const byType=DEV_TYPES.map(type=>({type,items:deviations.filter(d=>d.type===type)}))
+                .filter(t=>t.items.length>0).sort((a,b)=>b.items.length-a.items.length);
+              const maxCount=byType[0]?.items.length||1;
+              return(
+                <div style={{background:"var(--surface-2)",borderRadius:8,padding:"14px 16px",marginBottom:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Recurring Root Causes</div>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>Grouped by deviation type — a repeated type is the system-level pattern, not the one-off incident.</div>
+                  {byType.map(({type,items})=>(
+                    <div key={type} style={{marginBottom:10}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                        <div style={{fontSize:12,fontWeight:600,color:"var(--text)",minWidth:190}}>{type}{items.length>=3&&<span className="gh-pill dev-open" style={{marginLeft:8,fontSize:9}}>recurring</span>}</div>
+                        <div style={{flex:1,height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{width:(items.length/maxCount*100)+"%",height:"100%",background:items.length>=3?"var(--danger)":"var(--accent)"}} />
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,color:"var(--text-2)",width:20,textAlign:"right"}}>{items.length}</div>
+                      </div>
+                      {items.length>1&&(
+                        <div style={{marginLeft:0,paddingLeft:2,fontSize:11,color:"var(--text-3)"}}>
+                          {items.filter(d=>d.rootCause?.trim()).slice(0,4).map(d=>(
+                            <div key={d.id} style={{padding:"2px 0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                              &ndash; {fmtD(d.date)}: {d.rootCause.length>90?d.rootCause.slice(0,90)+"…":d.rootCause}
+                            </div>
+                          ))}
+                          {items.filter(d=>!d.rootCause?.trim()).length>0&&<div style={{padding:"2px 0",fontStyle:"italic"}}>{items.filter(d=>!d.rootCause?.trim()).length} of {items.length} logged without a root cause entered</div>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             {deviations.length>0&&<div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
               <table className="gh-tbl">
                 <thead><tr><th>Date</th><th>Type</th><th>Batch</th><th>Description</th><th>CA Summary</th><th>Reported</th><th>Status</th><th></th></tr></thead>
