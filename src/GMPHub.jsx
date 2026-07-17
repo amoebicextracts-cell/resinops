@@ -6,6 +6,7 @@ function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"shor
 function fmtDT(dt){return dt?new Date(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
 const DEPT=["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","All"];
 const DEV_TYPES=["Process Deviation","Equipment Failure","Contamination / Environmental","Documentation Error","Personnel / Training","Material / Input Issue","Other"];
+const DEV_SEVERITIES=["minor","major","critical"];
 
 const CSS=`
   .gh-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -42,7 +43,7 @@ const CSS=`
 `;
 
 const EMPTY_SOP={title:"",version:"1.0",department:"Cultivation",effectiveDate:"",approvedBy:"",status:"draft",linkedStepTypes:"",content:""};
-const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:new Date().toISOString().split("T")[0],type:"Process Deviation",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
+const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:new Date().toISOString().split("T")[0],type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
 const EMPTY_SHIFT={date:new Date().toISOString().split("T")[0],department:"Cultivation",supervisorId:"",notes:""};
 const EMPTY_SIGNOFF={batchType:"harvest",batchId:"",stepName:"",performedById:"",verifiedById:"",timestamp:new Date().toISOString().slice(0,16),notes:""};
 
@@ -232,7 +233,7 @@ export default function GMPHub(){
           <div className="batch-section" style={{borderLeft:"3px solid var(--danger)"}}><div className="batch-section-t" style={{color:"var(--danger)"}}>⚠ Deviations ({batchDevs.length})</div>
             {batchDevs.map(d=>(
               <div key={d.id} style={{marginBottom:10,fontSize:12}}>
-                <div style={{fontWeight:600}}>{d.type} — {fmtD(d.date)} <span className={"gh-pill dev-"+d.status} style={{marginLeft:6}}>{d.status}</span></div>
+                <div style={{fontWeight:600}}>{d.title||d.type} — {fmtD(d.date)} <span className={"gh-pill dev-"+d.status} style={{marginLeft:6}}>{d.status}</span>{d.severity&&<span style={{marginLeft:6,fontSize:10,textTransform:"uppercase",color:d.severity==="critical"?"var(--danger)":"var(--text-3)"}}>{d.severity}</span>}</div>
                 <div style={{color:"var(--text-2)",marginTop:2}}>{d.description}</div>
                 {d.correctiveAction&&<div style={{color:"var(--text-3)",marginTop:2}}>CA: {d.correctiveAction}</div>}
               </div>
@@ -391,7 +392,7 @@ export default function GMPHub(){
                   const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
                   const qcRecs=qcTests.filter(t=>t.batchType===type&&String(t.batchId)===id);
                   const signoffRows=batchSignoffs.map(s=>`<tr><td>${s.stepName||""}</td><td>${s.performedById||""}</td><td>${s.verifiedById||"—"}</td><td>${s.timestamp?new Date(s.timestamp).toLocaleString():"—"}</td><td>${s.notes||"—"}</td></tr>`).join("");
-                  const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.corrective||"—"}</td></tr>`).join("");
+                  const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.correctiveAction||"—"}</td></tr>`).join("");
                   const qcRow=qcRecs.map(t=>`<tr><td>${t.labName||""}</td><td>${t.sampleId||""}</td><td>${t.thca||"—"}%</td><td>${t.totalTerpenes||"—"}%</td><td style="color:${t.overallPass?"#2d5a3d":"#c04040"};font-weight:600;">${t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</td></tr>`).join("");
                   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>GMP Batch Record</title><style>
                     body{font-family:Arial,sans-serif;font-size:10px;margin:24px;color:#222;}
@@ -501,8 +502,10 @@ export default function GMPHub(){
             </div>
             {devForm&&(
               <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div style={{marginBottom:10}}><label className="gh-lbl">Title</label><input className="gh-inp" value={devForm.title} onChange={e=>setDevForm(f=>({...f,title:e.target.value}))} placeholder="Short summary for the batch record and printouts" /></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="gh-lbl">Deviation type</label><select className="gh-sel" value={devForm.type} onChange={e=>setDevForm(f=>({...f,type:e.target.value}))}>{DEV_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+                  <div><label className="gh-lbl">Severity</label><select className="gh-sel" value={devForm.severity} onChange={e=>setDevForm(f=>({...f,severity:e.target.value}))}>{DEV_SEVERITIES.map(s=><option key={s} value={s}>{s[0].toUpperCase()+s.slice(1)}</option>)}</select></div>
                   <div><label className="gh-lbl">Date</label><input type="date" className="gh-inp" value={devForm.date} onChange={e=>setDevForm(f=>({...f,date:e.target.value}))} /></div>
                   <div><label className="gh-lbl">Status</label><select className="gh-sel" value={devForm.status} onChange={e=>setDevForm(f=>({...f,status:e.target.value}))}><option value="open">Open</option><option value="closed">Closed / CAPA complete</option></select></div>
                 </div>
