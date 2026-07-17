@@ -208,7 +208,6 @@ const FIELD_OVERRIDES = {
     heavyMetalsPass: 'heavy_metals_pass',
     microbialsPass: 'microbials_pass',
     microbialPass: 'microbial_pass',
-    foreignMatter: 'foreign_matter',
     foreignMatterPass: 'foreign_matter',
     waterActivity: 'water_activity',
     moistureContent: 'moisture_content',

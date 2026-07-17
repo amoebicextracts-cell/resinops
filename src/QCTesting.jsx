@@ -112,7 +112,6 @@ export default function QCTesting(){
     const overall=form.overallPass??calcOverall(form);
     const isHarvest=form.batchType==="harvest";
     const rec={...form,id:form.id||crypto.randomUUID(),overallPass:overall,
-      status:form.receivedDate?"complete":form.submittedDate?"submitted":"pending",
       onHold:overall===false,
       harvestBatchId:isHarvest?(form.batchId||null):null,
       productionBatchId:isHarvest?null:(form.batchId||null)};
@@ -200,7 +199,9 @@ export default function QCTesting(){
   }
 
   const failedCount=tests.filter(t=>t.overallPass===false).length;
-  const pendingCount=tests.filter(t=>t.status==="pending"||t.status==="submitted").length;
+  // No status column exists on qc_tests — derive directly from the real
+  // persisted date fields rather than a value that never survives a save.
+  const pendingCount=tests.filter(t=>!t.receivedDate).length;
 
   if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading QC tests…</div>);
 
