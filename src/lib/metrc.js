@@ -156,8 +156,8 @@ function normalizeLabTest(metrcTest) {
 function normalizeEmployee(metrcEmp) {
   return {
     name: `${metrcEmp.FirstName} ${metrcEmp.LastName}`,
-    license_number: metrcEmp.License?.Number,
-    license_expiry: metrcEmp.License?.ExpirationDate,
+    metrc_license_number: metrcEmp.License?.Number,
+    metrc_license_expiry: metrcEmp.License?.ExpirationDate,
     notes: `METRC license: ${metrcEmp.License?.Number} | Synced from METRC`,
   };
 }
@@ -190,10 +190,17 @@ export async function syncRooms(state, licenseNumber, onProgress) {
   const rooms = await metrcCall('rooms.active', state, licenseNumber);
   if (!Array.isArray(rooms)) return { synced: 0 };
 
+  // Dedupe against rooms already synced in a prior run — without this,
+  // every sync inserted a brand-new row (no id was ever supplied) instead
+  // of updating the one from last time.
+  const existing = await db.grow_rooms.list();
+  const byMetrcId = new Map(existing.filter(r => r.metrcId).map(r => [String(r.metrcId), r.id]));
+
   let synced = 0;
   for (const room of rooms) {
     await db.grow_rooms.upsert({
       ...normalizeRoom(room),
+      id: byMetrcId.get(String(room.Id)) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
     });
     synced++;
@@ -207,10 +214,14 @@ export async function syncStrains(state, licenseNumber, onProgress) {
   const strains = await metrcCall('strains.active', state, licenseNumber);
   if (!Array.isArray(strains)) return { synced: 0 };
 
+  const existing = await db.strains.list();
+  const byMetrcId = new Map(existing.filter(s => s.metrcId).map(s => [String(s.metrcId), s.id]));
+
   let synced = 0;
   for (const strain of strains) {
     await db.strains.upsert({
       ...normalizeStrain(strain),
+      id: byMetrcId.get(String(strain.Id)) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
     });
     synced++;
@@ -227,10 +238,14 @@ export async function syncHarvests(state, licenseNumber, onProgress) {
   ]);
 
   const all = [...(Array.isArray(active) ? active : []), ...(Array.isArray(inactive) ? inactive : [])];
+  const existing = await db.harvest_batches.list();
+  const byMetrcTag = new Map(existing.filter(h => h.metrcTag).map(h => [h.metrcTag, h.id]));
+
   let synced = 0;
   for (const harvest of all) {
     await db.harvest_batches.upsert({
       ...normalizeHarvest(harvest),
+      id: byMetrcTag.get(harvest.Name) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
     });
     synced++;
@@ -284,10 +299,14 @@ export async function syncPackages(state, licenseNumber, onProgress) {
   const packages = await metrcCall('packages.active', state, licenseNumber);
   if (!Array.isArray(packages)) return { synced: 0 };
 
+  const existing = await db.production_batches.list();
+  const byMetrcTag = new Map(existing.filter(p => p.metrcTag).map(p => [p.metrcTag, p.id]));
+
   let synced = 0;
   for (const pkg of packages) {
     await db.production_batches.upsert({
       ...normalizePackage(pkg),
+      id: byMetrcTag.get(pkg.Label) || crypto.randomUUID(),
       facility_id: getCurrentFacility(),
     });
     synced++;
@@ -301,10 +320,20 @@ export async function syncEmployees(state, licenseNumber, onProgress) {
   const employees = await metrcCall('employees.list', state, licenseNumber);
   if (!Array.isArray(employees)) return { synced: 0 };
 
+  // Dedupe by METRC license number where present; employees without one
+  // (rare — METRC generally requires a badge/license to register an
+  // agent) fall back to an exact name match against the existing roster.
+  const existing = await db.employees.list();
+  const byLicense = new Map(existing.filter(e => e.metrcLicenseNumber).map(e => [e.metrcLicenseNumber, e.id]));
+  const byName = new Map(existing.map(e => [e.name?.toLowerCase(), e.id]));
+
   let synced = 0;
   for (const emp of employees) {
+    const normalized = normalizeEmployee(emp);
+    const id = byLicense.get(normalized.metrc_license_number) || byName.get(normalized.name?.toLowerCase()) || crypto.randomUUID();
     await db.employees.upsert({
-      ...normalizeEmployee(emp),
+      ...normalized,
+      id,
       facility_id: getCurrentFacility(),
     });
     synced++;

@@ -8,11 +8,11 @@
 
 // Valid columns per table (from Supabase schema)
 const SCHEMAS = {
-  strains: ['id','created_at','updated_at','facility_id','name','type','lineage','breeder','thca_avg','thc_avg','cbd_avg','terps_avg','dominant_terps','veg_weeks','flower_weeks','yield_g_sqft','aroma','flavor','effects','ai_description','notes','status','linked_pheno_hunt_id'],
+  strains: ['id','created_at','updated_at','facility_id','name','type','lineage','breeder','thca_avg','thc_avg','cbd_avg','terps_avg','dominant_terps','veg_weeks','flower_weeks','yield_g_sqft','aroma','flavor','effects','ai_description','notes','status','linked_pheno_hunt_id','metrc_id'],
   harvest_batches: ['id','created_at','updated_at','facility_id','created_by','batch_number','strain_name','grow_space_id','room_name','harvest_date','plant_count','wet_weight_g','total_dry_weight_g','status','grade_aa_g','grade_a_g','grade_b_g','grade_c_g','trim_g','waste_g','trim_aa','trim_a','trim_b','trim_c','coa_sample_id','lab_name','thca_pct','metrc_tag','metrc_plant_batch','notes','steps','grades','trim_methods','fresh_frozen_splits','is_fresh_frozen','split_from_batch_id','buck_machine','buck_throughput','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day'],
   production_batches: ['id','created_at','updated_at','facility_id','created_by','name','category','subcategory','cat_label','strains','scheduled_date','status','input_amt','input_unit','input_material','input_potency_pct','harvest_batch_id','harvest_grade','yield_est','actual_yield','packaging_container','packaging_units_per_pack','pkg_size','vape_hardware','vape_input_type','vape_start_potency','vape_input_terp_pct','target_blend_thc','vape_terp_pct','additive_thc','additive_terp_pct','piece_weight_g','cb_blend_components','cb_targets','cb_blend_result','distillation_apparatus','linked_coc_ids','is_linked','linked_to','metrc_tag','steps','formulation_result','notes','wash_events','freeze_dry_cycles','press_runs','cold_cure_batches','dewax_passes','purge_runs','diamond_sauce_batches','input_material_type','pkg_idx','stem_waste_pct','moisture_loss_pct','fill_waste_pct','cone_weight','pack_size','overfill_g','sauce_sep_method','extract_input_type','tinc_bottle_size','tinc_potency_mg_per_ml','kief_sift','kief_40_pct','kief_100_pct','cannabinoids','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day','preroll_machine','preroll_throughput','packaging_type','packaging_staff','packaging_baseline','vape_terp_source','vape_terp_src_potency','s2s_system','s2s_source_tags','s2s_output_tags','input_source'],
   qc_tests: ['id','created_at','updated_at','facility_id','strain_name','sample_id','harvest_batch_id','production_batch_id','batch_type','lab_name','date_submitted','date_reported','thca','cbd','thc','total_thc','cbg','cbn','cbc','thcv','total_terpenes','myrcene','caryophyllene','limonene','linalool','humulene','ocimene','terpinolene','pinene','overall_pass','pesticides_pass','heavy_metals_pass','microbials_pass','foreign_matter','water_activity','moisture_content','tyam','tab','on_hold','hold_reason','notes','batch_name','submitted_date','expected_date','received_date','cbda','total_cannabinoids','bisabolol','valencene','other_terps','aspergillus','salmonella','stec','ecoli','microbial_pass'],
-  grow_rooms: ['id','created_at','updated_at','facility_id','created_by','name','room_type','sqft','canopy_sqft','max_plants','light_type','light_count','light_watts','sensor_id','status','reset_days','notes','last_harvest_date'],
+  grow_rooms: ['id','created_at','updated_at','facility_id','created_by','name','room_type','sqft','canopy_sqft','max_plants','light_type','light_count','light_watts','sensor_id','status','reset_days','notes','last_harvest_date','metrc_id'],
   grow_spaces: ['id','created_at','updated_at','facility_id','created_by','room_id','room_name','strains','clone_date','veg_weeks','flower_weeks','flip_date','projected_harvest','plant_count','status','notes'],
   clone_schedules: ['id','created_at','updated_at','facility_id','strain_name','mother_id','cut_date','root_days','veg_weeks','target_room','cut_qty','status','notes','space_id','planned_plants','harvest_date'],
   mother_plants: ['id','created_at','updated_at','facility_id','strain_name','room_name','established_date','cycle_weeks','avg_cuts_per_cycle','avg_root_rate_pct','status','metrc_tag','notes','room_id','introduced_date','plant_count','cuts_per_plant_per_cycle','cut_log'],
@@ -32,7 +32,7 @@ const SCHEMAS = {
   sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id'],
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','notes'],
-  employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes'],
+  employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes','metrc_license_number','metrc_license_expiry'],
   import_history: ['id','created_at','facility_id','imported_by','data_type','file_name','record_count','status','error_message','raw_preview'],
   vendors: ['id','created_at','updated_at','facility_id','name','vendor_type','contact','phone','email','lead_days','notes'],
   purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],
@@ -62,6 +62,7 @@ const FIELD_OVERRIDES = {
     cbdAvg: 'cbd_avg',
     terpsAvg: 'terps_avg',
     linkedPhenoHuntId: 'linked_pheno_hunt_id',
+    metrcId: 'metrc_id',
   },
   harvest_batches: {
     strainName: 'strain_name',
@@ -226,6 +227,7 @@ const FIELD_OVERRIDES = {
     sensorId: 'sensor_id',
     resetDays: 'reset_days',
     lastHarvestDate: 'last_harvest_date',
+    metrcId: 'metrc_id',
   },
   grow_spaces: {
     roomId: 'room_id',
@@ -474,6 +476,8 @@ const FIELD_OVERRIDES = {
     pestLicenseCategory: 'pest_license_category',
     pestLicenseState: 'pest_license_state',
     pestLicenseExpiry: 'pest_license_expiry',
+    metrcLicenseNumber: 'metrc_license_number',
+    metrcLicenseExpiry: 'metrc_license_expiry',
   },
   import_history: {
     importedBy: 'imported_by',
