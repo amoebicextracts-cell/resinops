@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -77,7 +78,13 @@ export default function Dashboard({ onNavigate }){
         setCloneSched(cs); setShifts(sh); setSalesOrders(so);
         setSkus(sk); setQcTests(qc); setStrains(st);
         setWorkOrders(wo); setLoto(lt);
-        try{ setSettings(JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")); }catch{}
+        const fid = getCurrentFacility();
+        if(fid && supabase){
+          const { data } = await supabase.from('facilities').select('facility_name,license_number,state').eq('id', fid).single();
+          if(data) setSettings({facilityName:data.facility_name||"",licenseNumber:data.license_number||"",state:data.state||""});
+        } else {
+          try{ setSettings(JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")); }catch{}
+        }
       }catch(e){ console.error("Dashboard load error:",e); }
       setLoading(false);
     }
@@ -472,7 +479,7 @@ export default function Dashboard({ onNavigate }){
           <div className="db-card">
             <div className="db-card-t">🕐 Today's shift activity</div>
             {todayShifts.length===0?<div className="db-empty">No shifts logged for today yet</div>:todayShifts.map((sh,i)=>{
-              const empNames=(sh.entries||[]).map(e=>{const emp=JSON.parse(localStorage.getItem("resinops_employees")||"[]").find(x=>x.id===e.employeeId);return emp?.name||"";}).filter(Boolean);
+              const empNames=(sh.entries||[]).map(e=>{const emp=employees.find(x=>x.id===e.employeeId);return emp?.name||"";}).filter(Boolean);
               return(
                 <div key={i} className="db-alert a-blue">
                   <div>
