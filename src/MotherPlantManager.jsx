@@ -134,7 +134,7 @@ export default function MotherPlantManager(){
     }catch(e){ console.error("Retire failed:",e); }
   }
 
-  function logCut(){
+  async function logCut(){
     if(!cutForm?.date){ setErr("Enter the cut date."); return; }
     const cutsThisCycle = parseInt(cutForm.cutsTotal) || (selected.plantCount * (selected.cutsPerPlantPerCycle || 8));
     const entry = {
@@ -145,7 +145,11 @@ export default function MotherPlantManager(){
       health: cutForm.health || "good",
       notes: cutForm.notes || "",
     };
-    setMoms(p=>p.map(m=>m.id===selectedId?{...m,cutLog:[...(m.cutLog||[]),entry]}:m));
+    const updated = {...selected, cutLog:[...(selected.cutLog||[]),entry]};
+    try{
+      const saved = await db.mother_plants.upsert(updated);
+      setMoms(p=>p.map(m=>m.id===selectedId?saved:m));
+    }catch(e){ setErr("Cut log save failed: "+e.message); return; }
 
     // Suggest to Clone Scheduler — store as a suggested batch
     const cloneSuggestions = []; // TODO: move to db layer

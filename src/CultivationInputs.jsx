@@ -86,22 +86,28 @@ export default function CultivationInputs(){
   const isSpray=form?.type==="ipm_spray"||form?.type==="ipm_foliar";
   const isBeneficial=form?.type==="beneficial";
 
-  function save(){
+  async function save(){
     if(!form.spaceId){setErr("Select a grow space.");return;}
     if(!form.product&&!isBeneficial){setErr("Enter a product name.");return;}
     if(isBeneficial&&!form.species){setErr("Enter the insect species.");return;}
     const space=spaces.find(s=>String(s.id)===String(form.spaceId));
     const applicator=employees.find(e=>e.id===form.applicatorId);
-    const rec={...form,id:form.id||"ci"+Date.now(),
+    const rec={...form,id:form.id||crypto.randomUUID(),
       spaceName:space?.name||"",
       applicatorName:applicator?.name||"",
       applicatorLicenseNum:applicator?.pestLicenseNum||"",
     };
-    if(form.id) setRecords(p=>p.map(x=>x.id===rec.id?rec:x));
-    else setRecords(p=>[...p,rec]);
-    setForm(null);setErr("");
+    try{
+      const saved=await db.cultivation_inputs.upsert(rec);
+      if(form.id) setRecords(p=>p.map(x=>x.id===saved.id?saved:x));
+      else setRecords(p=>[...p,saved]);
+      setForm(null);setErr("");
+    }catch(e){ console.error("Cultivation input save failed:",e); setErr("Save failed: "+e.message); }
   }
-  function remove(id){setRecords(p=>p.filter(x=>x.id!==id));}
+  async function remove(id){
+    try{ await db.cultivation_inputs.delete(id); setRecords(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Cultivation input delete failed:",e); }
+  }
 
   const filtered=records.filter(r=>
     (!filterSpace||r.spaceId===filterSpace)&&
