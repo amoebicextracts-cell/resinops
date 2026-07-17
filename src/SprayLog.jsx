@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 
 const APP_METHODS = ["Backpack sprayer","Boom sprayer","Hand sprayer","Drench / Irrigation injection","Fogger / ULV","Broadcast","Other"];
 const VOL_UNITS = ["gal","L","ml","oz","qt"];
@@ -63,19 +64,23 @@ export default function SprayLog(){
 
   const [records,setRecords]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [facility,setFacility]=useState({});
 
   useEffect(()=>{
     async function load(){
       try{
-        const [sl, sp, gm, emp]=await Promise.all([
+        const facilityId=getCurrentFacility();
+        const [sl, sp, gm, emp, facRes]=await Promise.all([
           db.spray_log.list(),
           db.grow_spaces.list(),
           db.grow_rooms.list(),
           db.employees.list(),
+          facilityId?supabase.from('facilities').select('*').eq('id',facilityId).single():Promise.resolve({data:null}),
         ]);
         setRecords(sl);
         setAllSpaces([...sp,...gm].filter(s=>s.name));
         setEmployees(emp);
+        setFacility(facRes.data||{});
       }catch(e){ console.error("SprayLog load error:",e); }
       setLoading(false);
     }
@@ -161,11 +166,10 @@ export default function SprayLog(){
   }
 
   function exportCSV(){
-    const facility={}; // TODO: load from db.facilities
     const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const header=[
-      `# NY DEC Pesticide Application Record — ${facility.facilityName||"Facility"}`,
-      `# License: ${facility.licenseNumber||""} | Address: ${facility.address||""} ${facility.city||""} ${facility.state||""}`,
+      `# NY DEC Pesticide Application Record — ${facility.facility_name||"Facility"}`,
+      `# License: ${facility.license_number||""} | Address: ${facility.address||""} ${facility.city||""} ${facility.state||""}`,
       `# Exported: ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`,
       `# Records: ${sorted.length}`,
       "",
@@ -184,12 +188,11 @@ export default function SprayLog(){
     ].join("\n");
     const a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob([rows],{type:"text/csv"}));
-    a.download=`${(facility.facilityName||"SprayLog").replace(/\s+/g,"-")}-NY-DEC-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download=`${(facility.facility_name||"SprayLog").replace(/\s+/g,"-")}-NY-DEC-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
   }
 
   function exportPDF(){
-    const facility={}; // TODO: load from db.facilities
     const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const rows=sorted.map(r=>`
       <tr>
@@ -210,7 +213,7 @@ export default function SprayLog(){
       .footer{margin-top:20px;font-size:8px;color:#888;border-top:1px solid #ccc;padding-top:8px;}
     </style></head><body>
       <h1>NY DEC Pesticide Application Record</h1>
-      <h2>${facility.facilityName||"Facility"} · License: ${facility.licenseNumber||""} · ${facility.address||""} ${facility.city||""} ${facility.state||""}</h2>
+      <h2>${facility.facility_name||"Facility"} · License: ${facility.license_number||""} · ${facility.address||""} ${facility.city||""} ${facility.state||""}</h2>
       <div style="font-size:8px;color:#888;">Exported: ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})} · Total records: ${sorted.length}</div>
       <table>
         <thead><tr><th>Date</th><th>Space</th><th>Product</th><th>EPA Reg #</th><th>Rate</th><th>Amount</th><th>Area (sqft)</th><th>Target Pest</th><th>Weather</th><th>REI (hrs)</th><th>PHI (days)</th><th>Applicator</th></tr></thead>

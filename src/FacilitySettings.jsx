@@ -61,8 +61,12 @@ export default function FacilitySettings(){
               phone: data.phone||"",
               email: data.email||"",
               website: data.website||"",
+              ownerName: data.owner_name||"",
+              ownerEmail: data.owner_email||"",
+              ownerPhone: data.owner_phone||"",
               timezone: data.timezone||"America/New_York",
               fiscalYearStart: data.fiscal_year_start ? String(data.fiscal_year_start).padStart(2,'0') : "01",
+              tagSystem: data.tag_system||"METRC",
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -85,6 +89,7 @@ export default function FacilitySettings(){
       try{
         const { error } = await supabase.from('facilities').update({
           facility_name: settings.facilityName,
+          dba_name: settings.dbaName,
           license_number: settings.licenseNumber,
           license_type: settings.licenseType,
           state: settings.state,
@@ -94,8 +99,12 @@ export default function FacilitySettings(){
           phone: settings.phone,
           email: settings.email,
           website: settings.website,
+          owner_name: settings.ownerName,
+          owner_email: settings.ownerEmail,
+          owner_phone: settings.ownerPhone,
           timezone: settings.timezone,
           fiscal_year_start: parseInt(settings.fiscalYearStart)||1,
+          tag_system: settings.tagSystem,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;

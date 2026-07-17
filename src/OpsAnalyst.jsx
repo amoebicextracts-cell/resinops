@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 
 const CSS = `
@@ -45,10 +46,11 @@ const SUGGESTIONS = [
 ];
 
 async function gatherFacilityData() {
+  const facilityId = getCurrentFacility();
   const [employees, harvestBatches, prodBatches, qcTests, salesOrders,
          cultInputs, sprayLog, strains, skus, boms, spaces, growMap,
          equipment, laborTypes, inventory, facilityMap, tcVessels,
-         cloneSchedules, mothers, deviations, shifts, sops] = await Promise.all([
+         cloneSchedules, mothers, deviations, shifts, sops, facilityRes] = await Promise.all([
     db.employees.list(), db.harvest_batches.list(), db.production_batches.list(),
     db.qc_tests.list(), db.sales_orders.list(), db.cultivation_inputs.list(),
     db.spray_log.list(), db.strains.list(), db.skus.list(), db.boms.list(),
@@ -56,9 +58,10 @@ async function gatherFacilityData() {
     db.labor_types.list(), db.inventory_items.list(), db.facility_map_spaces.list(),
     db.tc_vessels.list(), db.clone_schedules.list(), db.mother_plants.list(),
     db.gmp_deviations.list(), db.gmp_shifts.list(), db.gmp_sops.list(),
+    facilityId ? supabase.from('facilities').select('*').eq('id',facilityId).single() : Promise.resolve({data:null}),
   ]);
   return {
-    facility: {}, employees, harvestBatches, prodBatches, qcTests,
+    facility: facilityRes.data||{}, employees, harvestBatches, prodBatches, qcTests,
     qcHolds: qcTests.filter(t=>t.overallPass===false||t.on_hold).map(t=>String(t.id)),
     salesOrders, cultInputs, sprayLog, strains, skus, boms, spaces, growMap,
     equipment, laborTypes, inventory, facilityMap, tcVessels,
@@ -78,7 +81,7 @@ function buildSystemPrompt(data) {
     return Math.ceil((new Date(e.pestLicenseExpiry)-new Date())/86400000) < 60;
   });
 
-  return `You are the ResinOps AI Operations Analyst for ${f.facilityName||"this cannabis facility"} (${f.licenseNumber||"no license"}${f.state?", "+f.state:""}).
+  return `You are the ResinOps AI Operations Analyst for ${f.facility_name||"this cannabis facility"} (${f.license_number||"no license"}${f.state?", "+f.state:""}).
 Answer questions like a seasoned cannabis operations director — concise, data-driven, actionable.
 
 LIVE FACILITY DATA:
