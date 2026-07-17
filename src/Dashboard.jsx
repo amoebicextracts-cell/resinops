@@ -47,11 +47,13 @@ export default function Dashboard({ onNavigate }){
   const [skus,setSkus]=useState([]);
   const [qcTests,setQcTests]=useState([]);
   const [strains,setStrains]=useState([]);
+  const [workOrders,setWorkOrders]=useState([]);
+  const [loto,setLoto]=useState([]);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [sp,gm,hb,pb,emp,eq,dv,inv,cs,sh,so,sk,qc,st]=await Promise.all([
+        const [sp,gm,hb,pb,emp,eq,dv,inv,cs,sh,so,sk,qc,st,wo,lt]=await Promise.all([
           db.grow_spaces.list(),
           db.grow_rooms.list(),
           db.harvest_batches.list(),
@@ -66,12 +68,15 @@ export default function Dashboard({ onNavigate }){
           db.skus.list(),
           db.qc_tests.list(),
           db.strains.list(),
+          db.work_orders.list(),
+          db.loto_log.list(),
         ]);
         setSpaces(sp); setGrowMap(gm); setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked)); setEmployees(emp);
         setEquipment(eq); setDeviations(dv); setInventory(inv);
         setCloneSched(cs); setShifts(sh); setSalesOrders(so);
         setSkus(sk); setQcTests(qc); setStrains(st);
+        setWorkOrders(wo); setLoto(lt);
         try{ setSettings(JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}")); }catch{}
       }catch(e){ console.error("Dashboard load error:",e); }
       setLoading(false);
@@ -79,8 +84,6 @@ export default function Dashboard({ onNavigate }){
     load();
   },[]);
 
-  const workOrders=[];
-  const loto=[];
   const qcHolds=qcTests.filter(t=>t.overallPass===false||t.on_hold).map(t=>String(t.id));
   const prodBatchesAll=prodBatches;
   const growSpaces=spaces;
