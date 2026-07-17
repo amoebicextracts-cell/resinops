@@ -24,7 +24,7 @@ const SCHEMAS = {
   gmp_sops: ['id','created_at','updated_at','facility_id','title','category','version','effective_date','content','status','approved_by','linked_step_types'],
   gmp_shifts: ['id','created_at','facility_id','shift_date','department','supervisor','notes','entries'],
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],
-  skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active'],
+  skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active','channel'],
   boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines'],
   sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id'],
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
@@ -355,6 +355,7 @@ const FIELD_OVERRIDES = {
     wholesalePrice: 'wholesale_price',
     product: 'name',
     price: 'unit_price',
+    size: 'unit_size',
   },
   boms: {
     skuId: 'sku_id',

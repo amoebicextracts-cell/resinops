@@ -584,7 +584,7 @@ export default function Finance() {
           <div className="fin-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontSize:12,color:"var(--text-2)"}}>Set selling prices per product and package size. Used to calculate revenue in the P&L view.</div>
-              {!editSku && <button className="fin-btn fin-primary" onClick={()=>setEditSku({id:"sku"+Date.now(),product:"",size:"",channel:"retail",price:""})}>+ Add SKU</button>}
+              {!editSku && <button className="fin-btn fin-primary" onClick={()=>setEditSku({id:crypto.randomUUID(),product:"",size:"",channel:"retail",price:""})}>+ Add SKU</button>}
             </div>
 
             {editSku && (
