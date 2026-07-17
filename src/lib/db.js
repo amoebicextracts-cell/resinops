@@ -255,6 +255,8 @@ export const facilities = {
 };
 
 // ── Migration helper: localStorage → Supabase ─────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function migrateLocalStorageToSupabase(facilityId) {
   if (!isSupabaseEnabled) throw new Error('Supabase not configured');
 
@@ -267,14 +269,21 @@ export async function migrateLocalStorageToSupabase(facilityId) {
       const records = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(records) || records.length === 0) continue;
 
-      // Add facility_id to each record
-      const withFacility = records.map(r => ({
-        ...r,
-        facility_id: facilityId,
-        id: r.id ? String(r.id) : undefined, // Supabase needs string/uuid IDs
-      }));
+      // Legacy localStorage records use camelCase field names and often a
+      // non-uuid id (e.g. "acc_"+Date.now()) from before every table had a
+      // real uuid PK — run through the same transformForDb every other
+      // save path uses instead of sending raw fields straight to Supabase,
+      // and mint a fresh uuid for any id that isn't already a valid one.
+      // Note: cross-table references stored as a legacy string id (e.g. a
+      // mother plant's sourceTCVesselId) won't resolve to the new uuid
+      // minted here for the referenced row — this migrates each table's
+      // own records, not the relationships between them.
+      const transformed = records.map(r => {
+        const id = r.id && UUID_RE.test(String(r.id)) ? String(r.id) : crypto.randomUUID();
+        return { ...transformForDb(table, r), id, facility_id: facilityId };
+      });
 
-      const { error } = await supabase.from(table).upsert(withFacility, { onConflict: 'id' });
+      const { error } = await supabase.from(table).upsert(transformed, { onConflict: 'id' });
       results[table] = error ? { error: error.message } : { count: records.length };
     } catch (e) {
       results[table] = { error: e.message };
