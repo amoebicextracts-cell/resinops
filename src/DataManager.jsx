@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { db, TABLE_NAMES } from "./lib/db";
 import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
@@ -224,6 +224,25 @@ const IMPORT_TARGETS = {
   notes (notes field)` },
 };
 
+// Maps each import target to the real Supabase table it should persist
+// to. confirmImport() used to write straight to localStorage.setItem
+// (tgt.key) instead of any of these — that's the bug being fixed.
+const TARGET_TABLE = {
+  employees: 'employees',
+  equipment: 'equipment',
+  inventory: 'inventory_items',
+  vendors: 'vendors',
+  strains: 'strains',
+  spaces: 'grow_rooms',
+  harvest_batches: 'harvest_batches',
+  production_batches: 'production_batches',
+  qc_tests: 'qc_tests',
+  cult_inputs: 'cultivation_inputs',
+  grow_schedule: 'grow_spaces',
+  sales_orders: 'sales_orders',
+  spray_log: 'spray_log',
+};
+
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
   const mappingRule = fieldSchema ? `
 CRITICAL FIELD MAPPING RULE:
@@ -335,9 +354,11 @@ const CSS=`
 export default function DataManager(){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
-  const [importHistory, setImportHistory] = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("resinops_import_history")||"[]"); }catch{ return []; }
-  });
+  const [importHistory, setImportHistory] = useState([]);
+
+  useEffect(()=>{
+    db.import_history.list().then(setImportHistory).catch(e=>console.error("Import history load error:",e));
+  },[]);
   const [importState,setImportState]=useState("idle"); // idle|reading|analyzing|preview|coamatch|done|error
   const [importResult,setImportResult]=useState(null);
   const [importErr,setImportErr]=useState("");
@@ -1084,29 +1105,35 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
     return norm;
   }
 
-  function confirmImport(batchLinks={}){
+  async function confirmImport(batchLinks={}){
     if(!importResult?.records?.length) return;
     const target=importTarget||importResult.detectedType;
     const tgt=IMPORT_TARGETS[target];
-    if(!tgt){ setImportErr("Cannot identify where to save this data. Please select a data type above and re-analyze."); return; }
+    const table=TARGET_TABLE[target];
+    if(!tgt||!table){ setImportErr("Cannot identify where to save this data. Please select a data type above and re-analyze."); return; }
     try{
-      const existing=JSON.parse(localStorage.getItem(tgt.key)||"[]");
       const rawRecords=importResult.records.map(r=>({
         ...r,
-        id:r.id||"imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,7)
+        id:r.id&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.id)?r.id:crypto.randomUUID()
       }));
       // ── Normalize records based on target type ──────────────────────────
       let newRecords;
       if(target==="qc_tests"){
+        const hb=await db.harvest_batches.list();
         newRecords = rawRecords.map((r,i)=>{
-          const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
           // Resolve sampleId from all possible field name variants
           const sampleId=r.sampleId||r.sample_id||r["Sample ID"]||r["Lab Sample ID"]||"";
           // Auto-link: check if harvest batch already has matching coaSampleId
           const autoMatch=sampleId?hb.find(b=>(b.coaSampleId||b.coa_sample_id||b["COA Sample ID"]||"")===sampleId):null;
           const linkedId=batchLinks[sampleId||i]||autoMatch?.id||"";
           const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
-          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
+          // batchId alone isn't a real qc_tests column — harvestBatchId/
+          // productionBatchId are, split by batchType, same as
+          // QCTesting.jsx's own save() does. Every COA-import link here
+          // is to a harvest batch (linkedBatch comes from hb, the
+          // harvest_batches list), so batchType stays the "harvest"
+          // default normalizeQCRecord already applies.
+          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",harvestBatchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
         });
       } else if(target==="employees"){
         newRecords = rawRecords.map(r=>({...r,id:r.id||"emp_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),name:r.name||r.full_name||r["Full Name"]||r["Employee Name"]||"",role:r.role||r.job_title||r["Job Title"]||r["Title"]||r["Position"]||"Other",department:r.department||r["Department / Area"]||r["Department"]||r["Area"]||"Other",status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",hireDate:r.hireDate||r.employment_start||r["Employment Start"]||r["Start Date"]||r["Hire Date"]||"",phone:r.phone||r.cell_phone||r["Cell Phone"]||r["Phone"]||"",email:r.email||r.work_email||r["Work Email"]||r["Email"]||"",pestLicenseNum:r.pestLicenseNum||r.pesticide_cert_number||r.cert_number||r["Pesticide Cert #"]||r["License #"]||"",pestLicenseCategory:r.pestLicenseCategory||r.pesticide_cert_category||r.cert_category||r["Cert Category"]||r["License Type"]||"",pestLicenseExpiry:r.pestLicenseExpiry||r.pesticide_cert_expiry||r.cert_expiry_date||r["Cert Expiry Date"]||r["License Expires"]||"",certs:Array.isArray(r.certs)?r.certs:[],trainings:Array.isArray(r.trainings)?r.trainings:[],notes:r.notes||r["Notes"]||"",}));
@@ -1272,47 +1299,6 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             isLinked: false,
           };
         });
-        newRecords = rawRecords.map(r=>{
-          const wetLbs = parseFloat(r.wet_weight_lbs||r["Wet Weight lbs"]||r["Wet Weight"]||0)||0;
-          const wetG   = parseFloat(r.wetWeightG||r.wet_weight_g||0)||0;
-          const wetWeightG = wetG>0 ? wetG : wetLbs>0 ? Math.round(wetLbs*453.592) : 0;
-          const dryLbs = parseFloat(r.dry_weight_lbs||r["Dry Weight lbs"]||r["Dry Weight"]||0)||0;
-          const dryG   = parseFloat(r.totalDryWeight||r.total_dry_weight||r.dry_weight_g||0)||0;
-          const totalDryWeight = dryG>0 ? dryG : dryLbs>0 ? Math.round(dryLbs*453.592) : 0;
-          const rawStatus = (r.status||r["Status"]||"").toLowerCase();
-          const status = rawStatus==="complete"||rawStatus==="done"||rawStatus==="completed"||rawStatus==="cured" ? "done" : "open";
-          return {
-            ...r,
-            id: r.id||r.batch_id||r["Batch ID"]||"hb_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
-            strainName: r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
-            spaceId: r.spaceId||r.space_id||"",
-            spaceName: r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
-            plants: r.plants||r.plant_count||r["Plant Count"]||"",
-            d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
-            wetWeightG, totalDryWeight, status,
-            coaSampleId: r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
-            labName: r.labName||r.lab_name||r["Lab Name"]||"",
-            thca: r.thca||r["THCa %"]||r["THCa"]||"",
-            notes: r.notes||r["Notes"]||"",
-            grades: {
-              aa:{weight:r.grade_aa||r["Grade AA (g)"]||"",s2s:""},
-              a: {weight:r.grade_a||r["Grade A (g)"]||"",s2s:""},
-              b: {weight:r.grade_b||r["Grade B (g)"]||"",s2s:""},
-              c: {weight:r.grade_c||r["Grade C (g)"]||"",s2s:""},
-              trim:{weight:r.trim||r["Trim (g)"]||"",s2s:""},
-              waste:{weight:r.waste||r["Waste (g)"]||"",s2s:""},
-            },
-            steps: (()=>{
-              const DS={
-                whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-                pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-                extract:[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-              };
-              const cat=r.cat||"whole_flower";
-              return Array.isArray(r.steps)&&r.steps.length>0?r.steps:(DS[cat]||DS.whole_flower).map(s=>({...s}));
-            })(),
-          };
-        });
       } else if(target==="harvest_batches"){
         const DS={
           whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
@@ -1374,6 +1360,15 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             notes: r.notes||r["Notes"]||"",
           };
         });
+      } else if(target==="sales_orders"){
+        // This normalization used to live (misplaced, never reachable —
+        // there was no target==="sales_orders" branch at all) inside
+        // grow_schedule's block, silently clobbered by a second
+        // newRecords assignment there. Moved here where it belongs, and
+        // status/importStatus corrected to match SalesOrders.jsx's real
+        // two-field model: `status` is the fulfillment lifecycle
+        // (open/fulfilled/canceled), `importStatus` is what this dialog's
+        // own schema prompt actually describes (confirmed/pending/waitlist).
         newRecords = rawRecords.map(r=>{
           const dispensaryName=r.dispensaryName||r.dispensary_name||r["Dispensary Name"]||r["Account"]||r["Customer"]||"";
           const licenseNum=r.licenseNum||r.licenseNumber||r.license_num||r.license_number||r["License Number"]||r["License #"]||r["OCM License"]||"";
@@ -1381,19 +1376,19 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           const unitPrice=parseFloat(String(r.unitPrice||r.unit_price||r["Unit Price"]||r["Price"]||0).replace(/[$,]/g,""))||0;
           const orderTotal=parseFloat(String(r.orderTotal||r.order_total||r["Order Total"]||r["Total"]||0).replace(/[$,]/g,""))||(units*unitPrice)||0;
           const rawStatus=(r.status||r["Status"]||"").toLowerCase();
-          const status=rawStatus==="fulfilled"||rawStatus==="complete"?"fulfilled":"open";
+          const importStatus=rawStatus.includes("confirm")?"confirmed":rawStatus.includes("wait")?"waitlist":"pending";
           const product=r.product||r["Product"]||r["Item"]||"";
           const strain=r.strain||r["Strain"]||r["Cultivar"]||"";
           return {
-            id: r.id||"ord_imp_"+Date.now()+"_"+Math.random().toString(36).slice(2,5),
+            id: r.id,
             customerName: dispensaryName,
             customerLicense: licenseNum,
             orderDate: r.orderDate||r.order_date||r["Order Date"]||r["Date"]||"",
-            deliveryDate: r.deliveryDate||r.delivery_date||r.requested_delivery||r["Requested Delivery"]||r["Delivery Date"]||"",
-            status,
+            status: "open",
+            importStatus,
             notes: (r.notes||r["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
             lines: units>0?[{
-              id:"ln_imp_"+Date.now()+Math.random(),
+              id:crypto.randomUUID(),
               batchId:"",
               product: product+(strain?` (${strain})`:""),
               qty: String(units),
@@ -1405,53 +1400,58 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       } else {
         newRecords = rawRecords;
       }
-      localStorage.setItem(tgt.key,JSON.stringify([...existing,...newRecords]));
+
+      // Persist every imported record to its real Supabase table. This
+      // used to be a single localStorage.setItem(tgt.key, ...) call —
+      // in Supabase mode nothing ever actually reached the tables every
+      // other module reads via db.<table>.list(), so imports silently
+      // vanished (still visible to the user via the success toast).
+      for(const r of newRecords){ await db[table].upsert(r); }
 
       // Populate strain database from COA imports
       if(target==="qc_tests"){
-        const strains=JSON.parse(localStorage.getItem("resinops_strains")||"[]");
+        const strains=await db.strains.list();
         const strainNames=new Set(strains.map(s=>s.name.toLowerCase()));
         const newStrains=newRecords
           .filter(r=>r.strainName&&!strainNames.has(r.strainName.toLowerCase()))
           .map(r=>({
-            id:"str_auto_"+Date.now()+Math.random(),
+            id:crypto.randomUUID(),
             name:r.strainName,type:"Unknown",parentage:"",breeder:"",
             thcaAvg:r.thca||"",thcAvg:r.thc||"",cbdAvg:r.cbd||"",
             terpsAvg:r.totalTerpenes||"",
             dominantTerpenes:[r.myrcene&&"Myrcene",r.limonene&&"Limonene",r.caryophyllene&&"Caryophyllene"].filter(Boolean).join(", "),
             notes:"Auto-added from COA import",status:"active",salesDescription:"",
           }));
-        if(newStrains.length) localStorage.setItem("resinops_strains",JSON.stringify([...strains,...newStrains]));
+        for(const s of newStrains){ await db.strains.upsert(s); }
 
         // Auto-create completed harvest batches for passing COAs, or update linked ones
         const passingRecords=newRecords.filter(r=>r.overallPass===true);
         if(passingRecords.length){
-          const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
+          const hb=await db.harvest_batches.list();
           const existingSampleIds=new Set(hb.map(b=>b.coaSampleId).filter(Boolean));
-          let updatedHb=[...hb];
-          const newBatches=[];
-          passingRecords.forEach((r,i)=>{
-            if(r.batchId){
+          for(const [i,r] of passingRecords.entries()){
+            if(r.harvestBatchId){
               // Update the linked batch to complete with COA data
-              updatedHb=updatedHb.map(b=>String(b.id)===String(r.batchId)?{
-                ...b,status:"complete",coaSampleId:r.sampleId,
-                thca:r.thca||b.thca,thc:r.thc||b.thc,totalTerpenes:r.totalTerpenes||b.totalTerpenes,
-                labName:r.labName||b.labName,coaReceivedDate:r.receivedDate,
-              }:b);
+              const linked=hb.find(b=>String(b.id)===String(r.harvestBatchId));
+              if(linked){
+                await db.harvest_batches.upsert({
+                  ...linked,status:"complete",coaSampleId:r.sampleId,
+                  thca:r.thca||linked.thca,thc:r.thc||linked.thc,totalTerpenes:r.totalTerpenes||linked.totalTerpenes,
+                  labName:r.labName||linked.labName,
+                });
+              }
             } else if(!existingSampleIds.has(r.sampleId)){
               // No linked batch — create placeholder
-              newBatches.push({
-                id:"hb_coa_"+Date.now()+"_"+i,
+              await db.harvest_batches.upsert({
+                id:crypto.randomUUID(),
                 strainName:r.strainName||"Unknown",
                 d:r.receivedDate||r.submittedDate||new Date().toISOString().split("T")[0],
                 status:"complete",coaSampleId:r.sampleId,labName:r.labName,
                 thca:r.thca,thc:r.thc,totalTerpenes:r.totalTerpenes,
                 notes:"Auto-created from passing COA import ("+(r.sampleId||"no sample ID")+")",
-                source:"coa_import",
               });
             }
-          });
-          localStorage.setItem("resinops_harvest_batches",JSON.stringify([...updatedHb,...newBatches]));
+          }
         }
       }
 
@@ -1461,10 +1461,14 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       const skipMsg=skipped>0?` (${skipped} skipped — missing required fields)`:"";
       setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+skipMsg+" ✓");
       // Log to import history
-      const histEntry={id:"h_"+Date.now(),ts:new Date().toISOString(),fileName:importResult?.fileName||"unknown",module:tgt.label,records:newRecords.length,target};
-      const newHistory=[histEntry,...importHistory].slice(0,50);
-      setImportHistory(newHistory);
-      localStorage.setItem("resinops_import_history",JSON.stringify(newHistory));
+      const histSaved=await db.import_history.upsert({
+        id:crypto.randomUUID(),
+        fileName:importResult?.fileName||"unknown",
+        dataType:tgt.label,
+        recordCount:newRecords.length,
+        status:"success",
+      });
+      setImportHistory(p=>[histSaved,...p].slice(0,50));
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
@@ -1741,9 +1745,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:3}}>Import History</div>
                 <div style={{fontSize:12,color:"var(--text-3)"}}>Last {importHistory.length} imports — verify what data has been loaded and avoid duplicates</div>
               </div>
-              {importHistory.length>0&&<button className="dm-btn dm-secondary" style={{fontSize:11}} onClick={()=>{
+              {importHistory.length>0&&<button className="dm-btn dm-secondary" style={{fontSize:11}} onClick={async()=>{
                 if(!window.confirm("Clear import history? This does not delete imported data.")) return;
-                setImportHistory([]);localStorage.removeItem("resinops_import_history");
+                try{
+                  await Promise.all(importHistory.map(h=>db.import_history.delete(h.id)));
+                  setImportHistory([]);
+                }catch(e){ console.error("Clear import history failed:",e); }
               }}>Clear history</button>}
             </div>
             {importHistory.length===0?(
@@ -1759,11 +1766,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                     {importHistory.map((h,i)=>(
                       <tr key={h.id} style={{background:i%2===0?"transparent":"var(--surface-2)"}}>
                         <td style={{whiteSpace:"nowrap",color:"var(--text-3)",fontSize:11}}>
-                          {new Date(h.ts).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} {new Date(h.ts).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+                          {new Date(h.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} {new Date(h.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
                         </td>
                         <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-2)"}}>{h.fileName}</td>
-                        <td><span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>{h.module}</span></td>
-                        <td style={{fontWeight:600,color:"var(--accent-2)"}}>{h.records} records</td>
+                        <td><span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>{h.dataType}</span></td>
+                        <td style={{fontWeight:600,color:"var(--accent-2)"}}>{h.recordCount} records</td>
                       </tr>
                     ))}
                   </tbody>
