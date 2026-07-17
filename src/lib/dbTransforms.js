@@ -410,7 +410,8 @@ const FIELD_OVERRIDES = {
     linkedStepTypes: 'linked_step_types',
   },
   gmp_shifts: {
-    shiftDate: 'shift_date',
+    date: 'shift_date',
+    supervisorId: 'supervisor',
   },
   gmp_deviations: {
     batchId: 'batch_id',
