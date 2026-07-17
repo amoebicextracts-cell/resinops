@@ -251,6 +251,40 @@ export default function Finance() {
   const totalGrossProfit = summary.totalRev - summary.totalCOGS;
   const totalGrossMargin = summary.totalRev > 0 ? totalGrossProfit/summary.totalRev*100 : 0;
 
+  // ── Cash-flow forecast: bucket every dated batch (past 2 months for trend
+  // context, next 6 months as the actual forecast) by scheduled-date month.
+  // COGS is projected for every batch in the window; revenue only counts
+  // for batches with a units-sold/price entered on the P&L tab above — an
+  // unpriced batch contributes its real cost but $0 revenue, same as it
+  // would show up in a real bank account before the sale closes.
+  const today0 = new Date(); today0.setDate(1); today0.setHours(0,0,0,0);
+  const forecastMonths = Array.from({length:9},(_,i)=>{
+    const m = new Date(today0.getFullYear(), today0.getMonth()+(i-2), 1);
+    return { key:m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0"), date:m,
+      label:m.toLocaleDateString(undefined,{month:"short",year:"numeric"}), isPast:m<today0 };
+  });
+  const forecastData = forecastMonths.map(mo => {
+    const rows = mainBatches.filter(b=>{
+      if(!b.d) return false;
+      const bd = new Date(b.d+"T00:00:00");
+      return bd.getFullYear()===mo.date.getFullYear() && bd.getMonth()===mo.date.getMonth();
+    }).map(b=>({batch:b, p:batchPnL(b)}));
+    const cogs = rows.reduce((s,r)=>s+r.p.totalCOGS,0);
+    const priced = rows.filter(r=>r.p.totalRevOverride || r.p.revPerUnit>0);
+    const revenue = priced.reduce((s,r)=>s+r.p.totalRev,0);
+    return { ...mo, rows, cogs, revenue, hasPricedBatch:priced.length>0, net:revenue-cogs };
+  });
+  let runningCash = 0;
+  forecastData.forEach(mo => { runningCash += mo.net; mo.cumulative = runningCash; });
+  const forecastMax = Math.max(1, ...forecastData.map(mo=>Math.max(mo.cogs,mo.revenue)));
+  const futureForecast = forecastData.filter(mo=>!mo.isPast);
+  const futureTotals = futureForecast.reduce((acc,mo)=>{
+    acc.cogs += mo.cogs; acc.revenue += mo.revenue; acc.batches += mo.rows.length;
+    acc.hasPricedBatch = acc.hasPricedBatch || mo.hasPricedBatch;
+    return acc;
+  }, {cogs:0,revenue:0,batches:0,hasPricedBatch:false});
+  const futureNet = futureTotals.revenue - futureTotals.cogs;
+
   if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading finance…</div>);
 
   return (
@@ -263,7 +297,7 @@ export default function Finance() {
         </div>
 
         <div className="fin-tabs">
-          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["sku","🏷️ SKU Pricing"]].map(([v,l])=>(
+          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["sku","🏷️ SKU Pricing"]].map(([v,l])=>(
             <button key={v} className={"fin-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -490,6 +524,70 @@ export default function Finance() {
                   </div>
                 ))}
               </div>
+            </div>
+          </>
+        )}
+
+        {/* ── FORECAST ── */}
+        {tab==="forecast" && (
+          <>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+              {[
+                {l:"Next 6 Mo. Projected COGS",v:fmtC(futureTotals.cogs)},
+                {l:"Next 6 Mo. Projected Revenue",v:futureTotals.hasPricedBatch?fmtC(futureTotals.revenue):"—"},
+                {l:"Net Cash Impact (6 mo.)",v:futureTotals.hasPricedBatch?fmtC(futureNet):"—",cls:!futureTotals.hasPricedBatch?"":(futureNet>=0?"margin-good":"margin-bad")},
+                {l:"Batches Scheduled",v:String(futureTotals.batches)},
+              ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+
+            <div className="fin-card">
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Monthly Cash Timeline</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:16}}>
+                COGS is projected for every batch scheduled in a month, using the same Batch COGS figures as the tabs above. Revenue only counts batches with units sold or a price entered on the P&L tab — an unpriced batch still shows its real cost with $0 revenue, same as it would hit a bank account before the sale closes. Past two months shown for trend context.
+              </div>
+              {forecastData.every(mo=>mo.rows.length===0) ? (
+                <div style={{textAlign:"center",padding:24,color:"var(--text-3)"}}>No batches with a scheduled date in this window.</div>
+              ) : forecastData.map(mo=>(
+                <div key={mo.key} style={{marginBottom:16,paddingBottom:16,borderBottom:"1px solid var(--border)",opacity:mo.isPast?0.65:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>
+                      {mo.label}{mo.isPast && <span style={{fontSize:10,color:"var(--text-3)",fontWeight:400,marginLeft:6}}>(past)</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text-3)"}}>{mo.rows.length} batch{mo.rows.length===1?"":"es"}</div>
+                  </div>
+
+                  {mo.rows.length>0 && <>
+                    <div style={{display:"grid",gridTemplateColumns:"64px 1fr 76px",gap:8,alignItems:"center",marginBottom:3}}>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>COGS</div>
+                      <div style={{height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{width:(mo.cogs/forecastMax*100)+"%",height:"100%",background:"var(--danger)"}} />
+                      </div>
+                      <div style={{fontSize:11,color:"var(--text-2)",textAlign:"right"}}>{fmtC(mo.cogs)}</div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"64px 1fr 76px",gap:8,alignItems:"center",marginBottom:8}}>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>Revenue</div>
+                      <div style={{height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{width:(mo.revenue/forecastMax*100)+"%",height:"100%",background:"var(--accent-2)"}} />
+                      </div>
+                      <div style={{fontSize:11,color:"var(--text-2)",textAlign:"right"}}>{fmtC(mo.revenue)}</div>
+                    </div>
+
+                    <div style={{marginBottom:8}}>
+                      {mo.rows.map(r=>(
+                        <div key={r.batch.id} style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--text-3)",padding:"2px 0"}}>
+                          <span>{r.batch.name}</span>
+                          <span>{fmtC(r.p.totalCOGS)} COGS{r.p.totalRev>0?" · "+fmtC(r.p.totalRev)+" rev":""}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{display:"flex",justifyContent:"flex-end",gap:18,fontSize:11}}>
+                      <span style={{color:"var(--text-3)"}}>Net: <strong style={{color:mo.net>=0?"var(--accent-2)":"var(--danger)"}}>{fmtC(mo.net)}</strong></span>
+                      <span style={{color:"var(--text-3)"}}>Cumulative: <strong style={{color:mo.cumulative>=0?"var(--accent-2)":"var(--danger)"}}>{fmtC(mo.cumulative)}</strong></span>
+                    </div>
+                  </>}
+                </div>
+              ))}
             </div>
           </>
         )}
