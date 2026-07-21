@@ -96,14 +96,16 @@ const EMPTY_LT = {n:"",cat:"Post-Harvest",count:"1",rate:"20"};
 export default function LaborManager() {
   const [facility, setFacility] = useState({shiftHours:"8",shiftsPerDay:"1"});
   const [types, setTypes] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const facilityLoaded = useRef(false);
 
   useEffect(()=>{
     async function load(){
       try{
-        const lt = await db.labor_types.list();
+        const [lt, emp] = await Promise.all([db.labor_types.list(), db.employees.list()]);
         setTypes(lt);
+        setEmployees(emp);
         const fid = getCurrentFacility();
         if(fid && supabase){
           const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
@@ -315,6 +317,40 @@ export default function LaborManager() {
             </div>
           )}
         </div>
+
+        {/* Roles Summary — filled vs. unfilled positions, cross-referenced against the Employee roster */}
+        {types.length > 0 && (
+          <div className="lm-card">
+            <div className="lm-title">Roles Summary — Hiring Status</div>
+            <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+              <table className="lm-tbl">
+                <thead>
+                  <tr><th>Job Title</th><th>Category</th><th>Target</th><th>Filled</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {types.map(lt => {
+                    const roleName = lt.name || lt.n;
+                    const filled = employees.filter(e => e.status==="active" && e.role===roleName).length;
+                    const target = lt.headcount ?? lt.count ?? 0;
+                    let badge;
+                    if (filled === 0) badge = {l:"Unassigned role", bg:"rgba(100,100,100,0.15)", c:"var(--text-3)"};
+                    else if (filled < target) badge = {l:(target-filled)+" open", bg:"rgba(200,150,58,0.15)", c:"var(--amber)"};
+                    else badge = {l:"Fully staffed", bg:"rgba(74,124,89,0.2)", c:"var(--accent-2)"};
+                    return (
+                      <tr key={lt.id}>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{roleName}</td>
+                        <td><span className="lm-cat">{lt.category || lt.cat}</span></td>
+                        <td>{target}</td>
+                        <td>{filled}</td>
+                        <td><span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:10,background:badge.bg,color:badge.c}}>{badge.l}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Step labor defaults info */}
         <div className="lm-card">

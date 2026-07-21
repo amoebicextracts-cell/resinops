@@ -45,6 +45,7 @@ const EMPTY={name:"",role:"Cultivation Tech",department:"Cultivation",status:"ac
 
 export default function Employees(){
   const [employees,setEmployees]=useState([]);
+  const [laborTypes,setLaborTypes]=useState([]);
   const [loading,setLoading]=useState(true);
   const [form,setForm]=useState(null);
   const [detailId,setDetailId]=useState(null);
@@ -75,13 +76,22 @@ export default function Employees(){
   useEffect(()=>{
     async function load(){
       try{
-        const raw=await db.employees.list();
+        const [raw,lt]=await Promise.all([db.employees.list(),db.labor_types.list()]);
         setEmployees(raw.map(normalizeEmployee));
+        setLaborTypes(lt);
       }catch(e){ console.error("Employees load error:",e); }
       setLoading(false);
     }
     load();
   },[]);
+
+  // Role dropdown pulls live from Labor Setup's roster (labor_types.name)
+  // so the two stay linked — falls back to the static list only when no
+  // labor types have been defined yet (e.g. a brand-new facility).
+  const roleOptions=(()=>{
+    const names=[...new Set(laborTypes.map(t=>t.name||t.n).filter(Boolean))];
+    return names.length?names:ROLES;
+  })();
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const detail=employees.find(e=>e.id===detailId);
@@ -148,7 +158,7 @@ export default function Employees(){
               <>
                 <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="em-lbl">Full name</label><input className="em-inp" value={form.name} onChange={e=>setF("name",e.target.value)} /></div>
-                  <div><label className="em-lbl">Role</label><select className="em-sel" value={form.role} onChange={e=>setF("role",e.target.value)}>{ROLES.map(r=><option key={r}>{r}</option>)}</select></div>
+                  <div><label className="em-lbl">Role</label><select className="em-sel" value={form.role} onChange={e=>setF("role",e.target.value)}>{!roleOptions.includes(form.role)&&form.role&&<option key={form.role}>{form.role}</option>}{roleOptions.map(r=><option key={r}>{r}</option>)}</select></div>
                   <div><label className="em-lbl">Department</label><select className="em-sel" value={form.department} onChange={e=>setF("department",e.target.value)}>{DEPARTMENTS.map(d=><option key={d}>{d}</option>)}</select></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
@@ -245,37 +255,61 @@ export default function Employees(){
               <div style={{fontSize:14,fontWeight:500,color:"var(--text-2)",marginBottom:4}}>No employees yet</div>
               <div style={{fontSize:12,color:"var(--text-3)"}}>Add staff here — they appear in shift logs, batch records, and spray log sign-offs</div>
             </div>
-          ):(
-            <div className="em-grid">
-              {employees.filter(e=>e.status!=="inactive").concat(employees.filter(e=>e.status==="inactive")).map(e=>{
-                const pestExp=e.pestLicenseExpiry?daysUntil(e.pestLicenseExpiry):null;
-                return(
-                  <div key={e.id} className="em-emp-card">
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                      <div>
-                        <div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{e.name}</div>
-                        <div style={{fontSize:11,color:"var(--text-3)"}}>{e.role} · {e.department}</div>
-                      </div>
-                      <span className={"em-pill s-"+e.status}>{e.status}</span>
+          ):(()=>{
+            function empCard(e){
+              const pestExp=e.pestLicenseExpiry?daysUntil(e.pestLicenseExpiry):null;
+              return(
+                <div key={e.id} className="em-emp-card">
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                    <div>
+                      <div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{e.name}</div>
+                      <div style={{fontSize:11,color:"var(--text-3)"}}>{e.role} · {e.department}</div>
                     </div>
-                    {e.pestLicenseCategory!=="None / Not Licensed"&&(
-                      <div style={{fontSize:10,color:pestExp!==null&&pestExp<=30?"var(--danger)":"var(--text-3)",marginBottom:4}}>
-                        🌿 {e.pestLicenseCategory.split("—")[0].trim()} #{e.pestLicenseNum||"—"}
-                        {e.pestLicenseExpiry&&` · Exp ${fmtD(e.pestLicenseExpiry)}`}
-                        {pestExp!==null&&pestExp<=30&&` ⚠`}
-                      </div>
-                    )}
-                    {(e.certs||[]).length>0&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:4}}>🏅 {e.certs.length} cert{e.certs.length!==1?"s":""}</div>}
-                    {(e.trainings||[]).length>0&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:6}}>📋 {e.trainings.length} training record{e.trainings.length!==1?"s":""}</div>}
-                    <div style={{display:"flex",gap:6,marginTop:8}}>
-                      <button className="em-sm em-edit" onClick={()=>setForm({...e})}>Edit</button>
-                      <button className="em-sm em-del" onClick={()=>remove(e.id)}>✕</button>
-                    </div>
+                    <span className={"em-pill s-"+e.status}>{e.status}</span>
                   </div>
-                );
-              })}
-            </div>
-          )
+                  {e.pestLicenseCategory!=="None / Not Licensed"&&(
+                    <div style={{fontSize:10,color:pestExp!==null&&pestExp<=30?"var(--danger)":"var(--text-3)",marginBottom:4}}>
+                      🌿 {e.pestLicenseCategory.split("—")[0].trim()} #{e.pestLicenseNum||"—"}
+                      {e.pestLicenseExpiry&&` · Exp ${fmtD(e.pestLicenseExpiry)}`}
+                      {pestExp!==null&&pestExp<=30&&` ⚠`}
+                    </div>
+                  )}
+                  {(e.certs||[]).length>0&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:4}}>🏅 {e.certs.length} cert{e.certs.length!==1?"s":""}</div>}
+                  {(e.trainings||[]).length>0&&<div style={{fontSize:10,color:"var(--text-3)",marginBottom:6}}>📋 {e.trainings.length} training record{e.trainings.length!==1?"s":""}</div>}
+                  <div style={{display:"flex",gap:6,marginTop:8}}>
+                    <button className="em-sm em-edit" onClick={()=>setForm({...e})}>Edit</button>
+                    <button className="em-sm em-del" onClick={()=>remove(e.id)}>✕</button>
+                  </div>
+                </div>
+              );
+            }
+            const active=employees.filter(e=>e.status!=="inactive");
+            const inactive=employees.filter(e=>e.status==="inactive");
+            // Employees whose department doesn't match any known DEPARTMENTS
+            // entry (e.g. imported free text) still need a home — fold them
+            // into "Other" rather than silently dropping them from the view.
+            const unrecognized=active.filter(e=>!DEPARTMENTS.includes(e.department));
+            return(
+              <>
+                {DEPARTMENTS.map(dept=>{
+                  const deptEmps=active.filter(e=>e.department===dept).concat(dept==="Other"?unrecognized:[]);
+                  if(!deptEmps.length) return null;
+                  return(
+                    <div key={dept} style={{marginBottom:18}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>{dept} <span style={{fontWeight:500,color:"var(--text-3)",textTransform:"none",letterSpacing:"normal"}}>({deptEmps.length})</span></div>
+                      <div className="em-grid">{deptEmps.map(empCard)}</div>
+                    </div>
+                  );
+                })}
+                {inactive.length>0&&(
+                  <div style={{marginBottom:18}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Inactive <span style={{fontWeight:500,color:"var(--text-3)",textTransform:"none",letterSpacing:"normal"}}>({inactive.length})</span></div>
+                    <div className="em-grid">{inactive.map(empCard)}</div>
+                  </div>
+                )}
+              </>
+            );
+          })()
         )}
       </div>
     </>

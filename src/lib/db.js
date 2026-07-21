@@ -55,6 +55,7 @@ const LS_KEYS = {
   gmp_signoffs:       'resinops_signoffs',
   cogs_records:       'resinops_cogs_records',
   cultivation_costs:  'resinops_cult_costs',
+  ipm_log:            'resinops_ipm_log',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
