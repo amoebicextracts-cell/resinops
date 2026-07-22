@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
 import { canAdministerFacility } from "./lib/roles";
+import { MODULES } from "./lib/modules";
+import { isModuleVisible } from "./lib/moduleVisibility";
 
 const LICENSE_TYPES = [
   "Adult-Use Cultivator","Adult-Use Processor","Adult-Use Distributor",
@@ -33,7 +35,24 @@ const DEFAULTS = {
   ownerName:"",ownerEmail:"",ownerPhone:"",
   timezone:"America/New_York",
   fiscalYearStart:"01",tagSystem:"METRC",
+  productTier:"commercial",moduleOverrides:{},
 };
+
+// Toggleable modules, grouped for the Modules card — excludes "core"
+// modules (always on, not shown as a toggle) and preserves nav order.
+const TOGGLEABLE_SECTIONS = (()=>{
+  const sections = [];
+  let current = null;
+  for (const mod of MODULES) {
+    if (mod.tier === "core") continue;
+    if (mod.sectionBreak || !current) {
+      current = { name: mod.sectionBreak || "Other", mods: [] };
+      sections.push(current);
+    }
+    current.mods.push(mod);
+  }
+  return sections;
+})();
 
 export default function FacilitySettings(){
   const [settings,setSettings] = useState(DEFAULTS);
@@ -67,6 +86,8 @@ export default function FacilitySettings(){
               timezone: data.timezone||"America/New_York",
               fiscalYearStart: data.fiscal_year_start ? String(data.fiscal_year_start).padStart(2,'0') : "01",
               tagSystem: data.tag_system||"METRC",
+              productTier: data.product_tier||"commercial",
+              moduleOverrides: data.module_overrides||{},
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -105,6 +126,8 @@ export default function FacilitySettings(){
           timezone: settings.timezone,
           fiscal_year_start: parseInt(settings.fiscalYearStart)||1,
           tag_system: settings.tagSystem,
+          product_tier: settings.productTier,
+          module_overrides: settings.moduleOverrides,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;
@@ -183,6 +206,41 @@ export default function FacilitySettings(){
               During private beta, approved integrations are configured by ResinOps administrators as server-only deployment secrets. METRC remains disabled until vendor credentials are available and verified.
             </div>
           </div>
+        </div>
+
+        <div className="fs-card">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <div className="fs-section" style={{margin:0}}>Modules</div>
+            <button className="fs-btn fs-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setF("moduleOverrides",{})}>Reset to tier defaults</button>
+          </div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+            Choose a product tier, then hide/show individual modules to declutter the sidebar. This only controls visibility — it isn't a paywall, and doesn't affect your data.
+          </div>
+
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            {[["home","🌱 Home"],["commercial","🏭 Commercial"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setF("productTier",v)} style={{flex:1,padding:"10px 14px",borderRadius:8,border:"1px solid var(--border-2)",cursor:"pointer",fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,background:settings.productTier===v?"var(--accent)":"var(--surface-2)",color:settings.productTier===v?"#fff":"var(--text-2)"}}>{l}</button>
+            ))}
+          </div>
+
+          {TOGGLEABLE_SECTIONS.map(section=>(
+            <div key={section.name} style={{marginBottom:14}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>{section.name}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                {section.mods.map(mod=>{
+                  const enabled = isModuleVisible(mod, settings.productTier, settings.moduleOverrides);
+                  const isOverridden = Object.prototype.hasOwnProperty.call(settings.moduleOverrides||{}, mod.id);
+                  return(
+                    <label key={mod.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:6,background:"var(--surface-2)",cursor:"pointer",fontSize:12,color:"var(--text-2)"}}>
+                      <input type="checkbox" checked={enabled} onChange={e=>setF("moduleOverrides",{...settings.moduleOverrides,[mod.id]:e.target.checked})} />
+                      <span>{mod.icon} {mod.label}</span>
+                      {isOverridden&&<span style={{marginLeft:"auto",fontSize:9,color:"var(--accent-2)",fontWeight:600}}>custom</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </>

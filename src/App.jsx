@@ -4,6 +4,9 @@ import { supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { tokenizeInlineMarkdown } from "./lib/markdown";
 import { MIN_PASSWORD_LENGTH, passwordValidationError } from "./lib/auth";
+import { getCurrentFacility } from "./lib/supabase";
+import { isModuleVisible } from "./lib/moduleVisibility";
+import { MODULES, ALL_SECTION_NAMES } from "./lib/modules";
 
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false,error:null}; }
@@ -196,294 +199,6 @@ Too fast (too dry, too warm, too much airflow) produces harsh, one-dimensional f
 Be specific. Operators making post-harvest decisions balance quality, throughput, and labor cost — when those factors are in tension, say so and let them decide what they're optimizing for. Use real numbers for throughput, duration targets, and environmental parameters. If someone asks about a specific machine, give an honest operational assessment, not a brochure. Flag contamination or Aw risk and recommend QC escalation. Don't moralize — these are licensed professionals doing their jobs.`,
 };
 
-// ── Module Config ─────────────────────────────────────────────────────────────
-const MODULES = [
-  // ── Operations Hub ──────────────────────────────────────────────────────────
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    icon: "🏠",
-    available: true,
-    description: "Today's alerts, action items & facility-wide overview",
-    isScheduler: true,
-    sectionBreak: "Operations Hub",
-  },
-  {
-    id: "ai-assistant",
-    label: "AI Assistant",
-    icon: "✨",
-    available: true,
-    description: "Cannabis operations expert — cultivation, extraction, compliance",
-    isScheduler: false,
-  },
-  {
-    id: "ops-analyst",
-    label: "AI Operations Analyst",
-    icon: "🧠",
-    available: true,
-    description: "Ask plain-English questions about your facility data — harvests, revenue, compliance, strain performance",
-    isScheduler: true,
-    sectionBreak: null,
-  },
-  // ── Cultivation ─────────────────────────────────────────────────────────────
-  {
-    id: "grow-map",
-    label: "Grow Map",
-    icon: "🗺️",
-    available: true,
-    description: "Persistent room & space repository — all facility grow areas, statuses, and reset timing",
-    isScheduler: true,
-    sectionBreak: "Cultivation",
-  },
-  {
-    id: "scheduler",
-    label: "Grow Scheduler",
-    icon: "📅",
-    available: true,
-    description: "Plan cultivation timelines from clone cut through harvest to inventory",
-    isScheduler: true,
-  },
-  {
-    id: "clone-scheduler",
-    label: "Clone Scheduler",
-    icon: "✂️",
-    available: true,
-    description: "Back-calculates clone cut dates from harvest dates, room reset time, and veg lead",
-    isScheduler: true,
-  },
-  {
-    id: "mother-plants",
-    label: "Mother Plant Manager",
-    icon: "🌿",
-    available: true,
-    description: "Track mother plants by strain, cycle timing, projected cuts, and clone scheduling",
-    isScheduler: true,
-  },
-  {
-    id: "harvest",
-    label: "Harvest Batches",
-    icon: "🌿",
-    available: true,
-    description: "Post-harvest tracking — drying, trimming, curing, and graded final weights per strain",
-    isScheduler: true,
-  },
-  // ── Processing ──────────────────────────────────────────────────────────────
-  {
-    id: "production",
-    label: "Production Scheduler",
-    icon: "🏭",
-    available: true,
-    description: "Track every production batch from intake to live inventory",
-    isScheduler: true,
-    sectionBreak: "Processing",
-  },
-  {
-    id: "yield-dashboard",
-    label: "Yield Dashboard",
-    icon: "📊",
-    available: true,
-    description: "Cultivation and extraction yield per strain, segmented by Fresh Frozen / Dry Bud / Dry Trim input material",
-    isScheduler: true,
-  },
-  {
-    id: "remediation",
-    label: "Remediation Calculator",
-    icon: "☢️",
-    available: true,
-    description: "Radiation dose calculator for yeast/mold and Aspergillus remediation after failed lab tests",
-    isScheduler: true,
-  },
-  // ── Genetics ────────────────────────────────────────────────────────────────
-  {
-    id: "strain-db",
-    label: "Strain Database",
-    icon: "🧬",
-    available: true,
-    description: "Strain registry with parentage, aggregated cultivation & processing data, and AI descriptions",
-    isScheduler: true,
-    sectionBreak: "Genetics",
-  },
-  {
-    id: "pheno-hunt",
-    label: "Pheno Hunt Tracker",
-    icon: "🔭",
-    available: true,
-    description: "Seed-by-seed tracking from pop to keeper selection with scoring and COA data",
-    isScheduler: true,
-  },
-  {
-    id: "tc-tracker",
-    label: "TC Tracker",
-    icon: "🧪",
-    available: true,
-    description: "Tissue culture vessel tracking — explant to transfer, contamination logging",
-    isScheduler: true,
-  },
-  // ── Compliance ──────────────────────────────────────────────────────────────
-  {
-    id: "metrc",
-    label: "METRC Sync",
-    icon: "🌿",
-    available: true,
-    description: "Sync plants, harvests, packages, and lab results from METRC",
-    isScheduler: true,
-    sectionBreak: "Compliance",
-  },
-  {
-    id: "gmp-hub",
-    label: "GMP Hub",
-    icon: "📋",
-    available: true,
-    description: "SOP library, deviation register, shift log, step sign-offs, and digital batch records",
-    isScheduler: true,
-    sectionBreak: null,
-  },
-  {
-    id: "qc-testing",
-    label: "QC & Lab Testing",
-    icon: "🔬",
-    available: true,
-    description: "Full COA panel tracking — failed microbial tests auto-flag to Remediation and hold Sales",
-    isScheduler: true,
-  },
-  {
-    id: "cult-inputs",
-    label: "Cultivation Inputs",
-    icon: "🌱",
-    available: true,
-    description: "Nutrients, amendments, and beneficial insect releases — regulatory-grade documentation",
-    isScheduler: true,
-  },
-  {
-    id: "spray-log",
-    label: "Pesticide Log",
-    icon: "🛡️",
-    available: true,
-    description: "Regulatory pesticide application records — EPA reg #, REI, PHI, licensed applicator, weather conditions",
-    isScheduler: true,
-  },
-  {
-    id: "ipm-tracker",
-    label: "IPM Tracker",
-    icon: "🐛",
-    available: true,
-    description: "Pest scouting, beneficial releases, and IPM scheduling — linked to upcoming production batches",
-    isScheduler: true,
-  },
-  // ── People & Labor ──────────────────────────────────────────────────────────
-  {
-    id: "labor-dash",
-    label: "Labor Dashboard",
-    icon: "📊",
-    available: true,
-    description: "Daily labor demand vs capacity — production batches + cultivation harvest events",
-    isScheduler: true,
-    sectionBreak: "People & Labor",
-  },
-  {
-    id: "employees",
-    label: "Employees",
-    icon: "👥",
-    available: true,
-    description: "Staff profiles, pesticide licenses, GMP certifications, and training records",
-    isScheduler: true,
-  },
-  {
-    id: "labor-setup",
-    label: "Labor Setup",
-    icon: "⚙️",
-    available: true,
-    description: "Define facility shift structure and labor types with hourly rates",
-    isScheduler: true,
-  },
-  // ── Business ────────────────────────────────────────────────────────────────
-  {
-    id: "inventory",
-    label: "Inventory",
-    icon: "📦",
-    available: true,
-    description: "Items, vendors, purchase orders, and stock management",
-    isScheduler: true,
-    sectionBreak: "Business",
-  },
-  {
-    id: "sales",
-    label: "Sales & Pre-Orders",
-    icon: "🧾",
-    available: true,
-    description: "Track sellable inventory against the production schedule and manage holds",
-    isScheduler: true,
-  },
-  {
-    id: "customers",
-    label: "Customers",
-    icon: "🏢",
-    available: true,
-    description: "Dispensary/wholesale accounts, contact info, pipeline stage, and order history",
-    isScheduler: true,
-  },
-  {
-    id: "finance",
-    label: "Cost & P&L",
-    icon: "💰",
-    available: true,
-    description: "COGS per batch · 280E-structured · SKU pricing · Bill of materials",
-    isScheduler: true,
-  },
-  {
-    id: "batch-dashboard",
-    label: "Batch Margin Dashboard",
-    icon: "📈",
-    available: true,
-    description: "Estimated revenue, COGS, and gross margin across all production batches",
-    isScheduler: true,
-  },
-  // ── Facility ────────────────────────────────────────────────────────────────
-  {
-    id: "maintenance",
-    label: "Maintenance & Facilities",
-    icon: "🏗️",
-    available: true,
-    description: "Work orders, downtime tracking, and lockout/tagout safety log",
-    isScheduler: true,
-    sectionBreak: "Facility",
-  },
-  {
-    id: "equipment",
-    label: "Equipment Registry",
-    icon: "🔧",
-    available: true,
-    description: "Company-wide asset list with PM schedules, warranty, and service history",
-    isScheduler: true,
-  },
-  {
-    id: "facility-map",
-    label: "Facility Map",
-    icon: "🏭",
-    available: true,
-    description: "Processing, dry/cure, storage & office spaces — cleaning logs and batch assignment",
-    isScheduler: true,
-  },
-  // ── Platform ────────────────────────────────────────────────────────────────
-  {
-    id: "data-manager",
-    label: "Data & Imports",
-    icon: "📥",
-    available: true,
-    description: "AI-powered universal import, data backup, and restore — onboard any facility in minutes",
-    isScheduler: true,
-    sectionBreak: "Platform",
-  },
-  {
-    id: "facility-settings",
-    label: "Facility Settings",
-    icon: "🏢",
-    available: true,
-    description: "Facility identity — appears on all exports, batch records, and spray logs",
-    isScheduler: true,
-  },
-];
-
 // ── Suggested Questions ───────────────────────────────────────────────────────
 const SUGGESTIONS = {
   "post-harvest": [
@@ -535,6 +250,22 @@ const css = `
     --mono:      'IBM Plex Mono', monospace;
     --sans:      'Inter', sans-serif;
     --radius:    10px;
+  }
+
+  :root[data-theme="light"] {
+    --bg:        #f3f5f2;
+    --surface:   #ffffff;
+    --surface-2: #eceeeb;
+    --border:    #dde1dc;
+    --border-2:  #cbd1c9;
+    --accent:    #3f7350;
+    --accent-2:  #2e5c3d;
+    --accent-glow: rgba(63,115,80,0.12);
+    --text:      #1b201c;
+    --text-2:    #4b564c;
+    --text-3:    #7c877d;
+    --amber:     #93650f;
+    --danger:    #b23a3a;
   }
 
   body {
@@ -592,6 +323,32 @@ const css = `
     color: var(--text-3);
     padding: 0 20px 8px;
   }
+
+  .sidebar-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    padding: 6px 20px;
+    margin-top: 8px;
+    transition: color 0.15s;
+  }
+  .sidebar-section-toggle:hover { color: var(--text-2); }
+  .sidebar-section-chevron {
+    display: inline-block;
+    transition: transform 0.15s;
+    font-size: 8px;
+  }
+  .sidebar-section-chevron.expanded { transform: rotate(90deg); }
 
   .module-btn {
     display: flex;
@@ -982,7 +739,9 @@ const css = `
   .hamburger-btn { display:none;align-items:center;justify-content:center;width:36px;height:36px;border:none;border-radius:8px;background:var(--surface-2);cursor:pointer;color:var(--text);font-size:18px; }
 
   /* User menu */
-  .user-menu-wrap{position:relative;margin-left:auto;flex-shrink:0;}
+  .theme-toggle-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin-left:auto;flex-shrink:0;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;cursor:pointer;color:var(--text-2);font-size:14px;transition:all 0.15s;}
+  .theme-toggle-btn:hover{color:var(--text);border-color:var(--accent);}
+  .user-menu-wrap{position:relative;flex-shrink:0;margin-left:10px;}
   .user-menu-btn{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 12px 6px 8px;cursor:pointer;color:var(--text-2);font-family:var(--sans);font-size:12px;transition:all 0.15s;}
   .user-menu-btn:hover{border-color:var(--accent);color:var(--text);}
   .user-avatar-sm{width:28px;height:28px;border-radius:7px;background:var(--accent-glow);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent-2);font-weight:600;}
@@ -1065,6 +824,67 @@ export default function ResinOps() {
   const [activeModule, setActiveModule] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dashboardVersion, setDashboardVersion] = useState(0);
+  const [productTier, setProductTier] = useState("commercial");
+  const [moduleOverrides, setModuleOverrides] = useState({});
+  const [collapsedSections, setCollapsedSections] = useState(()=>{
+    try{
+      const saved = JSON.parse(localStorage.getItem("resinops_nav_collapsed"));
+      return new Set(Array.isArray(saved) ? saved : ALL_SECTION_NAMES);
+    }catch{ return new Set(ALL_SECTION_NAMES); }
+  });
+  function toggleSection(name){
+    setCollapsedSections(prev=>{
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem("resinops_nav_collapsed", JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  const [theme, setTheme] = useState(()=>{
+    try{ return localStorage.getItem("resinops_theme") === "light" ? "light" : "dark"; }
+    catch{ return "dark"; }
+  });
+  useEffect(()=>{
+    document.documentElement.setAttribute("data-theme", theme);
+    try{ localStorage.setItem("resinops_theme", theme); }catch{}
+  },[theme]);
+
+  // Facility product tier + per-module visibility overrides — see
+  // src/lib/moduleVisibility.js. facilities isn't in dbTransforms'
+  // SCHEMAS list, so columns pass straight through (same pattern
+  // FacilitySettings.jsx already uses).
+  useEffect(()=>{
+    async function loadModuleVisibility(){
+      const fid = getCurrentFacility();
+      if (isSupabaseEnabled && fid) {
+        try{
+          const { data } = await supabase.from('facilities').select('product_tier,module_overrides').eq('id', fid).single();
+          if (data) {
+            setProductTier(data.product_tier || "commercial");
+            setModuleOverrides(data.module_overrides || {});
+          }
+        }catch(e){ console.error("Module visibility load error:", e); }
+      } else if (!isSupabaseEnabled) {
+        try{
+          const s = JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+          setProductTier(s.productTier || "commercial");
+          setModuleOverrides(s.moduleOverrides || {});
+        }catch{}
+      }
+    }
+    loadModuleVisibility();
+  },[]);
+
+  // If a module gets hidden (tier switched, or an override flips off)
+  // while it's the active one, don't leave the user stranded on a page
+  // that's no longer in the nav.
+  useEffect(()=>{
+    const mod = MODULES.find(m => m.id === activeModule);
+    if (mod && !isModuleVisible(mod, productTier, moduleOverrides)) {
+      setActiveModule("dashboard");
+    }
+  },[productTier, moduleOverrides, activeModule]);
   const [showOnboarding, setShowOnboarding] = useState(()=>{
     return !localStorage.getItem("resinops_onboarding_complete");
   });
@@ -1381,29 +1201,57 @@ export default function ResinOps() {
 
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
 
-          {/* ── All operational modules in order ── */}
-          {MODULES.filter(m => m.isScheduler && m.id !== "dashboard" && m.id !== "data-manager" && m.id !== "facility-settings").map((mod) => (
-            <div key={mod.id}>
-              {mod.sectionBreak && (
-                <div className="sidebar-section-label" style={{marginTop:8}}>{mod.sectionBreak}</div>
-              )}
-              <button
-                className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
-                onClick={() => switchModule(mod.id)}
-              >
-                <span className="module-icon">{mod.icon}</span>
-                <span className="module-info">
-                  <span className="module-name">{mod.label}</span>
-                  <span className="module-desc">{mod.description}</span>
-                </span>
-              </button>
-            </div>
-          ))}
+          {/* ── All operational modules, grouped into collapsible accordion sections ── */}
+          {(() => {
+            const visible = MODULES.filter(m =>
+              m.isScheduler && m.id !== "dashboard" && m.id !== "data-manager" && m.id !== "facility-settings" && m.id !== "metrc"
+              && isModuleVisible(m, productTier, moduleOverrides)
+            );
+            // Group in-order: a truthy sectionBreak starts a new (possibly
+            // headerless, for sectionBreak:null) section; everything after
+            // it belongs to that section until the next sectionBreak.
+            const sections = [];
+            let current = null;
+            for (const mod of visible) {
+              if (mod.sectionBreak || !current) {
+                current = { name: mod.sectionBreak || null, mods: [] };
+                sections.push(current);
+              }
+              current.mods.push(mod);
+            }
+            const activeSection = sections.find(s => s.mods.some(m => m.id === activeModule));
+            return sections.map((section, si) => {
+              const isCollapsed = section.name && collapsedSections.has(section.name) && section !== activeSection;
+              return (
+                <div key={si}>
+                  {section.name && (
+                    <button className="sidebar-section-toggle" onClick={() => toggleSection(section.name)}>
+                      <span className={`sidebar-section-chevron${isCollapsed ? "" : " expanded"}`}>▶</span>
+                      {section.name}
+                    </button>
+                  )}
+                  {!isCollapsed && section.mods.map(mod => (
+                    <button
+                      key={mod.id}
+                      className={`module-btn ${activeModule === mod.id ? "active" : ""}`}
+                      onClick={() => switchModule(mod.id)}
+                    >
+                      <span className="module-icon">{mod.icon}</span>
+                      <span className="module-info">
+                        <span className="module-name">{mod.label}</span>
+                        <span className="module-desc">{mod.description}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              );
+            });
+          })()}
 
-          {/* ── Settings at bottom ── */}
+          {/* ── Settings at bottom (always visible — core modules) ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
           <div className="sidebar-section-label">Settings</div>
-          {["data-manager","facility-settings"].map(id => {
+          {["data-manager","facility-settings","metrc"].filter(id => isModuleVisible(MODULES.find(m=>m.id===id), productTier, moduleOverrides)).map(id => {
             const mod = MODULES.find(m => m.id === id);
             if (!mod) return null;
             return (
@@ -1436,6 +1284,13 @@ export default function ResinOps() {
         {/* ── Main ── */}
         <main className="main">
           <div className="header" style={{padding:"10px 24px",justifyContent:"flex-end"}}>
+            <button
+              className="theme-toggle-btn"
+              onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}
+              title={theme==="dark"?"Switch to light mode":"Switch to dark mode"}
+            >
+              {theme==="dark"?"☀️":"🌙"}
+            </button>
             <div className="user-menu-wrap" ref={userMenuRef}>
               <button className="user-menu-btn" onClick={()=>setUserMenuOpen(o=>!o)}>
                 <div className="user-avatar-sm">{userEmail?userEmail[0].toUpperCase():"U"}</div>
