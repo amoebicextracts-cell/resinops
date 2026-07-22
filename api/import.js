@@ -6,6 +6,7 @@ import {
   validateAiPayload,
 } from './_request-security.js';
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
+import { fetchRelevantCorrections, persistExchange } from './_corrections.js';
 
 export default async function handler(req, res) {
   const requestId = initializeApiRequest(req, res);
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
   const validationError = validateAiPayload(req.body);
   if (validationError) return res.status(400).json({ error: validationError });
 
-  const { system, prompt, history = [], purpose = 'general-chat' } = req.body;
+  const { system, prompt, history = [], purpose = 'general-chat', facilityId, module, conversationId } = req.body;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'AI service is not configured' });
@@ -43,6 +44,13 @@ export default async function handler(req, res) {
   // Use higher token limit for import operations (large CSVs need room)
   const isImport = purpose === 'data-import';
   const max_tokens = isImport ? 4000 : 1000;
+  const isChat = purpose === 'general-chat' || purpose === 'operations-analyst';
+  const chatModule = module || (purpose === 'operations-analyst' ? 'ops-analyst' : 'ai-assistant');
+
+  let systemPrompt = system || "You are a helpful assistant.";
+  if (isChat) {
+    systemPrompt += await fetchRelevantCorrections(auth.supabase, chatModule, prompt);
+  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -55,7 +63,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens,
-        system: system || "You are a helpful assistant.",
+        system: systemPrompt,
         messages,
       }),
     });
@@ -97,6 +105,14 @@ export default async function handler(req, res) {
           return res.status(200).json(data);
         }
       }
+    }
+
+    if (isChat && facilityId) {
+      const replyText = data.content?.map(b => b.text || '').join('') || '';
+      const { conversationId: savedConversationId } = await persistExchange(auth.supabase, {
+        facilityId, userId: auth.user.id, module: chatModule, conversationId, userText: prompt, assistantText: replyText,
+      });
+      data.conversationId = savedConversationId;
     }
 
     return res.status(200).json(data);

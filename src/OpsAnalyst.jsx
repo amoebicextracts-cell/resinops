@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 
 const CSS = `
   .oa-wrap{display:flex;flex-direction:column;height:100%;padding:0;}
@@ -116,6 +117,7 @@ export default function OpsAnalyst() {
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -142,11 +144,14 @@ export default function OpsAnalyst() {
           system: systemPrompt,
           prompt: q,
           history: messages.slice(0,-1), // all prior messages except the one we just added
+          module: 'ops-analyst',
+          conversationId,
         })
-      });
+      }, { includeFacility: true });
       const json = await res.json();
       if(!res.ok || json.error) throw new Error(formatApiError(res, json, 'AI request failed'));
       const reply = json.content?.[0]?.text || "I couldn't generate a response. Please try again.";
+      if (json.conversationId) setConversationId(json.conversationId);
       setMessages(prev=>[...prev,{role:"assistant",content:reply}]);
     } catch(e) {
       setMessages(prev=>[...prev,{role:"assistant",content:e?.message||"Error connecting to AI. Please check your connection and try again."}]);
@@ -186,7 +191,10 @@ export default function OpsAnalyst() {
       <style>{CSS}</style>
       <div className="oa-wrap">
         <div className="oa-header">
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>AI Operations Analyst</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+            <div style={{fontSize:16,fontWeight:600,color:"var(--text)"}}>AI Operations Analyst</div>
+            <ChatHistoryPanel module="ops-analyst" onLoad={(convId, msgs) => { setConversationId(convId); setMessages(msgs); }} />
+          </div>
           <div style={{background:"rgba(80,130,180,0.09)",border:"1px solid rgba(80,130,180,0.22)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--text-2)",lineHeight:1.45}}>
             AI output is decision support, not an approved SOP or compliance determination. Verify safety-critical, pesticide, extraction, engineering, product-release, and regulatory actions against current labels, equipment manuals, facility procedures, lab results, and applicable rules before acting.
           </div>
@@ -214,7 +222,10 @@ export default function OpsAnalyst() {
               </div>
               <div className={"oa-bubble "+(m.role==="user"?"user":"ai")}>
                 {m.role==="assistant" ? (
-                  <>{formatMsg(m.content)}</>
+                  <>
+                    {formatMsg(m.content)}
+                    <FlagCorrectionButton module="ops-analyst" questionContext={typeof messages[i-1]?.content === 'string' ? messages[i-1].content : ''} />
+                  </>
                 ) : m.content}
               </div>
             </div>

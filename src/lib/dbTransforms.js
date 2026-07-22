@@ -37,6 +37,9 @@ const SCHEMAS = {
   vendors: ['id','created_at','updated_at','facility_id','name','vendor_type','contact','phone','email','lead_days','notes'],
   purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],
   vendor_invoices: ['id','created_at','updated_at','facility_id','created_by','vendor_id','po_id','invoice_number','invoice_date','due_date','amount','amount_paid','notes'],
+  ai_conversations: ['id','created_at','updated_at','facility_id','user_id','module','title'],
+  ai_messages: ['id','created_at','conversation_id','facility_id','role','content'],
+  ai_corrections: ['id','created_at','updated_at','module','tags','question_context','correction_text','status','submitted_by_facility_id','submitted_by_user_id','source_message_id','reviewed_by','reviewed_at'],
   work_orders: ['id','created_at','updated_at','facility_id','title','category','equipment_id','severity','reported_by','reported_date','status','assigned_to','down_start','down_end','labor_type_id','labor_hours','parts_cost','vendor_id','description','resolution_notes','labor_cost','total_cost'],
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
@@ -519,6 +522,21 @@ const FIELD_OVERRIDES = {
     invoiceDate: 'invoice_date',
     dueDate: 'due_date',
     amountPaid: 'amount_paid',
+  },
+  ai_conversations: {
+    userId: 'user_id',
+  },
+  ai_messages: {
+    conversationId: 'conversation_id',
+  },
+  ai_corrections: {
+    questionContext: 'question_context',
+    correctionText: 'correction_text',
+    submittedByFacilityId: 'submitted_by_facility_id',
+    submittedByUserId: 'submitted_by_user_id',
+    sourceMessageId: 'source_message_id',
+    reviewedBy: 'reviewed_by',
+    reviewedAt: 'reviewed_at',
   },
   work_orders: {
     cat: 'category',

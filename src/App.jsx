@@ -43,6 +43,8 @@ import MotherPlantManager from "./MotherPlantManager.jsx";
 import TCTracker from "./TCTracker.jsx";
 import FacilityMap from "./FacilityMap.jsx";
 import OpsAnalyst from "./OpsAnalyst.jsx";
+import AiCorrectionsReview from "./AiCorrectionsReview.jsx";
+import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
@@ -890,12 +892,14 @@ export default function ResinOps() {
   });
   const [onboardStep, setOnboardStep] = useState(0);
   const [messages, setMessages] = useState([]);
+  const [aiConversationId, setAiConversationId] = useState(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [acctTab, setAcctTab] = useState("profile"); // profile | password
   const [acctNewEmail, setAcctNewEmail] = useState("");
   const [acctCurrentPw, setAcctCurrentPw] = useState("");
@@ -911,7 +915,14 @@ export default function ResinOps() {
   // Load user email on mount
   useEffect(() => {
     if (isSupabaseEnabled) {
-      auth.getUser().then(u => { if(u?.email) setUserEmail(u.email); });
+      auth.getUser().then(u => {
+        if(u?.email) setUserEmail(u.email);
+        if (u?.id) {
+          supabase.from('profiles').select('is_platform_admin').eq('id', u.id).single()
+            .then(({ data }) => setIsPlatformAdmin(!!data?.is_platform_admin))
+            .catch(() => {});
+        }
+      });
     }
   }, []);
 
@@ -955,7 +966,7 @@ export default function ResinOps() {
 
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
-    if (!mod?.available) return;
+    if (id !== "ai-corrections-review" && !mod?.available) return;
     if(window.__resinopsUnsaved && activeModule !== id) {
       if(!window.confirm("You have unsaved changes. Leave anyway?")) return;
       window.__resinopsUnsaved = false;
@@ -963,6 +974,7 @@ export default function ResinOps() {
     setActiveModule(id);
     if(id==="dashboard") setDashboardVersion(v=>v+1);
     setMessages([]);
+    setAiConversationId(null);
     setImage(null);
     setSidebarOpen(false);
   };
@@ -1096,11 +1108,14 @@ export default function ResinOps() {
           system: "You are an expert cannabis operations consultant with 25 years of experience across cultivation, extraction, processing, compliance, and business management. You have deep knowledge of NY OCM regulations, NY DEC pesticide requirements, METRC, extraction methods (R-134a, CO2, hydrocarbon, ethanol, solventless), GMP practices, and cannabis business operations. Answer questions clearly and specifically. When relevant, reference NY-specific regulations, licensing requirements, and best practices for licensed cannabis operators.",
           prompt: query,
           history: messages.filter(m => typeof m.content === 'string').slice(-10),
+          module: 'ai-assistant',
+          conversationId: aiConversationId,
         }),
-      });
+      }, { includeFacility: true });
       const data = await res.json();
       if (!res.ok) throw new Error(formatApiError(res, data, 'AI request failed'));
       const reply = data.content?.map((b) => b.text || '').join('') || 'Something went wrong. Please try again.';
+      if (data.conversationId) setAiConversationId(data.conversationId);
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'assistant', content: error?.message || 'Connection error. Check your network and try again.' }]);
@@ -1235,6 +1250,20 @@ export default function ResinOps() {
             });
           })()}
 
+          {/* ── Platform-admin-only: cross-facility corrections review queue ── */}
+          {isPlatformAdmin && (
+            <button
+              className={`module-btn ${activeModule === "ai-corrections-review" ? "active" : ""}`}
+              onClick={() => switchModule("ai-corrections-review")}
+            >
+              <span className="module-icon">🛡️</span>
+              <span className="module-info">
+                <span className="module-name">Corrections Review</span>
+                <span className="module-desc">Approve or reject client-flagged AI corrections</span>
+              </span>
+            </button>
+          )}
+
           {/* ── Settings at bottom (always visible — core modules) ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
           <div className="sidebar-section-label">Settings</div>
@@ -1306,6 +1335,7 @@ export default function ResinOps() {
           </div>
 
           <ErrorBoundary key={activeModule}>
+            {activeModule === "ai-corrections-review" ? (isPlatformAdmin ? <AiCorrectionsReview /> : null) : null}
             {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
             {activeModule === "production" ? <ProductionScheduler /> : null}
@@ -1369,7 +1399,10 @@ export default function ResinOps() {
                     </div>
                     <div className={`bubble ${msg.role === "user" ? "user-bubble" : "ai"}`}>
                       {msg.role === 'assistant'
-                        ? renderMarkdown(msg.content)
+                        ? (<>
+                            {renderMarkdown(msg.content)}
+                            <FlagCorrectionButton module="ai-assistant" questionContext={typeof messages[i-1]?.content === 'string' ? messages[i-1].content : ''} />
+                          </>)
                         : (<>
                             {msg.preview && <img src={msg.preview} alt="uploaded" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '6px', marginBottom: msg.displayText ? '8px' : '0', display: 'block' }} />}
                             {msg.displayText && <span>{msg.displayText}</span>}
@@ -1435,7 +1468,8 @@ export default function ResinOps() {
                   <button className="clear-btn" onClick={exportChat} title="Download as HTML — open in Word or print to PDF">
                     ↓ Save chat
                   </button>
-                  <button className="clear-btn" onClick={() => { setMessages([]); setImage(null); }}>Clear conversation</button>
+                  <button className="clear-btn" onClick={() => { setMessages([]); setImage(null); setAiConversationId(null); }}>Clear conversation</button>
+                  <ChatHistoryPanel module="ai-assistant" onLoad={(convId, msgs) => { setAiConversationId(convId); setMessages(msgs); }} />
                 </div>
               )}
             </div>

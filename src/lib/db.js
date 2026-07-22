@@ -16,6 +16,12 @@
 import { supabase, isSupabaseEnabled, getCurrentFacility } from './supabase';
 import { transformForDb, transformFromDb } from './dbTransforms';
 
+// Tables with no facility_id column — never scoped to the current
+// facility on list/upsert. ai_corrections is intentionally global (the
+// shared cross-client corrections knowledge base); facilities/profiles
+// predate the per-facility model entirely.
+const UNSCOPED_TABLES = new Set(['facilities', 'profiles', 'ai_corrections']);
+
 // ── localStorage key mapping ──────────────────────────────────
 const LS_KEYS = {
   facilities:         'resinops_facility_settings',
@@ -48,6 +54,9 @@ const LS_KEYS = {
   vendors:            'resinops_vendors_v2',
   purchase_orders:    'resinops_purchase_orders',
   vendor_invoices:    'resinops_vendor_invoices',
+  ai_conversations:   'resinops_ai_conversations',
+  ai_messages:        'resinops_ai_messages',
+  ai_corrections:     'resinops_ai_corrections',
   work_orders:        'resinops_work_orders',
   pheno_hunts:        'resinops_pheno_hunts',
   metrc_transfer_manifests: 'resinops_metrc_transfer_manifests',
@@ -101,7 +110,7 @@ function lsDelete(table, id) {
 async function sbList(table, filters = {}) {
   let q = supabase.from(table).select('*');
   const fid = getCurrentFacility();
-  if (fid && table !== 'facilities' && table !== 'profiles') {
+  if (fid && !UNSCOPED_TABLES.has(table)) {
     q = q.eq('facility_id', fid);
   }
   Object.entries(filters).forEach(([k, v]) => { q = q.eq(k, v); });
@@ -116,7 +125,7 @@ async function sbUpsert(table, record) {
   const fid = getCurrentFacility();
   // Transform app field names → Supabase column names and strip invalid fields
   const transformed = transformForDb(table, record);
-  const withFacility = (fid && table !== 'facilities' && table !== 'profiles')
+  const withFacility = (fid && !UNSCOPED_TABLES.has(table))
     ? { ...transformed, facility_id: fid }
     : transformed;
   const { data, error } = await supabase

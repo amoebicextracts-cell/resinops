@@ -35,14 +35,14 @@ export default async function handler(req, res) {
   const validationError = validateChatPayload(req.body);
   if (validationError) return res.status(400).json({ error: validationError });
 
-  const { module, messages } = req.body;
+  const { module, messages, facilityId, conversationId } = req.body;
 
   if (!module) {
     return res.status(400).json({ error: "Invalid request body" });
   }
 
-  const systemPrompt = SYSTEM_PROMPTS[module];
-  if (!systemPrompt) {
+  const basePrompt = SYSTEM_PROMPTS[module];
+  if (!basePrompt) {
     return res.status(400).json({ error: "Unknown module" });
   }
 
@@ -50,6 +50,9 @@ export default async function handler(req, res) {
   if (!apiKey) {
     return res.status(503).json({ error: "AI service is not configured" });
   }
+
+  const latestUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+  const systemPrompt = basePrompt + await fetchRelevantCorrections(auth.supabase, module, latestUserMessage);
 
   try {
     const MAX_CONTINUATIONS = 2;
@@ -90,9 +93,18 @@ export default async function handler(req, res) {
       fullText = fullText + (data.content?.map((b) => b.text || "").join("") || "");
     }
 
+    let savedConversationId = null;
+    if (facilityId) {
+      const persisted = await persistExchange(auth.supabase, {
+        facilityId, userId: auth.user.id, module, conversationId, userText: latestUserMessage, assistantText: fullText,
+      });
+      savedConversationId = persisted.conversationId;
+    }
+
     return res.status(200).json({
       ...data,
       content: [{ type: "text", text: fullText }],
+      conversationId: savedConversationId,
     });
 
   } catch (err) {
@@ -101,6 +113,7 @@ export default async function handler(req, res) {
   }
 }
 import { authenticateRequest } from './_auth.js';
+import { fetchRelevantCorrections, persistExchange } from './_corrections.js';
 import {
   applyCors,
   checkRateLimit,
