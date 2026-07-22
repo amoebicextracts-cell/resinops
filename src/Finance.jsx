@@ -5,6 +5,8 @@ import { deductForBatch } from "./lib/inventory";
 import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder } from "./lib/cogs";
 import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const QTY_TYPES = [
   {v:"per_unit_output",l:"per output unit"},
@@ -137,10 +139,10 @@ export default function Finance() {
         setOpex(oe);
         const fid = getCurrentFacility();
         if(fid && supabase){
-          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day,default_cultivation_allocation_basis,qb_account_map').eq('id', fid).single();
-          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1),defaultCultivationAllocationBasis:data.default_cultivation_allocation_basis||"batch_weight",qbAccountMap:data.qb_account_map||{}});
+          const { data } = await supabase.from('facilities').select('facility_name,license_number,shift_hours,shifts_per_day,default_cultivation_allocation_basis,qb_account_map').eq('id', fid).single();
+          if(data) setFacility({facilityName:data.facility_name||"",licenseNumber:data.license_number||"",shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1),defaultCultivationAllocationBasis:data.default_cultivation_allocation_basis||"batch_weight",qbAccountMap:data.qb_account_map||{}});
         } else {
-          try{ const s = JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}"); setFacility(f=>({...f,qbAccountMap:s.qbAccountMap||{}})); }catch{}
+          try{ const s = JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}"); setFacility(f=>({...f,qbAccountMap:s.qbAccountMap||{},facilityName:s.facilityName||"",licenseNumber:s.licenseNumber||""})); }catch{}
         }
       }catch(e){ console.error("Finance load error:",e); }
       setLoading(false);
@@ -297,8 +299,6 @@ export default function Finance() {
     acc.allocatedOverhead += p.allocatedOverhead;
     return acc;
   }, {totalCOGS:0,totalRev:0,materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0});
-  const totalGrossProfit = summary.totalRev - summary.totalCOGS;
-  const totalGrossMargin = summary.totalRev > 0 ? totalGrossProfit/summary.totalRev*100 : 0;
 
   // ── Annual 280E Summary — rolls up capitalized COGS (§263A) vs. anything
   // flagged not-capitalized, for every batch dated in the selected year.
@@ -316,10 +316,16 @@ export default function Finance() {
     acc.allocatedOverhead += p.allocatedOverhead;
     acc.deductibleTotal += p.deductibleTotal;
     acc.nonDeductibleTotal += p.nonDeductibleTotal;
+    acc.totalRev += p.totalRev;
+    acc.totalCOGS += p.totalCOGS;
+    acc.bookedRevenue += p.hasBookedOrders ? p.totalRev : 0;
     for (const line of (p.overheadLines||[])) acc.poolBreakdown[line.name] = (acc.poolBreakdown[line.name]||0) + line.share;
     return acc;
-  }, {materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0,deductibleTotal:0,nonDeductibleTotal:0,poolBreakdown:{}});
+  }, {materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0,deductibleTotal:0,nonDeductibleTotal:0,totalRev:0,totalCOGS:0,bookedRevenue:0,poolBreakdown:{}});
   annualSummary.totalCapitalized = annualSummary.materialCost + annualSummary.directLaborCost + annualSummary.testFee + annualSummary.cultivationCost + annualSummary.allocatedOverhead;
+  annualSummary.estimatedRevenue = annualSummary.totalRev - annualSummary.bookedRevenue;
+  annualSummary.grossProfit = annualSummary.totalRev - annualSummary.totalCOGS;
+  annualSummary.grossMargin = annualSummary.totalRev>0 ? annualSummary.grossProfit/annualSummary.totalRev*100 : 0;
 
   // ── Non-deductible operating expenses — the other side of §280E. Kept
   // separate from annualSummary.nonDeductibleTotal (a per-batch flag) since
@@ -329,6 +335,16 @@ export default function Finance() {
   const opexTotal = yearOpex.reduce((s,o)=>s+(parseFloat(o.amount)||0),0);
   const costPoolRemainder = calcNonDeductibleCostPoolRemainder(costPools, equipment);
   const totalNonDeductible = annualSummary.nonDeductibleTotal + costPoolRemainder.total + opexTotal;
+
+  // ── Net Income — the P&L Summary tab's actual bottom line. Gross Profit
+  // alone isn't a P&L; subtracting Operating Expenses (cost pools' non-
+  // production share + logged OpEx, same figures the 280E Summary already
+  // computes) gets to one. Deliberately does NOT subtract
+  // annualSummary.nonDeductibleTotal again — that's a per-batch §280E tax
+  // flag on dollars already counted in COGS, not a separate real cost.
+  const operatingExpensesTotal = costPoolRemainder.total + opexTotal;
+  const netIncome = annualSummary.grossProfit - operatingExpensesTotal;
+  const netMargin = annualSummary.totalRev>0 ? netIncome/annualSummary.totalRev*100 : 0;
 
   function exportAnnual280ESummaryCsv() {
     const esc = v => { const s = String(v??""); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
@@ -365,6 +381,71 @@ export default function Finance() {
     a.href = url; a.download = `ResinOps-280E-Summary-${summaryYear}.csv`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // Same data as exportAnnual280ESummaryCsv above, laid out as a printable
+  // one-pager — the version meant to actually hand to a CPA rather than
+  // import into a spreadsheet.
+  function exportAnnual280ESummaryPdf() {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 16;
+
+    doc.setFontSize(15); doc.setFont(undefined,"bold");
+    doc.text("Annual 280E Capitalized COGS Summary", 14, y);
+    doc.setFontSize(10); doc.setFont(undefined,"normal");
+    y += 7;
+    if (facility.facilityName) { doc.text(facility.facilityName + (facility.licenseNumber?" — "+facility.licenseNumber:""), 14, y); y += 5; }
+    doc.text(`Tax year ${summaryYear} · ${yearBatches.length} batch${yearBatches.length===1?"":"es"} · Generated ${new Date().toISOString().split("T")[0]}`, 14, y);
+    y += 8;
+
+    doc.setFontSize(9); doc.setTextColor(90);
+    const disclaimer = "Capitalized COGS across production batches for the year only — not a full return. Review with your tax advisor before filing.";
+    doc.text(doc.splitTextToSize(disclaimer, pageWidth-28), 14, y);
+    doc.setTextColor(0);
+    y += 12;
+
+    const stat = (label, value) => `${label}: ${value}`;
+    doc.setFontSize(10);
+    doc.text(stat("Total Capitalized COGS (§263A)", fmtC(annualSummary.totalCapitalized)), 14, y);
+    doc.text(stat("280E-Deductible", fmtC(annualSummary.deductibleTotal)), pageWidth/2+4, y);
+    y += 6;
+    doc.text(stat("Flagged Not Capitalized (batches)", fmtC(annualSummary.nonDeductibleTotal)), 14, y);
+    doc.text(stat("Non-Deductible Operating Expenses", fmtC(costPoolRemainder.total+opexTotal)), pageWidth/2+4, y);
+    y += 10;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Capitalized COGS Breakdown","Amount"]],
+      body: [
+        ["Direct Materials", fmtC(annualSummary.materialCost)],
+        ["Direct Labor", fmtC(annualSummary.directLaborCost)],
+        ["Lab Testing", fmtC(annualSummary.testFee)],
+        ["Cultivation (allocated)", fmtC(annualSummary.cultivationCost)],
+        ...Object.entries(annualSummary.poolBreakdown).map(([name,amt])=>["   Overhead — "+name, fmtC(amt)]),
+        ["Total Allocated Overhead", fmtC(annualSummary.allocatedOverhead)],
+        ["Total Capitalized COGS", fmtC(annualSummary.totalCapitalized)],
+      ],
+      theme: "striped",
+      headStyles: {fillColor:[74,124,89]},
+      didParseCell: (d) => { if (d.row.index===d.table.body.length-1 && d.section==="body") d.cell.styles.fontStyle="bold"; },
+    });
+
+    autoTable(doc, {
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [["Non-Deductible Operating Expenses","Amount"]],
+      body: [
+        ...costPoolRemainder.lines.map(l=>["Cost pool non-production share — "+l.name, fmtC(l.share)]),
+        ...Object.entries(yearOpex.reduce((acc,o)=>{acc[o.category]=(acc[o.category]||0)+(parseFloat(o.amount)||0);return acc;},{})).map(([cat,amt])=>["OpEx — "+cat.replace(/_/g," "), fmtC(amt)]),
+        ["Total Non-Deductible Operating Expenses", fmtC(costPoolRemainder.total+opexTotal)],
+        ["Grand Total Non-Deductible (batches + OpEx)", fmtC(totalNonDeductible)],
+      ],
+      theme: "striped",
+      headStyles: {fillColor:[180,74,74]},
+      didParseCell: (d) => { if (d.row.index>=d.table.body.length-2 && d.section==="body") d.cell.styles.fontStyle="bold"; },
+    });
+
+    doc.save(`ResinOps-280E-Summary-${summaryYear}.pdf`);
   }
 
   // ── Cash-flow forecast: bucket every dated batch (past 3 months for trend
@@ -613,33 +694,55 @@ export default function Finance() {
               <strong>280E Note:</strong> Under IRC §280E, cannabis businesses may only deduct Cost of Goods Sold federally — but §263A lets a vertically-integrated operator capitalize more than just raw materials into COGS. Each batch's total below is built from direct materials (BOM), direct labor (hours entered per batch), lab testing, cultivation costs (auto-allocated by grow space), and indirect overhead (allocated from named cost pools — rent, utilities, depreciation, etc. — see the Cost Pools tab). Any batch can be flagged "not capitalized" if it shouldn't count — see the deductible/non-deductible split below. This app computes the allocation; review the methodology with your accountant before filing.
             </div>
 
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexWrap:"wrap",gap:10}}>
+              <div style={{fontSize:12,color:"var(--text-3)"}}>Figures below are for the selected year — same year selector as the 280E Summary tab.</div>
+              <select className="fin-sel" style={{width:"auto",minWidth:100}} value={summaryYear} onChange={e=>setSummaryYear(parseInt(e.target.value))}>
+                {(summaryYears.includes(summaryYear)?summaryYears:[...summaryYears,summaryYear]).sort().map(y=><option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
               {[
-                {l:"Total Revenue",v:fmtC(summary.totalRev)},
-                {l:"Gross Profit",v:fmtC(totalGrossProfit),cls:totalGrossProfit>0?"margin-good":totalGrossProfit<0?"margin-bad":""},
-                {l:"Gross Margin",v:pct(totalGrossProfit,summary.totalRev),cls:totalGrossMargin>50?"margin-good":totalGrossMargin>25?"margin-warn":"margin-bad"},
+                {l:"Total Revenue",v:fmtC(annualSummary.totalRev)},
+                {l:"Gross Profit",v:fmtC(annualSummary.grossProfit),cls:annualSummary.grossProfit>0?"margin-good":annualSummary.grossProfit<0?"margin-bad":""},
+                {l:"Gross Margin",v:pct(annualSummary.grossProfit,annualSummary.totalRev),cls:annualSummary.grossMargin>50?"margin-good":annualSummary.grossMargin>25?"margin-warn":"margin-bad"},
+              ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+              {[
+                {l:"Booked Revenue",v:fmtC(annualSummary.bookedRevenue),cls:"margin-good"},
+                {l:"Estimated Revenue",v:fmtC(annualSummary.estimatedRevenue)},
+                {l:"Operating Expenses",v:fmtC(operatingExpensesTotal),cls:operatingExpensesTotal>0?"margin-bad":""},
+              ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+              {[
+                {l:"Net Income",v:fmtC(netIncome),cls:netIncome>0?"margin-good":netIncome<0?"margin-bad":""},
+                {l:"Net Margin",v:pct(netIncome,annualSummary.totalRev),cls:netMargin>20?"margin-good":netMargin>0?"margin-warn":"margin-bad"},
+                {l:"280E-Deductible COGS",v:fmtC(annualSummary.deductibleTotal),cls:"margin-good"},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
               {[
-                {l:"280E-Deductible COGS",v:fmtC(mainBatches.reduce((a,b)=>a+batchPnL(b).deductibleTotal,0)),cls:"margin-good"},
-                {l:"Not Capitalized (flagged)",v:fmtC(mainBatches.reduce((a,b)=>a+batchPnL(b).nonDeductibleTotal,0))},
+                {l:"Not Capitalized (batch-flagged)",v:fmtC(annualSummary.nonDeductibleTotal)},
+                {l:"Grand Total Non-Deductible",v:fmtC(totalNonDeductible)},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
             </div>
+            <div style={{fontSize:11,color:"var(--text-3)",marginBottom:16}}>Net Income = Gross Profit − Operating Expenses (cost pools' non-production share + logged Operating Expenses — see those tabs). Doesn't double-subtract batch-flagged COGS, since that's a §280E tax-treatment flag on dollars already counted in COGS, not a separate real cost.</div>
 
             <div style={{marginBottom:16}}>
-              <button className="fin-btn fin-secondary" onClick={()=>exportQuickBooksCsv(mainBatches, cogsCtx, facility.qbAccountMap||{})}>⬇ Export to QuickBooks (CSV)</button>
+              <button className="fin-btn fin-secondary" onClick={()=>exportQuickBooksCsv(yearBatches, cogsCtx, facility.qbAccountMap||{})}>⬇ Export to QuickBooks (CSV)</button>
               <span style={{fontSize:11,color:"var(--text-3)",marginLeft:10}}>Journal entries per batch, mapped to your chart of accounts — configure account names in Facility Settings.</span>
             </div>
 
             {/* Per batch P&L */}
             <div className="fin-card">
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Batch P&L</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Batch P&L — {summaryYear}</div>
                 <div style={{fontSize:11,color:"var(--text-3)"}}>Units sold/revenue come from real Sales Orders once a batch has bookings — enter a pre-sale estimate manually before that, or override the total directly</div>
               </div>
-              {mainBatches.length===0 ? (
-                <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No batches yet.</div>
+              {yearBatches.length===0 ? (
+                <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No batches dated in {summaryYear}.</div>
               ) : (
                 <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
                   <table className="fin-tbl">
@@ -647,7 +750,7 @@ export default function Finance() {
                       <tr><th>Batch</th><th>Product</th><th>Units Sold</th><th>Rev/Unit ($)</th><th>Total Rev</th><th>COGS</th><th>Gross Profit</th><th>Margin</th></tr>
                     </thead>
                     <tbody>
-                      {mainBatches.map(batch => {
+                      {yearBatches.map(batch => {
                         const p = batchPnL(batch);
                         const rec = getRecord(batch.id);
                         const cls = p.grossMargin>=50?"pill-green":p.grossMargin>=25?"pill-amber":"pill-red";
@@ -703,14 +806,14 @@ export default function Finance() {
 
             {/* COGS breakdown for 280E */}
             <div className="fin-card">
-              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>COGS Components — §263A Reference</div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>COGS Components — §263A Reference — {summaryYear}</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                 {[
-                  {l:"Raw Materials",v:fmtC(summary.materialCost),pct:pct(summary.materialCost,summary.totalCOGS)},
-                  {l:"Direct Labor",v:fmtC(summary.directLaborCost),pct:pct(summary.directLaborCost,summary.totalCOGS)},
-                  {l:"Lab Testing",v:fmtC(summary.testFee),pct:pct(summary.testFee,summary.totalCOGS)},
-                  {l:"Cultivation Costs",v:fmtC(summary.cultivationCost),pct:pct(summary.cultivationCost,summary.totalCOGS)},
-                  {l:"Allocated Overhead",v:fmtC(summary.allocatedOverhead),pct:pct(summary.allocatedOverhead,summary.totalCOGS)},
+                  {l:"Raw Materials",v:fmtC(annualSummary.materialCost),pct:pct(annualSummary.materialCost,annualSummary.totalCOGS)},
+                  {l:"Direct Labor",v:fmtC(annualSummary.directLaborCost),pct:pct(annualSummary.directLaborCost,annualSummary.totalCOGS)},
+                  {l:"Lab Testing",v:fmtC(annualSummary.testFee),pct:pct(annualSummary.testFee,annualSummary.totalCOGS)},
+                  {l:"Cultivation Costs",v:fmtC(annualSummary.cultivationCost),pct:pct(annualSummary.cultivationCost,annualSummary.totalCOGS)},
+                  {l:"Allocated Overhead",v:fmtC(annualSummary.allocatedOverhead),pct:pct(annualSummary.allocatedOverhead,annualSummary.totalCOGS)},
                 ].map((s,i)=>(
                   <div key={i} className="fin-stat">
                     <div className="fin-stat-lbl">{s.l}</div>
@@ -1152,6 +1255,7 @@ export default function Finance() {
                   <select className="fin-sel" style={{width:"auto",minWidth:100}} value={summaryYear} onChange={e=>setSummaryYear(parseInt(e.target.value))}>
                     {(summaryYears.includes(summaryYear)?summaryYears:[...summaryYears,summaryYear]).sort().map(y=><option key={y} value={y}>{y}</option>)}
                   </select>
+                  <button className="fin-btn fin-secondary" onClick={exportAnnual280ESummaryPdf}>⬇ Download 280E Summary (PDF)</button>
                   <button className="fin-btn fin-secondary" onClick={exportAnnual280ESummaryCsv}>⬇ Download 280E Summary (CSV)</button>
                 </div>
               </div>
