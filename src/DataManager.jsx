@@ -59,6 +59,8 @@ const IMPORT_TARGETS = {
   purchasePrice (cost in dollars as a number — may be called "Cost", "Price", "Purchase Price", "Cost (USD)", etc. Strip $ and commas)
   warrantyExpires (warranty expiry date in YYYY-MM-DD — may be called "Warranty Expiration", "Warranty Expires", "Warranty End", etc.)
   pmFreqDays (preventive maintenance interval as number of days — may be called "Service Interval", "PM Frequency", "Maintenance Interval". Convert "90 days" → 90, "quarterly" → 90, "annually" → 365, "monthly" → 30)
+  usefulLifeMonths (depreciation life in months as a number — may be called "Useful Life", "Depreciation Life", "Useful Life (months)". Convert years to months, e.g. "5 years" → 60. Leave blank if not specified)
+  salvageValue (estimated residual value in dollars as a number — may be called "Salvage Value", "Residual Value", "Scrap Value". Strip $ and commas. Default to 0 if not specified)
   status (default to "active" unless the source indicates otherwise)` },
   inventory:{ label:"Inventory Items", icon:"📦", key:"resinops_inventory",
     schema:`Each record must use these EXACT field names:
@@ -199,6 +201,8 @@ const IMPORT_TARGETS = {
   unitPrice (price per unit as a number — strip $ signs. May be called "Unit Price", "Price", "Price Per Unit", etc.)
   orderTotal (total order value as a number — strip $ signs. May be called "Order Total", "Total", "Amount", etc.)
   status (must be exactly one of: "confirmed", "pending", "waitlist" — map "Confirmed" → "confirmed", "Pending" → "pending", "Waitlisted"/"Waitlist" → "waitlist")
+  dueDate (payment due date in YYYY-MM-DD — may be called "Due Date", "Payment Due", "Terms Date", etc. Leave blank if not specified)
+  amountPaid (amount already paid on this order in dollars as a number — strip $ signs. May be called "Amount Paid", "Paid", "Deposit", etc. Default to 0 if not specified)
   notes (any notes field)` },
   spray_log:{ label:"Pesticide Spray Log (NY DEC)", icon:"🛡️", key:"resinops_spray_log",
     schema:`Each record must use these EXACT field names (NY DEC compliant pesticide application log):
@@ -1597,7 +1601,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           if(!cat)cat="Other";
           const pmRaw=r.pmFreqDays||r.pm_freq_days||r.service_interval||r["Service Interval"]||"90";
           const pmDays=typeof pmRaw==="string"?(pmRaw.toLowerCase().includes("annual")||pmRaw.includes("365")?"365":pmRaw.toLowerCase().includes("month")||pmRaw.includes("30")?"30":pmRaw.toLowerCase().includes("semi")||pmRaw.includes("180")?"180":parseInt(pmRaw)||"90"):pmRaw;
-          return {...r,id:r.id,name:r.name||r.asset_description||r.equipment_name||r["Asset Description"]||r["Equipment Name"]||r["Item"]||"",cat,make:r.make||r.brand||r.manufacturer||r.brand_manufacturer||r["Brand"]||r["Manufacturer"]||r["Brand / Manufacturer"]||"",model:r.model||r.model_number||r["Model Number"]||r["Model"]||"",serial:r.serial||r.serial_number||r["Serial Number"]||r["Serial"]||"",assetTag:r.assetTag||r.asset_tag||r["Asset Tag"]||"",location:r.location||r.room_location||r["Room / Location"]||r["Location"]||"",purchaseDate:r.purchaseDate||r.purchase_date||r["Purchase Date"]||"",purchasePrice:String(r.purchasePrice||r.purchase_price||r.cost||r["Cost (USD)"]||r["Cost"]||"").replace(/[$,]/g,""),warrantyExpires:r.warrantyExpires||r.warranty_expiration||r.warranty_expires||r["Warranty Expiration"]||"",pmFreqDays:String(pmDays),lastServiceDate:r.lastServiceDate||r.last_service||r.last_service_date||r["Last Service"]||"",status:"active",notes:r.notes||r["Notes"]||"",};
+          return {...r,id:r.id,name:r.name||r.asset_description||r.equipment_name||r["Asset Description"]||r["Equipment Name"]||r["Item"]||"",cat,make:r.make||r.brand||r.manufacturer||r.brand_manufacturer||r["Brand"]||r["Manufacturer"]||r["Brand / Manufacturer"]||"",model:r.model||r.model_number||r["Model Number"]||r["Model"]||"",serial:r.serial||r.serial_number||r["Serial Number"]||r["Serial"]||"",assetTag:r.assetTag||r.asset_tag||r["Asset Tag"]||"",location:r.location||r.room_location||r["Room / Location"]||r["Location"]||"",purchaseDate:r.purchaseDate||r.purchase_date||r["Purchase Date"]||"",purchasePrice:String(r.purchasePrice||r.purchase_price||r.cost||r["Cost (USD)"]||r["Cost"]||"").replace(/[$,]/g,""),warrantyExpires:r.warrantyExpires||r.warranty_expiration||r.warranty_expires||r["Warranty Expiration"]||"",pmFreqDays:String(pmDays),lastServiceDate:r.lastServiceDate||r.last_service||r.last_service_date||r["Last Service"]||"",usefulLifeMonths:r.usefulLifeMonths||r.useful_life_months||r["Useful Life"]||r["Useful Life (months)"]||"",salvageValue:String(r.salvageValue||r.salvage_value||r["Salvage Value"]||r["Residual Value"]||"0").replace(/[$,]/g,""),status:"active",notes:r.notes||r["Notes"]||"",};
         });
       } else if(target==="strains"){
         newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r.cultivar_name||r.strain_name||r.strain||r["Cultivar Name"]||r["Strain Name"]||r["Strain"]||"",type:r.type||r.strain_type||r["Strain Type"]||r["Type"]||"Hybrid",parentage:r.parentage||r.genetic_cross||r.genetic_cross_lineage||r.lineage||r["Genetic Cross / Lineage"]||r["Lineage"]||r["Genetics"]||"",breeder:r.breeder||r.original_breeder||r["Original Breeder"]||r["Breeder"]||r["Seed Company"]||"",thcaAvg:r.thcaAvg||r.avg_thca||r.avg_thca_pct||r.thca_avg||r["Avg THCa %"]||r["Avg THCa"]||"",thcAvg:r.thcAvg||r.avg_thc||r.avg_thc_pct||r["Avg THC %"]||r["Avg THC"]||"",cbdAvg:r.cbdAvg||r.avg_cbd||r.avg_cbd_pct||r["Avg CBD %"]||r["Avg CBD"]||"",terpsAvg:r.terpsAvg||r.avg_total_terpenes||r.avg_terpenes||r.avg_total_terpenes_pct||r["Avg Total Terpenes %"]||r["Avg Total Terpenes"]||"",dominantTerpenes:r.dominantTerpenes||r.dominant_terpenes||r["Dominant Terpenes"]||r["Top Terpenes"]||"",avgYieldGPerSqft:r.avgYieldGPerSqft||r.avg_yield||r.avg_yield_g_sqft||r["Avg Yield (g/sqft canopy)"]||r["Avg Yield"]||"",avgFlowerWeeks:r.avgFlowerWeeks||r.flower_time_weeks||r.flower_time||r.flower_weeks||r["Flower Time (weeks)"]||r["Flower Weeks"]||"",avgVegWeeks:r.avgVegWeeks||r.veg_time_weeks||r.veg_time||r["Veg Time (weeks)"]||r["Veg Weeks"]||"",aroma:r.aroma||r.aroma_notes||r["Aroma Notes"]||r["Aroma"]||"",flavor:r.flavor||r.flavor_profile||r["Flavor Profile"]||r["Flavor"]||"",effectProfile:r.effectProfile||r.effect_description||r.effects||r["Effect Description"]||r["Effects"]||"",notes:r.notes||r.internal_notes||r["Internal Notes"]||r["Notes"]||"",status:r.status||"active",salesDescription:r.salesDescription||r.sales_description||r["Sales Description"]||"",}));
@@ -1836,6 +1840,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             orderDate: r.orderDate||r.order_date||r["Order Date"]||r["Date"]||"",
             status: "open",
             importStatus,
+            dueDate: r.dueDate||r.due_date||r["Due Date"]||r["Payment Due"]||"",
+            amountPaid: parseFloat(String(r.amountPaid||r.amount_paid||r["Amount Paid"]||r["Paid"]||0).replace(/[$,]/g,""))||0,
             notes: (r.notes||r["Notes"]||"")+(product?` | Product: ${product}`:"")+(strain?` | Strain: ${strain}`:""),
             lines: units>0?[{
               id:crypto.randomUUID(),
@@ -2014,7 +2020,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                       const headers = {
                         TEMPLATE_Employee_Roster:"Full Name,Job Title,Department / Area,Employment Start,Cell Phone,Work Email,Pesticide Cert #,Cert Category,Cert Expiry Date,Status,Emergency Contact,Notes",
                         TEMPLATE_Grow_Map:"Room Name,Room Type,Total Sq Ft,Canopy Sq Ft,Max Plants,Light Type,Lights Count,Watts Per Light,Status,Notes",
-                        TEMPLATE_Equipment_Registry:"Asset Description,Category/Type,Brand / Manufacturer,Model Number,Serial Number,Asset Tag,Room / Location,Purchase Date,Cost (USD),Warranty Expiration,Service Interval,Last Service,Notes",
+                        TEMPLATE_Equipment_Registry:"Asset Description,Category/Type,Brand / Manufacturer,Model Number,Serial Number,Asset Tag,Room / Location,Purchase Date,Cost (USD),Warranty Expiration,Service Interval,Last Service,Useful Life (months),Salvage Value,Notes",
                         TEMPLATE_Supplies_Inventory:"Item Name,Category,Unit of Measure,Current Stock,Unit Cost,Reorder At,Reorder Qty,Primary Vendor,Notes",
                         TEMPLATE_Strain_Catalog:"Cultivar Name,Strain Type,Genetic Cross / Lineage,Original Breeder,Avg THCa %,Avg THC %,Avg CBD %,Avg Total Terpenes %,Dominant Terpenes,Avg Yield (g/sqft canopy),Veg Time (weeks),Flower Time (weeks),Aroma Notes,Flavor Profile,Effect Description,Internal Notes",
                         TEMPLATE_Harvest_Batches:"Batch ID,Strain Name,Harvest Room,Harvest Date,Wet Weight lbs,Dry Weight lbs,Grade A (g),Grade B (g),Grade C (g),Trim (g),Waste (g),Plant Count,Dry Room,Cure Start Date,Cure End Date,Status,COA Sample ID,Lab Name,THCa %,Notes",
@@ -2022,7 +2028,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                         TEMPLATE_Production_Batches:"Batch Name,Product Type,Sub-Type,Strain(s),Source Harvest Batch,Scheduled Start,Scheduled Complete,Estimated Yield,Status,Assigned To,Notes",
                         TEMPLATE_Cultivation_Inputs:"Grow Space,Date,Input Type,Product,Manufacturer,Rate,Rate Unit,Amount Mixed,Volume Unit,Area Sq Ft,Cost Per Unit,Total Cost,Notes",
                         TEMPLATE_Pesticide_Spray_Log:"Application Date,Grow Space / Room,Product / Pesticide Name,EPA Registration Number,Label Rate,Amount Mixed (gallons),Area Treated (sq ft),Application Equipment,Target Pest / Disease,Temp at Application (F),Wind Speed (mph),Relative Humidity (%),Re-Entry Interval (hrs),Pre-Harvest Interval (days),Licensed Applicator,Pesticide License #,Notes",
-                        TEMPLATE_Sales_Orders:"Order ID,Dispensary Name,License Number,Order Date,Requested Delivery,Product,Strain,Units Ordered,Unit Price,Order Total,Status,Notes",
+                        TEMPLATE_Sales_Orders:"Order ID,Dispensary Name,License Number,Order Date,Requested Delivery,Product,Strain,Units Ordered,Unit Price,Order Total,Status,Due Date,Amount Paid,Notes",
                         TEMPLATE_Customers:"Customer Name,License Number,Contact Name,Phone,Email,Address,Account Type,Pipeline Stage,Notes",
                         TEMPLATE_Sales_Goals:"Period Start,Period End,Goal Amount,Notes",
                         TEMPLATE_Operating_Expenses:"Expense Name,Category,Amount,Date,Notes",
