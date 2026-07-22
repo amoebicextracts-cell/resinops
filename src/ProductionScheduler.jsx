@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
+import { deductForBatch } from "./lib/inventory.js";
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -290,7 +291,7 @@ const SFG={
   "Final Solvent Purge":"#f09090","QC / Testing":"#7090f8","Packaging":"#c080f8","Inventory":"#70d0d0",
 };
 
-const CATS=[
+export const CATS=[
   {v:"whole_flower",l:"Whole Flower"},{v:"ground_flower",l:"Ground Flower"},
   {v:"pre_roll",l:"Pre-Roll"},{v:"extract",l:"Extract / Concentrate"},
   {v:"vape",l:"Vape"},{v:"tincture",l:"Tincture"},
@@ -1102,7 +1103,7 @@ const EMPTY={
   trimType:"machine",trimMachine:"greenboz_215",trimThroughput:"215",
   prerollMachine:"knockbox_100",prerollThroughput:"529",
   trimmerCount:"4",gramsPerTrimmerDay:"350",
-  packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",packagingContainer:"",packagingUnitsPerPack:"5",unitPrice:"",
+  packagingType:"jar",packagingStaff:"2",packagingBaseline:"150",packagingContainer:"",packagingUnitsPerPack:"5",unitPrice:"",packagingItemId:"",
   vapeStartPotency:"85",vapeTerpPct:"10",vapeTerpSource:"pure",vapeTerpSrcPotency:String(TERP_SRCS.pure.thc*100),
   thcaMethod:"controlled",thcaRecrystCycles:"1",
   s2sSystem:"metrc",s2sSourceTags:"",s2sOutputTags:"",actual_yield:"",
@@ -1137,16 +1138,20 @@ export default function ProductionScheduler(){
     setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags, inputMaterialType: harvestInputMaterialType(hb, grade)}));
   }
   const[inventoryData,setInventoryData]=useState([]);
+  const[boms,setBoms]=useState([]);
+  const[deductionNotice,setDeductionNotice]=useState("");
   const[loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, inv]=await Promise.all([
+        const [pb, hb, inv, bm]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.inventory_items.list(),
+          db.boms.list(),
         ]);
+        setBoms(bm);
         const DS={
           whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
           pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
@@ -1280,7 +1285,7 @@ export default function ProductionScheduler(){
       cbTargets:b.cbTargets||{thc:"",cbd:"",cbg:"",cbn:"",cbc:"",thcv:"",terp:""},
       pieceWeightG:String(b.pieceWeightG||""),linkedCocIds:b.linkedCocIds||[],
       trimType:b.trimType||"machine",trimMachine:b.trimMachine||"greenboz_215",trimThroughput:String(b.trimThroughput||215),trimmerCount:String(b.trimmerCount||4),gramsPerTrimmerDay:String(b.gramsPerTrimmerDay||350),prerollMachine:b.prerollMachine||"knockbox_100",prerollThroughput:String(b.prerollThroughput||529),packagingContainer:b.packagingContainer||"",packagingUnitsPerPack:String(b.packagingUnitsPerPack||5),
-      packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),unitPrice:String(b.unitPrice||""),
+      packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),unitPrice:String(b.unitPrice||""),packagingItemId:b.packagingItemId||"",
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
       s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",inputSource:b.harvestBatchId?"harvest":"manual",inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[]});
@@ -1299,7 +1304,7 @@ export default function ProductionScheduler(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.linkedCocIds||[],s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
 
     const mainId=formMode==="edit"?editId:crypto.randomUUID();
     const mainBatch={...base,id:mainId};
@@ -1334,6 +1339,23 @@ export default function ProductionScheduler(){
         }
         const saved=await Promise.all(newBatches.map(b=>db.production_batches.upsert(b)));
         setBatches(p=>[...p,...saved]);
+
+        // Real stock deduction — default trigger is "at batch creation"
+        // (matches the deductTrigger dropdown's own default in Finance.jsx
+        // whenever no cogs_records override says otherwise). Only the main
+        // batch consumes the BOM, not auto-spawned linked byproduct batches.
+        const { updatedItems, shortfalls, bom } = deductForBatch(mainBatch, boms, inventoryData);
+        if (bom) {
+          if (updatedItems.length) {
+            const savedItems = await Promise.all(updatedItems.map(it=>db.inventory_items.upsert(it)));
+            setInventoryData(p=>p.map(it=>{ const u=savedItems.find(s=>s.id===it.id); return u||it; }));
+          }
+          setDeductionNotice(shortfalls.length
+            ? `⚠ Deducted from inventory per the "${bom.name}" BOM, but ran short on: ${shortfalls.map(s=>s.itemName+" ("+s.shortfall.toFixed(1)+" short)").join(", ")}.`
+            : `✓ Deducted inventory per the "${bom.name}" BOM.`);
+        } else {
+          setDeductionNotice("");
+        }
       }
       autoPopulateStrains(form.strains, { source: "Production Scheduler" });
       closeForm();
@@ -1393,6 +1415,13 @@ export default function ProductionScheduler(){
             {!formMode&&<button className="ps-btn ps-primary" onClick={openAdd}>+ Add Batch</button>}
           </div>
         </div>
+
+        {deductionNotice&&(
+          <div style={{background:deductionNotice.startsWith("⚠")?"rgba(200,150,58,0.1)":"rgba(74,124,89,0.1)",border:"1px solid "+(deductionNotice.startsWith("⚠")?"rgba(200,150,58,0.3)":"rgba(74,124,89,0.3)"),borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:deductionNotice.startsWith("⚠")?"var(--amber)":"var(--accent-2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>{deductionNotice}</span>
+            <button onClick={()=>setDeductionNotice("")} style={{background:"none",border:"none",color:"inherit",cursor:"pointer",fontSize:14}}>×</button>
+          </div>
+        )}
 
         {/* ── FORM (inlined - no sub-component) ── */}
         {formMode&&(
@@ -2098,6 +2127,36 @@ export default function ProductionScheduler(){
                       <input type="number" min="0" step="0.01" className="ps-inp" value={form.unitPrice} onChange={e=>setF("unitPrice",e.target.value)} placeholder="e.g. 35.00" />
                     </div>
                   </div>
+
+                  {/* Packaging material — links the container choice to a real inventory
+                      item so its Certificate of Conformity status is visible right here,
+                      not just in the separate generic CoC checklist below. */}
+                  {(()=>{
+                    const pkgItems=inventoryData.filter(it=>it.cat==="Packaging");
+                    const selected=inventoryData.find(it=>it.id===form.packagingItemId);
+                    const cocs=selected?.cocs||[];
+                    const validCoc=cocs.find(c=>c.status==="pass"&&(!c.expiryDate||new Date(c.expiryDate)>=new Date()));
+                    const expiredCoc=cocs.find(c=>c.expiryDate&&new Date(c.expiryDate)<new Date());
+                    return(
+                      <div style={{marginBottom:10}}>
+                        <label className="ps-lbl">Packaging material (inventory item)</label>
+                        <select className="ps-sel" value={form.packagingItemId} onChange={e=>setF("packagingItemId",e.target.value)}>
+                          <option value="">— Not linked to inventory —</option>
+                          {pkgItems.map(it=><option key={it.id} value={it.id}>{it.n}</option>)}
+                        </select>
+                        {selected&&(
+                          validCoc ? (
+                            <div style={{marginTop:6,fontSize:11,color:"var(--accent-2)"}}>✓ Valid CoC on file — lot {validCoc.lotNum}, {validCoc.supplier}{validCoc.expiryDate?" (expires "+validCoc.expiryDate+")":""}</div>
+                          ) : expiredCoc ? (
+                            <div style={{marginTop:6,fontSize:11,color:"var(--danger)"}}>⛔ CoC on file for this item has expired ({expiredCoc.expiryDate}) — get an updated Certificate of Conformity before packaging.</div>
+                          ) : (
+                            <div style={{marginTop:6,fontSize:11,color:"var(--amber)"}}>⚠ No passing Certificate of Conformity on file for this item — add one in Inventory before packaging.</div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {isFlower&&(
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                       <div><label className="ps-lbl">Packaging staff</label><input type="number" min="1" className="ps-inp" value={form.packagingStaff} onChange={e=>setF("packagingStaff",e.target.value)} /></div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { withdrawFifo } from "./lib/inventory";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
@@ -468,18 +469,28 @@ export default function InventoryERP() {
     }catch(e){ setErr("Receive failed: "+e.message); }
   }
 
-  // Manual stock adjustment
+  // Manual stock adjustment. Positive qty adds a new lot (received/found
+  // stock); negative qty actually withdraws from existing lots oldest-first
+  // instead of just appending a zero-remaining lot (the old behavior never
+  // reduced anything — this was a real bug: "reduce stock" didn't).
   async function confirmAdjust() {
     const {item, adjQty, adjCost, adjNote} = adjustModal;
     const qty = parseFloat(adjQty)||0;
     const cost = parseFloat(adjCost)||itemCost(item)||0;
     if (!qty) { setAdjustModal(null); return; }
-    const lot = { id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty:Math.abs(qty), remaining:Math.max(0,qty), costPerUnit:cost, poId:"manual", note:adjNote||"" };
-    const updated = {...item, lots:[...(item.lots||[]),lot], lastCost:cost};
+    let updated, shortfallMsg="";
+    if (qty > 0) {
+      const lot = { id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty, remaining:qty, costPerUnit:cost, poId:"manual", note:adjNote||"" };
+      updated = {...item, lots:[...(item.lots||[]),lot], lastCost:cost};
+    } else {
+      const { item: withdrawn, shortfall } = withdrawFifo(item, Math.abs(qty));
+      updated = withdrawn;
+      if (shortfall > 0) shortfallMsg = `Adjusted down by ${Math.abs(qty)-shortfall} — only that much was actually on hand.`;
+    }
     try{
       const saved = await db.inventory_items.upsert(updated);
       setItems(p=>p.map(x=>x.id===saved.id?saved:x));
-      setAdjustModal(null); setErr("");
+      setAdjustModal(null); setErr(shortfallMsg);
     }catch(e){ setErr("Adjustment failed: "+e.message); }
   }
 

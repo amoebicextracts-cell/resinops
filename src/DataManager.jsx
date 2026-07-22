@@ -528,7 +528,7 @@ export default function DataManager(){
       const PREROLL_STEPS = [{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}];
       const EXTRACT_STEPS = [{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
       const demoProdBatchesRaw = [
-        {id:"pb_001",name:"GC-2026-07A — Gorilla Cake 3.5g Retail",cat:"whole_flower",sub:"",strains:"Gorilla Cake",d:"2026-07-08",inputAmt:"2840",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~810 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1001,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:18},
+        {id:"pb_001",name:"GC-2026-07A — Gorilla Cake 3.5g Retail",cat:"whole_flower",sub:"",strains:"Gorilla Cake",d:"2026-07-08",inputAmt:"2840",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~810 × 3.5g jars",packagingContainer:"cr_glass_jar",packagingItemId:"inv_001",harvestBatchId:1001,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:18},
         {id:"pb_002",name:"BM-2026-07A — Black Maple 3.5g Retail",cat:"whole_flower",sub:"",strains:"Black Maple",d:"2026-07-08",inputAmt:"2650",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~757 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1002,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:20},
         {id:"pb_003",name:"MH-2026-07A — Mango Haze Pre-Roll 1g 5pk",cat:"pre_roll",sub:"",strains:"Mango Haze",d:"2026-07-10",inputAmt:"1740",unit:"g",status:"scheduled",catLabel:"Pre-Roll",subLabel:"",yieldEst:"~1,600 × 5-packs",packagingContainer:"poptop_multi",packagingUnitsPerPack:5,harvestBatchId:1003,harvestGrade:"b",steps:PREROLL_STEPS.map(s=>({...s})),isLinked:false,unitPrice:24},
         {id:"pb_004",name:"CP-2026-07A — Mixed Strain Distillate",cat:"extract",sub:"sp_lab10",strains:"Gorilla Cake, Black Maple",d:"2026-07-15",inputAmt:"2200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"Short Path — Lab Society 10L",yieldEst:"~1,760g distillate (80% overall) · 7h 1st pass + 6h 2nd pass",packagingContainer:"applicator_syringe",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,unitPrice:45},
@@ -546,8 +546,8 @@ export default function DataManager(){
           pressRuns:[{id:uid("pr_pb011_1"),sourceBatchId:"",sourceFreezeDryId:"",date:"2026-07-12",pressBrand:"pure_pressure",pressModel:"pp_pikes_peak",plateTempF:"195",pressTimeSec:"75",pressure:"5 tons",bagMicron:73,packingMethod:"loose_bag",prePressWeightG:"500",postPressYieldG:"65",notes:"Fresh flower rosin, single-pass press."}]},
       ];
       for (const p of demoProdBatchesRaw) {
-        const {id,harvestBatchId,linkedTo,...rest} = p;
-        await db.production_batches.upsert({...rest, id: uid(id), harvestBatchId: harvestBatchId?uid(harvestBatchId):"", linkedTo: linkedTo?uid(linkedTo):""});
+        const {id,harvestBatchId,linkedTo,packagingItemId,...rest} = p;
+        await db.production_batches.upsert({...rest, id: uid(id), harvestBatchId: harvestBatchId?uid(harvestBatchId):"", linkedTo: linkedTo?uid(linkedTo):"", packagingItemId: packagingItemId?uid(packagingItemId):""});
       }
 
       // ── COGS Records ── per-batch revenue overlay (rev_per_unit) that
@@ -573,32 +573,29 @@ export default function DataManager(){
         await db.skus.upsert({id:uid(s.id),product:s.product,skuCode:s.sku,unitPrice:s.price,category:s.cat,active:true});
       }
 
-      // ── BOMs ──────────────────────────────────────────
+      // ── BOMs ── real recipes referencing real inventory_items ids (not
+      // the old bomsRaw shape — product/items[].unitCost — which neither
+      // Finance.jsx's BOM editor nor real stock deduction understands).
+      // Only covers categories the demo production batches actually use,
+      // against items that actually have received stock (see the PO
+      // receiving backfill above) so deducting against them is meaningful.
       const bomsRaw = [
-        {id:"bom_wf",product:"Whole Flower",cat:"whole_flower",
+        {id:"bom_wf",name:"Whole Flower",category:"whole_flower",subcategory:"",testFee:350,
           items:[
-            {name:"Child-Resistant Glass Jar 2oz",qty:1,unit:"each",unitCost:0.38},
-            {name:"Tamper-Evident Label",qty:1,unit:"each",unitCost:0.08},
-            {name:"Exit Bag",qty:0.1,unit:"each",unitCost:0.12},
-          ],testFee:350,laborCostPerUnit:0.45,notes:""},
-        {id:"bom_pr",product:"Pre-Roll",cat:"pre_roll",
+            {itemId:"inv_001",qty:1,qtyType:"per_unit_output",note:"Glass jar per unit"},
+            {itemId:"inv_002",qty:1,qtyType:"per_unit_output",note:"Label per unit"},
+          ]},
+        {id:"bom_pr",name:"Pre-Roll",category:"pre_roll",subcategory:"",testFee:350,
           items:[
-            {name:"Pre-Roll Cone 110mm",qty:1,unit:"each",unitCost:0.09},
-            {name:"CR Tube 116mm",qty:1,unit:"each",unitCost:0.14},
-          ],testFee:350,laborCostPerUnit:0.22,notes:""},
-        {id:"bom_ros",product:"Live Rosin",cat:"extract",
+            {itemId:"inv_003",qty:1,qtyType:"per_unit_output",note:"Cone per unit"},
+          ]},
+        {id:"bom_lr",name:"BHO Live Resin",category:"extract",subcategory:"live_resin",testFee:450,
           items:[
-            {name:"Glass Jar",qty:1,unit:"each",unitCost:0.38},
-            {name:"Label",qty:1,unit:"each",unitCost:0.08},
-          ],testFee:450,laborCostPerUnit:8.50,notes:"Includes press labor estimate"},
-        {id:"bom_vape",product:"Vape Cartridge",cat:"vape",
-          items:[
-            {name:"510 Cartridge Hardware",qty:1,unit:"each",unitCost:2.80},
-            {name:"Label",qty:1,unit:"each",unitCost:0.08},
-          ],testFee:400,laborCostPerUnit:1.20,notes:""},
+            {itemId:"inv_006",qty:1.5,qtyType:"per_lb_input",note:"Butane: 1.5 lbs per lb biomass"},
+          ]},
       ];
       for (const b of bomsRaw) {
-        await db.boms.upsert({id:uid(b.id),product:b.product,items:b.items});
+        await db.boms.upsert({...b, id:uid(b.id), items:b.items.map(l=>({...l,itemId:uid(l.itemId)}))});
       }
 
       // ── GMP Hub ── SOPs / Shifts / Deviations ──────────────────────
@@ -774,6 +771,13 @@ export default function DataManager(){
             id: uid("coc-inv_006-po_003"), lotNum:"EHS-2026-0619", supplier:"Empire Hydrocarbon Solutions",
             issueDate:"2026-06-19", expiryDate:"2027-06-19", docRef:"CoC-EHS-06192026",
             status:"pass", notes:"Purity spec verified — hydrocarbon-grade n-Butane, <10ppm residual.",
+          }];
+        }
+        if (rl.itemFakeId==="inv_001") {
+          updated.cocs = [{
+            id: uid("coc-inv_001-po_001"), lotNum:"PPS-2026-0617", supplier:"Pacific Packaging Supply",
+            issueDate:"2026-06-17", expiryDate:"2028-06-17", docRef:"CoC-PPS-06172026",
+            status:"pass", notes:"Food-grade glass, child-resistant closure spec verified.",
           }];
         }
         await db.inventory_items.upsert(updated);

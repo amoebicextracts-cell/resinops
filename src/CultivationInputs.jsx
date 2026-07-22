@@ -79,6 +79,7 @@ export default function CultivationInputs(){
   const [form,setForm]=useState(null);
   const [filterSpace,setFilterSpace]=useState("");
   const [filterType,setFilterType]=useState("");
+  const [groupByCycle,setGroupByCycle]=useState(true);
   const [err,setErr]=useState("");
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -228,9 +229,34 @@ export default function CultivationInputs(){
           </div>
         )}
 
-        {!form&&(
+        {!form&&(()=>{
+          function row(r){
+            return(
+              <tr key={r.id}>
+                <td style={{whiteSpace:"nowrap"}}>{fmtD(r.date)}</td>
+                <td><span className={"ci-pill t-"+r.type}>{INPUT_TYPES.find(t=>t.v===r.type)?.l.split(" ")[0]||r.type}</span></td>
+                {!groupByCycle&&<td>{r.spaceName}</td>}
+                <td style={{fontWeight:500,color:"var(--text)"}}>{r.species||r.product}<br/><span style={{fontSize:10,color:"var(--text-3)"}}>{r.epaRegNum?"EPA#"+r.epaRegNum:r.manufacturer}</span></td>
+                <td style={{fontSize:11}}>{r.rate&&(r.rate+" "+r.rateUnit)}</td>
+                <td style={{fontSize:11}}>{r.volumeApplied&&(r.volumeApplied+" "+r.volumeUnit)}{r.areaApplied&&(" / "+r.areaApplied+" sqft")}</td>
+                <td style={{fontSize:11}}>{r.applicatorName||"—"}{r.applicatorLicenseNum&&<br/>}{r.applicatorLicenseNum&&<span style={{fontSize:9,color:"var(--text-3)"}}>{r.applicatorLicenseNum}</span>}</td>
+                <td>{fmtC(r.totalCost)}</td>
+                <td><div style={{display:"flex",gap:5}}>
+                  <button className="ci-sm ci-edit" onClick={()=>setForm({...r})}>Edit</button>
+                  <button className="ci-sm ci-del" onClick={()=>remove(r.id)}>✕</button>
+                </div></td>
+              </tr>
+            );
+          }
+          const groups = groupByCycle ? Object.values(filtered.reduce((acc,r)=>{
+            const key=r.spaceId||r.spaceName||"—";
+            if(!acc[key]) acc[key]={spaceName:r.spaceName||"(no space)",records:[]};
+            acc[key].records.push(r);
+            return acc;
+          },{})).sort((a,b)=>a.spaceName.localeCompare(b.spaceName)) : null;
+          return(
           <div className="ci-card">
-            <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
               <select className="ci-sel" style={{maxWidth:220}} value={filterSpace} onChange={e=>setFilterSpace(e.target.value)}>
                 <option value="">All spaces</option>
                 {spaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
@@ -239,37 +265,43 @@ export default function CultivationInputs(){
                 <option value="">All types</option>
                 {INPUT_TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
               </select>
+              <div style={{display:"flex",gap:6}}>
+                <button className="ci-btn" style={{fontSize:11,padding:"5px 10px",background:groupByCycle?"var(--accent)":"var(--surface-2)",color:groupByCycle?"#fff":"var(--text-2)"}} onClick={()=>setGroupByCycle(true)}>By Grow Cycle</button>
+                <button className="ci-btn" style={{fontSize:11,padding:"5px 10px",background:!groupByCycle?"var(--accent)":"var(--surface-2)",color:!groupByCycle?"#fff":"var(--text-2)"}} onClick={()=>setGroupByCycle(false)}>Flat List</button>
+              </div>
               <div style={{marginLeft:"auto",fontSize:12,color:"var(--text-3)",alignSelf:"center"}}>{filtered.length} record{filtered.length!==1?"s":""}</div>
             </div>
             {filtered.length===0?(
               <div style={{textAlign:"center",padding:"32px",color:"var(--text-3)"}}>No records yet. Log a nutrient application, spray, or beneficial release above.</div>
+            ): groupByCycle ? (
+              groups.map(g=>{
+                const cost=g.records.reduce((a,r)=>a+(parseFloat(r.totalCost)||0),0);
+                return(
+                  <div key={g.spaceName} style={{marginBottom:18}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>
+                      <span>{g.spaceName} <span style={{fontWeight:500,color:"var(--text-3)",textTransform:"none",letterSpacing:"normal"}}>({g.records.length})</span></span>
+                      {cost>0&&<span style={{color:"var(--accent-2)"}}>{fmtC(cost)} total</span>}
+                    </div>
+                    <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                      <table className="ci-tbl">
+                        <thead><tr><th>Date</th><th>Type</th><th>Product / Species</th><th>Rate</th><th>Volume / Area</th><th>Applicator</th><th>Cost</th><th></th></tr></thead>
+                        <tbody>{[...g.records].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(row)}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })
             ):(
               <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
                 <table className="ci-tbl">
                   <thead><tr><th>Date</th><th>Type</th><th>Space</th><th>Product / Species</th><th>Rate</th><th>Volume / Area</th><th>Applicator</th><th>Cost</th><th></th></tr></thead>
-                  <tbody>
-                    {filtered.map(r=>(
-                      <tr key={r.id}>
-                        <td style={{whiteSpace:"nowrap"}}>{fmtD(r.date)}</td>
-                        <td><span className={"ci-pill t-"+r.type}>{INPUT_TYPES.find(t=>t.v===r.type)?.l.split(" ")[0]||r.type}</span></td>
-                        <td>{r.spaceName}</td>
-                        <td style={{fontWeight:500,color:"var(--text)"}}>{r.species||r.product}<br/><span style={{fontSize:10,color:"var(--text-3)"}}>{r.epaRegNum?"EPA#"+r.epaRegNum:r.manufacturer}</span></td>
-                        <td style={{fontSize:11}}>{r.rate&&(r.rate+" "+r.rateUnit)}</td>
-                        <td style={{fontSize:11}}>{r.volumeApplied&&(r.volumeApplied+" "+r.volumeUnit)}{r.areaApplied&&(" / "+r.areaApplied+" sqft")}</td>
-                        <td style={{fontSize:11}}>{r.applicatorName||"—"}{r.applicatorLicenseNum&&<br/>}{r.applicatorLicenseNum&&<span style={{fontSize:9,color:"var(--text-3)"}}>{r.applicatorLicenseNum}</span>}</td>
-                        <td>{fmtC(r.totalCost)}</td>
-                        <td><div style={{display:"flex",gap:5}}>
-                          <button className="ci-sm ci-edit" onClick={()=>setForm({...r})}>Edit</button>
-                          <button className="ci-sm ci-del" onClick={()=>remove(r.id)}>✕</button>
-                        </div></td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  <tbody>{filtered.map(row)}</tbody>
                 </table>
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </>
   );

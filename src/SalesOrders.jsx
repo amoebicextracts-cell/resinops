@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import SalesGoalDial from "./SalesGoalDial.jsx";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n){return Number(n||0).toLocaleString();}
@@ -52,31 +53,38 @@ const CSS = `
   .so-num:focus{outline:none;border-color:var(--accent);}
 `;
 
-const EMPTY_ORDER = { customerName:"", customerLicense:"", orderDate:new Date().toISOString().split("T")[0], status:"open", lines:[], notes:"" };
+const EMPTY_ORDER = { customerId:"", customerName:"", customerLicense:"", orderDate:new Date().toISOString().split("T")[0], status:"open", lines:[], notes:"" };
+const NEW_CUSTOMER = "__new";
 
 export default function SalesOrders() {
   const [tab, setTab] = useState("availability");
   const [batches, setBatches] = useState([]);
   const [skus, setSkus] = useState([]);
+  const [customers, setCustomers] = useState([]);
 
   const [presellOverrides, setPresellOverrides] = useState({});
   const [defaultPct, setDefaultPct] = useState(50);
   const [orders, setOrders] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [qcHolds, setQcHolds] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [o, pb, sk, qc]=await Promise.all([
+        const [o, pb, sk, qc, cu, gl]=await Promise.all([
           db.sales_orders.list(),
           db.production_batches.list(),
           db.skus.list(),
           db.qc_tests.list(),
+          db.customers.list(),
+          db.sales_goals.list(),
         ]);
         setOrders(o);
         setBatches(pb.filter(x=>!x.isLinked));
         setSkus(sk);
+        setCustomers(cu);
+        setGoals(gl);
         setQcHolds(new Set(
           qc.filter(t=>t.onHold&&t.batchType==="production"&&t.productionBatchId)
             .map(t=>String(t.productionBatchId))
@@ -87,7 +95,22 @@ export default function SalesOrders() {
     load();
   },[]);
   const [orderForm, setOrderForm] = useState(null);
+  const [goalForm, setGoalForm] = useState(null);
+  const [dialRefresh, setDialRefresh] = useState(0);
   const [err, setErr] = useState("");
+
+  async function saveGoal(){
+    if(!goalForm.periodStart||!goalForm.periodEnd||!goalForm.goalAmount){ setErr("Enter a period and goal amount."); return; }
+    try{
+      const saved=await db.sales_goals.upsert({...goalForm,id:goalForm.id||crypto.randomUUID()});
+      setGoals(p=>{const i=p.findIndex(g=>g.id===saved.id);return i>=0?p.map(g=>g.id===saved.id?saved:g):[...p,saved];});
+      setGoalForm(null);setErr("");setDialRefresh(n=>n+1);
+    }catch(e){ setErr("Could not save goal: "+(e.message||e)); }
+  }
+  async function removeGoal(id){
+    try{ await db.sales_goals.delete(id); setGoals(p=>p.filter(g=>g.id!==id)); setDialRefresh(n=>n+1); }
+    catch(e){ setErr("Could not delete goal: "+(e.message||e)); }
+  }
 
 
   // ── Availability math ──────────────────────────────────────────────────
@@ -125,7 +148,7 @@ export default function SalesOrders() {
   function removeLine(i) { setOrderForm(f=>({...f, lines:f.lines.filter((_,idx)=>idx!==i)})); }
 
   async function saveOrder() {
-    if (!orderForm.customerName.trim()) { setErr("Enter a customer name."); return; }
+    if (!orderForm.customerName.trim()) { setErr("Enter or select a customer."); return; }
     if (!orderForm.lines.length) { setErr("Add at least one line item."); return; }
     for (const l of orderForm.lines) {
       if (!l.batchId || !l.qty || parseInt(l.qty)<=0) { setErr("Every line needs a batch and quantity."); return; }
@@ -136,11 +159,20 @@ export default function SalesOrders() {
       }
     }
     try{
-      const saved = await db.sales_orders.upsert(orderForm);
+      let toSave = orderForm;
+      // Picking "+ New customer…" doesn't create the account until save —
+      // create it now so the order links to a real customer_id instead of
+      // staying free-text-only.
+      if (!toSave.customerId && toSave.customerName.trim()) {
+        const newCust = await db.customers.upsert({id:crypto.randomUUID(),name:toSave.customerName.trim(),licenseNumber:toSave.customerLicense,accountType:"dispensary",pipelineStage:"active"});
+        setCustomers(p=>[...p,newCust]);
+        toSave = {...toSave, customerId:newCust.id};
+      }
+      const saved = await db.sales_orders.upsert(toSave);
       const isEdit = orders.some(o=>o.id===saved.id);
       if (isEdit) setOrders(p=>p.map(o=>o.id===saved.id?saved:o));
       else setOrders(p=>[...p,saved]);
-      setOrderForm(null); setErr("");
+      setOrderForm(null); setErr(""); setDialRefresh(n=>n+1);
     }catch(e){ setErr("Could not save: "+(e.message||e)); }
   }
   async function setOrderStatus(id, status) {
@@ -149,12 +181,14 @@ export default function SalesOrders() {
     try{
       const saved = await db.sales_orders.upsert({...order, status});
       setOrders(p=>p.map(o=>o.id===id?saved:o));
+      setDialRefresh(n=>n+1);
     }catch(e){ setErr("Could not update status: "+(e.message||e)); }
   }
   async function removeOrder(id) {
     try{
       await db.sales_orders.delete(id);
       setOrders(p=>p.filter(o=>o.id!==id));
+      setDialRefresh(n=>n+1);
     }catch(e){ setErr("Could not delete: "+(e.message||e)); }
   }
 
@@ -174,6 +208,8 @@ export default function SalesOrders() {
           <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>Sales & Pre-Order Availability</div>
           <div style={{fontSize:12,color:"var(--text-3)"}}>Track sellable inventory against the production schedule and manage holds</div>
         </div>
+
+        <SalesGoalDial refreshToken={dialRefresh} />
 
         {/* Revenue pipeline summary */}
         {orders.length>0&&(()=>{
@@ -207,7 +243,7 @@ export default function SalesOrders() {
         })()}
 
         <div className="so-tabs">
-          {[["availability","📋 Availability Board"],["orders","🧾 Orders & Holds"]].map(([v,l])=>(
+          {[["availability","📋 Availability Board"],["orders","🧾 Orders & Holds"],["goals","🎯 Goals"]].map(([v,l])=>(
             <button key={v} className={"so-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -273,10 +309,27 @@ export default function SalesOrders() {
 
               {orderForm && (
                 <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                    <div><label className="so-lbl">Customer / dispensary name</label><input className="so-inp" value={orderForm.customerName} onChange={e=>setOrderForm(f=>({...f,customerName:e.target.value}))} /></div>
-                    <div><label className="so-lbl">Customer license #</label><input className="so-inp" value={orderForm.customerLicense} onChange={e=>setOrderForm(f=>({...f,customerLicense:e.target.value}))} placeholder="OCM-..." /></div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div>
+                      <label className="so-lbl">Customer account</label>
+                      <select className="so-sel" value={orderForm.customerId||(orderForm.customerName?NEW_CUSTOMER:"")} onChange={e=>{
+                        const v=e.target.value;
+                        if(v===NEW_CUSTOMER) setOrderForm(f=>({...f,customerId:"",customerName:"",customerLicense:""}));
+                        else{
+                          const c=customers.find(x=>x.id===v);
+                          setOrderForm(f=>({...f,customerId:v,customerName:c?.name||"",customerLicense:c?.licenseNumber||""}));
+                        }
+                      }}>
+                        <option value="">— Select account —</option>
+                        {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                        <option value={NEW_CUSTOMER}>+ New customer…</option>
+                      </select>
+                    </div>
                     <div><label className="so-lbl">Order date</label><input type="date" className="so-inp" value={orderForm.orderDate} onChange={e=>setOrderForm(f=>({...f,orderDate:e.target.value}))} /></div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div><label className="so-lbl">Customer name{!orderForm.customerId&&" (new account)"}</label><input className="so-inp" value={orderForm.customerName} disabled={!!orderForm.customerId} style={orderForm.customerId?{opacity:0.7}:undefined} onChange={e=>setOrderForm(f=>({...f,customerName:e.target.value}))} /></div>
+                    <div><label className="so-lbl">License #</label><input className="so-inp" value={orderForm.customerLicense} disabled={!!orderForm.customerId} style={orderForm.customerId?{opacity:0.7}:undefined} onChange={e=>setOrderForm(f=>({...f,customerLicense:e.target.value}))} placeholder="OCM-..." /></div>
                   </div>
 
                   <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Line Items</div>
@@ -345,6 +398,55 @@ export default function SalesOrders() {
               )}
             </div>
           </>
+        )}
+
+        {/* ── GOALS ── */}
+        {tab==="goals" && (
+          <div className="so-card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:12,color:"var(--text-2)"}}>Set a revenue goal for a period. The dial at the top tracks confirmed Sales Orders revenue against whichever goal's period includes today.</div>
+              {!goalForm && <button className="so-btn so-primary" onClick={()=>setGoalForm({periodStart:new Date().toISOString().split("T")[0],periodEnd:new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split("T")[0],goalAmount:"",notes:""})}>+ Set goal</button>}
+            </div>
+
+            {goalForm && (
+              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="so-lbl">Period start</label><input type="date" className="so-inp" value={goalForm.periodStart} onChange={e=>setGoalForm(f=>({...f,periodStart:e.target.value}))} /></div>
+                  <div><label className="so-lbl">Period end</label><input type="date" className="so-inp" value={goalForm.periodEnd} onChange={e=>setGoalForm(f=>({...f,periodEnd:e.target.value}))} /></div>
+                  <div><label className="so-lbl">Goal amount ($)</label><input type="number" min="0" step="100" className="so-inp" value={goalForm.goalAmount} onChange={e=>setGoalForm(f=>({...f,goalAmount:e.target.value}))} /></div>
+                </div>
+                <div style={{marginBottom:10}}><label className="so-lbl">Notes</label><input className="so-inp" value={goalForm.notes} onChange={e=>setGoalForm(f=>({...f,notes:e.target.value}))} /></div>
+                {err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="so-btn so-primary" onClick={saveGoal}>Save goal</button>
+                  <button className="so-btn so-secondary" onClick={()=>{setGoalForm(null);setErr("");}}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {goals.length===0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No goals set yet.</div>
+            ) : (
+              <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                <table className="so-tbl">
+                  <thead><tr><th>Period</th><th>Goal</th><th>Notes</th><th></th></tr></thead>
+                  <tbody>
+                    {[...goals].sort((a,b)=>new Date(b.periodStart)-new Date(a.periodStart)).map(g=>(
+                      <tr key={g.id}>
+                        <td>{fmtD(g.periodStart)} – {fmtD(g.periodEnd)}</td>
+                        <td style={{color:"var(--accent-2)",fontWeight:500}}>{fmtC(g.goalAmount)}</td>
+                        <td style={{fontSize:11,color:"var(--text-3)"}}>{g.notes||"—"}</td>
+                        <td><div style={{display:"flex",gap:5}}>
+                          <button className="so-sm so-edit" onClick={()=>setGoalForm({...g})}>Edit</button>
+                          <button className="so-sm so-del" onClick={()=>removeGoal(g.id)}>✕</button>
+                        </div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </>

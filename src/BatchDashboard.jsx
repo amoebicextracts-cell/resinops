@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { SUBS } from "./ProductionScheduler.jsx";
+import { bookedRevenueForBatch } from "./lib/revenue";
+import { resolveBom, lineQty } from "./lib/inventory";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n,d=1){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
@@ -34,12 +36,14 @@ export default function BatchDashboard(){
   const [qcHolds, setQcHolds] = useState([]);
   const [cultivationCosts, setCultivationCosts] = useState([]);
   const [cultInputs, setCultInputs] = useState([]);
+  const [salesOrders, setSalesOrders] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, sk, b, lt, ci, qc]=await Promise.all([
+        const [pb, hb, sk, b, lt, ci, qc, so, inv]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.skus.list(),
@@ -47,7 +51,11 @@ export default function BatchDashboard(){
           db.labor_types.list(),
           db.cultivation_inputs.list(),
           db.qc_tests.list(),
+          db.sales_orders.list(),
+          db.inventory_items.list(),
         ]);
+        setSalesOrders(so);
+        setItems(inv);
         setQcHolds(qc.filter(t=>t.onHold).map(t=>String(t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId)));
         setProdBatches(pb.filter(x=>!x.isLinked));
         setHarvestBatches(hb.map(h=>({
@@ -75,9 +83,18 @@ export default function BatchDashboard(){
     const sku=skus.find(s=>s.product&&catLabel&&s.product.toLowerCase().includes((catLabel||"").toLowerCase().split(" ")[0]));
     return sku?parseFloat(sku.price)||0:0;
   }
-  function getBomCost(catLabel){
-    const bom=boms.find(b=>b.product&&catLabel&&b.product.toLowerCase().includes((catLabel||"").toLowerCase().split(" ")[0]));
-    return bom?(bom.items||[]).reduce((a,i)=>a+(parseFloat(i.unitCost)||0)*(parseFloat(i.qty)||0),0):0;
+  // Real BOM resolution (category/subcategory + real inventory_items ids),
+  // same as Finance.jsx's calcBatchCOGS — replaces the old fuzzy
+  // product-name string match against a BOM shape nothing else in the
+  // app ever wrote (boms.product/items[].unitCost).
+  function materialCostForBatch(batch){
+    const bom=resolveBom(batch,boms);
+    if(!bom) return 0;
+    return (bom.items||[]).reduce((a,line)=>{
+      const item=items.find(x=>x.id===line.itemId);
+      if(!item) return a;
+      return a + lineQty(line,batch)*(item.lastCost||0);
+    },0);
   }
   function extractUnits(yieldEst){
     if(!yieldEst) return 0;
@@ -90,7 +107,10 @@ export default function BatchDashboard(){
     return m?parseFloat(m[1]):0;
   }
 
-  // Build enriched batch rows
+  // Build enriched batch rows. Revenue splits into two parts: bookedRevenue
+  // (real, from Sales Orders — the source of truth) plus projectedRevenue
+  // for whatever's left unsold (units - bookedUnits, at SKU price) — never
+  // blended into one undifferentiated "estimate" the way this used to work.
   const rows=prodBatches.map(b=>{
     // subLabel is never persisted (derived display string, same as
     // ProductionScheduler.jsx's own list rendering) — derive it here
@@ -98,9 +118,11 @@ export default function BatchDashboard(){
     const subLabel=SUBS[b.cat]?.find(s=>s.v===b.sub)?.l||"";
     const units=extractUnits(b.yieldEst)||extractGrams(b.yieldEst)/1000;
     const price=getSkuPrice(b.catLabel||b.cat,subLabel);
-    const bomCost=getBomCost(b.catLabel||b.cat);
-    const estimatedRevenue=units*price;
-    const materialCost=bomCost*units;
+    const materialCost=materialCostForBatch(b);
+    const booked=bookedRevenueForBatch(b.id,salesOrders);
+    const remainingUnits=Math.max(0,units-booked.units);
+    const projectedRevenue=remainingUnits*price;
+    const estimatedRevenue=booked.revenue+projectedRevenue;
     const laborCost=0;
     const testingCost=b.cat==="extract"?450:350;
     const totalCOGS=materialCost+laborCost+testingCost;
@@ -108,7 +130,7 @@ export default function BatchDashboard(){
     const margin=estimatedRevenue>0?(grossProfit/estimatedRevenue)*100:null;
     const onHold=qcHolds.includes(String(b.id));
     const hasActual=!!b.actual_yield;
-    return{...b,subLabel,units,price,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual,bomCost};
+    return{...b,subLabel,units,price,bookedRevenue:booked.revenue,bookedUnits:booked.units,projectedRevenue,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual};
   });
 
   const harvestRows=harvestBatches.map(b=>{
@@ -123,6 +145,8 @@ export default function BatchDashboard(){
   const filtered=filter==="all"?rows:filter==="hold"?rows.filter(r=>r.onHold):rows.filter(r=>r.catLabel?.toLowerCase().includes(filter));
 
   const totalRev=rows.reduce((a,r)=>a+r.estimatedRevenue,0);
+  const totalBooked=rows.reduce((a,r)=>a+r.bookedRevenue,0);
+  const totalProjected=rows.reduce((a,r)=>a+r.projectedRevenue,0);
   const totalCOGS=rows.reduce((a,r)=>a+r.totalCOGS,0);
   const totalGP=totalRev-totalCOGS;
   const holdCount=rows.filter(r=>r.onHold).length;
@@ -145,8 +169,9 @@ export default function BatchDashboard(){
           )}
         </div>
 
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-          <div className="bd-stat"><div className="bd-stat-l">Est. total revenue</div><div className="bd-stat-v">{fmtC(totalRev)}</div></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
+          <div className="bd-stat"><div className="bd-stat-l">Booked revenue (real)</div><div className="bd-stat-v">{fmtC(totalBooked)}</div></div>
+          <div className="bd-stat"><div className="bd-stat-l">Projected remaining</div><div className="bd-stat-v" style={{color:"var(--text-2)"}}>{fmtC(totalProjected)}</div></div>
           <div className="bd-stat"><div className="bd-stat-l">Est. total COGS</div><div className="bd-stat-v">{fmtC(totalCOGS)}</div></div>
           <div className="bd-stat"><div className="bd-stat-l">Est. gross profit</div><div className="bd-stat-v" style={{color:totalGP>=0?"var(--accent-2)":"var(--danger)"}}>{fmtC(totalGP)}</div></div>
           <div className="bd-stat"><div className="bd-stat-l">QC-held batches</div><div className="bd-stat-v" style={{color:holdCount>0?"var(--danger)":"var(--accent-2)"}}>{holdCount}</div></div>
@@ -166,7 +191,7 @@ export default function BatchDashboard(){
           {filtered.length===0?(<div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>No production batches. Create batches in the Production Scheduler to see margin data here.</div>):(
             <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
               <table className="bd-tbl">
-                <thead><tr><th>Batch</th><th>Product</th><th>Est. Units / Qty</th><th>Unit Price</th><th>Est. Revenue</th><th>Est. COGS</th><th>Gross Profit</th><th>Margin</th><th>Status</th></tr></thead>
+                <thead><tr><th>Batch</th><th>Product</th><th>Est. Units / Qty</th><th>Unit Price</th><th>Revenue (Booked / Projected)</th><th>Est. COGS</th><th>Gross Profit</th><th>Margin</th><th>Status</th></tr></thead>
                 <tbody>
                   {filtered.map(r=>(
                     <tr key={r.id} style={{opacity:r.onHold?0.7:1}}>
@@ -174,7 +199,11 @@ export default function BatchDashboard(){
                       <td style={{fontSize:11}}>{r.catLabel}{r.subLabel?" / "+r.subLabel:""}</td>
                       <td>{r.units?fmtN(r.units,0):"—"}</td>
                       <td>{r.price?fmtC(r.price):<span style={{color:"var(--text-3)",fontSize:11}}>Set SKU price</span>}</td>
-                      <td style={{fontWeight:500,color:"var(--accent-2)"}}>{r.estimatedRevenue>0?fmtC(r.estimatedRevenue):"—"}</td>
+                      <td style={{fontWeight:500}}>
+                        {r.bookedRevenue>0&&<div style={{color:"var(--accent-2)"}}>{fmtC(r.bookedRevenue)} <span style={{fontSize:9,fontWeight:600,color:"var(--text-3)"}}>booked</span></div>}
+                        {r.projectedRevenue>0&&<div style={{color:"var(--text-3)",fontWeight:400,fontSize:11}}>{fmtC(r.projectedRevenue)} projected</div>}
+                        {r.bookedRevenue===0&&r.projectedRevenue===0&&"—"}
+                      </td>
                       <td>{r.totalCOGS>0?fmtC(r.totalCOGS):<span style={{color:"var(--text-3)",fontSize:11}}>Set BOM</span>}</td>
                       <td style={{color:r.grossProfit>=0?"var(--accent-2)":"var(--danger)",fontWeight:500}}>{r.estimatedRevenue>0?fmtC(r.grossProfit):"—"}</td>
                       <td>

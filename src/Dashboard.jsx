@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
+import SalesGoalDial from "./SalesGoalDial.jsx";
 
 function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -253,6 +254,8 @@ export default function Dashboard({ onNavigate }){
           </div>
           <div style={{fontSize:12,color:"var(--text-3)"}}>{today.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}{totalAlerts>0&&<span style={{marginLeft:10,fontWeight:600,color:"var(--danger)"}}>• {totalAlerts} item{totalAlerts!==1?"s":""} need attention</span>}</div>
         </div>
+
+        {settings.facilityName&&<SalesGoalDial compact />}
 
         {/* Empty state — show when no meaningful data exists */}
         {!settings.facilityName&&salesOrders.length===0&&harvestBatches.length===0&&employees.length===0&&(

@@ -10,7 +10,7 @@
 const SCHEMAS = {
   strains: ['id','created_at','updated_at','facility_id','name','type','lineage','breeder','thca_avg','thc_avg','cbd_avg','terps_avg','dominant_terps','veg_weeks','flower_weeks','yield_g_sqft','aroma','flavor','effects','ai_description','notes','status','linked_pheno_hunt_id','metrc_id'],
   harvest_batches: ['id','created_at','updated_at','facility_id','created_by','batch_number','strain_name','grow_space_id','room_name','harvest_date','plant_count','wet_weight_g','total_dry_weight_g','status','grade_aa_g','grade_a_g','grade_b_g','grade_c_g','trim_g','waste_g','trim_aa','trim_a','trim_b','trim_c','coa_sample_id','lab_name','thca_pct','metrc_tag','metrc_plant_batch','notes','steps','grades','trim_methods','fresh_frozen_splits','is_fresh_frozen','split_from_batch_id','buck_machine','buck_throughput','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day'],
-  production_batches: ['id','created_at','updated_at','facility_id','created_by','name','category','subcategory','cat_label','strains','scheduled_date','status','input_amt','input_unit','input_material','input_potency_pct','harvest_batch_id','harvest_grade','yield_est','actual_yield','packaging_container','packaging_units_per_pack','vape_hardware','vape_input_type','vape_start_potency','vape_input_terp_pct','target_blend_thc','vape_terp_pct','additive_thc','additive_terp_pct','piece_weight_g','cb_blend_components','cb_targets','cb_blend_result','distillation_apparatus','linked_coc_ids','is_linked','linked_to','metrc_tag','steps','formulation_result','notes','wash_events','freeze_dry_cycles','press_runs','cold_cure_batches','dewax_passes','purge_runs','diamond_sauce_batches','input_material_type','pkg_idx','stem_waste_pct','moisture_loss_pct','fill_waste_pct','cone_weight','pack_size','overfill_g','sauce_sep_method','extract_input_type','tinc_bottle_size','tinc_potency_mg_per_ml','kief_sift','kief_40_pct','kief_100_pct','cannabinoids','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day','preroll_machine','preroll_throughput','packaging_type','packaging_staff','packaging_baseline','vape_terp_source','vape_terp_src_potency','s2s_system','s2s_source_tags','s2s_output_tags','input_source','unit_price'],
+  production_batches: ['id','created_at','updated_at','facility_id','created_by','name','category','subcategory','cat_label','strains','scheduled_date','status','input_amt','input_unit','input_material','input_potency_pct','harvest_batch_id','harvest_grade','yield_est','actual_yield','packaging_container','packaging_units_per_pack','vape_hardware','vape_input_type','vape_start_potency','vape_input_terp_pct','target_blend_thc','vape_terp_pct','additive_thc','additive_terp_pct','piece_weight_g','cb_blend_components','cb_targets','cb_blend_result','distillation_apparatus','linked_coc_ids','is_linked','linked_to','metrc_tag','steps','formulation_result','notes','wash_events','freeze_dry_cycles','press_runs','cold_cure_batches','dewax_passes','purge_runs','diamond_sauce_batches','input_material_type','pkg_idx','stem_waste_pct','moisture_loss_pct','fill_waste_pct','cone_weight','pack_size','overfill_g','sauce_sep_method','extract_input_type','tinc_bottle_size','tinc_potency_mg_per_ml','kief_sift','kief_40_pct','kief_100_pct','cannabinoids','trim_type','trim_machine','trim_throughput','trimmer_count','grams_per_trimmer_day','preroll_machine','preroll_throughput','packaging_type','packaging_staff','packaging_baseline','vape_terp_source','vape_terp_src_potency','s2s_system','s2s_source_tags','s2s_output_tags','input_source','unit_price','packaging_item_id'],
   qc_tests: ['id','created_at','updated_at','facility_id','strain_name','sample_id','harvest_batch_id','production_batch_id','batch_type','lab_name','date_submitted','date_reported','thca','cbd','thc','total_thc','cbg','cbn','cbc','thcv','total_terpenes','myrcene','caryophyllene','limonene','linalool','humulene','ocimene','terpinolene','pinene','overall_pass','pesticides_pass','heavy_metals_pass','microbials_pass','foreign_matter','water_activity','moisture_content','tyam','tab','on_hold','hold_reason','notes','batch_name','submitted_date','expected_date','received_date','cbda','total_cannabinoids','bisabolol','valencene','other_terps','aspergillus','salmonella','stec','ecoli','microbial_pass'],
   grow_rooms: ['id','created_at','updated_at','facility_id','created_by','name','room_type','sqft','canopy_sqft','max_plants','light_type','light_count','light_watts','sensor_id','status','reset_days','notes','last_harvest_date','metrc_id'],
   grow_spaces: ['id','created_at','updated_at','facility_id','created_by','room_id','room_name','strains','clone_date','veg_weeks','flower_weeks','flip_date','projected_harvest','plant_count','status','notes'],
@@ -28,8 +28,8 @@ const SCHEMAS = {
   gmp_shifts: ['id','created_at','facility_id','shift_date','department','supervisor','notes','entries'],
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],
   skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active','channel'],
-  boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines'],
-  sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id','metrc_transfer_id'],
+  boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines','category','subcategory'],
+  sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_id','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id','metrc_transfer_id'],
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','notes'],
   employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes','metrc_license_number','metrc_license_expiry'],
@@ -45,6 +45,8 @@ const SCHEMAS = {
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
   metrc_transfer_manifests: ['id','created_at','updated_at','facility_id','created_by','sales_order_id','destination_facility_name','destination_license_number','transfer_type','planned_route','estimated_departure','estimated_arrival','driver_name','driver_license_number','vehicle_make','vehicle_model','vehicle_license_plate','phone_for_questions','packages','metrc_transfer_id','status','notes'],
   ipm_log: ['id','created_at','updated_at','facility_id','created_by','entry_type','room_name','grow_space_id','batch_ids','scheduled_date','performed_date','status','target_pest','species','release_rate','release_unit','pest_count','threshold_exceeded','action_taken','performed_by','notes'],
+  customers: ['id','created_at','updated_at','facility_id','created_by','name','license_number','contact_name','phone','email','address','account_type','pipeline_stage','notes'],
+  sales_goals: ['id','created_at','updated_at','facility_id','created_by','period_start','period_end','goal_amount','notes'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -187,6 +189,7 @@ const FIELD_OVERRIDES = {
     s2sOutputTags: 's2s_output_tags',
     inputSource: 'input_source',
     unitPrice: 'unit_price',
+    packagingItemId: 'packaging_item_id',
   },
   qc_tests: {
     strainName: 'strain_name',
@@ -447,6 +450,7 @@ const FIELD_OVERRIDES = {
     items: 'lines',
   },
   sales_orders: {
+    customerId: 'customer_id',
     customerName: 'customer_name',
     customerLicense: 'customer_license',
     orderDate: 'order_date',
@@ -600,6 +604,17 @@ const FIELD_OVERRIDES = {
     thresholdExceeded: 'threshold_exceeded',
     actionTaken: 'action_taken',
     performedBy: 'performed_by',
+  },
+  customers: {
+    licenseNumber: 'license_number',
+    contactName: 'contact_name',
+    accountType: 'account_type',
+    pipelineStage: 'pipeline_stage',
+  },
+  sales_goals: {
+    periodStart: 'period_start',
+    periodEnd: 'period_end',
+    goalAmount: 'goal_amount',
   },
 };
 

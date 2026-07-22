@@ -54,6 +54,7 @@ import Equipment from "./Equipment.jsx";
 import Maintenance from "./Maintenance.jsx";
 import SalesOrders from "./SalesOrders.jsx";
 import IPMTracker from "./IPMTracker.jsx";
+import Customers from "./Customers.jsx";
 
 // ── System Prompts ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPTS = {
@@ -411,6 +412,14 @@ const MODULES = [
     icon: "🧾",
     available: true,
     description: "Track sellable inventory against the production schedule and manage holds",
+    isScheduler: true,
+  },
+  {
+    id: "customers",
+    label: "Customers",
+    icon: "🏢",
+    available: true,
+    description: "Dispensary/wholesale accounts, contact info, pipeline stage, and order history",
     isScheduler: true,
   },
   {
@@ -1287,7 +1296,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","data-manager","facility-settings"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings"].includes(activeModule);
   const isAIChat = activeModule === "ai-chat";
 
   const showWelcome = messages.length === 0;
@@ -1486,6 +1495,7 @@ export default function ResinOps() {
             {activeModule === "maintenance" ? <Maintenance /> : null}
             {activeModule === "ipm-tracker" ? <IPMTracker /> : null}
             {activeModule === "sales" ? <SalesOrders /> : null}
+            {activeModule === "customers" ? <Customers /> : null}
           </ErrorBoundary>
 
           <div className="chat-area" style={{display: (isSchedulerActive && !isAIChat) ? "none" : undefined}}>

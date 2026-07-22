@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
+import { bookedRevenueForBatch } from "./lib/revenue";
+import { deductForBatch } from "./lib/inventory";
+import { CATS, SUBS } from "./ProductionScheduler.jsx";
+
+const QTY_TYPES = [
+  {v:"per_unit_output",l:"per output unit"},
+  {v:"per_lb_input",l:"per lb input"},
+  {v:"per_batch",l:"per batch (flat)"},
+];
 
 const fmtC = n => "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN = n => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -82,7 +91,7 @@ const CSS = `
 // ── COGS calculator for a batch ────────────────────────────────────────────
 function calcBatchCOGS(batch, boms, cogsRecords, items, laborTypes, facility) {
   const record = cogsRecords.find(r => r.batchId === batch.id) || {};
-  const bom = boms.find(b => batch.cat && b.catSub === batch.cat + "|" + (batch.sub || "")) || null;
+  const bom = boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + (batch.sub || "") || (b.category === batch.cat && (b.subcategory || "") === (batch.sub || "")))) || null;
   const inputLbs = (parseFloat(batch.inputAmt)||0) * (batch.unit==="lb"||batch.unit==="lbs"?1:batch.unit==="kg"?2.205:1/453.592);
   // Extract unit count from yieldEst string
   const unitMatch = batch.yieldEst?.match(/[\d,]+(?=\s*×|units|cones|carts|AIOs|bottles)/);
@@ -153,12 +162,13 @@ export default function Finance() {
   const [batches, setBatches] = useState([]);
   const [spaces, setSpaces] = useState([]);
   const [items, setItems] = useState([]);
+  const [salesOrders, setSalesOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -167,6 +177,7 @@ export default function Finance() {
           db.labor_types.list(),
           db.cogs_records.list(),
           db.cultivation_costs.list(),
+          db.sales_orders.list(),
         ]);
         setBoms(b);
         setSkus(sk);
@@ -176,6 +187,7 @@ export default function Finance() {
         setLaborTypes(lt);
         setCogsRecs(cr);
         setCultCosts(cc);
+        setSalesOrders(so);
         const fid = getCurrentFacility();
         if(fid && supabase){
           const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
@@ -193,6 +205,28 @@ export default function Finance() {
   const [editCogs, setEditCogs] = useState(null); // batchId being edited
   const [editSku, setEditSku]   = useState(null);
   const [editCult, setEditCult] = useState(null);
+  const [bomForm, setBomForm]   = useState(null);
+
+  function openAddBom(){ setBomForm({id:crypto.randomUUID(),name:"",category:CATS[0].v,subcategory:"",testFee:"350",items:[]}); setErr2(""); }
+  function openEditBom(bom){ setBomForm({...bom,testFee:String(bom.testFee||350),items:(bom.items||[]).map(i=>({...i}))}); setErr2(""); }
+  function addBomLine(){ setBomForm(f=>({...f,items:[...f.items,{itemId:"",qty:"1",qtyType:"per_unit_output",note:""}]})); }
+  function setBomLine(i,k,v){ setBomForm(f=>({...f,items:f.items.map((l,idx)=>idx===i?{...l,[k]:v}:l)})); }
+  function removeBomLine(i){ setBomForm(f=>({...f,items:f.items.filter((_,idx)=>idx!==i)})); }
+  const [errBom, setErr2] = useState("");
+  async function saveBom(){
+    if(!bomForm.name.trim()){ setErr2("Enter a BOM name."); return; }
+    const toSave = {...bomForm, name:bomForm.name.trim(), testFee:parseFloat(bomForm.testFee)||0,
+      items: bomForm.items.map(l=>({...l, qty:parseFloat(l.qty)||0}))};
+    try{
+      const saved = await db.boms.upsert(toSave);
+      setBoms(p=>{const i=p.findIndex(b=>b.id===saved.id);return i>=0?p.map(b=>b.id===saved.id?saved:b):[...p,saved];});
+      setBomForm(null); setErr2("");
+    }catch(e){ setErr2("Save failed: "+e.message); }
+  }
+  async function removeBom(id){
+    try{ await db.boms.delete(id); setBoms(p=>p.filter(b=>b.id!==id)); }
+    catch(e){ console.error("BOM delete failed:",e); }
+  }
 
   // Debounced persistence: keep UI updates instant (every keystroke updates
   // local state so COGS/P&L figures recalculate live) while collapsing the
@@ -204,6 +238,21 @@ export default function Finance() {
       try { await db[table].upsert(record); }
       catch(e){ console.error(table+" save failed:", e); }
     }, 600);
+  }
+
+  const [deductMsg, setDeductMsg] = useState({});
+  async function deductNow(batch){
+    const { updatedItems, shortfalls, bom } = deductForBatch(batch, allBoms, items);
+    if (!bom) { setDeductMsg(p=>({...p,[batch.id]:"No BOM matches this batch's category/subcategory — nothing to deduct."})); return; }
+    try{
+      if (updatedItems.length) {
+        const saved = await Promise.all(updatedItems.map(it=>db.inventory_items.upsert(it)));
+        setItems(p=>p.map(it=>{ const u=saved.find(s=>s.id===it.id); return u||it; }));
+      }
+      setDeductMsg(p=>({...p,[batch.id]: shortfalls.length
+        ? `⚠ Ran short on: ${shortfalls.map(s=>s.itemName+" ("+s.shortfall.toFixed(1)+" short)").join(", ")}.`
+        : `✓ Deducted per the "${bom.name}" BOM.`}));
+    }catch(e){ setDeductMsg(p=>({...p,[batch.id]:"Deduction failed: "+e.message})); }
   }
 
   function getRecord(batchId) { return cogsRecs.find(r=>r.batchId===batchId)||{}; }
@@ -229,18 +278,25 @@ export default function Finance() {
   const mainBatches = batches.filter(b=>!b.isLinked);
 
   // ── P&L calculation per batch ────────────────────────────────────────────
+  // Revenue defaults from real sales_orders lines booked against this batch
+  // (sales_orders is the source of truth for realized revenue) — manual
+  // unitsSold/revPerUnit entry is only used as a pre-sale estimate before
+  // any order exists, and totalRevOverride always wins as the final
+  // manual escape hatch either way.
   function batchPnL(batch) {
     const cogs = calcBatchCOGS(batch, allBoms, cogsRecs, items, laborTypes, facility);
     const rec  = getRecord(batch.id);
-    const unitsSold = parseInt(rec.unitsSold||0);
+    const booked = bookedRevenueForBatch(batch.id, salesOrders);
+    const hasBookedOrders = booked.units > 0;
+    const unitsSold = hasBookedOrders ? booked.units : parseInt(rec.unitsSold||0);
     const skuPriceId = rec.skuPriceId;
     const sku   = skus.find(s=>s.id===skuPriceId);
-    const revPerUnit = parseFloat(rec.revPerUnit || sku?.price || 0);
+    const revPerUnit = hasBookedOrders ? (booked.revenue/booked.units) : parseFloat(rec.revPerUnit || sku?.price || 0);
     const totalRevOverride = parseFloat(rec.totalRevOverride||0);
-    const totalRev = totalRevOverride || (revPerUnit * unitsSold);
+    const totalRev = totalRevOverride || (hasBookedOrders ? booked.revenue : (revPerUnit * unitsSold));
     const grossProfit = totalRev - cogs.totalCOGS;
     const grossMargin = totalRev > 0 ? (grossProfit/totalRev*100) : 0;
-    return { ...cogs, unitsSold, revPerUnit, totalRev, totalRevOverride, grossProfit, grossMargin, sku };
+    return { ...cogs, unitsSold, revPerUnit, totalRev, totalRevOverride, grossProfit, grossMargin, sku, hasBookedOrders };
   }
 
   // ── Summary totals ────────────────────────────────────────────────────────
@@ -403,6 +459,11 @@ export default function Finance() {
                         </div>
                       </div>
 
+                      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                        <button className="fin-btn fin-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>deductNow(batch)}>📦 Deduct inventory now</button>
+                        {deductMsg[batch.id] && <span style={{fontSize:11,color:deductMsg[batch.id].startsWith("⚠")?"var(--amber)":deductMsg[batch.id].startsWith("✓")?"var(--accent-2)":"var(--danger)"}}>{deductMsg[batch.id]}</span>}
+                      </div>
+
                       {/* BOM material lines */}
                       {cogs.materialLines.length > 0 && (
                         <div style={{marginTop:10}}>
@@ -456,7 +517,7 @@ export default function Finance() {
             <div className="fin-card">
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Batch P&L</div>
-                <div style={{fontSize:11,color:"var(--text-3)"}}>Enter units sold and revenue to calculate margin</div>
+                <div style={{fontSize:11,color:"var(--text-3)"}}>Units sold/revenue come from real Sales Orders once a batch has bookings — enter a pre-sale estimate manually before that, or override the total directly</div>
               </div>
               {mainBatches.length===0 ? (
                 <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No batches yet.</div>
@@ -476,16 +537,24 @@ export default function Finance() {
                             <td style={{fontWeight:500,color:"var(--text)",whiteSpace:"nowrap"}}>{batch.name}</td>
                             <td style={{fontSize:11,whiteSpace:"nowrap"}}>{batch.catLabel}{batch.subLabel?" — "+batch.subLabel:""}</td>
                             <td>
-                              <input type="number" min="0" style={{width:70,background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:5,color:"var(--text)",fontSize:12,padding:"2px 6px",fontFamily:"monospace"}}
-                                value={rec.unitsSold||""}
-                                placeholder={String(p.estUnits)}
-                                onChange={e=>setRecord(batch.id,{unitsSold:e.target.value})} />
+                              {p.hasBookedOrders ? (
+                                <span title="From real sales orders booked against this batch" style={{fontWeight:500,color:"var(--text)"}}>{p.unitsSold} <span className="pill pill-blue" style={{fontSize:9}}>booked</span></span>
+                              ) : (
+                                <input type="number" min="0" style={{width:70,background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:5,color:"var(--text)",fontSize:12,padding:"2px 6px",fontFamily:"monospace"}}
+                                  value={rec.unitsSold||""}
+                                  placeholder={String(p.estUnits)}
+                                  onChange={e=>setRecord(batch.id,{unitsSold:e.target.value})} />
+                              )}
                             </td>
                             <td>
-                              <input type="number" min="0" step="0.01" style={{width:70,background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:5,color:"var(--text)",fontSize:12,padding:"2px 6px",fontFamily:"monospace"}}
-                                value={rec.revPerUnit||""}
-                                placeholder="0.00"
-                                onChange={e=>setRecord(batch.id,{revPerUnit:e.target.value})} />
+                              {p.hasBookedOrders ? (
+                                <span style={{fontWeight:500,color:"var(--text)"}}>{fmtC(p.revPerUnit)}</span>
+                              ) : (
+                                <input type="number" min="0" step="0.01" style={{width:70,background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:5,color:"var(--text)",fontSize:12,padding:"2px 6px",fontFamily:"monospace"}}
+                                  value={rec.revPerUnit||""}
+                                  placeholder="0.00"
+                                  onChange={e=>setRecord(batch.id,{revPerUnit:e.target.value})} />
+                              )}
                             </td>
                             <td>
                               {p.totalRevOverride ? (
@@ -601,14 +670,66 @@ export default function Finance() {
         {/* ── BOM ── */}
         {tab==="bom" && (
           <div className="fin-card">
-            <div style={{fontSize:12,color:"var(--text-2)",marginBottom:14}}>
-              Bill of Materials defines what inventory is consumed per batch. Default BOMs are pre-loaded — edit to match your actual usage. Quantities can be per batch, per lb of input, or per unit of output.
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{fontSize:12,color:"var(--text-2)",maxWidth:600}}>
+                Bill of Materials defines what inventory is actually consumed per batch — real recipes referencing real inventory items, used both for COGS estimation here and for real stock deduction when a batch is created/completed. Quantities can be per batch, per lb of input, or per unit of output.
+                {!boms.length && <div style={{marginTop:6,color:"var(--amber)"}}>⚠ No saved BOMs yet — showing built-in starter defaults below. Save one to start tracking your real recipes.</div>}
+              </div>
+              {!bomForm && <button className="fin-btn fin-primary" onClick={openAddBom}>+ Add BOM</button>}
             </div>
-            {allBoms.map((bom,bi) => (
+
+            {bomForm && (
+              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="fin-lbl">BOM name</label><input className="fin-inp" value={bomForm.name} onChange={e=>setBomForm(f=>({...f,name:e.target.value}))} placeholder="Whole Flower" /></div>
+                  <div><label className="fin-lbl">Category</label><select className="fin-sel" value={bomForm.category} onChange={e=>setBomForm(f=>({...f,category:e.target.value,subcategory:""}))}>{CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}</select></div>
+                  <div><label className="fin-lbl">Subcategory</label>
+                    {SUBS[bomForm.category]?.length ? (
+                      <select className="fin-sel" value={bomForm.subcategory} onChange={e=>setBomForm(f=>({...f,subcategory:e.target.value}))}>
+                        <option value="">— Any / none —</option>
+                        {SUBS[bomForm.category].map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+                      </select>
+                    ) : (
+                      <input className="fin-inp" value={bomForm.subcategory} disabled style={{opacity:0.6}} placeholder="n/a for this category" />
+                    )}
+                  </div>
+                  <div><label className="fin-lbl">Lab testing fee ($)</label><input type="number" className="fin-inp" value={bomForm.testFee} onChange={e=>setBomForm(f=>({...f,testFee:e.target.value}))} /></div>
+                </div>
+
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Recipe Lines</div>
+                {bomForm.items.map((line,i)=>(
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr auto",gap:8,marginBottom:6,alignItems:"flex-end"}}>
+                    <div><label className="fin-lbl">Inventory item</label><select className="fin-sel" value={line.itemId} onChange={e=>setBomLine(i,"itemId",e.target.value)}><option value="">— Select item —</option>{items.map(it=><option key={it.id} value={it.id}>{it.n}</option>)}</select></div>
+                    <div><label className="fin-lbl">Qty</label><input type="number" step="0.01" className="fin-inp" value={line.qty} onChange={e=>setBomLine(i,"qty",e.target.value)} /></div>
+                    <div><label className="fin-lbl">Per</label><select className="fin-sel" value={line.qtyType} onChange={e=>setBomLine(i,"qtyType",e.target.value)}>{QTY_TYPES.map(q=><option key={q.v} value={q.v}>{q.l}</option>)}</select></div>
+                    <div><label className="fin-lbl">Note</label><input className="fin-inp" value={line.note} onChange={e=>setBomLine(i,"note",e.target.value)} /></div>
+                    <button className="fin-btn fin-sm fin-del" onClick={()=>removeBomLine(i)}>✕</button>
+                  </div>
+                ))}
+                <button className="fin-btn fin-secondary" style={{fontSize:11,padding:"4px 10px",marginTop:4}} onClick={addBomLine}>+ Add line</button>
+
+                {errBom && <div style={{fontSize:12,color:"var(--danger)",marginTop:10}}>{errBom}</div>}
+                <div style={{display:"flex",gap:8,marginTop:12}}>
+                  <button className="fin-btn fin-primary" onClick={saveBom}>Save BOM</button>
+                  <button className="fin-btn fin-secondary" onClick={()=>setBomForm(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {allBoms.map((bom) => (
               <div key={bom.id} style={{border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{bom.name}</div>
-                  <div style={{fontSize:11,color:"var(--text-3)"}}>Default testing fee: {fmtC(bom.testFee)}</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{bom.name}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{bom.category||bom.catSub?.split("|")[0]}{(bom.subcategory||bom.catSub?.split("|")[1])?" / "+(bom.subcategory||bom.catSub?.split("|")[1]):""}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <div style={{fontSize:11,color:"var(--text-3)"}}>Testing fee: {fmtC(bom.testFee)}</div>
+                    {boms.length>0 && <>
+                      <button className="fin-btn fin-sm fin-edit" onClick={()=>openEditBom(bom)}>Edit</button>
+                      <button className="fin-btn fin-sm fin-del" onClick={()=>removeBom(bom.id)}>✕</button>
+                    </>}
+                  </div>
                 </div>
                 {bom.items.length===0 ? (
                   <div style={{fontSize:12,color:"var(--text-3)"}}>No BOM lines defined.</div>
@@ -623,7 +744,7 @@ export default function Finance() {
                             <tr key={li}>
                               <td style={{color:"var(--text)"}}>{item?.n||line.itemId}</td>
                               <td>{fmtN(line.qty)} {item?.uom}</td>
-                              <td style={{fontSize:11,color:"var(--text-3)"}}>{line.qtyType==="per_unit_output"?"per output unit":line.qtyType==="per_lb_input"?"per lb input":"per batch"}</td>
+                              <td style={{fontSize:11,color:"var(--text-3)"}}>{QTY_TYPES.find(q=>q.v===line.qtyType)?.l||"per batch"}</td>
                               <td style={{fontSize:11,color:"var(--text-3)"}}>{line.note}</td>
                             </tr>
                           );
@@ -634,9 +755,11 @@ export default function Finance() {
                 )}
               </div>
             ))}
-            <div style={{fontSize:12,color:"var(--text-3)",marginTop:8}}>
-              Full BOM editing (add/remove lines, custom BOMs per product type) coming in the next update.
-            </div>
+            {!boms.length && (
+              <div style={{fontSize:11,color:"var(--text-3)",marginTop:8}}>
+                These starter BOMs aren't saved yet — click "+ Add BOM" to create your own real, editable recipes (they'll replace these defaults once you save at least one).
+              </div>
+            )}
           </div>
         )}
 

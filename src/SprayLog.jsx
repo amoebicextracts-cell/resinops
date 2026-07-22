@@ -89,6 +89,7 @@ export default function SprayLog(){
 
   const [form,setForm]=useState(null);
   const [filterSpace,setFilterSpace]=useState("");
+  const [groupByCycle,setGroupByCycle]=useState(true);
   const [err,setErr]=useState("");
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -320,13 +321,47 @@ export default function SprayLog(){
           </div>
         )}
 
-        {!form&&(
+        {!form&&(()=>{
+          function row(r){
+            const phiActive=r.phi&&r.date&&(()=>{const e=new Date(r.date);e.setDate(e.getDate()+parseInt(r.phi));return e>new Date();})();
+            return(
+              <tr key={r.id} style={{background:phiActive?"rgba(200,150,58,0.04)":""}}>
+                <td style={{whiteSpace:"nowrap",fontWeight:500,color:"var(--text)"}}>{fmtD(r.date)}</td>
+                {!groupByCycle&&<td style={{fontSize:11}}>{r.spaceName||"—"}</td>}
+                <td style={{fontWeight:500,color:"var(--text)"}}>{r.product}<br/><span style={{fontSize:10,color:"var(--text-3)"}}>{r.manufacturer}</span></td>
+                <td style={{fontSize:11,fontFamily:"monospace"}}>{r.epaRegNum||"—"}</td>
+                <td style={{fontSize:11}}>{r.rate&&r.rateUnit?r.rate+" "+r.rateUnit:"—"}</td>
+                <td style={{fontSize:11}}>{r.volumeApplied&&r.volumeUnit?r.volumeApplied+" "+r.volumeUnit:"—"}</td>
+                <td style={{fontSize:11}}>{r.areaApplied||"—"}</td>
+                <td style={{fontSize:11}}>{r.targetPest||"—"}</td>
+                <td style={{fontSize:11}}>{r.rei?r.rei+"h":"—"}</td>
+                <td style={{fontSize:11}}>{r.phi?<span style={{color:phiActive?"var(--amber)":"var(--text-3)",fontWeight:phiActive?700:400}}>{r.phi+"d"}{phiActive?" ⚠":""}</span>:"—"}</td>
+                <td style={{fontSize:11}}>{r.applicatorName||"—"}<br/><span style={{fontSize:9,color:"var(--text-3)"}}>{r.applicatorLicenseNum}</span></td>
+                <td style={{fontSize:11}}>{r.weatherTemp?r.weatherTemp+"°F":""}{r.weatherWind?" "+r.weatherWind+"mph":""}{r.weatherHumidity?" "+r.weatherHumidity+"%RH":""}</td>
+                <td><div style={{display:"flex",gap:5}}>
+                  <button className="sl-sm sl-edit" onClick={()=>setForm({...r})}>Edit</button>
+                  <button className="sl-sm sl-del" onClick={()=>remove(r.id)}>✕</button>
+                </div></td>
+              </tr>
+            );
+          }
+          const groups = groupByCycle ? Object.values(filtered.reduce((acc,r)=>{
+            const key=r.spaceId||r.spaceName||"—";
+            if(!acc[key]) acc[key]={spaceName:r.spaceName||"(no space)",records:[]};
+            acc[key].records.push(r);
+            return acc;
+          },{})).sort((a,b)=>a.spaceName.localeCompare(b.spaceName)) : null;
+          return(
           <div className="sl-card">
             <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
               <select className="sl-sel" style={{maxWidth:220}} value={filterSpace} onChange={e=>setFilterSpace(e.target.value)}>
                 <option value="">All spaces</option>
                 {allSpaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              <div style={{display:"flex",gap:6}}>
+                <button className="sl-btn" style={{fontSize:11,padding:"5px 10px",background:groupByCycle?"var(--accent)":"var(--surface-2)",color:groupByCycle?"#fff":"var(--text-2)"}} onClick={()=>setGroupByCycle(true)}>By Grow Cycle</button>
+                <button className="sl-btn" style={{fontSize:11,padding:"5px 10px",background:!groupByCycle?"var(--accent)":"var(--surface-2)",color:!groupByCycle?"#fff":"var(--text-2)"}} onClick={()=>setGroupByCycle(false)}>Flat List</button>
+              </div>
               <div style={{marginLeft:"auto",fontSize:12,color:"var(--text-3)"}}>{filtered.length} application{filtered.length!==1?"s":""}</div>
             </div>
 
@@ -336,40 +371,31 @@ export default function SprayLog(){
                 <div style={{fontSize:13,fontWeight:500,marginBottom:4}}>No spray records yet</div>
                 <div style={{fontSize:12}}>Log a pesticide application above or import from a CSV file via Data & Imports</div>
               </div>
+            ): groupByCycle ? (
+              groups.map(g=>(
+                <div key={g.spaceName} style={{marginBottom:18}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8}}>
+                    {g.spaceName} <span style={{fontWeight:500,color:"var(--text-3)",textTransform:"none",letterSpacing:"normal"}}>({g.records.length})</span>
+                  </div>
+                  <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                    <table className="sl-tbl">
+                      <thead><tr><th>Date</th><th>Product</th><th>EPA Reg #</th><th>Rate</th><th>Amount</th><th>Area (sqft)</th><th>Target Pest</th><th>REI</th><th>PHI</th><th>Applicator</th><th>Weather</th><th></th></tr></thead>
+                      <tbody>{[...g.records].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(row)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              ))
             ):(
               <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
                 <table className="sl-tbl">
                   <thead><tr><th>Date</th><th>Space</th><th>Product</th><th>EPA Reg #</th><th>Rate</th><th>Amount</th><th>Area (sqft)</th><th>Target Pest</th><th>REI</th><th>PHI</th><th>Applicator</th><th>Weather</th><th></th></tr></thead>
-                  <tbody>
-                    {filtered.map(r=>{
-                      const phiActive=r.phi&&r.date&&(()=>{const e=new Date(r.date);e.setDate(e.getDate()+parseInt(r.phi));return e>new Date();})();
-                      return(
-                        <tr key={r.id} style={{background:phiActive?"rgba(200,150,58,0.04)":""}}>
-                          <td style={{whiteSpace:"nowrap",fontWeight:500,color:"var(--text)"}}>{fmtD(r.date)}</td>
-                          <td style={{fontSize:11}}>{r.spaceName||"—"}</td>
-                          <td style={{fontWeight:500,color:"var(--text)"}}>{r.product}<br/><span style={{fontSize:10,color:"var(--text-3)"}}>{r.manufacturer}</span></td>
-                          <td style={{fontSize:11,fontFamily:"monospace"}}>{r.epaRegNum||"—"}</td>
-                          <td style={{fontSize:11}}>{r.rate&&r.rateUnit?r.rate+" "+r.rateUnit:"—"}</td>
-                          <td style={{fontSize:11}}>{r.volumeApplied&&r.volumeUnit?r.volumeApplied+" "+r.volumeUnit:"—"}</td>
-                          <td style={{fontSize:11}}>{r.areaApplied||"—"}</td>
-                          <td style={{fontSize:11}}>{r.targetPest||"—"}</td>
-                          <td style={{fontSize:11}}>{r.rei?r.rei+"h":"—"}</td>
-                          <td style={{fontSize:11}}>{r.phi?<span style={{color:phiActive?"var(--amber)":"var(--text-3)",fontWeight:phiActive?700:400}}>{r.phi+"d"}{phiActive?" ⚠":""}</span>:"—"}</td>
-                          <td style={{fontSize:11}}>{r.applicatorName||"—"}<br/><span style={{fontSize:9,color:"var(--text-3)"}}>{r.applicatorLicenseNum}</span></td>
-                          <td style={{fontSize:11}}>{r.weatherTemp?r.weatherTemp+"°F":""}{r.weatherWind?" "+r.weatherWind+"mph":""}{r.weatherHumidity?" "+r.weatherHumidity+"%RH":""}</td>
-                          <td><div style={{display:"flex",gap:5}}>
-                            <button className="sl-sm sl-edit" onClick={()=>setForm({...r})}>Edit</button>
-                            <button className="sl-sm sl-del" onClick={()=>remove(r.id)}>✕</button>
-                          </div></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
+                  <tbody>{filtered.map(row)}</tbody>
                 </table>
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </>
   );
