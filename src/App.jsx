@@ -1117,7 +1117,7 @@ export default function ResinOps() {
   };
 
   const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings"].includes(activeModule);
-  const isAIChat = activeModule === "ai-chat";
+  const isAIChat = activeModule === "ai-assistant";
 
   const showWelcome = messages.length === 0;
 
@@ -1183,19 +1183,6 @@ export default function ResinOps() {
             <span className="module-info">
               <span className="module-name">Dashboard</span>
               <span className="module-desc">Today's alerts & activity</span>
-            </span>
-          </button>
-
-          {/* ── AI Assistant pinned under Dashboard ── */}
-          <button
-            className={`module-btn ${isAIChat || (!isSchedulerActive && activeModule !== "dashboard") ? "active" : ""}`}
-            onClick={() => { setActiveModule("ai-chat"); setMessages([]); setImage(null); }}
-            style={{marginBottom:4}}
-          >
-            <span className="module-icon">🤖</span>
-            <span className="module-info">
-              <span className="module-name">AI Assistant</span>
-              <span className="module-desc">Cannabis operations expert</span>
             </span>
           </button>
 

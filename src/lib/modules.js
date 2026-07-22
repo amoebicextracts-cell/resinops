@@ -13,7 +13,8 @@
 // ============================================================
 
 export const MODULES = [
-  // ── Operations Hub ──────────────────────────────────────────────────────────
+  // Dashboard is pinned at the top of the sidebar in App.jsx, outside this
+  // grouped list — no sectionBreak needed here.
   {
     id: "dashboard",
     label: "Dashboard",
@@ -22,16 +23,17 @@ export const MODULES = [
     description: "Today's alerts, action items & facility-wide overview",
     isScheduler: true,
     tier: "core",
-    sectionBreak: "Operations Hub",
   },
+  // ── AI Tools ─────────────────────────────────────────────────────────────────
   {
     id: "ai-assistant",
     label: "AI Assistant",
     icon: "✨",
     available: true,
     description: "Cannabis operations expert — cultivation, extraction, compliance",
-    isScheduler: false,
+    isScheduler: true,
     tier: "core",
+    sectionBreak: "AI Tools",
   },
   {
     id: "ops-analyst",

@@ -841,6 +841,32 @@ export default function DataManager(){
         await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
       }
 
+      // ── Customers ── names match the sales_orders above exactly; Customers.jsx
+      // falls back to matching orders by customerName when an order has no
+      // customerId, so these link up automatically without touching the orders.
+      const customersRaw = [
+        {id:"cust_001",name:"Greenleaf Dispensary",licenseNumber:"OCM-RO-001234",contactName:"Dana Whitfield",phone:"518-555-0142",email:"orders@greenleafny.com",address:"114 Broadway, Saratoga Springs, NY",accountType:"dispensary",pipelineStage:"active",notes:"Regular weekly account — flower and pre-roll program."},
+        {id:"cust_002",name:"Hudson Valley Cannabis Co.",licenseNumber:"OCM-RO-002891",contactName:"Marcus Ianni",phone:"845-555-0198",email:"buying@hvcannabisco.com",address:"22 Mill St, Kingston, NY",accountType:"wholesale",pipelineStage:"active",notes:"Pre-roll program, confirmed monthly volume."},
+        {id:"cust_003",name:"Capital District Collective",licenseNumber:"OCM-RO-003445",contactName:"Renee Okafor",phone:"518-555-0176",email:"renee@capdistrictcollective.com",address:"88 State St, Albany, NY",accountType:"dispensary",pipelineStage:"active",notes:"Vape program launched this month."},
+        {id:"cust_004",name:"Brooklyn Bodega Cannabis",licenseNumber:"OCM-RO-004122",contactName:"Luis Fernandez",phone:"718-555-0133",email:"luis@brooklynbodegacannabis.com",address:"410 Flatbush Ave, Brooklyn, NY",accountType:"dispensary",pipelineStage:"prospect",notes:"Waiting on lab results before first order confirms."},
+        {id:"cust_005",name:"Finger Lakes Dispensary",licenseNumber:"OCM-RO-005678",contactName:"Sarah Voss",phone:"607-555-0119",email:"sarah@fingerlakesdispensary.com",address:"1200 Seneca St, Geneva, NY",accountType:"dispensary",pipelineStage:"prospect",notes:"New account — pending credit approval."},
+        {id:"cust_006",name:"Catskill Mountain Wellness",licenseNumber:"OCM-RO-006234",contactName:"Tom Bramer",phone:"845-555-0187",email:"tom@catskillmtnwellness.com",address:"65 Main St, Margaretville, NY",accountType:"dispensary",pipelineStage:"lead",notes:"Waitlisted for Black Maple — sold out until next harvest."},
+        {id:"cust_007",name:"Saratoga Smoke Shop",licenseNumber:"OCM-RO-007891",contactName:"Priya Chandra",phone:"518-555-0164",email:"priya@saratogasmokeshop.com",address:"30 Broadway, Saratoga Springs, NY",accountType:"dispensary",pipelineStage:"lead",notes:"Waitlisted — Zaza Runtz next harvest."},
+      ];
+      for (const c of customersRaw) {
+        await db.customers.upsert({...c, id: uid(c.id)});
+      }
+
+      // ── Sales Goals ── current month goal so the Sales Goal Dial has live
+      // progress to show against the confirmed July orders above.
+      const salesGoalsRaw = [
+        {id:"goal_jul26",periodStart:"2026-07-01",periodEnd:"2026-07-31",goalAmount:45000,notes:"July revenue target"},
+        {id:"goal_jun26",periodStart:"2026-06-01",periodEnd:"2026-06-30",goalAmount:40000,notes:"June revenue target"},
+      ];
+      for (const g of salesGoalsRaw) {
+        await db.sales_goals.upsert({...g, id: uid(g.id)});
+      }
+
       // ── Employees ── set Marcus Webb's Category 24 license to expire in 45 days
       // so the dashboard's expiring-license alert has something to show
       try {
@@ -982,6 +1008,17 @@ export default function DataManager(){
       ];
       for (const eq of equipmentRaw) {
         await db.equipment.upsert({...eq, id: uid(eq.id)});
+      }
+
+      // ── Equipment Service Log ── matches each asset's own lastServiceDate above
+      const serviceLogRaw = [
+        {id:"svc_001",equipId:"eq_001",date:"2026-05-01",type:"pm",tech:"Tyler Bates",cost:145,notes:"Cleaned condenser coils, checked vacuum seal."},
+        {id:"svc_002",equipId:"eq_002",date:"2026-04-10",type:"pm",tech:"Tyler Bates",cost:0,notes:"Plate inspection, no wear detected."},
+        {id:"svc_003",equipId:"eq_003",date:"2026-06-15",type:"pm",tech:"Marcus Webb",cost:80,notes:"Blade inspection and replacement per monthly schedule."},
+        {id:"svc_004",equipId:"eq_004",date:"2026-06-01",type:"inspection",tech:"Tyler Bates",cost:0,notes:"Drain line check per Nov 2024 corrective action — clear."},
+      ];
+      for (const s of serviceLogRaw) {
+        await db.equipment_service_log.upsert({id:uid(s.id),equipId:uid(s.equipId),date:s.date,type:s.type,tech:s.tech,cost:s.cost,notes:s.notes});
       }
 
       // ── Work Orders ────────────────────────────────────────
