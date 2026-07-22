@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { SUBS } from "./ProductionScheduler.jsx";
-import { bookedRevenueForBatch } from "./lib/revenue";
-import { resolveBom, lineQty } from "./lib/inventory";
+import { batchPnL } from "./lib/cogs";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n,d=1){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
@@ -35,15 +34,18 @@ export default function BatchDashboard(){
   const [laborTypes, setLaborTypes] = useState([]);
   const [qcHolds, setQcHolds] = useState([]);
   const [cultivationCosts, setCultivationCosts] = useState([]);
+  const [costPools, setCostPools] = useState([]);
+  const [cogsRecs, setCogsRecs] = useState([]);
   const [cultInputs, setCultInputs] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
   const [items, setItems] = useState([]);
+  const [growSpaces, setGrowSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, sk, b, lt, ci, qc, so, inv]=await Promise.all([
+        const [pb, hb, sk, b, lt, ci, qc, so, inv, cc, cp, cr, gs]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.skus.list(),
@@ -53,9 +55,14 @@ export default function BatchDashboard(){
           db.qc_tests.list(),
           db.sales_orders.list(),
           db.inventory_items.list(),
+          db.cultivation_costs.list(),
+          db.cost_pools.list(),
+          db.cogs_records.list(),
+          db.grow_spaces.list(),
         ]);
         setSalesOrders(so);
         setItems(inv);
+        setGrowSpaces(gs);
         setQcHolds(qc.filter(t=>t.onHold).map(t=>String(t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId)));
         setProdBatches(pb.filter(x=>!x.isLinked));
         setHarvestBatches(hb.map(h=>({
@@ -67,6 +74,9 @@ export default function BatchDashboard(){
         setSkus(sk);
         setBoms(b);
         setLaborTypes(lt);
+        setCultivationCosts(cc);
+        setCostPools(cp);
+        setCogsRecs(cr);
         setCultInputs(ci.map(c=>({
           ...c,
           spaceName: c.spaceName||c.space_name||c.room_name||"",
@@ -79,23 +89,6 @@ export default function BatchDashboard(){
   },[]);
   const [filter,setFilter]=useState("all");
 
-  function getSkuPrice(catLabel,subLabel){
-    const sku=skus.find(s=>s.product&&catLabel&&s.product.toLowerCase().includes((catLabel||"").toLowerCase().split(" ")[0]));
-    return sku?parseFloat(sku.price)||0:0;
-  }
-  // Real BOM resolution (category/subcategory + real inventory_items ids),
-  // same as Finance.jsx's calcBatchCOGS — replaces the old fuzzy
-  // product-name string match against a BOM shape nothing else in the
-  // app ever wrote (boms.product/items[].unitCost).
-  function materialCostForBatch(batch){
-    const bom=resolveBom(batch,boms);
-    if(!bom) return 0;
-    return (bom.items||[]).reduce((a,line)=>{
-      const item=items.find(x=>x.id===line.itemId);
-      if(!item) return a;
-      return a + lineQty(line,batch)*(item.lastCost||0);
-    },0);
-  }
   function extractUnits(yieldEst){
     if(!yieldEst) return 0;
     const m=yieldEst.match(/([\d,]+)\s*(?:×|units|cones|carts|AIOs|bottles)/);
@@ -107,30 +100,23 @@ export default function BatchDashboard(){
     return m?parseFloat(m[1]):0;
   }
 
-  // Build enriched batch rows. Revenue splits into two parts: bookedRevenue
-  // (real, from Sales Orders — the source of truth) plus projectedRevenue
-  // for whatever's left unsold (units - bookedUnits, at SKU price) — never
-  // blended into one undifferentiated "estimate" the way this used to work.
+  // Build enriched batch rows using the same lib/cogs.js engine Finance.jsx
+  // uses — same total for the same batch on both pages, no more separate
+  // (and previously divergent) calculator here.
+  const cogsCtx={boms,cogsRecords:cogsRecs,items,laborTypes,costPools,cultivationCosts,harvestBatches,growSpaces,allBatches:prodBatches,skus,salesOrders};
   const rows=prodBatches.map(b=>{
     // subLabel is never persisted (derived display string, same as
     // ProductionScheduler.jsx's own list rendering) — derive it here
     // rather than reading a field that's always undefined on a loaded row.
     const subLabel=SUBS[b.cat]?.find(s=>s.v===b.sub)?.l||"";
     const units=extractUnits(b.yieldEst)||extractGrams(b.yieldEst)/1000;
-    const price=getSkuPrice(b.catLabel||b.cat,subLabel);
-    const materialCost=materialCostForBatch(b);
-    const booked=bookedRevenueForBatch(b.id,salesOrders);
-    const remainingUnits=Math.max(0,units-booked.units);
-    const projectedRevenue=remainingUnits*price;
-    const estimatedRevenue=booked.revenue+projectedRevenue;
-    const laborCost=0;
-    const testingCost=b.cat==="extract"?450:350;
-    const totalCOGS=materialCost+laborCost+testingCost;
-    const grossProfit=estimatedRevenue-totalCOGS;
-    const margin=estimatedRevenue>0?(grossProfit/estimatedRevenue)*100:null;
+    const p=batchPnL(b,cogsCtx);
+    const remainingUnits=Math.max(0,units-p.unitsSold);
+    const projectedRevenue=p.hasBookedOrders?remainingUnits*p.revPerUnit:0;
+    const estimatedRevenue=p.totalRev;
     const onHold=qcHolds.includes(String(b.id));
     const hasActual=!!b.actual_yield;
-    return{...b,subLabel,units,price,bookedRevenue:booked.revenue,bookedUnits:booked.units,projectedRevenue,estimatedRevenue,materialCost,totalCOGS,grossProfit,margin,onHold,hasActual};
+    return{...b,subLabel,units,price:p.revPerUnit,bookedRevenue:p.hasBookedOrders?p.totalRev-projectedRevenue:0,bookedUnits:p.unitsSold,projectedRevenue,estimatedRevenue,materialCost:p.materialCost,totalCOGS:p.totalCOGS,grossProfit:p.grossProfit,margin:estimatedRevenue>0?p.grossMargin:null,onHold,hasActual};
   });
 
   const harvestRows=harvestBatches.map(b=>{

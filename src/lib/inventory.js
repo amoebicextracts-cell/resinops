@@ -40,11 +40,21 @@ export function resolveBom(batch, boms) {
   return boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + (batch.sub || "") || (b.category === batch.cat && (b.subcategory || "") === (batch.sub || "")))) || null;
 }
 
-export function lineQty(line, batch) {
-  const inputLbs = (parseFloat(batch.inputAmt) || 0) * (batch.unit === "lb" || batch.unit === "lbs" ? 1 : batch.unit === "kg" ? 2.205 : 1 / 453.592);
+// Pulled out of lineQty() so lib/cogs.js's cost-pool allocation (weight-
+// and unit-based) can share the exact same parsing instead of a second
+// copy that could silently drift from what deduction actually uses.
+export function inputLbsFromBatch(batch) {
+  return (parseFloat(batch.inputAmt) || 0) * (batch.unit === "lb" || batch.unit === "lbs" ? 1 : batch.unit === "kg" ? 2.205 : 1 / 453.592);
+}
+
+export function estUnitsFromBatch(batch) {
   const unitMatch = batch.yieldEst?.match(/[\d,]+(?=\s*×|units|cones|carts|AIOs|bottles)/);
-  const estUnits = unitMatch ? parseInt(unitMatch[0].replace(/,/g, "")) : 0;
-  const units = parseInt(batch.actualUnits || 0) || estUnits;
+  return unitMatch ? parseInt(unitMatch[0].replace(/,/g, "")) : 0;
+}
+
+export function lineQty(line, batch) {
+  const inputLbs = inputLbsFromBatch(batch);
+  const units = parseInt(batch.actualUnits || 0) || estUnitsFromBatch(batch);
   if (line.qtyType === "per_unit_output") return line.qty * units;
   if (line.qtyType === "per_lb_input") return line.qty * inputLbs;
   return line.qty; // per_batch

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
-import { bookedRevenueForBatch } from "./lib/revenue";
 import { deductForBatch } from "./lib/inventory";
+import { calcBatchCOGS, batchPnL as batchPnLCalc } from "./lib/cogs";
+import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 
 const QTY_TYPES = [
@@ -88,70 +89,6 @@ const CSS = `
   .pill-blue{background:rgba(90,120,200,0.15);color:#7090f0;}
 `;
 
-// ── COGS calculator for a batch ────────────────────────────────────────────
-function calcBatchCOGS(batch, boms, cogsRecords, items, laborTypes, facility) {
-  const record = cogsRecords.find(r => r.batchId === batch.id) || {};
-  const bom = boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + (batch.sub || "") || (b.category === batch.cat && (b.subcategory || "") === (batch.sub || "")))) || null;
-  const inputLbs = (parseFloat(batch.inputAmt)||0) * (batch.unit==="lb"||batch.unit==="lbs"?1:batch.unit==="kg"?2.205:1/453.592);
-  // Extract unit count from yieldEst string
-  const unitMatch = batch.yieldEst?.match(/[\d,]+(?=\s*×|units|cones|carts|AIOs|bottles)/);
-  const estUnits  = unitMatch ? parseInt(unitMatch[0].replace(/,/g,"")) : 0;
-  const actualUnits = parseInt(record.actualUnits||0) || estUnits;
-
-  // Materials from BOM
-  let materialCost = 0;
-  const materialLines = [];
-  if (bom && !record.overrideMaterials) {
-    bom.items.forEach(line => {
-      const item = items.find(x=>x.id===line.itemId);
-      if (!item) return;
-      // unit cost
-      const uc = item.lastCost || 0;
-      let qty = 0;
-      if (line.qtyType==="per_unit_output") qty = line.qty * (actualUnits||estUnits);
-      else if (line.qtyType==="per_lb_input") qty = line.qty * inputLbs;
-      else qty = line.qty;
-      const cost = qty * uc;
-      materialCost += cost;
-      materialLines.push({ name:item.n, qty:fmtN(qty), uom:item.uom, uc:fmtC(uc), cost });
-    });
-  } else if (record.manualMaterials) {
-    (record.manualMaterials||[]).forEach(m => { materialCost += parseFloat(m.cost)||0; materialLines.push(m); });
-  }
-
-  // Override from record
-  if (record.materialCostOverride !== undefined) materialCost = parseFloat(record.materialCostOverride)||0;
-
-  // Testing fee
-  const testFee = parseFloat(record.testFee !== undefined ? record.testFee : (bom?.testFee||350));
-
-  // Labor cost — from batch steps if available
-  let laborCost = parseFloat(record.laborCostOverride||0);
-  if (!record.laborCostOverride && batch.steps) {
-    const sh = parseFloat(facility?.shiftHours||8);
-    batch.steps.forEach(step => {
-      if (step.laborTypeId) {
-        const lt = laborTypes.find(x=>x.id===step.laborTypeId);
-        if (lt) {
-          const hrs = step.isPassive
-            ? (step.monitorHrsPerDay||0.25)*(step.calDays||step.days||1)
-            : parseFloat(step.hours||sh);
-          laborCost += hrs * lt.rate;
-        }
-      }
-    });
-  }
-
-  // Cultivation cost if linked
-  const cultCost = parseFloat(record.cultCost||0);
-
-  const totalCOGS = materialCost + testFee + laborCost + cultCost;
-  const units = actualUnits || estUnits || 1;
-  const cogsPerUnit = units > 0 ? totalCOGS / units : 0;
-
-  return { materialCost, materialLines, testFee, laborCost, cultCost, totalCOGS, cogsPerUnit, estUnits, actualUnits, bom };
-}
-
 export default function Finance() {
   const [tab, setTab] = useState("cogs");
 
@@ -168,7 +105,7 @@ export default function Finance() {
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc, so]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -178,6 +115,8 @@ export default function Finance() {
           db.cogs_records.list(),
           db.cultivation_costs.list(),
           db.sales_orders.list(),
+          db.harvest_batches.list(),
+          db.cost_pools.list(),
         ]);
         setBoms(b);
         setSkus(sk);
@@ -188,10 +127,14 @@ export default function Finance() {
         setCogsRecs(cr);
         setCultCosts(cc);
         setSalesOrders(so);
+        setHarvestBatches(hb);
+        setCostPools(cp);
         const fid = getCurrentFacility();
         if(fid && supabase){
-          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day').eq('id', fid).single();
-          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1)});
+          const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day,default_cultivation_allocation_basis,qb_account_map').eq('id', fid).single();
+          if(data) setFacility({shiftHours:String(data.shift_hours??8),shiftsPerDay:String(data.shifts_per_day??1),defaultCultivationAllocationBasis:data.default_cultivation_allocation_basis||"batch_weight",qbAccountMap:data.qb_account_map||{}});
+        } else {
+          try{ const s = JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}"); setFacility(f=>({...f,qbAccountMap:s.qbAccountMap||{}})); }catch{}
         }
       }catch(e){ console.error("Finance load error:",e); }
       setLoading(false);
@@ -200,6 +143,8 @@ export default function Finance() {
   },[]);
   const [laborTypes, setLaborTypes] = useState([]);
   const [facility, setFacility] = useState({});
+  const [harvestBatches, setHarvestBatches] = useState([]);
+  const [costPools, setCostPools] = useState([]);
 
 
   const [editCogs, setEditCogs] = useState(null); // batchId being edited
@@ -268,36 +213,44 @@ export default function Finance() {
   function setCultCost(spaceId, updates) {
     setCultCosts(p => {
       const idx = p.findIndex(c=>c.spaceId===spaceId);
-      const merged = idx>=0 ? {...p[idx],...updates} : {id:crypto.randomUUID(),spaceId,...updates};
+      const merged = idx>=0 ? {...p[idx],...updates} : {id:crypto.randomUUID(),spaceId,allocationBasis:facility.defaultCultivationAllocationBasis||"batch_weight",...updates};
       scheduleSave("cult_"+spaceId, "cultivation_costs", merged);
       return idx>=0 ? p.map(c=>c.spaceId===spaceId?merged:c) : [...p, merged];
     });
+  }
+
+  const [costPoolForm, setCostPoolForm] = useState(null);
+  const [errCostPool, setErrCostPool] = useState("");
+  function openAddCostPool(){ setCostPoolForm({id:crypto.randomUUID(),name:"",category:"rent",periodAmount:"",period:"monthly",productionPct:"100",allocationBasis:"batch_weight",active:true,notes:""}); setErrCostPool(""); }
+  async function saveCostPool(){
+    if(!costPoolForm.name.trim()){ setErrCostPool("Enter a name for this cost pool."); return; }
+    const toSave = {...costPoolForm, name:costPoolForm.name.trim(), periodAmount:parseFloat(costPoolForm.periodAmount)||0, productionPct:parseFloat(costPoolForm.productionPct)||100};
+    try{
+      const saved = await db.cost_pools.upsert(toSave);
+      setCostPools(p=>{const i=p.findIndex(c=>c.id===saved.id);return i>=0?p.map(c=>c.id===saved.id?saved:c):[...p,saved];});
+      setCostPoolForm(null); setErrCostPool("");
+    }catch(e){ setErrCostPool("Save failed: "+e.message); }
+  }
+  async function removeCostPool(id){
+    try{ await db.cost_pools.delete(id); setCostPools(p=>p.filter(c=>c.id!==id)); }
+    catch(e){ console.error("Cost pool delete failed:",e); }
+  }
+  async function toggleCostPoolActive(pool){
+    try{
+      const saved = await db.cost_pools.upsert({...pool, active: !pool.active});
+      setCostPools(p=>p.map(c=>c.id===pool.id?saved:c));
+    }catch(e){ console.error("Cost pool toggle failed:",e); }
   }
 
   const allBoms = boms.length ? boms : DEFAULT_BOMS;
   const mainBatches = batches.filter(b=>!b.isLinked);
 
   // ── P&L calculation per batch ────────────────────────────────────────────
-  // Revenue defaults from real sales_orders lines booked against this batch
-  // (sales_orders is the source of truth for realized revenue) — manual
-  // unitsSold/revPerUnit entry is only used as a pre-sale estimate before
-  // any order exists, and totalRevOverride always wins as the final
-  // manual escape hatch either way.
-  function batchPnL(batch) {
-    const cogs = calcBatchCOGS(batch, allBoms, cogsRecs, items, laborTypes, facility);
-    const rec  = getRecord(batch.id);
-    const booked = bookedRevenueForBatch(batch.id, salesOrders);
-    const hasBookedOrders = booked.units > 0;
-    const unitsSold = hasBookedOrders ? booked.units : parseInt(rec.unitsSold||0);
-    const skuPriceId = rec.skuPriceId;
-    const sku   = skus.find(s=>s.id===skuPriceId);
-    const revPerUnit = hasBookedOrders ? (booked.revenue/booked.units) : parseFloat(rec.revPerUnit || sku?.price || 0);
-    const totalRevOverride = parseFloat(rec.totalRevOverride||0);
-    const totalRev = totalRevOverride || (hasBookedOrders ? booked.revenue : (revPerUnit * unitsSold));
-    const grossProfit = totalRev - cogs.totalCOGS;
-    const grossMargin = totalRev > 0 ? (grossProfit/totalRev*100) : 0;
-    return { ...cogs, unitsSold, revPerUnit, totalRev, totalRevOverride, grossProfit, grossMargin, sku, hasBookedOrders };
-  }
+  // Thin wrapper over the shared lib/cogs.js engine — Finance.jsx and
+  // BatchDashboard.jsx both call the exact same calculator now instead of
+  // each keeping their own (previously divergent) COGS logic.
+  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, allBatches: mainBatches, skus, salesOrders };
+  function batchPnL(batch) { return batchPnLCalc(batch, cogsCtx); }
 
   // ── Summary totals ────────────────────────────────────────────────────────
   const summary = mainBatches.reduce((acc, b) => {
@@ -305,11 +258,12 @@ export default function Finance() {
     acc.totalCOGS += p.totalCOGS;
     acc.totalRev  += p.totalRev;
     acc.materialCost += p.materialCost;
-    acc.laborCost += p.laborCost;
+    acc.directLaborCost += p.directLaborCost;
     acc.testFee += p.testFee;
-    acc.cultCost += p.cultCost;
+    acc.cultivationCost += p.cultivationCost;
+    acc.allocatedOverhead += p.allocatedOverhead;
     return acc;
-  }, {totalCOGS:0,totalRev:0,materialCost:0,laborCost:0,testFee:0,cultCost:0});
+  }, {totalCOGS:0,totalRev:0,materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0});
   const totalGrossProfit = summary.totalRev - summary.totalCOGS;
   const totalGrossMargin = summary.totalRev > 0 ? totalGrossProfit/summary.totalRev*100 : 0;
 
@@ -359,7 +313,7 @@ export default function Finance() {
         </div>
 
         <div className="fin-tabs">
-          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["sku","🏷️ SKU Pricing"]].map(([v,l])=>(
+          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["pools","🏢 Cost Pools"],["sku","🏷️ SKU Pricing"]].map(([v,l])=>(
             <button key={v} className={"fin-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -371,15 +325,15 @@ export default function Finance() {
               {[
                 {l:"Total COGS (all batches)",v:fmtC(summary.totalCOGS)},
                 {l:"Materials",v:fmtC(summary.materialCost)},
-                {l:"Labor",v:fmtC(summary.laborCost)},
-                {l:"Testing fees",v:fmtC(summary.testFee)},
+                {l:"Direct Labor",v:fmtC(summary.directLaborCost)},
+                {l:"Allocated Overhead",v:fmtC(summary.allocatedOverhead)},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className="fin-stat-val">{s.v}</div></div>)}
             </div>
 
             {mainBatches.length===0 ? (
               <div className="fin-card" style={{textAlign:"center",padding:"32px",color:"var(--text-3)"}}>No production batches yet.</div>
             ) : mainBatches.map(batch => {
-              const cogs = calcBatchCOGS(batch, allBoms, cogsRecs, items, laborTypes, facility);
+              const cogs = calcBatchCOGS(batch, cogsCtx);
               const rec  = getRecord(batch.id);
               const isEditing = editCogs===batch.id;
               return (
@@ -401,12 +355,13 @@ export default function Finance() {
                   </div>
 
                   {/* COGS breakdown */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:6}}>
                     {[
                       {l:"Materials",v:fmtC(cogs.materialCost)},
-                      {l:"Labor",v:fmtC(cogs.laborCost)},
+                      {l:"Direct Labor",v:fmtC(cogs.directLaborCost)},
                       {l:"Testing",v:fmtC(cogs.testFee)},
-                      {l:"Cultivation",v:fmtC(cogs.cultCost)},
+                      {l:"Cultivation",v:fmtC(cogs.cultivationCost)},
+                      {l:"Overhead",v:fmtC(cogs.allocatedOverhead)},
                     ].map((s,i)=>(
                       <div key={i} style={{background:"var(--surface-2)",borderRadius:6,padding:"7px 10px"}}>
                         <div style={{fontSize:9,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.l}</div>
@@ -414,6 +369,11 @@ export default function Finance() {
                       </div>
                     ))}
                   </div>
+                  {cogs.overheadLines.length>0 && (
+                    <div style={{fontSize:10,color:"var(--text-3)",marginBottom:10}}>
+                      Overhead: {cogs.overheadLines.map(l=>l.name+" "+fmtC(l.share)).join(" · ")}
+                    </div>
+                  )}
 
                   {isEditing && (
                     <div style={{borderTop:"1px solid var(--border)",paddingTop:14,marginTop:4}}>
@@ -426,9 +386,9 @@ export default function Finance() {
                             onChange={e=>setRecord(batch.id,{materialCostOverride:e.target.value||undefined})} />
                         </div>
                         <div>
-                          <label className="fin-lbl">Labor cost override ($) — leave blank to auto-calculate</label>
+                          <label className="fin-lbl">Labor cost override ($) — leave blank to total the Direct Labor rows below</label>
                           <input type="number" className="fin-inp" step="0.01"
-                            value={rec.laborCostOverride??""} placeholder={fmtN(cogs.laborCost)+" (est.)"}
+                            value={rec.laborCostOverride??""} placeholder={fmtN(cogs.directLaborCost)+" (from labor rows)"}
                             onChange={e=>setRecord(batch.id,{laborCostOverride:e.target.value||undefined})} />
                         </div>
                         <div>
@@ -438,10 +398,10 @@ export default function Finance() {
                             onChange={e=>setRecord(batch.id,{testFee:e.target.value})} />
                         </div>
                         <div>
-                          <label className="fin-lbl">Cultivation cost allocation ($)</label>
+                          <label className="fin-lbl">Cultivation cost override ($) — leave blank to auto-allocate</label>
                           <input type="number" className="fin-inp" step="0.01"
-                            value={rec.cultCost??""} placeholder="0"
-                            onChange={e=>setRecord(batch.id,{cultCost:e.target.value})} />
+                            value={rec.cultCost??""} placeholder={fmtN(cogs.cultivationCost)+" (auto-allocated)"}
+                            onChange={e=>setRecord(batch.id,{cultCost:e.target.value||undefined})} />
                         </div>
                         <div>
                           <label className="fin-lbl">Actual units produced</label>
@@ -458,6 +418,41 @@ export default function Finance() {
                           </select>
                         </div>
                       </div>
+
+                      {/* Direct labor — hours-tracked roles (trim techs, extraction
+                          techs) entered per batch. Indirect/management labor is
+                          covered separately via a cost pool on the Cost Pools tab,
+                          not tracked per batch. */}
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Direct Labor</div>
+                        {(rec.laborLines||[]).map((line,i)=>{
+                          const lt = laborTypes.find(x=>x.id===line.laborTypeId);
+                          return (
+                            <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:8,marginBottom:6,alignItems:"flex-end"}}>
+                              <div><label className="fin-lbl">Labor type</label>
+                                <select className="fin-sel" value={line.laborTypeId||""}
+                                  onChange={e=>setRecord(batch.id,{laborLines:(rec.laborLines||[]).map((l,idx)=>idx===i?{...l,laborTypeId:e.target.value}:l)})}>
+                                  <option value="">— Select —</option>
+                                  {laborTypes.map(t=><option key={t.id} value={t.id}>{t.n||t.name} (${t.rate}/hr)</option>)}
+                                </select>
+                              </div>
+                              <div><label className="fin-lbl">Hours</label>
+                                <input type="number" step="0.25" className="fin-inp" value={line.hours||""}
+                                  onChange={e=>setRecord(batch.id,{laborLines:(rec.laborLines||[]).map((l,idx)=>idx===i?{...l,hours:e.target.value}:l)})} />
+                              </div>
+                              <div style={{fontSize:12,color:"var(--text-2)"}}>{lt?fmtC((parseFloat(line.hours)||0)*lt.rate):"—"}</div>
+                              <button className="fin-btn fin-sm fin-del" onClick={()=>setRecord(batch.id,{laborLines:(rec.laborLines||[]).filter((_,idx)=>idx!==i)})}>✕</button>
+                            </div>
+                          );
+                        })}
+                        <button className="fin-btn fin-secondary" style={{fontSize:11,padding:"4px 10px"}}
+                          onClick={()=>setRecord(batch.id,{laborLines:[...(rec.laborLines||[]),{laborTypeId:"",hours:""}]})}>+ Add labor row</button>
+                      </div>
+
+                      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,fontSize:12,color:"var(--text-2)",cursor:"pointer"}}>
+                        <input type="checkbox" checked={!!rec.nonDeductible} onChange={e=>setRecord(batch.id,{nonDeductible:e.target.checked})} />
+                        Exclude this batch's COGS from the 280E-deductible total (flag as not capitalized)
+                      </label>
 
                       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                         <button className="fin-btn fin-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>deductNow(batch)}>📦 Deduct inventory now</button>
@@ -501,16 +496,26 @@ export default function Finance() {
           <>
             {/* 280E callout */}
             <div style={{background:"rgba(90,120,200,0.08)",border:"1px solid rgba(90,120,200,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#7090f0"}}>
-              <strong>280E Note:</strong> Under IRS 280E, cannabis businesses may only deduct Cost of Goods Sold federally. All COGS figures below are structured for 280E compliance. Share the COGS column directly with your accountant or tax advisor.
+              <strong>280E Note:</strong> Under IRC §280E, cannabis businesses may only deduct Cost of Goods Sold federally — but §263A lets a vertically-integrated operator capitalize more than just raw materials into COGS. Each batch's total below is built from direct materials (BOM), direct labor (hours entered per batch), lab testing, cultivation costs (auto-allocated by grow space), and indirect overhead (allocated from named cost pools — rent, utilities, depreciation, etc. — see the Cost Pools tab). Any batch can be flagged "not capitalized" if it shouldn't count — see the deductible/non-deductible split below. This app computes the allocation; review the methodology with your accountant before filing.
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
               {[
                 {l:"Total Revenue",v:fmtC(summary.totalRev)},
-                {l:"Total COGS (280E deductible)",v:fmtC(summary.totalCOGS)},
                 {l:"Gross Profit",v:fmtC(totalGrossProfit),cls:totalGrossProfit>0?"margin-good":totalGrossProfit<0?"margin-bad":""},
                 {l:"Gross Margin",v:pct(totalGrossProfit,summary.totalRev),cls:totalGrossMargin>50?"margin-good":totalGrossMargin>25?"margin-warn":"margin-bad"},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
+              {[
+                {l:"280E-Deductible COGS",v:fmtC(mainBatches.reduce((a,b)=>a+batchPnL(b).deductibleTotal,0)),cls:"margin-good"},
+                {l:"Not Capitalized (flagged)",v:fmtC(mainBatches.reduce((a,b)=>a+batchPnL(b).nonDeductibleTotal,0))},
+              ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <button className="fin-btn fin-secondary" onClick={()=>exportQuickBooksCsv(mainBatches, cogsCtx, facility.qbAccountMap||{})}>⬇ Export to QuickBooks (CSV)</button>
+              <span style={{fontSize:11,color:"var(--text-3)",marginLeft:10}}>Journal entries per batch, mapped to your chart of accounts — configure account names in Facility Settings.</span>
             </div>
 
             {/* Per batch P&L */}
@@ -584,13 +589,14 @@ export default function Finance() {
 
             {/* COGS breakdown for 280E */}
             <div className="fin-card">
-              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>COGS Components — 280E Reference</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>COGS Components — §263A Reference</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                 {[
                   {l:"Raw Materials",v:fmtC(summary.materialCost),pct:pct(summary.materialCost,summary.totalCOGS)},
-                  {l:"Direct Labor",v:fmtC(summary.laborCost),pct:pct(summary.laborCost,summary.totalCOGS)},
+                  {l:"Direct Labor",v:fmtC(summary.directLaborCost),pct:pct(summary.directLaborCost,summary.totalCOGS)},
                   {l:"Lab Testing",v:fmtC(summary.testFee),pct:pct(summary.testFee,summary.totalCOGS)},
-                  {l:"Cultivation Costs",v:fmtC(summary.cultCost),pct:pct(summary.cultCost,summary.totalCOGS)},
+                  {l:"Cultivation Costs",v:fmtC(summary.cultivationCost),pct:pct(summary.cultivationCost,summary.totalCOGS)},
+                  {l:"Allocated Overhead",v:fmtC(summary.allocatedOverhead),pct:pct(summary.allocatedOverhead,summary.totalCOGS)},
                 ].map((s,i)=>(
                   <div key={i} className="fin-stat">
                     <div className="fin-stat-lbl">{s.l}</div>
@@ -767,14 +773,14 @@ export default function Finance() {
         {tab==="cult" && (
           <div className="fin-card">
             <div style={{fontSize:12,color:"var(--text-2)",marginBottom:14}}>
-              Track cultivation supply costs per grow space. These costs can be allocated to production batches as COGS when the harvest batch is created.
+              Track cultivation supply costs per grow space. Costs auto-allocate across the production batches sourced from that space's harvest — by weight or by how long the grow cycle occupied the space, your choice per space (defaults from Facility Settings).
             </div>
             {spaces.length===0 ? (
               <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No grow spaces scheduled yet.</div>
             ) : (
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="fin-tbl">
-                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>Total Cult. Cost</th><th></th></tr></thead>
+                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>Total Cult. Cost</th><th>Allocate By</th><th></th></tr></thead>
                   <tbody>
                     {spaces.map(sp => {
                       const cc = cultCosts.find(c=>c.spaceId===sp.id)||{};
@@ -795,10 +801,94 @@ export default function Finance() {
                             {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.ipm||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{ipm:e.target.value})} /> : fmtC(cc.ipm||0)}
                           </td>
                           <td style={{fontWeight:500,color:"var(--accent-2)"}}>{fmtC(total)}</td>
+                          <td>
+                            {isEditing ? (
+                              <select className="fin-sel" style={{width:130}} value={cc.allocationBasis||facility.defaultCultivationAllocationBasis||"batch_weight"} onChange={e=>setCultCost(sp.id,{allocationBasis:e.target.value})}>
+                                <option value="batch_weight">By weight</option>
+                                <option value="time_occupied">By time occupied</option>
+                              </select>
+                            ) : (cc.allocationBasis==="time_occupied"?"Time occupied":"By weight")}
+                          </td>
                           <td><button className={"fin-btn fin-sm "+(isEditing?"fin-secondary":"fin-edit")} onClick={()=>setEditCult(isEditing?null:sp.id)}>{isEditing?"Done":"Edit"}</button></td>
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── COST POOLS ── */}
+        {tab==="pools" && (
+          <div className="fin-card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{fontSize:12,color:"var(--text-2)",maxWidth:640}}>
+                Named indirect-cost pools — rent, utilities, equipment depreciation, indirect/QA labor, insurance — each allocated across production batches by whatever basis makes sense for that cost. This is the actual §263A capitalization mechanism: real, per-pool math a batch's overhead figure is built from, not a single blended rate.
+              </div>
+              {!costPoolForm && <button className="fin-btn fin-primary" onClick={openAddCostPool}>+ Add Cost Pool</button>}
+            </div>
+
+            {costPoolForm && (
+              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="fin-lbl">Name</label><input className="fin-inp" value={costPoolForm.name} onChange={e=>setCostPoolForm(f=>({...f,name:e.target.value}))} placeholder="Facility Rent" /></div>
+                  <div><label className="fin-lbl">Category</label>
+                    <select className="fin-sel" value={costPoolForm.category} onChange={e=>setCostPoolForm(f=>({...f,category:e.target.value}))}>
+                      <option value="rent">Rent</option><option value="utilities">Utilities</option><option value="depreciation">Equipment Depreciation</option>
+                      <option value="indirect_labor">Indirect/QA Labor</option><option value="insurance">Insurance</option><option value="repairs_maintenance">Repairs & Maintenance</option>
+                      <option value="quality_control">Quality Control</option><option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div><label className="fin-lbl">Period</label>
+                    <select className="fin-sel" value={costPoolForm.period} onChange={e=>setCostPoolForm(f=>({...f,period:e.target.value}))}>
+                      <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="fin-lbl">Amount per period ($)</label><input type="number" step="0.01" className="fin-inp" value={costPoolForm.periodAmount} onChange={e=>setCostPoolForm(f=>({...f,periodAmount:e.target.value}))} placeholder="8000" /></div>
+                  <div><label className="fin-lbl">% attributable to production</label><input type="number" min="0" max="100" className="fin-inp" value={costPoolForm.productionPct} onChange={e=>setCostPoolForm(f=>({...f,productionPct:e.target.value}))} placeholder="100" /></div>
+                  <div><label className="fin-lbl">Allocation basis</label>
+                    <select className="fin-sel" value={costPoolForm.allocationBasis} onChange={e=>setCostPoolForm(f=>({...f,allocationBasis:e.target.value}))}>
+                      <option value="batch_weight">By batch input weight</option>
+                      <option value="unit_count">By unit output</option>
+                      <option value="labor_hours">By direct labor hours</option>
+                      <option value="flat_per_batch">Flat, split evenly per batch</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}><label className="fin-lbl">Notes (optional)</label><input className="fin-inp" value={costPoolForm.notes||""} onChange={e=>setCostPoolForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. 70% of total rent is production floor, 30% is office/retail" /></div>
+                {errCostPool && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{errCostPool}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="fin-btn fin-primary" onClick={saveCostPool}>Save</button>
+                  <button className="fin-btn fin-secondary" onClick={()=>setCostPoolForm(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {costPools.length===0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No cost pools defined yet — batches will show $0 allocated overhead until you add one.</div>
+            ) : (
+              <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                <table className="fin-tbl">
+                  <thead><tr><th>Name</th><th>Category</th><th>Amount</th><th>Production %</th><th>Allocate By</th><th>Active</th><th></th></tr></thead>
+                  <tbody>
+                    {costPools.map(pool=>(
+                      <tr key={pool.id} style={{opacity:pool.active===false?0.5:1}}>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{pool.name}</td>
+                        <td style={{fontSize:11,textTransform:"capitalize"}}>{(pool.category||"").replace(/_/g," ")}</td>
+                        <td>{fmtC(pool.periodAmount)}/{pool.period==="annual"?"yr":pool.period==="quarterly"?"qtr":"mo"}</td>
+                        <td>{pool.productionPct}%</td>
+                        <td style={{fontSize:11}}>{({batch_weight:"Batch weight",unit_count:"Unit output",labor_hours:"Labor hours",flat_per_batch:"Flat per batch"})[pool.allocationBasis]}</td>
+                        <td><button className="fin-btn fin-sm fin-secondary" onClick={()=>toggleCostPoolActive(pool)}>{pool.active===false?"Off":"On"}</button></td>
+                        <td><div style={{display:"flex",gap:6}}>
+                          <button className="fin-btn fin-sm fin-edit" onClick={()=>setCostPoolForm({...pool,periodAmount:String(pool.periodAmount),productionPct:String(pool.productionPct)})}>Edit</button>
+                          <button className="fin-btn fin-sm fin-del" onClick={()=>removeCostPool(pool.id)}>✕</button>
+                        </div></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

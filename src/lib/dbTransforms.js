@@ -40,8 +40,9 @@ const SCHEMAS = {
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes'],
-  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
-  cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other'],
+  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
+  cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis'],
+  cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes'],
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
   metrc_transfer_manifests: ['id','created_at','updated_at','facility_id','created_by','sales_order_id','destination_facility_name','destination_license_number','transfer_type','planned_route','estimated_departure','estimated_arrival','driver_name','driver_license_number','vehicle_make','vehicle_model','vehicle_license_plate','phone_for_questions','packages','metrc_transfer_id','status','notes'],
   ipm_log: ['id','created_at','updated_at','facility_id','created_by','entry_type','room_name','grow_space_id','batch_ids','scheduled_date','performed_date','status','target_pest','species','release_rate','release_unit','pest_count','threshold_exceeded','action_taken','performed_by','notes'],
@@ -556,6 +557,7 @@ const FIELD_OVERRIDES = {
     overrideMaterials: 'override_materials',
     manualMaterials: 'manual_materials',
     laborCostOverride: 'labor_cost_override',
+    laborLines: 'labor_lines',
     testFee: 'test_fee',
     cultCost: 'cult_cost',
     actualUnits: 'actual_units',
@@ -567,6 +569,12 @@ const FIELD_OVERRIDES = {
   },
   cultivation_costs: {
     spaceId: 'grow_space_id',
+    allocationBasis: 'allocation_basis',
+  },
+  cost_pools: {
+    periodAmount: 'period_amount',
+    productionPct: 'production_pct',
+    allocationBasis: 'allocation_basis',
   },
   pheno_hunts: {
     strainName: 'strain_name',

@@ -42,7 +42,16 @@ const DEFAULTS = {
   timezone:"America/New_York",
   fiscalYearStart:"01",tagSystem:"METRC",
   productTier:"commercial",moduleOverrides:{},
+  defaultCultivationAllocationBasis:"batch_weight",qbAccountMap:{},
 };
+
+const QB_ACCOUNT_FIELDS = [
+  ["materialsDebit","Materials — debit","COGS:Materials"],["materialsCredit","Materials — credit","Inventory Asset"],
+  ["laborDebit","Direct Labor — debit","COGS:Direct Labor"],["laborCredit","Direct Labor — credit","Wages Payable"],
+  ["testingDebit","Lab Testing — debit","COGS:Lab Testing"],["testingCredit","Lab Testing — credit","Accounts Payable"],
+  ["cultivationDebit","Cultivation — debit","COGS:Cultivation"],["cultivationCredit","Cultivation — credit","Overhead Clearing"],
+  ["overheadDebit","Allocated Overhead — debit","COGS:Allocated Overhead"],["overheadCredit","Allocated Overhead — credit","Overhead Clearing"],
+];
 
 // Toggleable modules, grouped for the Modules card — excludes "core"
 // modules (always on, not shown as a toggle) and preserves nav order.
@@ -114,6 +123,8 @@ export default function FacilitySettings(){
               tagSystem: data.tag_system||"METRC",
               productTier: data.product_tier||"commercial",
               moduleOverrides: data.module_overrides||{},
+              defaultCultivationAllocationBasis: data.default_cultivation_allocation_basis||"batch_weight",
+              qbAccountMap: data.qb_account_map||{},
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -220,6 +231,8 @@ export default function FacilitySettings(){
           tag_system: settings.tagSystem,
           product_tier: settings.productTier,
           module_overrides: settings.moduleOverrides,
+          default_cultivation_allocation_basis: settings.defaultCultivationAllocationBasis,
+          qb_account_map: settings.qbAccountMap,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;
@@ -280,10 +293,11 @@ export default function FacilitySettings(){
           </div>
 
           <div className="fs-section">System Settings</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10}}>
             <div><label className="fs-lbl">Timezone</label><select className="fs-sel" value={settings.timezone} onChange={e=>setF("timezone",e.target.value)}>{TIMEZONES.map(t=><option key={t}>{t}</option>)}</select></div>
             <div><label className="fs-lbl">Seed-to-sale system</label><select className="fs-sel" value={settings.tagSystem} onChange={e=>setF("tagSystem",e.target.value)}><option>METRC</option><option>BioTrackTHC</option><option>Leaf Data Systems</option><option>MJ Freeway</option><option>Flourish</option><option>COVA</option><option>Other</option></select></div>
             <div><label className="fs-lbl">Fiscal year start month</label><select className="fs-sel" value={settings.fiscalYearStart} onChange={e=>setF("fiscalYearStart",e.target.value)}>{["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i)=><option key={m} value={m}>{new Date(2024,i,1).toLocaleString("en-US",{month:"long"})}</option>)}</select></div>
+            <div><label className="fs-lbl">Default cultivation cost allocation</label><select className="fs-sel" value={settings.defaultCultivationAllocationBasis} onChange={e=>setF("defaultCultivationAllocationBasis",e.target.value)}><option value="batch_weight">By weight</option><option value="time_occupied">By time occupied</option></select></div>
           </div>
 
           <div className="fs-section">V2 Integrations — API Bridge</div>
@@ -297,6 +311,22 @@ export default function FacilitySettings(){
             <div style={{padding:"10px 12px",background:"rgba(90,63,160,0.08)",borderRadius:7,fontSize:11,color:"var(--text-2)"}}>
               During private beta, approved integrations are configured by ResinOps administrators as server-only deployment secrets. METRC remains disabled until vendor credentials are available and verified.
             </div>
+          </div>
+        </div>
+
+        <div className="fs-card">
+          <div className="fs-section" style={{marginTop:0}}>QuickBooks Account Mapping</div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+            Account names used by the "Export to QuickBooks" button on the Cost & P&L page (journal-entry CSV import). Type the account names exactly as they appear in your QuickBooks chart of accounts — sub-accounts as "Parent:Sub". Leave any field blank to use the generic default shown as a placeholder.
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {QB_ACCOUNT_FIELDS.map(([key,label,placeholder])=>(
+              <div key={key}>
+                <label className="fs-lbl">{label}</label>
+                <input className="fs-inp" value={settings.qbAccountMap[key]||""} placeholder={placeholder}
+                  onChange={e=>setF("qbAccountMap",{...settings.qbAccountMap,[key]:e.target.value})} />
+              </div>
+            ))}
           </div>
         </div>
 

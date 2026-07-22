@@ -500,14 +500,14 @@ export default function DataManager(){
 
       // ── Harvest Batches ─────────────────────────────────
       const harvestBatchesRaw = [
-        {id:1001,strainName:"Gorilla Cake",spaceName:"Flower Room 5",plants:64,d:"2026-06-28",wetWeightG:36287,totalDryWeight:8165,status:"done",coaSampleId:"KC-NY-2026-0841",labName:"Kaycha Labs NY",thca:"24.1",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2840",s2s:""},a:{weight:"3120",s2s:""},b:{weight:"1490",s2s:""},c:{weight:"420",s2s:""},trim:{weight:"295",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-        {id:1002,strainName:"Black Maple",spaceName:"Flower Room 6",plants:64,d:"2026-06-21",wetWeightG:33520,totalDryWeight:7620,status:"done",coaSampleId:"KC-NY-2026-0822",labName:"Kaycha Labs NY",thca:"26.0",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2650",s2s:""},a:{weight:"2920",s2s:""},b:{weight:"1380",s2s:""},c:{weight:"390",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-        {id:1003,strainName:"Mango Haze",spaceName:"Flower Room 7",plants:64,d:"2026-06-14",wetWeightG:38940,totalDryWeight:9280,status:"done",coaSampleId:"KC-NY-2026-0798",labName:"Kaycha Labs NY",thca:"21.3",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"3210",s2s:""},a:{weight:"3640",s2s:""},b:{weight:"1740",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
-        {id:1004,strainName:"Blueberry Headband",spaceName:"Flower Room 1",plants:64,d:"2026-05-31",wetWeightG:34810,totalDryWeight:7940,status:"done",coaSampleId:"KC-NY-2026-0761",labName:"Kaycha Labs NY",thca:"22.7",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2760",s2s:""},a:{weight:"3050",s2s:""},b:{weight:"1440",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
-        {id:1005,strainName:"Sour Diesel OG",spaceName:"Flower Room 2",plants:64,d:"2026-05-24",wetWeightG:36420,totalDryWeight:8290,status:"done",coaSampleId:"KC-NY-2026-0744",labName:"Kaycha Labs NY",thca:"23.4",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2880",s2s:""},a:{weight:"3190",s2s:""},b:{weight:"1510",s2s:""},c:{weight:"430",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1001,strainName:"Gorilla Cake",spaceName:"Flower Room 5",spaceId:"gs_001",plants:64,d:"2026-06-28",wetWeightG:36287,totalDryWeight:8165,status:"done",coaSampleId:"KC-NY-2026-0841",labName:"Kaycha Labs NY",thca:"24.1",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2840",s2s:""},a:{weight:"3120",s2s:""},b:{weight:"1490",s2s:""},c:{weight:"420",s2s:""},trim:{weight:"295",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1002,strainName:"Black Maple",spaceName:"Flower Room 6",spaceId:"gs_002",plants:64,d:"2026-06-21",wetWeightG:33520,totalDryWeight:7620,status:"done",coaSampleId:"KC-NY-2026-0822",labName:"Kaycha Labs NY",thca:"26.0",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2650",s2s:""},a:{weight:"2920",s2s:""},b:{weight:"1380",s2s:""},c:{weight:"390",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1003,strainName:"Mango Haze",spaceName:"Flower Room 7",spaceId:"gs_003",plants:64,d:"2026-06-14",wetWeightG:38940,totalDryWeight:9280,status:"done",coaSampleId:"KC-NY-2026-0798",labName:"Kaycha Labs NY",thca:"21.3",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"3210",s2s:""},a:{weight:"3640",s2s:""},b:{weight:"1740",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
+        {id:1004,strainName:"Blueberry Headband",spaceName:"Flower Room 1",spaceId:"gs_005",plants:64,d:"2026-05-31",wetWeightG:34810,totalDryWeight:7940,status:"done",coaSampleId:"KC-NY-2026-0761",labName:"Kaycha Labs NY",thca:"22.7",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2760",s2s:""},a:{weight:"3050",s2s:""},b:{weight:"1440",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1005,strainName:"Sour Diesel OG",spaceName:"Flower Room 2",spaceId:"gs_006",plants:64,d:"2026-05-24",wetWeightG:36420,totalDryWeight:8290,status:"done",coaSampleId:"KC-NY-2026-0744",labName:"Kaycha Labs NY",thca:"23.4",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2880",s2s:""},a:{weight:"3190",s2s:""},b:{weight:"1510",s2s:""},c:{weight:"430",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
       ];
       for (const h of harvestBatchesRaw) {
-        await db.harvest_batches.upsert({...h, id: uid(h.id)});
+        await db.harvest_batches.upsert({...h, id: uid(h.id), spaceId: h.spaceId?uid(h.spaceId):""});
       }
 
       // ── QC Tests / COAs ───────────────────────────────
@@ -536,7 +536,7 @@ export default function DataManager(){
         {id:"pb_006",name:"BH-2026-07A — Blueberry Headband 1g Vape",cat:"vape",sub:"cartridge",strains:"Blueberry Headband",d:"2026-07-20",inputAmt:"1500",unit:"g",status:"scheduled",catLabel:"Vape",subLabel:"Cartridge",yieldEst:"~1,455 × 1g carts",packagingContainer:"individual_tube",vapeHardware:"fg_z510",steps:[{n:"Formulation",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],isLinked:false,unitPrice:28},
         {id:"pb_007",name:"ZR-2026-07A — Zaza Runtz 7g Retail",cat:"whole_flower",sub:"",strains:"Zaza Runtz",d:"2026-07-22",inputAmt:"1800",unit:"g",status:"scheduled",catLabel:"Whole Flower",subLabel:"",yieldEst:"~257 × 7g jars",packagingContainer:"cr_glass_jar",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:42},
         {id:"pb_008",name:"SD-2026-07A — Sour Diesel OG Live Resin",cat:"extract",sub:"live_resin",strains:"Sour Diesel OG",d:"2026-07-18",inputAmt:"3200",unit:"g",status:"scheduled",catLabel:"Extract / Concentrate",subLabel:"BHO — Live Resin",yieldEst:"~480g live resin",packagingContainer:"glass_jar_5ml",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,unitPrice:55},
-        {id:"pb_009",name:"GC-2026-06A — Gorilla Cake Ice Water Hash",cat:"extract",sub:"hash",strains:"Gorilla Cake",d:"2026-06-29",inputAmt:"2000",unit:"g",status:"in_progress",catLabel:"Extract / Concentrate",subLabel:"Ice Water Hash",yieldEst:"~245g dry hash (12% yield)",packagingContainer:"glass_jar",harvestBatchId:1001,harvestGrade:"trim",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,inputMaterialType:"Dry Trim",unitPrice:48,
+        {id:"pb_009",name:"GC-2026-07C — Gorilla Cake Ice Water Hash",cat:"extract",sub:"hash",strains:"Gorilla Cake",d:"2026-07-01",inputAmt:"2000",unit:"g",status:"in_progress",catLabel:"Extract / Concentrate",subLabel:"Ice Water Hash",yieldEst:"~245g dry hash (12% yield)",packagingContainer:"glass_jar",harvestBatchId:1001,harvestGrade:"trim",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,inputMaterialType:"Dry Trim",unitPrice:48,
           washEvents:[{id:uid("we_pb009_1"),date:"2026-06-29",waterTempF:"34",iceRatio:"1:1",agitationMethod:"wash_machine",agitationTimeMin:"18",numberOfWashes:"6",washVessel:"Pure Extraction Machine",inputWeightG:"2000",grades:[{micron:45,wetWeightG:"180"},{micron:73,wetWeightG:"420"},{micron:90,wetWeightG:"260"},{micron:120,wetWeightG:"140"},{micron:160,wetWeightG:"80"},{micron:220,wetWeightG:"40"}],notes:"Fresh frozen Gorilla Cake trim, single wash session."}],
           freezeDryCycles:[{id:uid("fdc_pb009_1"),sourceWashId:uid("we_pb009_1"),date:"2026-07-01",equipmentBrand:"harvest_right",equipmentModel:"hr_medium",batchSizeG:"1120",shelfTempF:"",condenserTempF:"-40",vacuumLevel:"Auto",cycleTimeHours:"30",finalDryWeightG:"245",notes:"Standard cycle, all micron grades combined."}]},
         {id:"pb_010",name:"GC-2026-07B — Gorilla Cake Hash Rosin",cat:"extract",sub:"rosin_hash",strains:"Gorilla Cake",d:"2026-07-05",inputAmt:"245",unit:"g",status:"in_progress",catLabel:"Extract / Concentrate",subLabel:"Rosin — Hash Press",yieldEst:"~196g hash rosin (80% press yield)",packagingContainer:"glass_jar_5ml",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,unitPrice:65,
@@ -593,9 +593,85 @@ export default function DataManager(){
           items:[
             {itemId:"inv_006",qty:1.5,qtyType:"per_lb_input",note:"Butane: 1.5 lbs per lb biomass"},
           ]},
+        {id:"bom_vape",name:"Vape Cartridge",category:"vape",subcategory:"cartridge",testFee:400,
+          items:[
+            {itemId:"inv_002",qty:1,qtyType:"per_unit_output",note:"Label per unit"},
+          ]},
+        {id:"bom_dist",name:"Short-Path Distillate",category:"extract",subcategory:"sp_lab10",testFee:500,
+          items:[
+            {itemId:"inv_006",qty:0.3,qtyType:"per_lb_input",note:"Residual solvent recovery loss: 0.3 lbs per lb input"},
+          ]},
+        {id:"bom_iwh",name:"Ice Water Hash",category:"extract",subcategory:"hash",testFee:350,
+          items:[
+            {itemId:"inv_002",qty:1,qtyType:"per_unit_output",note:"Label per jar"},
+          ]},
+        {id:"bom_rh",name:"Hash Rosin",category:"extract",subcategory:"rosin_hash",testFee:450,
+          items:[
+            {itemId:"inv_002",qty:1,qtyType:"per_unit_output",note:"Label per jar"},
+          ]},
+        {id:"bom_rf",name:"Flower Rosin",category:"extract",subcategory:"rosin_fl",testFee:450,
+          items:[
+            {itemId:"inv_002",qty:1,qtyType:"per_unit_output",note:"Label per jar"},
+          ]},
       ];
       for (const b of bomsRaw) {
         await db.boms.upsert({...b, id:uid(b.id), items:b.items.map(l=>({...l,itemId:uid(l.itemId)}))});
+      }
+
+      // ── Cost Pools ── named §263A indirect-cost pools, allocated across
+      // batches per their own allocation basis — the actual capitalization
+      // mechanism behind the Cost & P&L page's "Allocated Overhead" figure.
+      const costPoolsRaw = [
+        {id:"cp_rent",name:"Facility Rent",category:"rent",periodAmount:12000,period:"monthly",productionPct:75,allocationBasis:"batch_weight",active:true,notes:"75% of total rent is production/cultivation floor space; the rest is office/retail."},
+        {id:"cp_util",name:"Utilities",category:"utilities",periodAmount:4500,period:"monthly",productionPct:90,allocationBasis:"batch_weight",active:true,notes:"HVAC, lighting, water — 90% attributable to cultivation and processing."},
+        {id:"cp_dep",name:"Equipment Depreciation",category:"depreciation",periodAmount:2800,period:"monthly",productionPct:100,allocationBasis:"unit_count",active:true,notes:"Extraction and packaging equipment, straight-line depreciation."},
+        {id:"cp_ind",name:"Indirect / QA Labor",category:"indirect_labor",periodAmount:9500,period:"monthly",productionPct:100,allocationBasis:"labor_hours",active:true,notes:"Production Manager + QC/Compliance Manager salaries — not tracked per batch, allocated by direct labor hours instead."},
+        {id:"cp_ins",name:"Insurance",category:"insurance",periodAmount:1600,period:"monthly",productionPct:100,allocationBasis:"flat_per_batch",active:true,notes:"Product liability + property insurance, split evenly across batches produced in the period."},
+      ];
+      for (const cp of costPoolsRaw) {
+        await db.cost_pools.upsert({...cp, id:uid(cp.id)});
+      }
+
+      // ── Cultivation Costs ── per grow-space media/nutrients/IPM spend,
+      // auto-allocated to production batches via harvest_batches.spaceId
+      // above. Mixed allocation bases so the demo shows both methods.
+      const cultCostsRaw = [
+        {spaceId:"gs_001",media:420,nutrients:680,ipm:95,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_002",media:410,nutrients:660,ipm:90,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_003",media:440,nutrients:710,ipm:110,other:0,allocationBasis:"time_occupied"},
+        {spaceId:"gs_004",media:415,nutrients:670,ipm:100,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_005",media:425,nutrients:685,ipm:105,other:0,allocationBasis:"time_occupied"},
+        {spaceId:"gs_006",media:430,nutrients:690,ipm:100,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_007",media:418,nutrients:675,ipm:98,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_008",media:422,nutrients:678,ipm:102,other:0,allocationBasis:"batch_weight"},
+        {spaceId:"gs_009",media:210,nutrients:340,ipm:50,other:0,allocationBasis:"time_occupied"},
+      ];
+      for (const cc of cultCostsRaw) {
+        await db.cultivation_costs.upsert({id:uid("cc_"+cc.spaceId), spaceId:uid(cc.spaceId), media:cc.media, nutrients:cc.nutrients, ipm:cc.ipm, other:cc.other, allocationBasis:cc.allocationBasis});
+      }
+
+      // ── Direct labor lines ── every non-linked demo batch gets real
+      // hours-tracked labor rows, both so the Direct Labor section on
+      // Cost & P&L isn't empty AND so the labor-hours-based "Indirect / QA
+      // Labor" cost pool allocates across the whole batch set instead of
+      // concentrating on whichever few batches happen to have hours logged.
+      // Merged into the same cogs_records row the revPerUnit loop above
+      // already created (same deterministic id), not a separate read-back.
+      const laborLinesRaw = {
+        pb_001: [{laborTypeId:"lt_7",hours:14}, {laborTypeId:"lt_8",hours:9}], // Trim + Packaging techs
+        pb_002: [{laborTypeId:"lt_7",hours:13}, {laborTypeId:"lt_8",hours:8}],
+        pb_003: [{laborTypeId:"lt_9",hours:6}], // Pre-Roll technician
+        pb_004: [{laborTypeId:"lt_15",hours:12}], // Processing technician (short-path distillate)
+        pb_006: [{laborTypeId:"lt_14",hours:8}, {laborTypeId:"lt_15",hours:5}], // Formulation + Processing
+        pb_007: [{laborTypeId:"lt_7",hours:12}, {laborTypeId:"lt_8",hours:7}],
+        pb_008: [{laborTypeId:"lt_4",hours:10}, {laborTypeId:"lt_5",hours:16}], // Lead + Extraction techs
+        pb_009: [{laborTypeId:"lt_5",hours:8}],
+        pb_010: [{laborTypeId:"lt_5",hours:6}],
+        pb_011: [{laborTypeId:"lt_5",hours:5}],
+      };
+      for (const [pbId, lines] of Object.entries(laborLinesRaw)) {
+        const p = demoProdBatchesRaw.find(x=>x.id===pbId);
+        await db.cogs_records.upsert({id:uid("cogs_"+pbId), batchId:uid(pbId), revPerUnit:p?.unitPrice, laborLines: lines.map(l=>({laborTypeId:uid(l.laborTypeId),hours:l.hours}))});
       }
 
       // ── GMP Hub ── SOPs / Shifts / Deviations ──────────────────────

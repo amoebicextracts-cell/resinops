@@ -58,6 +58,7 @@ const LS_KEYS = {
   ipm_log:            'resinops_ipm_log',
   customers:          'resinops_customers',
   sales_goals:        'resinops_sales_goals',
+  cost_pools:         'resinops_cost_pools',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
