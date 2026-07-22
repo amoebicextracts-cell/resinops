@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { deductForBatch } from "./lib/inventory";
-import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool } from "./lib/cogs";
+import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder } from "./lib/cogs";
 import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 
@@ -101,12 +101,13 @@ export default function Finance() {
   const [items, setItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
   const [equipment, setEquipment] = useState([]);
+  const [opex, setOpex] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq, oe]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -119,6 +120,7 @@ export default function Finance() {
           db.harvest_batches.list(),
           db.cost_pools.list(),
           db.equipment.list(),
+          db.operating_expenses.list(),
         ]);
         setBoms(b);
         setSkus(sk);
@@ -132,6 +134,7 @@ export default function Finance() {
         setHarvestBatches(hb);
         setCostPools(cp);
         setEquipment(eq);
+        setOpex(oe);
         const fid = getCurrentFacility();
         if(fid && supabase){
           const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day,default_cultivation_allocation_basis,qb_account_map').eq('id', fid).single();
@@ -255,6 +258,23 @@ export default function Finance() {
     }catch(e){ console.error("Cost pool toggle failed:",e); }
   }
 
+  const [opexForm, setOpexForm] = useState(null);
+  const [errOpex, setErrOpex] = useState("");
+  function openAddOpex(){ setOpexForm({id:crypto.randomUUID(),name:"",category:"g_and_a",amount:"",date:new Date().toISOString().split("T")[0],notes:""}); setErrOpex(""); }
+  async function saveOpex(){
+    if(!opexForm.name.trim()){ setErrOpex("Enter a name for this expense."); return; }
+    const toSave = {...opexForm, name:opexForm.name.trim(), amount:parseFloat(opexForm.amount)||0};
+    try{
+      const saved = await db.operating_expenses.upsert(toSave);
+      setOpex(p=>{const i=p.findIndex(o=>o.id===saved.id);return i>=0?p.map(o=>o.id===saved.id?saved:o):[...p,saved];});
+      setOpexForm(null); setErrOpex("");
+    }catch(e){ setErrOpex("Save failed: "+e.message); }
+  }
+  async function removeOpex(id){
+    try{ await db.operating_expenses.delete(id); setOpex(p=>p.filter(o=>o.id!==id)); }
+    catch(e){ console.error("Operating expense delete failed:",e); }
+  }
+
   const allBoms = boms.length ? boms : DEFAULT_BOMS;
   const mainBatches = batches.filter(b=>!b.isLinked);
 
@@ -301,6 +321,15 @@ export default function Finance() {
   }, {materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0,deductibleTotal:0,nonDeductibleTotal:0,poolBreakdown:{}});
   annualSummary.totalCapitalized = annualSummary.materialCost + annualSummary.directLaborCost + annualSummary.testFee + annualSummary.cultivationCost + annualSummary.allocatedOverhead;
 
+  // ── Non-deductible operating expenses — the other side of §280E. Kept
+  // separate from annualSummary.nonDeductibleTotal (a per-batch flag) since
+  // these are a different judgment call: facility-level G&A that was never
+  // COGS-eligible, not a specific batch someone excluded.
+  const yearOpex = opex.filter(o => o.date && new Date(o.date+"T00:00:00").getFullYear() === summaryYear);
+  const opexTotal = yearOpex.reduce((s,o)=>s+(parseFloat(o.amount)||0),0);
+  const costPoolRemainder = calcNonDeductibleCostPoolRemainder(costPools, equipment);
+  const totalNonDeductible = annualSummary.nonDeductibleTotal + costPoolRemainder.total + opexTotal;
+
   function exportAnnual280ESummaryCsv() {
     const esc = v => { const s = String(v??""); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
     const rows = [
@@ -316,7 +345,14 @@ export default function Finance() {
       [],
       ["Total Capitalized COGS (§263A)", annualSummary.totalCapitalized.toFixed(2)],
       ["280E-Deductible", annualSummary.deductibleTotal.toFixed(2)],
-      ["Flagged Not Capitalized", annualSummary.nonDeductibleTotal.toFixed(2)],
+      ["Flagged Not Capitalized (batch-level)", annualSummary.nonDeductibleTotal.toFixed(2)],
+      [],
+      ["Non-Deductible Operating Expenses", ""],
+      ...costPoolRemainder.lines.map(l=>["Cost pool non-production share — "+l.name, l.share.toFixed(2)]),
+      ...Object.entries(yearOpex.reduce((acc,o)=>{acc[o.category]=(acc[o.category]||0)+(parseFloat(o.amount)||0);return acc;},{})).map(([cat,amt])=>["OpEx — "+cat.replace(/_/g," "), amt.toFixed(2)]),
+      ["Total Non-Deductible Operating Expenses", (costPoolRemainder.total+opexTotal).toFixed(2)],
+      [],
+      ["Grand Total Non-Deductible (batch-flagged + facility OpEx)", totalNonDeductible.toFixed(2)],
       [],
       ["Batches included", String(yearBatches.length)],
       ["Generated", new Date().toISOString().split("T")[0]],
@@ -381,7 +417,7 @@ export default function Finance() {
         </div>
 
         <div className="fin-tabs">
-          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["pools","🏢 Cost Pools"],["sku","🏷️ SKU Pricing"],["280e","🧾 280E Summary"]].map(([v,l])=>(
+          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["pools","🏢 Cost Pools"],["opex","📋 Operating Expenses"],["sku","🏷️ SKU Pricing"],["280e","🧾 280E Summary"]].map(([v,l])=>(
             <button key={v} className={"fin-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -996,6 +1032,65 @@ export default function Finance() {
           </div>
         )}
 
+        {/* ── OPERATING EXPENSES ── */}
+        {tab==="opex" && (
+          <div className="fin-card">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div style={{fontSize:12,color:"var(--text-2)",maxWidth:640}}>
+                Pure SG&A that was never eligible for any COGS treatment — marketing, admin salaries, legal/professional fees, a separate retail storefront, non-production insurance. This is the other side of §280E: money that's genuinely disallowed, shown alongside the Annual 280E Summary's capitalized-COGS side so the full picture is on one page. Log a recurring cost as one row per payment, or one lump annual row — either way it sums correctly by year.
+              </div>
+              {!opexForm && <button className="fin-btn fin-primary" onClick={openAddOpex}>+ Add Expense</button>}
+            </div>
+
+            {opexForm && (
+              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="fin-lbl">Name</label><input className="fin-inp" value={opexForm.name} onChange={e=>setOpexForm(f=>({...f,name:e.target.value}))} placeholder="Q3 digital marketing retainer" /></div>
+                  <div><label className="fin-lbl">Category</label>
+                    <select className="fin-sel" value={opexForm.category} onChange={e=>setOpexForm(f=>({...f,category:e.target.value}))}>
+                      <option value="g_and_a">G&A</option><option value="marketing">Marketing</option><option value="admin_salaries">Admin Salaries</option>
+                      <option value="legal_professional">Legal / Professional</option><option value="insurance_nonprod">Insurance (non-production)</option>
+                      <option value="retail_operations">Retail Operations</option><option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div><label className="fin-lbl">Amount ($)</label><input type="number" step="0.01" className="fin-inp" value={opexForm.amount} onChange={e=>setOpexForm(f=>({...f,amount:e.target.value}))} placeholder="2500" /></div>
+                  <div><label className="fin-lbl">Date</label><input type="date" className="fin-inp" value={opexForm.date} onChange={e=>setOpexForm(f=>({...f,date:e.target.value}))} /></div>
+                </div>
+                <div style={{marginBottom:10}}><label className="fin-lbl">Notes (optional)</label><input className="fin-inp" value={opexForm.notes||""} onChange={e=>setOpexForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. Retainer covers Jul-Sep" /></div>
+                {errOpex && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{errOpex}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="fin-btn fin-primary" onClick={saveOpex}>Save</button>
+                  <button className="fin-btn fin-secondary" onClick={()=>setOpexForm(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {opex.length===0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No operating expenses logged yet.</div>
+            ) : (
+              <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                <table className="fin-tbl">
+                  <thead><tr><th>Name</th><th>Category</th><th>Date</th><th>Amount</th><th></th></tr></thead>
+                  <tbody>
+                    {[...opex].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(o=>(
+                      <tr key={o.id}>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{o.name}</td>
+                        <td style={{fontSize:11,textTransform:"capitalize"}}>{(o.category||"").replace(/_/g," ")}</td>
+                        <td style={{fontSize:11}}>{o.date}</td>
+                        <td style={{color:"var(--danger)"}}>{fmtC(o.amount)}</td>
+                        <td><div style={{display:"flex",gap:6}}>
+                          <button className="fin-btn fin-sm fin-edit" onClick={()=>setOpexForm({...o,amount:String(o.amount)})}>Edit</button>
+                          <button className="fin-btn fin-sm fin-del" onClick={()=>removeOpex(o.id)}>✕</button>
+                        </div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── SKU PRICING ── */}
         {tab==="sku" && (
           <div className="fin-card">
@@ -1051,7 +1146,7 @@ export default function Finance() {
             <div className="fin-card" style={{marginBottom:16}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:4}}>
                 <div style={{fontSize:12,color:"var(--text-2)",maxWidth:640}}>
-                  One-page rollup of capitalized COGS (§263A) vs. anything flagged not capitalized, across every production batch dated in the selected year. This is the capitalized-COGS side only — not a full return — hand it to your accountant alongside your other books, and review before filing.
+                  One-page rollup of capitalized COGS (§263A) alongside what's genuinely disallowed under §280E — batches flagged not capitalized, cost pools' non-production share, and logged operating expenses. Not a full return — hand it to your accountant alongside your other books, and review before filing.
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <select className="fin-sel" style={{width:"auto",minWidth:100}} value={summaryYear} onChange={e=>setSummaryYear(parseInt(e.target.value))}>
@@ -1062,11 +1157,12 @@ export default function Finance() {
               </div>
             </div>
 
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
               {[
                 {l:"Total Capitalized COGS (§263A)",v:fmtC(annualSummary.totalCapitalized)},
                 {l:"280E-Deductible",v:fmtC(annualSummary.deductibleTotal),cls:"margin-good"},
-                {l:"Flagged Not Capitalized",v:fmtC(annualSummary.nonDeductibleTotal),cls:annualSummary.nonDeductibleTotal>0?"margin-bad":""},
+                {l:"Flagged Not Capitalized (batches)",v:fmtC(annualSummary.nonDeductibleTotal),cls:annualSummary.nonDeductibleTotal>0?"margin-bad":""},
+                {l:"Non-Deductible Operating Expenses",v:fmtC(costPoolRemainder.total+opexTotal),cls:(costPoolRemainder.total+opexTotal)>0?"margin-bad":""},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
             </div>
 
@@ -1088,6 +1184,30 @@ export default function Finance() {
                       ))}
                       <tr style={{borderTop:"1px solid var(--border-2)"}}><td style={{fontWeight:500,color:"var(--text)"}}>Total Allocated Overhead</td><td style={{textAlign:"right",fontWeight:500,color:"var(--text)"}}>{fmtC(annualSummary.allocatedOverhead)}</td></tr>
                       <tr style={{borderTop:"2px solid var(--border-2)"}}><td style={{fontWeight:700,color:"var(--text)"}}>Total Capitalized COGS</td><td style={{textAlign:"right",fontWeight:700,color:"var(--accent-2)"}}>{fmtC(annualSummary.totalCapitalized)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="fin-card" style={{marginTop:16}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Non-Deductible Operating Expenses — {summaryYear}</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>Cost pools' non-production share is a facility-wide annual figure (not filtered by year — see Cost Pools tab); logged operating expenses below are filtered to {summaryYear} by date.</div>
+              {costPoolRemainder.lines.length===0 && yearOpex.length===0 ? (
+                <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No non-deductible operating expenses — every cost pool is 100% production, and nothing's logged in Operating Expenses.</div>
+              ) : (
+                <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                  <table className="fin-tbl">
+                    <thead><tr><th>Category</th><th style={{textAlign:"right"}}>Amount</th></tr></thead>
+                    <tbody>
+                      {costPoolRemainder.lines.map(l=>(
+                        <tr key={l.poolId}><td>Cost pool non-production share — {l.name}</td><td style={{textAlign:"right"}}>{fmtC(l.share)}</td></tr>
+                      ))}
+                      {Object.entries(yearOpex.reduce((acc,o)=>{acc[o.category]=(acc[o.category]||0)+(parseFloat(o.amount)||0);return acc;},{})).map(([cat,amt])=>(
+                        <tr key={cat}><td style={{textTransform:"capitalize"}}>OpEx — {cat.replace(/_/g," ")}</td><td style={{textAlign:"right"}}>{fmtC(amt)}</td></tr>
+                      ))}
+                      <tr style={{borderTop:"2px solid var(--border-2)"}}><td style={{fontWeight:700,color:"var(--text)"}}>Total Non-Deductible Operating Expenses</td><td style={{textAlign:"right",fontWeight:700,color:"var(--danger)"}}>{fmtC(costPoolRemainder.total+opexTotal)}</td></tr>
+                      <tr><td style={{fontWeight:700,color:"var(--text)"}}>Grand Total Non-Deductible (batches + OpEx)</td><td style={{textAlign:"right",fontWeight:700,color:"var(--danger)"}}>{fmtC(totalNonDeductible)}</td></tr>
                     </tbody>
                   </table>
                 </div>

@@ -59,6 +59,7 @@ const LS_KEYS = {
   customers:          'resinops_customers',
   sales_goals:        'resinops_sales_goals',
   cost_pools:         'resinops_cost_pools',
+  operating_expenses: 'resinops_operating_expenses',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

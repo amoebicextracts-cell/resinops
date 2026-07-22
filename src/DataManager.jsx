@@ -725,6 +725,22 @@ export default function DataManager(){
         await db.cost_pools.upsert({...cp, id:uid(cp.id)});
       }
 
+      // ── Operating Expenses ── pure SG&A that was never COGS-eligible —
+      // the other side of §280E, shown alongside the Annual 280E Summary's
+      // capitalized-COGS side. Spread across 2026 so the year selector has
+      // real data either side of "today."
+      const opexRaw = [
+        {id:"opex_mkt_q1",name:"Q1 digital marketing retainer",category:"marketing",amount:4200,date:"2026-02-15",notes:"Social + local SEO agency retainer."},
+        {id:"opex_mkt_q2",name:"Q2 digital marketing retainer",category:"marketing",amount:4200,date:"2026-05-15",notes:"Social + local SEO agency retainer."},
+        {id:"opex_legal_licensing",name:"Annual license renewal counsel",category:"legal_professional",amount:6800,date:"2026-03-01",notes:"OCM license renewal filing + compliance review."},
+        {id:"opex_admin_q1",name:"Admin/office salaries — Q1",category:"admin_salaries",amount:28500,date:"2026-03-31",notes:"Office manager + bookkeeper, non-production."},
+        {id:"opex_admin_q2",name:"Admin/office salaries — Q2",category:"admin_salaries",amount:28500,date:"2026-06-30",notes:"Office manager + bookkeeper, non-production."},
+        {id:"opex_ga_software",name:"Back-office software subscriptions",category:"g_and_a",amount:3100,date:"2026-04-10",notes:"Accounting, HR, and email platforms — non-production overhead."},
+      ];
+      for (const oe of opexRaw) {
+        await db.operating_expenses.upsert({...oe, id:uid(oe.id)});
+      }
+
       // ── Cultivation Costs ── per grow-space media/nutrients/IPM spend,
       // auto-allocated to production batches via harvest_batches.spaceId
       // above. Mixed allocation bases so the demo shows both methods.

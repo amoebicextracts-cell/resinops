@@ -213,6 +213,38 @@ export function calcAllocatedOverhead(batch, costPools, allBatches, cogsRecordsB
   return { allocatedOverhead, overheadLines };
 }
 
+// ── Non-deductible cost-pool remainder (the other side of §280E) ────────
+// Every cost pool's production_pct already says what fraction is
+// capitalizable via §263A (see calcAllocatedOverhead above) — the
+// remainder is a real, already-quantified non-production cost (e.g. the
+// 25% of rent that's office/retail space) that was never surfaced
+// anywhere. This is a facility-wide annual figure, not batch-allocated —
+// cost pools are recurring assumptions, not dated records, so it isn't
+// filtered by year the way batches are.
+const PERIODS_PER_YEAR = { monthly: 12, quarterly: 4, annual: 1 };
+
+export function calcNonDeductibleCostPoolRemainder(costPools, equipment) {
+  const lines = [];
+  let total = 0;
+  for (const pool of (costPools || []).filter(p => p.active !== false)) {
+    const nonProdPct = 100 - (parseFloat(pool.productionPct ?? 100));
+    if (nonProdPct <= 0) continue;
+    let periodAmount;
+    if (pool.linkedToEquipment) {
+      const periodMultiplier = pool.period === 'quarterly' ? 3 : pool.period === 'annual' ? 12 : 1;
+      periodAmount = calcEquipmentDepreciationPool(equipment, new Date().toISOString().split('T')[0]).monthly * periodMultiplier;
+    } else {
+      periodAmount = parseFloat(pool.periodAmount) || 0;
+    }
+    if (periodAmount <= 0) continue;
+    const annual = periodAmount * (nonProdPct / 100) * (PERIODS_PER_YEAR[pool.period] || 12);
+    if (annual <= 0) continue;
+    lines.push({ poolId: pool.id, name: pool.name, category: pool.category, share: fmtN(annual) });
+    total += annual;
+  }
+  return { total: fmtN(total), lines };
+}
+
 // ── Full batch COGS ──────────────────────────────────────────────────────
 export function calcBatchCOGS(batch, ctx) {
   const { boms = [], cogsRecords = [], items = [], laborTypes = [], costPools = [], cultivationCosts = [], harvestBatches = [], growSpaces = [], allBatches = [], equipment = [] } = ctx || {};
