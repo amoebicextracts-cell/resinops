@@ -151,7 +151,31 @@ function periodKey(dateStr, period) {
   return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
 }
 
-export function calcAllocatedOverhead(batch, costPools, allBatches, cogsRecordsByBatchId) {
+// Straight-line monthly depreciation summed across all equipment already
+// owned as of periodDate (excludes "retired" assets and, by the purchase-
+// date filter, excludes "planned" future purchases until their purchase
+// date arrives — no separate planned/active branch needed).
+export function calcEquipmentDepreciationPool(equipment, periodDate) {
+  const asOf = new Date((periodDate || '') + 'T00:00:00');
+  let monthly = 0;
+  const lines = [];
+  for (const eq of (equipment || [])) {
+    if (eq.status === 'retired') continue;
+    if (!eq.purchaseDate || !eq.usefulLifeMonths) continue;
+    const purchased = new Date(eq.purchaseDate + 'T00:00:00');
+    if (purchased > asOf) continue;
+    const life = parseFloat(eq.usefulLifeMonths) || 0;
+    if (life <= 0) continue;
+    const basis = (parseFloat(eq.purchasePrice) || 0) - (parseFloat(eq.salvageValue) || 0);
+    if (basis <= 0) continue;
+    const monthlyAmt = basis / life;
+    monthly += monthlyAmt;
+    lines.push({ equipmentId: eq.id, name: eq.name, monthly: fmtN(monthlyAmt) });
+  }
+  return { monthly: fmtN(monthly), lines };
+}
+
+export function calcAllocatedOverhead(batch, costPools, allBatches, cogsRecordsByBatchId, equipment) {
   const overheadLines = [];
   let allocatedOverhead = 0;
 
@@ -159,7 +183,14 @@ export function calcAllocatedOverhead(batch, costPools, allBatches, cogsRecordsB
     const periodBatches = (allBatches || []).filter(b => !b.isLinked && b.d && periodKey(b.d, pool.period) === periodKey(batch.d, pool.period));
     if (!periodBatches.length || !periodBatches.some(b => b.id === batch.id)) continue;
 
-    const poolAmount = (parseFloat(pool.periodAmount) || 0) * (parseFloat(pool.productionPct ?? 100) / 100);
+    let periodAmount;
+    if (pool.linkedToEquipment) {
+      const periodMultiplier = pool.period === 'quarterly' ? 3 : pool.period === 'annual' ? 12 : 1;
+      periodAmount = calcEquipmentDepreciationPool(equipment, batch.d).monthly * periodMultiplier;
+    } else {
+      periodAmount = parseFloat(pool.periodAmount) || 0;
+    }
+    const poolAmount = periodAmount * (parseFloat(pool.productionPct ?? 100) / 100);
     if (poolAmount <= 0) continue;
 
     let share;
@@ -190,7 +221,7 @@ export function calcAllocatedOverhead(batch, costPools, allBatches, cogsRecordsB
 
 // ── Full batch COGS ──────────────────────────────────────────────────────
 export function calcBatchCOGS(batch, ctx) {
-  const { boms = [], cogsRecords = [], items = [], laborTypes = [], costPools = [], cultivationCosts = [], harvestBatches = [], growSpaces = [], allBatches = [] } = ctx || {};
+  const { boms = [], cogsRecords = [], items = [], laborTypes = [], costPools = [], cultivationCosts = [], harvestBatches = [], growSpaces = [], allBatches = [], equipment = [] } = ctx || {};
   const record = cogsRecords.find(r => r.batchId === batch.id) || {};
   const cogsRecordsByBatchId = Object.fromEntries(cogsRecords.map(r => [r.batchId, r]));
 
@@ -200,7 +231,7 @@ export function calcBatchCOGS(batch, ctx) {
   const { cultivationCost, cultivationLines } = record.cultCost !== undefined && record.cultCost !== null && record.cultCost !== ''
     ? { cultivationCost: parseFloat(record.cultCost) || 0, cultivationLines: [] }
     : calcCultivationCost(batch, cultivationCosts, harvestBatches, allBatches.length ? allBatches : [batch], growSpaces);
-  const { allocatedOverhead, overheadLines } = calcAllocatedOverhead(batch, costPools, allBatches.length ? allBatches : [batch], cogsRecordsByBatchId);
+  const { allocatedOverhead, overheadLines } = calcAllocatedOverhead(batch, costPools, allBatches.length ? allBatches : [batch], cogsRecordsByBatchId, equipment);
 
   const totalCOGS = materialCost + directLaborCost + testFee + cultivationCost + allocatedOverhead;
   const estUnits = estUnitsFromBatch(batch);

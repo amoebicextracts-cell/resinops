@@ -505,6 +505,24 @@ export default function DataManager(){
         {id:1003,strainName:"Mango Haze",spaceName:"Flower Room 7",spaceId:"gs_003",plants:64,d:"2026-06-14",wetWeightG:38940,totalDryWeight:9280,status:"done",coaSampleId:"KC-NY-2026-0798",labName:"Kaycha Labs NY",thca:"21.3",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"3210",s2s:""},a:{weight:"3640",s2s:""},b:{weight:"1740",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
         {id:1004,strainName:"Blueberry Headband",spaceName:"Flower Room 1",spaceId:"gs_005",plants:64,d:"2026-05-31",wetWeightG:34810,totalDryWeight:7940,status:"done",coaSampleId:"KC-NY-2026-0761",labName:"Kaycha Labs NY",thca:"22.7",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2760",s2s:""},a:{weight:"3050",s2s:""},b:{weight:"1440",s2s:""},c:{weight:"410",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1005,strainName:"Sour Diesel OG",spaceName:"Flower Room 2",spaceId:"gs_006",plants:64,d:"2026-05-24",wetWeightG:36420,totalDryWeight:8290,status:"done",coaSampleId:"KC-NY-2026-0744",labName:"Kaycha Labs NY",thca:"23.4",trimMethods:{aa:"hand",a:"hand",b:"machine",c:"machine"},grades:{aa:{weight:"2880",s2s:""},a:{weight:"3190",s2s:""},b:{weight:"1510",s2s:""},c:{weight:"430",s2s:""},trim:{weight:"280",s2s:""},waste:{weight:"0",s2s:""}},steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        // ── Additional harvests feeding the trailing/forward production
+        // batches below (Forecast tab + Annual 280E Summary need batches
+        // spread across ~15 months, not just this one July cluster).
+        {id:1006,strainName:"Zaza Runtz",spaceName:"Flower Room 3",spaceId:"gs_004",plants:64,d:"2026-03-15",wetWeightG:35200,totalDryWeight:8010,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1007,strainName:"Gorilla Cake",spaceName:"Flower Room 7",spaceId:"gs_007",plants:64,d:"2026-03-28",wetWeightG:34600,totalDryWeight:7850,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1008,strainName:"Mango Haze",spaceName:"Flower Room 8",spaceId:"gs_008",plants:64,d:"2026-04-25",wetWeightG:36100,totalDryWeight:8340,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1009,strainName:"Sour Diesel OG",spaceName:"Veg — Mixed Strains",spaceId:"gs_009",plants:64,d:"2026-07-25",wetWeightG:36400,totalDryWeight:8300,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1010,strainName:"Gorilla Cake",spaceName:"Flower Room 5",spaceId:"gs_001",plants:64,d:"2026-08-20",wetWeightG:35900,totalDryWeight:8180,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1011,strainName:"Black Maple",spaceName:"Flower Room 6",spaceId:"gs_002",plants:64,d:"2026-09-20",wetWeightG:33800,totalDryWeight:7690,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1012,strainName:"Mango Haze",spaceName:"Flower Room 7",spaceId:"gs_003",plants:64,d:"2026-10-20",wetWeightG:39100,totalDryWeight:9350,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
+        {id:1013,strainName:"Blueberry Headband",spaceName:"Flower Room 3",spaceId:"gs_004",plants:64,d:"2026-11-20",wetWeightG:35000,totalDryWeight:8000,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1014,strainName:"Sour Diesel OG",spaceName:"Flower Room 1",spaceId:"gs_005",plants:64,d:"2026-12-20",wetWeightG:36700,totalDryWeight:8360,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1015,strainName:"Zaza Runtz",spaceName:"Flower Room 2",spaceId:"gs_006",plants:64,d:"2027-01-20",wetWeightG:34400,totalDryWeight:7830,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1016,strainName:"Gorilla Cake",spaceName:"Flower Room 7",spaceId:"gs_007",plants:64,d:"2027-02-20",wetWeightG:35600,totalDryWeight:8100,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1017,strainName:"Black Maple",spaceName:"Flower Room 8",spaceId:"gs_008",plants:64,d:"2027-03-20",wetWeightG:33700,totalDryWeight:7660,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1018,strainName:"Mango Haze",spaceName:"Veg — Mixed Strains",spaceId:"gs_009",plants:64,d:"2027-04-20",wetWeightG:38700,totalDryWeight:9260,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:4},{n:"Curing",days:14}]},
+        {id:1019,strainName:"Blueberry Headband",spaceName:"Flower Room 5",spaceId:"gs_001",plants:64,d:"2027-05-20",wetWeightG:34900,totalDryWeight:7960,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1020,strainName:"Sour Diesel OG",spaceName:"Flower Room 6",spaceId:"gs_002",plants:64,d:"2027-06-20",wetWeightG:36500,totalDryWeight:8320,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
       ];
       for (const h of harvestBatchesRaw) {
         await db.harvest_batches.upsert({...h, id: uid(h.id), spaceId: h.spaceId?uid(h.spaceId):""});
@@ -527,6 +545,80 @@ export default function DataManager(){
       const FLOWER_STEPS = [{n:"Trimming",days:3},{n:"Curing",days:14},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
       const PREROLL_STEPS = [{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}];
       const EXTRACT_STEPS = [{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
+
+      // ── Spread-out batches (trailing trend + forward forecast) ──────
+      // Built from a compact template + builder instead of ~30 fully
+      // hand-authored objects — same field shape as the hand-authored
+      // batches above, just generated. Fills the Forecast tab's 15-month
+      // window (3 back, 12 forward) and gives the Annual 280E Summary
+      // more than one month of data to roll up.
+      const SPREAD_FLAVORS = [
+        {cat:"whole_flower",sub:"",catLabel:"Whole Flower",subLabel:"",nameSuffix:"3.5g Retail",steps:FLOWER_STEPS,packagingContainer:"cr_glass_jar",harvestGrade:"aa",inputAmt:2600,units:740,pkg:"3.5g jars",unitPrice:19},
+        {cat:"pre_roll",sub:"",catLabel:"Pre-Roll",subLabel:"",nameSuffix:"Pre-Roll 1g 5pk",steps:PREROLL_STEPS,packagingContainer:"poptop_multi",packagingUnitsPerPack:5,harvestGrade:"b",inputAmt:1700,units:1550,pkg:"5-packs",unitPrice:24},
+        {cat:"vape",sub:"cartridge",catLabel:"Vape",subLabel:"Cartridge",nameSuffix:"1g Vape",steps:[{n:"Formulation",days:1},{n:"Filling",days:2},{n:"QC / Testing",days:7},{n:"Packaging",days:2},{n:"Inventory",days:1}],packagingContainer:"individual_tube",vapeHardware:"fg_z510",inputAmt:1450,units:1400,pkg:"1g carts",unitPrice:28,noHarvest:true},
+        {cat:"extract",sub:"rosin_hash",catLabel:"Extract / Concentrate",subLabel:"Rosin — Hash Press",nameSuffix:"Hash Rosin",steps:EXTRACT_STEPS,packagingContainer:"glass_jar_5ml",harvestGrade:"trim",inputAmt:230,units:180,pkg:"g hash rosin",unitPrice:65,noUnitRegex:true},
+      ];
+      const SPREAD_STRAINS = ["Gorilla Cake","Black Maple","Mango Haze","Blueberry Headband","Sour Diesel OG","Zaza Runtz"];
+
+      function mkSpreadBatch(id, d, flavorIdx, strainIdx, harvestBatchId, status) {
+        const f = SPREAD_FLAVORS[flavorIdx % SPREAD_FLAVORS.length];
+        const strain = SPREAD_STRAINS[strainIdx % SPREAD_STRAINS.length];
+        const code = strain.split(" ").map(w=>w[0]).join("").toUpperCase();
+        const yieldEst = f.noUnitRegex ? `~${f.units}${f.pkg}` : `~${f.units.toLocaleString()} × ${f.pkg}`;
+        const useHarvest = !f.noHarvest && harvestBatchId;
+        return {
+          id, name:`${code}-${d.replace(/-/g,"").slice(0,6)} — ${strain} ${f.nameSuffix}`,
+          cat:f.cat, sub:f.sub, strains:strain, d, inputAmt:String(f.inputAmt), unit:"g", status,
+          catLabel:f.catLabel, subLabel:f.subLabel, yieldEst,
+          packagingContainer:f.packagingContainer,
+          ...(f.packagingUnitsPerPack?{packagingUnitsPerPack:f.packagingUnitsPerPack}:{}),
+          ...(f.vapeHardware?{vapeHardware:f.vapeHardware}:{}),
+          ...(useHarvest?{harvestBatchId, harvestGrade:f.harvestGrade}:{}),
+          steps:f.steps.map(s=>({...s})), isLinked:false, unitPrice:f.unitPrice,
+        };
+      }
+
+      const LABOR_BY_FLAVOR = [
+        [{laborTypeId:"lt_7",hours:10},{laborTypeId:"lt_8",hours:6}],
+        [{laborTypeId:"lt_9",hours:5}],
+        [{laborTypeId:"lt_14",hours:6},{laborTypeId:"lt_15",hours:4}],
+        [{laborTypeId:"lt_5",hours:6}],
+      ];
+
+      // Trailing (3 months back) — trend context, sourced from the March/
+      // April harvests above so every harvest→production date stays
+      // chronologically valid.
+      const TRAILING = [
+        {id:"pb_t01", d:"2026-04-12", flavorIdx:0, strainIdx:5, harvestBatchId:1006},
+        {id:"pb_t02", d:"2026-04-26", flavorIdx:1, strainIdx:0, harvestBatchId:1007},
+        {id:"pb_t03", d:"2026-05-10", flavorIdx:2, strainIdx:2, harvestBatchId:1008},
+        {id:"pb_t04", d:"2026-05-24", flavorIdx:3, strainIdx:5, harvestBatchId:1006},
+        {id:"pb_t05", d:"2026-06-08", flavorIdx:0, strainIdx:4, harvestBatchId:1005},
+        {id:"pb_t06", d:"2026-06-22", flavorIdx:1, strainIdx:3, harvestBatchId:1004},
+      ];
+      // Forward (12 months) — 2 batches/month, one harvest per month.
+      const FORWARD_MONTHS = [
+        {m:"2026-08",harvestId:1009,strainIdx:4}, {m:"2026-09",harvestId:1010,strainIdx:0},
+        {m:"2026-10",harvestId:1011,strainIdx:1}, {m:"2026-11",harvestId:1012,strainIdx:2},
+        {m:"2026-12",harvestId:1013,strainIdx:3}, {m:"2027-01",harvestId:1014,strainIdx:4},
+        {m:"2027-02",harvestId:1015,strainIdx:5}, {m:"2027-03",harvestId:1016,strainIdx:0},
+        {m:"2027-04",harvestId:1017,strainIdx:1}, {m:"2027-05",harvestId:1018,strainIdx:2},
+        {m:"2027-06",harvestId:1019,strainIdx:3}, {m:"2027-07",harvestId:1020,strainIdx:4},
+      ];
+      const FORWARD = [];
+      FORWARD_MONTHS.forEach((mo,i) => {
+        FORWARD.push({id:`pb_f${String(i*2+1).padStart(2,"0")}`, d:`${mo.m}-08`, flavorIdx:(i*2)%4, strainIdx:mo.strainIdx, harvestBatchId:mo.harvestId});
+        FORWARD.push({id:`pb_f${String(i*2+2).padStart(2,"0")}`, d:`${mo.m}-22`, flavorIdx:(i*2+1)%4, strainIdx:(mo.strainIdx+1)%6, harvestBatchId:mo.harvestId});
+      });
+
+      const spreadBatches = [
+        ...TRAILING.map(t=>mkSpreadBatch(t.id, t.d, t.flavorIdx, t.strainIdx, t.harvestBatchId, "in_progress")),
+        ...FORWARD.map(t=>mkSpreadBatch(t.id, t.d, t.flavorIdx, t.strainIdx, t.harvestBatchId, "scheduled")),
+      ];
+      const spreadLaborLines = Object.fromEntries(
+        [...TRAILING, ...FORWARD].map(t => [t.id, LABOR_BY_FLAVOR[t.flavorIdx % SPREAD_FLAVORS.length]])
+      );
+
       const demoProdBatchesRaw = [
         {id:"pb_001",name:"GC-2026-07A — Gorilla Cake 3.5g Retail",cat:"whole_flower",sub:"",strains:"Gorilla Cake",d:"2026-07-08",inputAmt:"2840",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~810 × 3.5g jars",packagingContainer:"cr_glass_jar",packagingItemId:"inv_001",harvestBatchId:1001,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:18},
         {id:"pb_002",name:"BM-2026-07A — Black Maple 3.5g Retail",cat:"whole_flower",sub:"",strains:"Black Maple",d:"2026-07-08",inputAmt:"2650",unit:"g",status:"in_progress",catLabel:"Whole Flower",subLabel:"",yieldEst:"~757 × 3.5g jars",packagingContainer:"cr_glass_jar",harvestBatchId:1002,harvestGrade:"aa",steps:FLOWER_STEPS.map(s=>({...s})),isLinked:false,unitPrice:20},
@@ -544,6 +636,7 @@ export default function DataManager(){
           coldCureBatches:[{id:uid("cc_pb010_1"),sourcePressRunId:uid("pr_pb010_1"),dateStarted:"2026-07-05",dateEnded:"2026-07-19",tempF:"38",resultingConsistency:"Budder / Batter",notes:"14-day cold cure, whipped to batter consistency."}]},
         {id:"pb_011",name:"MH-2026-07B — Mango Haze Flower Rosin",cat:"extract",sub:"rosin_fl",strains:"Mango Haze",d:"2026-07-12",inputAmt:"500",unit:"g",status:"in_progress",catLabel:"Extract / Concentrate",subLabel:"Rosin — Flower Press",yieldEst:"~65g flower rosin (13% yield)",packagingContainer:"glass_jar_1g",steps:EXTRACT_STEPS.map(s=>({...s})),isLinked:false,unitPrice:70,
           pressRuns:[{id:uid("pr_pb011_1"),sourceBatchId:"",sourceFreezeDryId:"",date:"2026-07-12",pressBrand:"pure_pressure",pressModel:"pp_pikes_peak",plateTempF:"195",pressTimeSec:"75",pressure:"5 tons",bagMicron:73,packingMethod:"loose_bag",prePressWeightG:"500",postPressYieldG:"65",notes:"Fresh flower rosin, single-pass press."}]},
+        ...spreadBatches,
       ];
       for (const p of demoProdBatchesRaw) {
         const {id,harvestBatchId,linkedTo,packagingItemId,...rest} = p;
@@ -624,7 +717,7 @@ export default function DataManager(){
       const costPoolsRaw = [
         {id:"cp_rent",name:"Facility Rent",category:"rent",periodAmount:12000,period:"monthly",productionPct:75,allocationBasis:"batch_weight",active:true,notes:"75% of total rent is production/cultivation floor space; the rest is office/retail."},
         {id:"cp_util",name:"Utilities",category:"utilities",periodAmount:4500,period:"monthly",productionPct:90,allocationBasis:"batch_weight",active:true,notes:"HVAC, lighting, water — 90% attributable to cultivation and processing."},
-        {id:"cp_dep",name:"Equipment Depreciation",category:"depreciation",periodAmount:2800,period:"monthly",productionPct:100,allocationBasis:"unit_count",active:true,notes:"Extraction and packaging equipment, straight-line depreciation."},
+        {id:"cp_dep",name:"Equipment Depreciation",category:"depreciation",periodAmount:2800,period:"monthly",productionPct:100,allocationBasis:"unit_count",active:true,linkedToEquipment:true,notes:"Computed from the Equipment Registry's straight-line depreciation (purchase price − salvage value, over useful life) rather than a manually typed figure — see the planned capacity-upgrade asset for how a future purchase projects into upcoming months."},
         {id:"cp_ind",name:"Indirect / QA Labor",category:"indirect_labor",periodAmount:9500,period:"monthly",productionPct:100,allocationBasis:"labor_hours",active:true,notes:"Production Manager + QC/Compliance Manager salaries — not tracked per batch, allocated by direct labor hours instead."},
         {id:"cp_ins",name:"Insurance",category:"insurance",periodAmount:1600,period:"monthly",productionPct:100,allocationBasis:"flat_per_batch",active:true,notes:"Product liability + property insurance, split evenly across batches produced in the period."},
       ];
@@ -668,6 +761,7 @@ export default function DataManager(){
         pb_009: [{laborTypeId:"lt_5",hours:8}],
         pb_010: [{laborTypeId:"lt_5",hours:6}],
         pb_011: [{laborTypeId:"lt_5",hours:5}],
+        ...spreadLaborLines,
       };
       for (const [pbId, lines] of Object.entries(laborLinesRaw)) {
         const p = demoProdBatchesRaw.find(x=>x.id===pbId);
@@ -732,6 +826,18 @@ export default function DataManager(){
         {id:"so_007",customerName:"Saratoga Smoke Shop",customerLicense:"OCM-RO-007891",orderDate:"2026-07-06",status:"open",importStatus:"waitlist",lines:[{id:"l10",product:"Zaza Runtz 3.5g",qty:120,unitPrice:22,orderTotal:2640}],notes:"Waitlisted — Zaza Runtz next harvest Jul 25"},
       ];
       for (const so of salesOrdersRaw) {
+        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
+      }
+
+      // ── Booked pipeline against the near-term forward batches above —
+      // gives the Forecast tab's "booked" (solid) vs. "estimated" (lighter)
+      // revenue split something real to show for the next couple months,
+      // not just far-future SKU-price guesses.
+      const forwardOrdersRaw = [
+        {id:"so_f01",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-08-01",status:"open",importStatus:"confirmed",lines:[{id:"lf1",batchId:uid("pb_f01"),product:"Sour Diesel OG 3.5g Retail",qty:300,unitPrice:19,orderTotal:5700}],notes:"August allocation — confirmed"},
+        {id:"so_f02",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-09-10",status:"open",importStatus:"confirmed",lines:[{id:"lf2",batchId:uid("pb_f04"),product:"Black Maple Hash Rosin",qty:40,unitPrice:65,orderTotal:2600}],notes:"September rosin allocation — confirmed"},
+      ];
+      for (const so of forwardOrdersRaw) {
         await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
       }
 
@@ -860,12 +966,19 @@ export default function DataManager(){
       }
 
       // ── Equipment ──────────────────────────────────────────
+      // purchasePrice/usefulLifeMonths/salvageValue drive the "Equipment
+      // Depreciation" cost pool (linkedToEquipment:true, below) via
+      // straight-line monthly depreciation — see calcEquipmentDepreciationPool
+      // in lib/cogs.js. eq_006 is a "planned" future purchase: its
+      // depreciation only starts contributing once forecast months reach
+      // its purchaseDate, demonstrating the projection story.
       const equipmentRaw = [
-        {id:"eq_001",name:"Harvest Right Medium Freeze Dryer",cat:"Extraction",make:"Harvest Right",model:"Medium",serial:"HR-MED-20441",location:"Processing Room",purchaseDate:"2025-01-15",warrantyExpires:"2027-01-15",pmFreqDays:"90",lastServiceDate:"2026-05-01",status:"active",notes:"Primary freeze-dry unit for ice water hash."},
-        {id:"eq_002",name:"Low Temp Plates V2 3x5",cat:"Extraction",make:"Low Temp Plates",model:"V2 3x5",serial:"LTP-V2-8834",location:"Processing Room",purchaseDate:"2025-02-01",warrantyExpires:"2026-02-01",pmFreqDays:"180",lastServiceDate:"2026-04-10",status:"active",notes:"Primary rosin press."},
-        {id:"eq_003",name:"GreenBroz 215",cat:"Trimming & Bucking",make:"GreenBroz",model:"215",serial:"GB215-5521",location:"Processing Room",purchaseDate:"2024-11-01",warrantyExpires:"2025-11-01",pmFreqDays:"30",lastServiceDate:"2026-06-15",status:"active",notes:"Primary machine trim unit, blade inspection monthly."},
-        {id:"eq_004",name:"Quest 335 Dehumidifier — FR6",cat:"HVAC & Dehumidification",make:"Quest",model:"335",serial:"Q335-2291",location:"Flower Room 6",purchaseDate:"2024-08-01",warrantyExpires:"2026-08-01",pmFreqDays:"90",lastServiceDate:"2026-06-01",status:"active",notes:"Quarterly drain line check per corrective action from Nov 2024 deviation."},
-        {id:"eq_005",name:"CVault Cure Station",cat:"Drying & Curing",make:"CVault",model:"Commercial 27gal",serial:"CV-27-1145",location:"Dry / Cure Room",purchaseDate:"2024-09-01",warrantyExpires:"",pmFreqDays:"",lastServiceDate:"",status:"active",notes:"Long-term cure storage, humidity-controlled."},
+        {id:"eq_001",name:"Harvest Right Medium Freeze Dryer",cat:"Extraction",make:"Harvest Right",model:"Medium",serial:"HR-MED-20441",location:"Processing Room",purchaseDate:"2025-01-15",purchasePrice:4500,usefulLifeMonths:60,salvageValue:500,warrantyExpires:"2027-01-15",pmFreqDays:"90",lastServiceDate:"2026-05-01",status:"active",notes:"Primary freeze-dry unit for ice water hash."},
+        {id:"eq_002",name:"Low Temp Plates V2 3x5",cat:"Extraction",make:"Low Temp Plates",model:"V2 3x5",serial:"LTP-V2-8834",location:"Processing Room",purchaseDate:"2025-02-01",purchasePrice:3200,usefulLifeMonths:60,salvageValue:300,warrantyExpires:"2026-02-01",pmFreqDays:"180",lastServiceDate:"2026-04-10",status:"active",notes:"Primary rosin press."},
+        {id:"eq_003",name:"GreenBroz 215",cat:"Trimming & Bucking",make:"GreenBroz",model:"215",serial:"GB215-5521",location:"Processing Room",purchaseDate:"2024-11-01",purchasePrice:13500,usefulLifeMonths:84,salvageValue:1500,warrantyExpires:"2025-11-01",pmFreqDays:"30",lastServiceDate:"2026-06-15",status:"active",notes:"Primary machine trim unit, blade inspection monthly."},
+        {id:"eq_004",name:"Quest 335 Dehumidifier — FR6",cat:"HVAC & Dehumidification",make:"Quest",model:"335",serial:"Q335-2291",location:"Flower Room 6",purchaseDate:"2024-08-01",purchasePrice:2800,usefulLifeMonths:60,salvageValue:200,warrantyExpires:"2026-08-01",pmFreqDays:"90",lastServiceDate:"2026-06-01",status:"active",notes:"Quarterly drain line check per corrective action from Nov 2024 deviation."},
+        {id:"eq_005",name:"CVault Cure Station",cat:"Drying & Curing",make:"CVault",model:"Commercial 27gal",serial:"CV-27-1145",location:"Dry / Cure Room",purchaseDate:"2024-09-01",purchasePrice:1800,usefulLifeMonths:84,salvageValue:200,warrantyExpires:"",pmFreqDays:"",lastServiceDate:"",status:"active",notes:"Long-term cure storage, humidity-controlled."},
+        {id:"eq_006",name:"Low Temp Plates V3 5x7 (Capacity Upgrade)",cat:"Extraction",make:"Low Temp Plates",model:"V3 5x7",serial:"",location:"Processing Room",purchaseDate:"2027-01-15",purchasePrice:8500,usefulLifeMonths:60,salvageValue:500,warrantyExpires:"",pmFreqDays:"180",lastServiceDate:"",status:"planned",notes:"Planned second rosin press to add hash-rosin capacity — depreciation begins Jan 2027 once purchased."},
       ];
       for (const eq of equipmentRaw) {
         await db.equipment.upsert({...eq, id: uid(eq.id)});

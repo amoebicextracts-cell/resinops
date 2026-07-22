@@ -40,12 +40,13 @@ export default function BatchDashboard(){
   const [salesOrders, setSalesOrders] = useState([]);
   const [items, setItems] = useState([]);
   const [growSpaces, setGrowSpaces] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, sk, b, lt, ci, qc, so, inv, cc, cp, cr, gs]=await Promise.all([
+        const [pb, hb, sk, b, lt, ci, qc, so, inv, cc, cp, cr, gs, eq]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.skus.list(),
@@ -59,10 +60,12 @@ export default function BatchDashboard(){
           db.cost_pools.list(),
           db.cogs_records.list(),
           db.grow_spaces.list(),
+          db.equipment.list(),
         ]);
         setSalesOrders(so);
         setItems(inv);
         setGrowSpaces(gs);
+        setEquipment(eq);
         setQcHolds(qc.filter(t=>t.onHold).map(t=>String(t.batchType==="harvest"?t.harvestBatchId:t.productionBatchId)));
         setProdBatches(pb.filter(x=>!x.isLinked));
         setHarvestBatches(hb.map(h=>({
@@ -103,7 +106,7 @@ export default function BatchDashboard(){
   // Build enriched batch rows using the same lib/cogs.js engine Finance.jsx
   // uses — same total for the same batch on both pages, no more separate
   // (and previously divergent) calculator here.
-  const cogsCtx={boms,cogsRecords:cogsRecs,items,laborTypes,costPools,cultivationCosts,harvestBatches,growSpaces,allBatches:prodBatches,skus,salesOrders};
+  const cogsCtx={boms,cogsRecords:cogsRecs,items,laborTypes,costPools,cultivationCosts,harvestBatches,growSpaces,allBatches:prodBatches,skus,salesOrders,equipment};
   const rows=prodBatches.map(b=>{
     // subLabel is never persisted (derived display string, same as
     // ProductionScheduler.jsx's own list rendering) — derive it here

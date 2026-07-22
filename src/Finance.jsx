@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { deductForBatch } from "./lib/inventory";
-import { calcBatchCOGS, batchPnL as batchPnLCalc } from "./lib/cogs";
+import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool } from "./lib/cogs";
 import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 
@@ -100,12 +100,13 @@ export default function Finance() {
   const [spaces, setSpaces] = useState([]);
   const [items, setItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
+  const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -117,6 +118,7 @@ export default function Finance() {
           db.sales_orders.list(),
           db.harvest_batches.list(),
           db.cost_pools.list(),
+          db.equipment.list(),
         ]);
         setBoms(b);
         setSkus(sk);
@@ -129,6 +131,7 @@ export default function Finance() {
         setSalesOrders(so);
         setHarvestBatches(hb);
         setCostPools(cp);
+        setEquipment(eq);
         const fid = getCurrentFacility();
         if(fid && supabase){
           const { data } = await supabase.from('facilities').select('shift_hours,shifts_per_day,default_cultivation_allocation_basis,qb_account_map').eq('id', fid).single();
@@ -249,7 +252,7 @@ export default function Finance() {
   // Thin wrapper over the shared lib/cogs.js engine — Finance.jsx and
   // BatchDashboard.jsx both call the exact same calculator now instead of
   // each keeping their own (previously divergent) COGS logic.
-  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, allBatches: mainBatches, skus, salesOrders };
+  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, allBatches: mainBatches, skus, salesOrders, equipment };
   function batchPnL(batch) { return batchPnLCalc(batch, cogsCtx); }
 
   // ── Summary totals ────────────────────────────────────────────────────────
@@ -267,15 +270,68 @@ export default function Finance() {
   const totalGrossProfit = summary.totalRev - summary.totalCOGS;
   const totalGrossMargin = summary.totalRev > 0 ? totalGrossProfit/summary.totalRev*100 : 0;
 
-  // ── Cash-flow forecast: bucket every dated batch (past 2 months for trend
-  // context, next 6 months as the actual forecast) by scheduled-date month.
-  // COGS is projected for every batch in the window; revenue only counts
-  // for batches with a units-sold/price entered on the P&L tab above — an
-  // unpriced batch contributes its real cost but $0 revenue, same as it
-  // would show up in a real bank account before the sale closes.
+  // ── Annual 280E Summary — rolls up capitalized COGS (§263A) vs. anything
+  // flagged not-capitalized, for every batch dated in the selected year.
+  // This is not a full return — it's the capitalized-COGS side of the
+  // picture only; review with a tax advisor before filing.
+  const summaryYears = Array.from(new Set(mainBatches.filter(b=>b.d).map(b=>new Date(b.d+"T00:00:00").getFullYear()))).sort();
+  const [summaryYear, setSummaryYear] = useState(new Date().getFullYear());
+  const yearBatches = mainBatches.filter(b => b.d && new Date(b.d+"T00:00:00").getFullYear() === summaryYear);
+  const annualSummary = yearBatches.reduce((acc, b) => {
+    const p = batchPnL(b);
+    acc.materialCost += p.materialCost;
+    acc.directLaborCost += p.directLaborCost;
+    acc.testFee += p.testFee;
+    acc.cultivationCost += p.cultivationCost;
+    acc.allocatedOverhead += p.allocatedOverhead;
+    acc.deductibleTotal += p.deductibleTotal;
+    acc.nonDeductibleTotal += p.nonDeductibleTotal;
+    for (const line of (p.overheadLines||[])) acc.poolBreakdown[line.name] = (acc.poolBreakdown[line.name]||0) + line.share;
+    return acc;
+  }, {materialCost:0,directLaborCost:0,testFee:0,cultivationCost:0,allocatedOverhead:0,deductibleTotal:0,nonDeductibleTotal:0,poolBreakdown:{}});
+  annualSummary.totalCapitalized = annualSummary.materialCost + annualSummary.directLaborCost + annualSummary.testFee + annualSummary.cultivationCost + annualSummary.allocatedOverhead;
+
+  function exportAnnual280ESummaryCsv() {
+    const esc = v => { const s = String(v??""); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+    const rows = [
+      ["ResinOps — Annual 280E Capitalized COGS Summary", String(summaryYear)],
+      [],
+      ["Category","Amount"],
+      ["Direct Materials", annualSummary.materialCost.toFixed(2)],
+      ["Direct Labor", annualSummary.directLaborCost.toFixed(2)],
+      ["Lab Testing", annualSummary.testFee.toFixed(2)],
+      ["Cultivation (allocated)", annualSummary.cultivationCost.toFixed(2)],
+      ...Object.entries(annualSummary.poolBreakdown).map(([name,amt])=>["Overhead — "+name, amt.toFixed(2)]),
+      ["Total Allocated Overhead", annualSummary.allocatedOverhead.toFixed(2)],
+      [],
+      ["Total Capitalized COGS (§263A)", annualSummary.totalCapitalized.toFixed(2)],
+      ["280E-Deductible", annualSummary.deductibleTotal.toFixed(2)],
+      ["Flagged Not Capitalized", annualSummary.nonDeductibleTotal.toFixed(2)],
+      [],
+      ["Batches included", String(yearBatches.length)],
+      ["Generated", new Date().toISOString().split("T")[0]],
+      ["Note","Capitalized COGS across production batches for the year only — not a full return. Review with your tax advisor before filing."],
+    ];
+    const csv = rows.map(r=>r.map(esc).join(",")).join("\r\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `ResinOps-280E-Summary-${summaryYear}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ── Cash-flow forecast: bucket every dated batch (past 3 months for trend
+  // context, next 12 months as the actual forecast) by scheduled-date month.
+  // COGS is projected for every batch in the window. Revenue follows the
+  // same priority batchPnL always uses: real sales-order bookings first
+  // (bookedRevenueForBatch in lib/revenue.js), falling back to a manual
+  // per-batch override, then SKU price — an unpriced, unbooked batch
+  // contributes its real cost but $0 revenue, same as it would show up in
+  // a real bank account before the sale closes.
   const today0 = new Date(); today0.setDate(1); today0.setHours(0,0,0,0);
-  const forecastMonths = Array.from({length:9},(_,i)=>{
-    const m = new Date(today0.getFullYear(), today0.getMonth()+(i-2), 1);
+  const forecastMonths = Array.from({length:15},(_,i)=>{
+    const m = new Date(today0.getFullYear(), today0.getMonth()+(i-3), 1);
     return { key:m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0"), date:m,
       label:m.toLocaleDateString(undefined,{month:"short",year:"numeric"}), isPast:m<today0 };
   });
@@ -288,7 +344,9 @@ export default function Finance() {
     const cogs = rows.reduce((s,r)=>s+r.p.totalCOGS,0);
     const priced = rows.filter(r=>r.p.totalRevOverride || r.p.revPerUnit>0);
     const revenue = priced.reduce((s,r)=>s+r.p.totalRev,0);
-    return { ...mo, rows, cogs, revenue, hasPricedBatch:priced.length>0, net:revenue-cogs };
+    const bookedRevenue = rows.filter(r=>r.p.hasBookedOrders).reduce((s,r)=>s+r.p.totalRev,0);
+    const estimatedRevenue = revenue - bookedRevenue;
+    return { ...mo, rows, cogs, revenue, bookedRevenue, estimatedRevenue, hasPricedBatch:priced.length>0, net:revenue-cogs };
   });
   let runningCash = 0;
   forecastData.forEach(mo => { runningCash += mo.net; mo.cumulative = runningCash; });
@@ -313,7 +371,7 @@ export default function Finance() {
         </div>
 
         <div className="fin-tabs">
-          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["pools","🏢 Cost Pools"],["sku","🏷️ SKU Pricing"]].map(([v,l])=>(
+          {[["cogs","📊 Batch COGS"],["pnl","💰 P&L Summary"],["forecast","📅 Forecast"],["bom","🧾 Bill of Materials"],["cult","🌿 Cultivation Costs"],["pools","🏢 Cost Pools"],["sku","🏷️ SKU Pricing"],["280e","🧾 280E Summary"]].map(([v,l])=>(
             <button key={v} className={"fin-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -614,9 +672,9 @@ export default function Finance() {
           <>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
               {[
-                {l:"Next 6 Mo. Projected COGS",v:fmtC(futureTotals.cogs)},
-                {l:"Next 6 Mo. Projected Revenue",v:futureTotals.hasPricedBatch?fmtC(futureTotals.revenue):"—"},
-                {l:"Net Cash Impact (6 mo.)",v:futureTotals.hasPricedBatch?fmtC(futureNet):"—",cls:!futureTotals.hasPricedBatch?"":(futureNet>=0?"margin-good":"margin-bad")},
+                {l:"Next 12 Mo. Projected COGS",v:fmtC(futureTotals.cogs)},
+                {l:"Next 12 Mo. Projected Revenue",v:futureTotals.hasPricedBatch?fmtC(futureTotals.revenue):"—"},
+                {l:"Net Cash Impact (12 mo.)",v:futureTotals.hasPricedBatch?fmtC(futureNet):"—",cls:!futureTotals.hasPricedBatch?"":(futureNet>=0?"margin-good":"margin-bad")},
                 {l:"Batches Scheduled",v:String(futureTotals.batches)},
               ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
             </div>
@@ -624,7 +682,7 @@ export default function Finance() {
             <div className="fin-card">
               <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Monthly Cash Timeline</div>
               <div style={{fontSize:11,color:"var(--text-3)",marginBottom:16}}>
-                COGS is projected for every batch scheduled in a month, using the same Batch COGS figures as the tabs above. Revenue only counts batches with units sold or a price entered on the P&L tab — an unpriced batch still shows its real cost with $0 revenue, same as it would hit a bank account before the sale closes. Past two months shown for trend context.
+                COGS is projected for every batch scheduled in a month, using the same Batch COGS figures as the tabs above. Revenue prioritizes real sales-order bookings (solid bar) over a manual estimate or SKU price (lighter bar) — an unpriced, unbooked batch still shows its real cost with $0 revenue, same as it would hit a bank account before the sale closes. Past three months shown for trend context.
               </div>
               {forecastData.every(mo=>mo.rows.length===0) ? (
                 <div style={{textAlign:"center",padding:24,color:"var(--text-3)"}}>No batches with a scheduled date in this window.</div>
@@ -645,13 +703,19 @@ export default function Finance() {
                       </div>
                       <div style={{fontSize:11,color:"var(--text-2)",textAlign:"right"}}>{fmtC(mo.cogs)}</div>
                     </div>
-                    <div style={{display:"grid",gridTemplateColumns:"64px 1fr 76px",gap:8,alignItems:"center",marginBottom:8}}>
+                    <div style={{display:"grid",gridTemplateColumns:"64px 1fr 76px",gap:8,alignItems:"center",marginBottom:2}}>
                       <div style={{fontSize:10,color:"var(--text-3)"}}>Revenue</div>
-                      <div style={{height:6,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
-                        <div style={{width:(mo.revenue/forecastMax*100)+"%",height:"100%",background:"var(--accent-2)"}} />
+                      <div style={{height:6,background:"var(--border)",borderRadius:3,overflow:"hidden",display:"flex"}}>
+                        <div style={{width:(mo.bookedRevenue/forecastMax*100)+"%",height:"100%",background:"var(--accent-2)"}} />
+                        <div style={{width:(mo.estimatedRevenue/forecastMax*100)+"%",height:"100%",background:"var(--accent-2)",opacity:0.4}} />
                       </div>
                       <div style={{fontSize:11,color:"var(--text-2)",textAlign:"right"}}>{fmtC(mo.revenue)}</div>
                     </div>
+                    {mo.revenue>0 && <div style={{display:"grid",gridTemplateColumns:"64px 1fr 76px",gap:8,marginBottom:8}}>
+                      <div />
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{mo.bookedRevenue>0 && <span>● booked {fmtC(mo.bookedRevenue)}</span>}{mo.bookedRevenue>0 && mo.estimatedRevenue>0 && "  ·  "}{mo.estimatedRevenue>0 && <span style={{opacity:0.6}}>● estimated {fmtC(mo.estimatedRevenue)}</span>}</div>
+                      <div />
+                    </div>}
 
                     <div style={{marginBottom:8}}>
                       {mo.rows.map(r=>(
@@ -847,8 +911,18 @@ export default function Finance() {
                     </select>
                   </div>
                 </div>
+                {costPoolForm.category==="depreciation" && (
+                  <div style={{marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+                    <input type="checkbox" id="linkEquip" checked={!!costPoolForm.linkedToEquipment} onChange={e=>setCostPoolForm(f=>({...f,linkedToEquipment:e.target.checked}))} />
+                    <label htmlFor="linkEquip" style={{fontSize:12,color:"var(--text-2)"}}>Link to Equipment Registry — compute this pool's amount from active assets' straight-line depreciation instead of typing a number</label>
+                  </div>
+                )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label className="fin-lbl">Amount per period ($)</label><input type="number" step="0.01" className="fin-inp" value={costPoolForm.periodAmount} onChange={e=>setCostPoolForm(f=>({...f,periodAmount:e.target.value}))} placeholder="8000" /></div>
+                  {costPoolForm.linkedToEquipment ? (
+                    <div><label className="fin-lbl">Amount per period ($)</label><input className="fin-inp" disabled style={{opacity:0.6,cursor:"not-allowed"}} value={fmtC(calcEquipmentDepreciationPool(equipment, new Date().toISOString().split("T")[0]).monthly * (costPoolForm.period==="annual"?12:costPoolForm.period==="quarterly"?3:1))} /></div>
+                  ) : (
+                    <div><label className="fin-lbl">Amount per period ($)</label><input type="number" step="0.01" className="fin-inp" value={costPoolForm.periodAmount} onChange={e=>setCostPoolForm(f=>({...f,periodAmount:e.target.value}))} placeholder="8000" /></div>
+                  )}
                   <div><label className="fin-lbl">% attributable to production</label><input type="number" min="0" max="100" className="fin-inp" value={costPoolForm.productionPct} onChange={e=>setCostPoolForm(f=>({...f,productionPct:e.target.value}))} placeholder="100" /></div>
                   <div><label className="fin-lbl">Allocation basis</label>
                     <select className="fin-sel" value={costPoolForm.allocationBasis} onChange={e=>setCostPoolForm(f=>({...f,allocationBasis:e.target.value}))}>
@@ -879,7 +953,13 @@ export default function Finance() {
                       <tr key={pool.id} style={{opacity:pool.active===false?0.5:1}}>
                         <td style={{fontWeight:500,color:"var(--text)"}}>{pool.name}</td>
                         <td style={{fontSize:11,textTransform:"capitalize"}}>{(pool.category||"").replace(/_/g," ")}</td>
-                        <td>{fmtC(pool.periodAmount)}/{pool.period==="annual"?"yr":pool.period==="quarterly"?"qtr":"mo"}</td>
+                        <td>
+                          {pool.linkedToEquipment
+                            ? fmtC(calcEquipmentDepreciationPool(equipment, new Date().toISOString().split("T")[0]).monthly * (pool.period==="annual"?12:pool.period==="quarterly"?3:1))
+                            : fmtC(pool.periodAmount)}
+                          /{pool.period==="annual"?"yr":pool.period==="quarterly"?"qtr":"mo"}
+                          {pool.linkedToEquipment && <div style={{fontSize:10,color:"var(--text-3)"}}>from Equipment Registry</div>}
+                        </td>
                         <td>{pool.productionPct}%</td>
                         <td style={{fontSize:11}}>{({batch_weight:"Batch weight",unit_count:"Unit output",labor_hours:"Labor hours",flat_per_batch:"Flat per batch"})[pool.allocationBasis]}</td>
                         <td><button className="fin-btn fin-sm fin-secondary" onClick={()=>toggleCostPoolActive(pool)}>{pool.active===false?"Off":"On"}</button></td>
@@ -943,6 +1023,57 @@ export default function Finance() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── ANNUAL 280E SUMMARY ── */}
+        {tab==="280e" && (
+          <>
+            <div className="fin-card" style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,marginBottom:4}}>
+                <div style={{fontSize:12,color:"var(--text-2)",maxWidth:640}}>
+                  One-page rollup of capitalized COGS (§263A) vs. anything flagged not capitalized, across every production batch dated in the selected year. This is the capitalized-COGS side only — not a full return — hand it to your accountant alongside your other books, and review before filing.
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <select className="fin-sel" style={{width:"auto",minWidth:100}} value={summaryYear} onChange={e=>setSummaryYear(parseInt(e.target.value))}>
+                    {(summaryYears.includes(summaryYear)?summaryYears:[...summaryYears,summaryYear]).sort().map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <button className="fin-btn fin-secondary" onClick={exportAnnual280ESummaryCsv}>⬇ Download 280E Summary (CSV)</button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+              {[
+                {l:"Total Capitalized COGS (§263A)",v:fmtC(annualSummary.totalCapitalized)},
+                {l:"280E-Deductible",v:fmtC(annualSummary.deductibleTotal),cls:"margin-good"},
+                {l:"Flagged Not Capitalized",v:fmtC(annualSummary.nonDeductibleTotal),cls:annualSummary.nonDeductibleTotal>0?"margin-bad":""},
+              ].map((s,i)=><div key={i} className="fin-stat"><div className="fin-stat-lbl">{s.l}</div><div className={"fin-stat-val "+(s.cls||"")}>{s.v}</div></div>)}
+            </div>
+
+            <div className="fin-card">
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>{summaryYear} Capitalized COGS Breakdown — {yearBatches.length} batch{yearBatches.length===1?"":"es"}</div>
+              {yearBatches.length===0 ? (
+                <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No batches dated in {summaryYear}.</div>
+              ) : (
+                <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                  <table className="fin-tbl">
+                    <thead><tr><th>Category</th><th style={{textAlign:"right"}}>Amount</th></tr></thead>
+                    <tbody>
+                      <tr><td>Direct Materials</td><td style={{textAlign:"right"}}>{fmtC(annualSummary.materialCost)}</td></tr>
+                      <tr><td>Direct Labor</td><td style={{textAlign:"right"}}>{fmtC(annualSummary.directLaborCost)}</td></tr>
+                      <tr><td>Lab Testing</td><td style={{textAlign:"right"}}>{fmtC(annualSummary.testFee)}</td></tr>
+                      <tr><td>Cultivation (allocated)</td><td style={{textAlign:"right"}}>{fmtC(annualSummary.cultivationCost)}</td></tr>
+                      {Object.entries(annualSummary.poolBreakdown).map(([name,amt])=>(
+                        <tr key={name}><td style={{paddingLeft:24,fontSize:11,color:"var(--text-3)"}}>Overhead — {name}</td><td style={{textAlign:"right",fontSize:11,color:"var(--text-3)"}}>{fmtC(amt)}</td></tr>
+                      ))}
+                      <tr style={{borderTop:"1px solid var(--border-2)"}}><td style={{fontWeight:500,color:"var(--text)"}}>Total Allocated Overhead</td><td style={{textAlign:"right",fontWeight:500,color:"var(--text)"}}>{fmtC(annualSummary.allocatedOverhead)}</td></tr>
+                      <tr style={{borderTop:"2px solid var(--border-2)"}}><td style={{fontWeight:700,color:"var(--text)"}}>Total Capitalized COGS</td><td style={{textAlign:"right",fontWeight:700,color:"var(--accent-2)"}}>{fmtC(annualSummary.totalCapitalized)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </>

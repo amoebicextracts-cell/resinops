@@ -44,6 +44,7 @@ const CSS = `
   .status-active{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .status-down{background:rgba(200,74,74,0.15);color:var(--danger);}
   .status-service{background:rgba(200,150,58,0.15);color:var(--amber);}
+  .status-planned{background:rgba(150,100,200,0.15);color:#9060c0;}
   .pm-overdue{background:rgba(200,74,74,0.15);color:var(--danger);}
   .pm-soon{background:rgba(200,150,58,0.15);color:var(--amber);}
   .pm-ok{background:rgba(74,124,89,0.2);color:var(--accent-2);}
@@ -55,6 +56,7 @@ const EMPTY = {
   location:"", purchaseDate:"", purchasePrice:"", vendorId:"",
   warrantyExpires:"", pmFreqDays:"90", lastServiceDate:"",
   status:"active", notes:"",
+  usefulLifeMonths:"", salvageValue:"0", depreciationMethod:"straight_line",
 };
 
 const CAT_MAP = {
@@ -182,7 +184,7 @@ export default function Equipment() {
               <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="eq-lbl">Equipment name</label><input className="eq-inp" value={form.name} onChange={e=>setF("name",e.target.value)} placeholder="CenturionPro HP3 Bucker" /></div>
                 <div><label className="eq-lbl">Category</label><select className="eq-sel" value={form.cat} onChange={e=>setF("cat",e.target.value)}>{EQUIP_CATS.map(c=><option key={c}>{c}</option>)}</select></div>
-                <div><label className="eq-lbl">Status</label><select className="eq-sel" value={form.status} onChange={e=>setF("status",e.target.value)}><option value="active">Active</option><option value="service">In Service</option><option value="down">Down</option><option value="retired">Retired</option></select></div>
+                <div><label className="eq-lbl">Status</label><select className="eq-sel" value={form.status} onChange={e=>setF("status",e.target.value)}><option value="active">Active</option><option value="service">In Service</option><option value="down">Down</option><option value="retired">Retired</option><option value="planned">Planned — future purchase</option></select></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="eq-lbl">Make</label><input className="eq-inp" value={form.make} onChange={e=>setF("make",e.target.value)} /></div>
@@ -195,10 +197,16 @@ export default function Equipment() {
                 <div><label className="eq-lbl">Vendor / servicer</label><select className="eq-sel" value={form.vendorId} onChange={e=>setF("vendorId",e.target.value)}><option value="">— None —</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.n}</option>)}</select></div>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
-                <div><label className="eq-lbl">Purchase date</label><input type="date" className="eq-inp" value={form.purchaseDate} onChange={e=>setF("purchaseDate",e.target.value)} /></div>
+                <div><label className="eq-lbl">{form.status==="planned"?"Planned purchase date":"Purchase date"}</label><input type="date" className="eq-inp" value={form.purchaseDate} onChange={e=>setF("purchaseDate",e.target.value)} /></div>
                 <div><label className="eq-lbl">Purchase price ($)</label><input type="number" step="0.01" className="eq-inp" value={form.purchasePrice} onChange={e=>setF("purchasePrice",e.target.value)} /></div>
                 <div><label className="eq-lbl">Warranty expires</label><input type="date" className="eq-inp" value={form.warrantyExpires} onChange={e=>setF("warrantyExpires",e.target.value)} /></div>
               </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="eq-lbl">Useful life (months)</label><input type="number" step="1" className="eq-inp" value={form.usefulLifeMonths} onChange={e=>setF("usefulLifeMonths",e.target.value)} placeholder="e.g. 60" /></div>
+                <div><label className="eq-lbl">Salvage value ($)</label><input type="number" step="0.01" className="eq-inp" value={form.salvageValue} onChange={e=>setF("salvageValue",e.target.value)} /></div>
+                <div><label className="eq-lbl">Depreciation method</label><input className="eq-inp" value="Straight-line" disabled style={{opacity:0.6,cursor:"not-allowed"}} /></div>
+              </div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginTop:-4,marginBottom:10}}>Leave useful life blank to exclude this asset from the Equipment Depreciation cost pool.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="eq-lbl">PM / calibration frequency</label><select className="eq-sel" value={form.pmFreqDays} onChange={e=>setF("pmFreqDays",e.target.value)}>{PM_FREQ.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}</select></div>
                 <div><label className="eq-lbl">Last service date</label><input type="date" className="eq-inp" value={form.lastServiceDate} onChange={e=>setF("lastServiceDate",e.target.value)} /></div>
@@ -232,7 +240,7 @@ export default function Equipment() {
                             <td style={{fontWeight:500,color:"var(--text)"}}>{eq.name}{eq.assetTag&&<span style={{fontSize:10,color:"var(--text-3)",marginLeft:6,fontFamily:"monospace"}}>{eq.assetTag}</span>}<div style={{fontSize:10,color:"var(--text-3)"}}>{eq.make} {eq.model}</div></td>
                             <td style={{fontSize:11}}>{eq.cat}</td>
                             <td>{eq.location||"—"}</td>
-                            <td><span className={"eq-pill status-"+(eq.status==="active"?"active":eq.status==="down"?"down":"service")}>{eq.status}</span></td>
+                            <td><span className={"eq-pill status-"+(eq.status==="active"?"active":eq.status==="down"?"down":eq.status==="planned"?"planned":"service")}>{eq.status}</span></td>
                             <td><span className={"eq-pill "+st.cls}>{st.label}</span></td>
                             <td style={{fontSize:11,color:warrantyActive?"var(--accent-2)":"var(--text-3)"}}>{eq.warrantyExpires?fmtD(eq.warrantyExpires):"—"}</td>
                             <td><div style={{display:"flex",gap:5}}>
