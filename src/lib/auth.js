@@ -27,3 +27,18 @@ export function isPasswordRecoveryUrl(urlLike) {
     || url.searchParams.get('type') === 'recovery'
     || hashParameters.get('type') === 'recovery';
 }
+
+// Supabase's invite email redirects the same way a recovery link does — a
+// magic link that lands with access_token/type in the URL hash. This mirrors
+// isPasswordRecoveryUrl exactly, just matching "invite" instead of "recovery".
+export function isInviteUrl(urlLike) {
+  const href = typeof urlLike === 'string' ? urlLike : urlLike?.href;
+  if (!href) return false;
+
+  const url = new URL(href, 'https://app.resinops.com');
+  const hashParameters = new URLSearchParams(url.hash.replace(/^#/, ''));
+
+  return url.pathname === '/accept-invite'
+    || url.searchParams.get('type') === 'invite'
+    || hashParameters.get('type') === 'invite';
+}

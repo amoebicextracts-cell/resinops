@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
-import { canAdministerFacility } from "./lib/roles";
+import { canAdministerFacility, FACILITY_ROLES } from "./lib/roles";
 import { MODULES } from "./lib/modules";
 import { isModuleVisible } from "./lib/moduleVisibility";
+import { authenticatedApiFetch, formatApiError } from "./lib/api";
 
 const LICENSE_TYPES = [
   "Adult-Use Cultivator","Adult-Use Processor","Adult-Use Distributor",
@@ -27,6 +28,11 @@ const CSS = `
   .fs-secondary{background:var(--surface-2);border:1px solid var(--border-2)!important;color:var(--text-2);}
   .fs-section{font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:0.08em;margin:18px 0 10px;}
   .fs-saved{font-size:12px;color:var(--accent-2);font-weight:500;}
+  .fs-member-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-2);border-radius:8px;margin-bottom:8px;flex-wrap:wrap;}
+  .fs-pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:0.04em;}
+  .fs-pill-pending{background:rgba(200,150,58,0.2);color:var(--amber);}
+  .fs-pill-accepted{background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .fs-danger{background:rgba(200,74,74,0.1);color:var(--danger);border:1px solid rgba(200,74,74,0.3)!important;}
 `;
 
 const DEFAULTS = {
@@ -54,12 +60,32 @@ const TOGGLEABLE_SECTIONS = (()=>{
   return sections;
 })();
 
+// Matches supabase/migrations/20260723150000_add_section_scoped_permissions.sql's
+// table_scopes values — keep in sync if a scope is ever added/renamed there.
+const PERMISSION_SCOPES = [
+  ["cultivation","Cultivation"],["processing","Processing"],["compliance","Compliance"],
+  ["people_labor","People & Labor"],["business","Business"],["facility","Facility"],
+];
+const ROLE_OPTIONS = [FACILITY_ROLES.VIEWER, FACILITY_ROLES.MEMBER, FACILITY_ROLES.MANAGER, FACILITY_ROLES.ADMIN];
+// Scope overrides can additionally be "none" — no access to that section at
+// all, unlike the global role above which must always be a real role.
+const SCOPE_ROLE_OPTIONS = ["none", ...ROLE_OPTIONS];
+const EMPTY_INVITE = { email:"", role:FACILITY_ROLES.MEMBER, scopeRoles:{} };
+
 export default function FacilitySettings(){
   const [settings,setSettings] = useState(DEFAULTS);
   const [saved,setSaved] = useState(false);
   const [loading,setLoading] = useState(true);
   const [err,setErr] = useState("");
   const setF = (k,v) => setSettings(s=>({...s,[k]:v}));
+
+  const [members,setMembers] = useState([]);
+  const [membersLoading,setMembersLoading] = useState(false);
+  const [teamErr,setTeamErr] = useState("");
+  const [teamMsg,setTeamMsg] = useState("");
+  const [inviteForm,setInviteForm] = useState(EMPTY_INVITE);
+  const [inviting,setInviting] = useState(false);
+  const isAdmin = canAdministerFacility(getCurrentFacilityRole());
 
   useEffect(()=>{
     async function load(){
@@ -98,6 +124,58 @@ export default function FacilitySettings(){
     }
     load();
   },[]);
+
+  async function loadMembers(){
+    const fid = getCurrentFacility();
+    if(!fid || !supabase || !isAdmin) return;
+    setMembersLoading(true);
+    try{
+      const { data, error } = await supabase
+        .from('facility_members')
+        .select('id, user_id, role, scope_roles, accepted_at, created_at, profile:profiles(email, full_name)')
+        .eq('facility_id', fid)
+        .order('created_at');
+      if(error) throw error;
+      setMembers(data||[]);
+    }catch(e){ setTeamErr("Could not load team: "+e.message); }
+    setMembersLoading(false);
+  }
+
+  useEffect(()=>{ loadMembers(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function sendInvite(){
+    if(!inviteForm.email.trim()){ setTeamErr("Enter an email address."); return; }
+    setInviting(true); setTeamErr(""); setTeamMsg("");
+    try{
+      const res = await authenticatedApiFetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteForm.email.trim(), role: inviteForm.role, scopeRoles: inviteForm.scopeRoles }),
+      }, { includeFacility: true });
+      const json = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error || `Invite failed (${res.status})`);
+      setTeamMsg(`Invited ${inviteForm.email.trim()}.`);
+      setInviteForm(EMPTY_INVITE);
+      await loadMembers();
+    }catch(e){ setTeamErr(formatApiError ? formatApiError(e) : e.message); }
+    setInviting(false);
+  }
+
+  async function updateMember(member, patch){
+    try{
+      const { error } = await supabase.from('facility_members').update(patch).eq('id', member.id);
+      if(error) throw error;
+      setMembers(prev=>prev.map(m=>m.id===member.id?{...m,...patch}:m));
+    }catch(e){ setTeamErr("Update failed: "+e.message); }
+  }
+
+  async function removeMember(member){
+    try{
+      const { error } = await supabase.from('facility_members').delete().eq('id', member.id);
+      if(error) throw error;
+      setMembers(prev=>prev.filter(m=>m.id!==member.id));
+    }catch(e){ setTeamErr("Remove failed: "+e.message); }
+  }
 
   async function save(){
     const fid = getCurrentFacility();
@@ -242,6 +320,89 @@ export default function FacilitySettings(){
             </div>
           ))}
         </div>
+
+        {supabase && isAdmin && (
+          <div className="fs-card">
+            <div className="fs-section" style={{margin:0,marginBottom:4}}>Team</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+              Invite people to this facility and control which sections of the app their access covers. This is enforced by the database, not just hidden in the sidebar.
+            </div>
+
+            {teamErr && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{teamErr}</div>}
+            {teamMsg && <div style={{fontSize:12,color:"var(--accent-2)",marginBottom:10}}>{teamMsg}</div>}
+
+            {membersLoading ? (
+              <div style={{fontSize:12,color:"var(--text-3)"}}>Loading team…</div>
+            ) : (
+              members.map(m=>(
+                <div key={m.id} className="fs-member-row">
+                  <div style={{minWidth:160}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{m.profile?.full_name || m.profile?.email || m.user_id}</div>
+                    {m.profile?.full_name && <div style={{fontSize:11,color:"var(--text-3)"}}>{m.profile?.email}</div>}
+                  </div>
+                  <span className={"fs-pill "+(m.accepted_at?"fs-pill-accepted":"fs-pill-pending")}>{m.accepted_at?"Active":"Pending"}</span>
+                  <select className="fs-sel" style={{width:120}} value={m.role} onChange={e=>updateMember(m,{role:e.target.value})}>
+                    {ROLE_OPTIONS.concat(m.role==="owner"?["owner"]:[]).map(r=><option key={r} value={r} disabled={r==="owner"}>{r}</option>)}
+                  </select>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {PERMISSION_SCOPES.map(([scope,label])=>{
+                      const override = m.scope_roles?.[scope];
+                      return (
+                        <select key={scope} className="fs-sel" style={{width:"auto",fontSize:11,padding:"4px 6px"}}
+                          value={override||""}
+                          onChange={e=>{
+                            const next = {...(m.scope_roles||{})};
+                            if(e.target.value) next[scope]=e.target.value; else delete next[scope];
+                            updateMember(m,{scope_roles:next});
+                          }}
+                          title={label}>
+                          <option value="">{label}: default ({m.role})</option>
+                          {SCOPE_ROLE_OPTIONS.map(r=><option key={r} value={r}>{label}: {r}</option>)}
+                        </select>
+                      );
+                    })}
+                  </div>
+                  {m.role!=="owner" && (
+                    <button className="fs-btn fs-danger" style={{fontSize:11,padding:"5px 10px",marginLeft:"auto"}} onClick={()=>removeMember(m)}>Remove</button>
+                  )}
+                </div>
+              ))
+            )}
+
+            <div className="fs-section">Invite someone</div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:10,marginBottom:10}}>
+              <div><label className="fs-lbl">Email</label>
+                <input className="fs-inp" type="email" value={inviteForm.email} placeholder="teammate@example.com"
+                  onChange={e=>setInviteForm(f=>({...f,email:e.target.value}))} />
+              </div>
+              <div><label className="fs-lbl">Global role</label>
+                <select className="fs-sel" value={inviteForm.role} onChange={e=>setInviteForm(f=>({...f,role:e.target.value}))}>
+                  {ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <label className="fs-lbl">Per-section overrides (optional — blank uses the global role above)</label>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+                {PERMISSION_SCOPES.map(([scope,label])=>(
+                  <select key={scope} className="fs-sel" style={{fontSize:12}}
+                    value={inviteForm.scopeRoles[scope]||""}
+                    onChange={e=>{
+                      const next = {...inviteForm.scopeRoles};
+                      if(e.target.value) next[scope]=e.target.value; else delete next[scope];
+                      setInviteForm(f=>({...f,scopeRoles:next}));
+                    }}>
+                    <option value="">{label}: default</option>
+                    {SCOPE_ROLE_OPTIONS.map(r=><option key={r} value={r}>{label}: {r}</option>)}
+                  </select>
+                ))}
+              </div>
+            </div>
+            <button className="fs-btn fs-primary" disabled={inviting||!inviteForm.email.trim()} onClick={sendInvite}>
+              {inviting?"Sending invite…":"+ Send Invite"}
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

@@ -4,7 +4,7 @@ import { supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { tokenizeInlineMarkdown } from "./lib/markdown";
 import { MIN_PASSWORD_LENGTH, passwordValidationError } from "./lib/auth";
-import { getCurrentFacility } from "./lib/supabase";
+import { getCurrentFacility, getCurrentFacilityRole, getCurrentFacilityScopeRoles } from "./lib/supabase";
 import { isModuleVisible } from "./lib/moduleVisibility";
 import { MODULES, ALL_SECTION_NAMES } from "./lib/modules";
 
@@ -881,7 +881,7 @@ export default function ResinOps() {
   // that's no longer in the nav.
   useEffect(()=>{
     const mod = MODULES.find(m => m.id === activeModule);
-    if (mod && !isModuleVisible(mod, productTier, moduleOverrides)) {
+    if (mod && !isModuleVisible(mod, productTier, moduleOverrides, getCurrentFacilityScopeRoles(), getCurrentFacilityRole())) {
       setActiveModule("dashboard");
     }
   },[productTier, moduleOverrides, activeModule]);
@@ -1205,7 +1205,7 @@ export default function ResinOps() {
           {(() => {
             const visible = MODULES.filter(m =>
               m.isScheduler && m.id !== "dashboard" && m.id !== "data-manager" && m.id !== "facility-settings" && m.id !== "metrc"
-              && isModuleVisible(m, productTier, moduleOverrides)
+              && isModuleVisible(m, productTier, moduleOverrides, getCurrentFacilityScopeRoles(), getCurrentFacilityRole())
             );
             // Group in-order: a truthy sectionBreak starts a new (possibly
             // headerless, for sectionBreak:null) section; everything after
@@ -1251,7 +1251,7 @@ export default function ResinOps() {
           {/* ── Settings at bottom (always visible — core modules) ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
           <div className="sidebar-section-label">Settings</div>
-          {["data-manager","facility-settings","metrc"].filter(id => isModuleVisible(MODULES.find(m=>m.id===id), productTier, moduleOverrides)).map(id => {
+          {["data-manager","facility-settings","metrc"].filter(id => isModuleVisible(MODULES.find(m=>m.id===id), productTier, moduleOverrides, getCurrentFacilityScopeRoles(), getCurrentFacilityRole())).map(id => {
             const mod = MODULES.find(m => m.id === id);
             if (!mod) return null;
             return (

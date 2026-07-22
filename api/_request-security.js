@@ -69,6 +69,28 @@ export function validateChatPayload(body) {
   return null;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FACILITY_ROLES = new Set(['owner', 'admin', 'manager', 'member', 'viewer']);
+// A scope override may additionally be 'none' (explicitly no access to that
+// scope) — unlike the global `role`, which must always be one of the 5 real
+// facility roles.
+const SCOPE_ROLE_VALUES = new Set([...FACILITY_ROLES, 'none']);
+const PERMISSION_SCOPES = new Set(['cultivation', 'processing', 'compliance', 'people_labor', 'business', 'facility']);
+
+export function validateInvitePayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request body';
+  const { email, facilityId, role, scopeRoles = {} } = body;
+  if (typeof email !== 'string' || !EMAIL_PATTERN.test(email) || email.length > 254) return 'A valid email is required';
+  if (typeof facilityId !== 'string' || !facilityId.trim()) return 'facilityId is required';
+  if (typeof role !== 'string' || !FACILITY_ROLES.has(role)) return 'Unknown role';
+  if (!scopeRoles || typeof scopeRoles !== 'object' || Array.isArray(scopeRoles)) return 'scopeRoles must be an object';
+  for (const [scope, scopeRole] of Object.entries(scopeRoles)) {
+    if (!PERMISSION_SCOPES.has(scope)) return `Unknown permission scope: ${scope}`;
+    if (!SCOPE_ROLE_VALUES.has(scopeRole)) return `Unknown role for scope ${scope}`;
+  }
+  return null;
+}
+
 export function checkRateLimit(key, { limit, windowMs }, now = Date.now()) {
   const existing = rateBuckets.get(key);
   if (!existing || now - existing.startedAt >= windowMs) {

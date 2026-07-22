@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { auth } from "./lib/db";
+import { supabase } from "./lib/supabase";
 import { MIN_PASSWORD_LENGTH, passwordResetRedirect, passwordValidationError } from "./lib/auth";
 
 const CSS = `
@@ -77,11 +78,33 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     setLoading(false);
   }
 
+  async function handleAcceptInvite() {
+    const validationError = passwordValidationError(password, passwordConfirmation);
+    if (validationError) { setError(validationError); return; }
+    setLoading(true); setError("");
+    const { error: updateError } = await auth.updatePassword(password);
+    if (updateError) {
+      setError(updateError.message || "This invite link is invalid or expired. Ask for a new one.");
+      setLoading(false);
+      return;
+    }
+    const { error: acceptError } = await supabase.rpc('accept_facility_invite');
+    if (acceptError) {
+      setError("Password set, but activating your invite failed: " + acceptError.message);
+      setLoading(false);
+      return;
+    }
+    await auth.signOut('global');
+    onRecoveryComplete?.("Welcome to ResinOps — your account is ready. Sign in with your new password.");
+    setLoading(false);
+  }
+
   function handleKey(event) {
     if (event.key !== "Enter") return;
     if (mode === "signin") handleSignIn();
     else if (mode === "forgot") handleForgotPassword();
     else if (mode === "recovery") handleRecovery();
+    else if (mode === "accept-invite") handleAcceptInvite();
   }
 
   return (
@@ -155,6 +178,26 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
             </div>
             <button className="auth-btn" onClick={handleRecovery} disabled={loading || !password || !passwordConfirmation}>
               {loading ? "Updating..." : "Update Password"}
+            </button>
+          </>}
+
+          {mode === "accept-invite" && <>
+            <div className="auth-title">Welcome to ResinOps</div>
+            <div className="auth-sub">Set a password to activate your account. Use at least {MIN_PASSWORD_LENGTH} characters.</div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="invite-password">Password</label>
+              <input id="invite-password" className="auth-inp" type="password" value={password}
+                onChange={event=>setPassword(event.target.value)} onKeyDown={handleKey}
+                autoComplete="new-password" autoFocus />
+            </div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="invite-confirm-password">Confirm Password</label>
+              <input id="invite-confirm-password" className="auth-inp" type="password" value={passwordConfirmation}
+                onChange={event=>setPasswordConfirmation(event.target.value)} onKeyDown={handleKey}
+                autoComplete="new-password" />
+            </div>
+            <button className="auth-btn" onClick={handleAcceptInvite} disabled={loading || !password || !passwordConfirmation}>
+              {loading ? "Activating..." : "Activate Account"}
             </button>
           </>}
         </div>

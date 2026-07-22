@@ -34,5 +34,5 @@ jobs:
         run: supabase db start
 
       - name: Run database policy tests
-        run: supabase test db supabase/tests/facility_rls.sql supabase/tests/security_invariants.sql
+        run: supabase test db supabase/tests/facility_rls.sql supabase/tests/security_invariants.sql supabase/tests/scope_permissions.sql
 

@@ -460,7 +460,7 @@ export default function DataManager(){
 
       // ── Grow Spaces ──────────────────────────────────────────
       const growSpacesRaw = [
-        {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
+        {id:"gs_001",name:"FR5 — Gorilla Cake Cycle 4",d:"2026-05-10",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active",topping:[{id:"top_gs001_1",date:"2026-05-25",node:4,strainName:"Gorilla Cake"},{id:"top_gs001_2",date:"2026-06-05",node:6,strainName:"Gorilla Cake"}]},
         {id:"gs_002",name:"FR6 — Black Maple Cycle 4",d:"2026-05-03",veg:"4",flw:"9",strains:[{id:1,name:"Black Maple",plants:"64"}],growMapId:"",status:"active"},
         {id:"gs_003",name:"FR7 — Mango Haze Cycle 2",d:"2026-04-26",veg:"4",flw:"10",strains:[{id:1,name:"Mango Haze",plants:"64"}],growMapId:"",status:"cleaning"},
         {id:"gs_004",name:"FR8 — Gorilla Cake Cycle 3",d:"2026-06-13",veg:"4",flw:"9",strains:[{id:1,name:"Gorilla Cake",plants:"64"}],growMapId:"",status:"active"},
@@ -468,10 +468,10 @@ export default function DataManager(){
         {id:"gs_006",name:"FR2 — Sour Diesel OG Cycle 2",d:"2026-06-27",veg:"4",flw:"10",strains:[{id:1,name:"Sour Diesel OG",plants:"64"}],growMapId:"",status:"active"},
         {id:"gs_007",name:"FR3 — Blueberry Headband Cycle 3",d:"2026-07-04",veg:"4",flw:"9",strains:[{id:1,name:"Blueberry Headband",plants:"64"}],growMapId:"",status:"active"},
         {id:"gs_008",name:"FR4 — Zaza Runtz Cycle 3",d:"2026-07-11",veg:"4",flw:"8",strains:[{id:1,name:"Zaza Runtz",plants:"64"}],growMapId:"",status:"active"},
-        {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active"},
+        {id:"gs_009",name:"Veg — Mixed Strains",d:"2026-06-20",veg:"4",flw:"0",strains:[{id:1,name:"Mango Haze",plants:"32"},{id:2,name:"Blueberry Headband",plants:"32"}],growMapId:"",status:"active",topping:[{id:"top_gs009_1",date:"2026-07-10",node:3,strainName:"Mango Haze"}]},
       ];
       for (const gs of growSpacesRaw) {
-        await db.grow_spaces.upsert({id:uid(gs.id),roomName:gs.name,cloneDate:gs.d,vegWeeks:gs.veg,flowerWeeks:gs.flw,strains:gs.strains,plantCount:gs.strains.reduce((a,x)=>a+(parseInt(x.plants)||0),0),roomId:gs.growMapId?uid(gs.growMapId):"",status:gs.status});
+        await db.grow_spaces.upsert({id:uid(gs.id),name:gs.name,d:gs.d,veg:gs.veg,flw:gs.flw,strains:gs.strains,plants:gs.strains.reduce((a,x)=>a+(parseInt(x.plants)||0),0),growMapId:gs.growMapId?uid(gs.growMapId):"",status:gs.status,toppingLog:gs.topping||[]});
       }
 
       // ── Clone Schedules ──────────────────────────────────

@@ -3,17 +3,18 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import AuthScreen from './AuthScreen.jsx'
 import { auth } from './lib/db.js'
-import { isSupabaseEnabled, passwordRecoveryFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, supabase } from './lib/supabase.js'
+import { isSupabaseEnabled, passwordRecoveryFromInitialUrl, inviteFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles, supabase } from './lib/supabase.js'
 import { isPasswordRecoveryEvent } from './lib/auth.js'
 
 async function fetchAndSetFacility(userId) {
   if (!supabase || !userId) return;
   setCurrentFacility(null);
   setCurrentFacilityRole(null);
+  setCurrentFacilityScopeRoles({});
   try {
     const { data } = await supabase
       .from('facility_members')
-      .select('facility_id, role')
+      .select('facility_id, role, scope_roles')
       .eq('user_id', userId)
       .not('accepted_at', 'is', null)
       .limit(1)
@@ -21,6 +22,7 @@ async function fetchAndSetFacility(userId) {
     if (data?.facility_id) {
       setCurrentFacility(data.facility_id);
       setCurrentFacilityRole(data.role);
+      setCurrentFacilityScopeRoles(data.scope_roles || {});
       console.log('Facility set:', data.facility_id);
     }
   } catch (e) {
@@ -31,6 +33,7 @@ async function fetchAndSetFacility(userId) {
 function Root() {
   const [user, setUser] = useState(undefined); // undefined=loading
   const [passwordRecovery, setPasswordRecovery] = useState(passwordRecoveryFromInitialUrl);
+  const [invitePending, setInvitePending] = useState(inviteFromInitialUrl && !passwordRecoveryFromInitialUrl);
   const [authNotice, setAuthNotice] = useState('');
 
   useEffect(() => {
@@ -67,6 +70,15 @@ function Root() {
       window.history.replaceState({}, '', '/');
       setAuthNotice(notice);
       setPasswordRecovery(false);
+      setUser(null);
+    }} />;
+  }
+
+  if (invitePending) {
+    return <AuthScreen initialMode="accept-invite" onRecoveryComplete={notice => {
+      window.history.replaceState({}, '', '/');
+      setAuthNotice(notice);
+      setInvitePending(false);
       setUser(null);
     }} />;
   }

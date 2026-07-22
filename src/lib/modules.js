@@ -117,6 +117,15 @@ export const MODULES = [
     isScheduler: true,
     tier: "home",
   },
+  {
+    id: "ipm-tracker",
+    label: "IPM Tracker",
+    icon: "🐛",
+    available: true,
+    description: "Pest scouting, beneficial releases, and IPM scheduling — linked to upcoming production batches",
+    isScheduler: true,
+    tier: "home",
+  },
   // ── Processing ──────────────────────────────────────────────────────────────
   {
     id: "production",
@@ -183,15 +192,6 @@ export const MODULES = [
     description: "Regulatory pesticide application records — EPA reg #, REI, PHI, licensed applicator, weather conditions",
     isScheduler: true,
     tier: "commercial",
-  },
-  {
-    id: "ipm-tracker",
-    label: "IPM Tracker",
-    icon: "🐛",
-    available: true,
-    description: "Pest scouting, beneficial releases, and IPM scheduling — linked to upcoming production batches",
-    isScheduler: true,
-    tier: "home",
   },
   // ── People & Labor ──────────────────────────────────────────────────────────
   {
@@ -334,3 +334,22 @@ export const MODULES = [
 // "start fully collapsed" default for the sidebar accordion on a
 // facility's first-ever visit (nothing in localStorage yet).
 export const ALL_SECTION_NAMES = [...new Set(MODULES.map(m => m.sectionBreak).filter(Boolean))];
+
+// The 3 modules App.jsx renders in the pinned Settings block instead of the
+// main accordion — never associated with a section/permission scope.
+export const PINNED_SETTINGS_IDS = ["data-manager", "facility-settings", "metrc"];
+
+// module id -> resolved sidebar section name, carrying sectionBreak forward
+// the same way App.jsx's render loop does. Used by moduleVisibility.js to
+// map a module to its permission scope. Pinned Settings modules are
+// deliberately excluded (undefined) since they aren't section-scoped.
+export const MODULE_SECTION = (() => {
+  const map = {};
+  let current = null;
+  for (const mod of MODULES) {
+    if (PINNED_SETTINGS_IDS.includes(mod.id)) continue;
+    if (mod.sectionBreak) current = mod.sectionBreak;
+    map[mod.id] = current;
+  }
+  return map;
+})();

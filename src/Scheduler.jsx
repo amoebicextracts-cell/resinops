@@ -126,6 +126,11 @@ const CSS = `
     display: flex; align-items: center; gap: 6px; transition: border-color 0.15s;
   }
   .sch-export-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+  .sch-btn-topping { background: rgba(200,150,58,0.12); color: var(--amber); border: 1px solid rgba(200,150,58,0.35) !important; }
+  .sch-box { background: var(--surface-2); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .sch-box-t { font-size: 10px; font-weight: 700; color: var(--text-2); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+  .sch-timeline { position: relative; padding-left: 20px; border-left: 2px solid var(--border-2); }
+  .sch-timeline-dot { position: absolute; left: -7px; width: 12px; height: 12px; border-radius: 50%; background: var(--amber); border: 2px solid var(--surface); }
 `;
 
 import { autoPopulateStrains } from "./strainUtils.js";
@@ -145,6 +150,9 @@ export default function Scheduler() {
   const [formMode, setFormMode] = useState(null);
   const [editId, setEditId]     = useState(null);
   const [formErr, setFormErr]   = useState("");
+  const [toppingPanelId, setToppingPanelId] = useState(null);
+  const [toppingForm, setToppingForm]       = useState(null);
+  const [toppingErr, setToppingErr]         = useState("");
 
   useEffect(() => {
     async function load(){
@@ -194,6 +202,7 @@ export default function Scheduler() {
     setForm({ ...EMPTY_FORM, d: today, strains: [{ id: Date.now(), name: "", plants: "" }], growMapId: "" });
     setFormMode("add");
     setFormErr("");
+    closeTopping();
   }
 
   function openEdit(sp) {
@@ -202,9 +211,54 @@ export default function Scheduler() {
     setEditId(sp.id);
     setFormMode("edit");
     setFormErr("");
+    closeTopping();
   }
 
   function closeForm() { setFormMode(null); setEditId(null); setFormErr(""); }
+
+  // ── Topping events ───────────────────────────────────────────────────────
+  function openTopping(sp) {
+    const today = new Date().toISOString().split("T")[0];
+    const strainNames = (sp.strains||[]).filter(s=>s.name).map(s=>s.name);
+    setToppingForm({ date: today, node: "", strainName: strainNames.length===1 ? strainNames[0] : "" });
+    setToppingPanelId(sp.id);
+    setToppingErr("");
+    closeForm();
+  }
+
+  function closeTopping() { setToppingPanelId(null); setToppingForm(null); setToppingErr(""); }
+
+  async function logTopping() {
+    const sp = spaces.find(s => s.id === toppingPanelId);
+    if (!sp || !toppingForm) return;
+    if (!toppingForm.date) { setToppingErr("Enter the date it happened."); return; }
+    const node = parseInt(toppingForm.node);
+    if (!node || node < 1) { setToppingErr("Enter which node it was topped to."); return; }
+    const entry = {
+      id: "top_" + Date.now(),
+      date: toppingForm.date,
+      node,
+      strainName: toppingForm.strainName || "",
+    };
+    const updated = { ...sp, toppingLog: [...(sp.toppingLog||[]), entry] };
+    try {
+      const saved = await db.grow_spaces.upsert(updated);
+      setSpaces(prev => prev.map(s => s.id === sp.id ? saved : s));
+      const strainNames = (sp.strains||[]).filter(s=>s.name).map(s=>s.name);
+      setToppingForm({ date: toppingForm.date, node: "", strainName: strainNames.length===1 ? strainNames[0] : toppingForm.strainName });
+      setToppingErr("");
+    } catch(e) { setToppingErr("Log failed: "+e.message); }
+  }
+
+  async function removeTopping(spId, eventId) {
+    const sp = spaces.find(s => s.id === spId);
+    if (!sp) return;
+    const updated = { ...sp, toppingLog: (sp.toppingLog||[]).filter(e => e.id !== eventId) };
+    try {
+      const saved = await db.grow_spaces.upsert(updated);
+      setSpaces(prev => prev.map(s => s.id === spId ? saved : s));
+    } catch(e) { console.error("Remove topping event failed:", e); }
+  }
 
   function validateForm() {
     if (!form.name.trim())   { setFormErr("Enter a space name."); return false; }
@@ -289,7 +343,7 @@ export default function Scheduler() {
         + '<div style="background:#f6faf7;border-left:4px solid #2d5a3d;padding:12px 16px;margin-bottom:14px;border-radius:0 6px 6px 0;">'
         + '<h2 style="font-size:17px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">' + sp.name + '</h2>'
         + '<p style="font-size:13px;color:#444;margin:0;">' + strainSummary(sp)
-        + ' &nbsp;·&nbsp; ' + sp.plants + ' plants &nbsp;·&nbsp; ' + cloneTarget(sp.plants) + ' clones'
+        + ' &nbsp;·&nbsp; ' + totalPlants(sp) + ' plants &nbsp;·&nbsp; ' + cloneTarget(totalPlants(sp)) + ' clones'
         + ' &nbsp;·&nbsp; ' + sp.veg + ' wk veg / ' + sp.flw + ' wk flower</p>'
         + '</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">'
@@ -478,6 +532,71 @@ export default function Scheduler() {
       </div>
         )}
 
+        {/* Topping events panel — inlined to prevent React unmounting on re-render */}
+        {toppingPanelId && (() => {
+          const sp = spaces.find(s => s.id === toppingPanelId);
+          if (!sp) return null;
+          const strainNames = (sp.strains||[]).filter(s=>s.name).map(s=>s.name);
+          const log = sp.toppingLog || [];
+          return (
+      <div className="sch-form-panel">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Topping Events — {sp.name}</div>
+          <button className="sch-btn sch-btn-secondary" onClick={closeTopping}>Close</button>
+        </div>
+
+        <div className="sch-box">
+          <div className="sch-box-t">Log topping event</div>
+          <div style={{ display: "grid", gridTemplateColumns: strainNames.length > 1 ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <div>
+              <label className="sch-label">Date</label>
+              <input type="date" className="sch-input" value={toppingForm?.date||""}
+                onChange={e => setToppingForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div>
+              <label className="sch-label">Topped to node</label>
+              <input type="number" min="1" className="sch-input" placeholder="e.g. 4"
+                value={toppingForm?.node||""} onChange={e => setToppingForm(f => ({ ...f, node: e.target.value }))} />
+            </div>
+            {strainNames.length > 1 && (
+              <div>
+                <label className="sch-label">Strain</label>
+                <select className="sch-input" style={{cursor:"pointer"}} value={toppingForm?.strainName||""}
+                  onChange={e => setToppingForm(f => ({ ...f, strainName: e.target.value }))}>
+                  <option value="">— All / unspecified —</option>
+                  {strainNames.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {toppingErr && <div style={{ fontSize: "12px", color: "var(--danger)", marginBottom: 8 }}>{toppingErr}</div>}
+          <button className="sch-btn sch-btn-primary" onClick={logTopping}>+ Log Topping Event</button>
+        </div>
+
+        {log.length > 0 ? (
+          <div className="sch-timeline">
+            {[...log].reverse().map(ev => (
+              <div key={ev.id} style={{ marginBottom: 12, position: "relative" }}>
+                <div className="sch-timeline-dot" style={{ top: 3 }} />
+                <div style={{ paddingLeft: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
+                      {fmtFull(ev.date)} — topped to node {ev.node}
+                    </div>
+                    {ev.strainName && <div style={{ fontSize: 11, color: "var(--text-3)" }}>{ev.strainName}</div>}
+                  </div>
+                  <button className="sch-btn sch-btn-sm sch-btn-del" onClick={() => removeTopping(sp.id, ev.id)}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--text-3)", padding: "4px 2px" }}>No topping events logged yet.</div>
+        )}
+      </div>
+          );
+        })()}
+
         {/* Empty state */}
         {!hasSpaces && !formMode && (
           <div style={{ border: "1px dashed var(--border-2)", borderRadius: "10px", padding: "48px 24px", textAlign: "center" }}>
@@ -527,7 +646,8 @@ export default function Scheduler() {
                       <div className="sch-space-name">{sp.name}</div>
                       <div className="sch-space-strain">{strainSummary(sp)}</div>
                       <div style={{ fontSize: "10px", color: "var(--text-3)", marginTop: "1px" }}>
-                        {sp.plants} plants · {cloneTarget(sp.plants)} clones
+                        {totalPlants(sp)} plants · {cloneTarget(totalPlants(sp))} clones
+                        {sp.toppingLog?.length > 0 && <> · {sp.toppingLog.length} topping{sp.toppingLog.length===1?"":"s"}</>}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "5px", marginTop: "5px", flexWrap: "wrap" }}>
                         <span style={{ fontSize: "10px", color: "var(--text-3)" }}>Veg</span>
@@ -537,6 +657,7 @@ export default function Scheduler() {
                         <input className="wk-edit" type="number" value={sp.flw} min="1" max="24"
                           onChange={e => updateWks(sp.id, "flw", e.target.value)} />
                         <button className="sch-btn sch-btn-sm sch-btn-edit" onClick={() => openEdit(sp)}>Edit</button>
+                        <button className="sch-btn sch-btn-sm sch-btn-topping" onClick={() => openTopping(sp)}>✂️ Topping</button>
                         <button className="sch-btn sch-btn-sm sch-btn-del" onClick={() => removeSpace(sp.id)}>✕</button>
                       </div>
                     </div>
