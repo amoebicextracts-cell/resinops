@@ -40,7 +40,7 @@ const SCHEMAS = {
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes'],
-  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override'],
+  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override','materials_locked_at'],
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis'],
   cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes','linked_to_equipment'],
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
@@ -569,6 +569,7 @@ const FIELD_OVERRIDES = {
     skuPriceId: 'sku_price_id',
     revPerUnit: 'rev_per_unit',
     totalRevOverride: 'total_rev_override',
+    materialsLockedAt: 'materials_locked_at',
   },
   cultivation_costs: {
     spaceId: 'grow_space_id',

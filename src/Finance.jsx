@@ -190,7 +190,7 @@ export default function Finance() {
 
   const [deductMsg, setDeductMsg] = useState({});
   async function deductNow(batch){
-    const { updatedItems, shortfalls, bom } = deductForBatch(batch, allBoms, items);
+    const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(batch, allBoms, items);
     if (!bom) { setDeductMsg(p=>({...p,[batch.id]:"No BOM matches this batch's category/subcategory — nothing to deduct."})); return; }
     try{
       if (updatedItems.length) {
@@ -200,7 +200,17 @@ export default function Finance() {
       setDeductMsg(p=>({...p,[batch.id]: shortfalls.length
         ? `⚠ Ran short on: ${shortfalls.map(s=>s.itemName+" ("+s.shortfall.toFixed(1)+" short)").join(", ")}.`
         : `✓ Deducted per the "${bom.name}" BOM.`}));
+      // Lock in the materials actually deducted, unless the user already
+      // set an explicit override for this batch — deduction shouldn't
+      // silently clobber a deliberate manual choice.
+      const rec = getRecord(batch.id);
+      if (materialLines.length && !rec.materialCostOverride && !rec.overrideMaterials) {
+        setRecord(batch.id, {manualMaterials:materialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+      }
     }catch(e){ setDeductMsg(p=>({...p,[batch.id]:"Deduction failed: "+e.message})); }
+  }
+  function unlockMaterials(batch){
+    setRecord(batch.id, {manualMaterials:undefined, overrideMaterials:undefined, materialsLockedAt:undefined});
   }
 
   function getRecord(batchId) { return cogsRecs.find(r=>r.batchId===batchId)||{}; }
@@ -520,7 +530,17 @@ export default function Finance() {
                       {/* BOM material lines */}
                       {cogs.materialLines.length > 0 && (
                         <div style={{marginTop:10}}>
-                          <div style={{fontSize:11,fontWeight:700,color:"var(--text-3)",marginBottom:6}}>BOM Material Breakdown</div>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                            <div style={{fontSize:11,fontWeight:700,color:"var(--text-3)"}}>BOM Material Breakdown</div>
+                            {rec.materialsLockedAt ? (
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <span style={{fontSize:10,color:"var(--text-3)"}}>🔒 Locked from inventory deduction on {new Date(rec.materialsLockedAt).toLocaleDateString()}</span>
+                                <button className="fin-btn fin-sm fin-secondary" onClick={()=>unlockMaterials(batch)}>🔓 Unlock — use live recipe</button>
+                              </div>
+                            ) : (
+                              <span style={{fontSize:10,color:"var(--text-3)"}}>Live recipe match — locks in once inventory is deducted</span>
+                            )}
+                          </div>
                           <div style={{border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
                             <table className="fin-tbl">
                               <thead><tr><th>Item</th><th>Qty</th><th>Unit Cost</th><th>Line Total</th></tr></thead>
@@ -529,7 +549,7 @@ export default function Finance() {
                                   <tr key={i}>
                                     <td>{ml.name}</td>
                                     <td>{ml.qty} {ml.uom}</td>
-                                    <td>{ml.uc}</td>
+                                    <td>{fmtC(ml.unitCost)}</td>
                                     <td style={{color:"var(--accent-2)"}}>{fmtC(ml.cost)}</td>
                                   </tr>
                                 ))}

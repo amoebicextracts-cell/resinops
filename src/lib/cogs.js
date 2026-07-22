@@ -28,7 +28,7 @@
 // number itself.
 // ============================================================
 
-import { resolveBom, lineQty, inputLbsFromBatch, estUnitsFromBatch } from './inventory.js';
+import { resolveBom, inputLbsFromBatch, estUnitsFromBatch, resolveBomMaterialLines } from './inventory.js';
 import { bookedRevenueForBatch } from './revenue.js';
 
 function fmtN(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
@@ -45,15 +45,9 @@ export function calcMaterialCost(batch, boms, items, cogsRecord) {
 
   const bom = resolveBom(batch, boms);
   if (bom && !record.overrideMaterials) {
-    for (const line of bom.items || []) {
-      const item = (items || []).find(x => x.id === line.itemId);
-      if (!item) continue;
-      const qty = lineQty(line, batch);
-      const uc = item.lastCost || 0;
-      const cost = qty * uc;
-      materialCost += cost;
-      materialLines.push({ name: item.n, qty: fmtN(qty), uom: item.uom, unitCost: uc, cost: fmtN(cost) });
-    }
+    const resolved = resolveBomMaterialLines(batch, bom, items);
+    materialCost = resolved.materialCost;
+    materialLines.push(...resolved.materialLines);
   } else if (record.manualMaterials) {
     for (const m of record.manualMaterials || []) {
       materialCost += parseFloat(m.cost) || 0;

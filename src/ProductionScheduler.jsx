@@ -1344,7 +1344,7 @@ export default function ProductionScheduler(){
         // (matches the deductTrigger dropdown's own default in Finance.jsx
         // whenever no cogs_records override says otherwise). Only the main
         // batch consumes the BOM, not auto-spawned linked byproduct batches.
-        const { updatedItems, shortfalls, bom } = deductForBatch(mainBatch, boms, inventoryData);
+        const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(mainBatch, boms, inventoryData);
         if (bom) {
           if (updatedItems.length) {
             const savedItems = await Promise.all(updatedItems.map(it=>db.inventory_items.upsert(it)));
@@ -1353,6 +1353,14 @@ export default function ProductionScheduler(){
           setDeductionNotice(shortfalls.length
             ? `⚠ Deducted from inventory per the "${bom.name}" BOM, but ran short on: ${shortfalls.map(s=>s.itemName+" ("+s.shortfall.toFixed(1)+" short)").join(", ")}.`
             : `✓ Deducted inventory per the "${bom.name}" BOM.`);
+          // Lock in the materials that were actually deducted — this is a
+          // brand-new batch, so there's no pre-existing cogs_records row or
+          // user override to preserve. Prevents a later BOM recipe edit
+          // from silently changing this batch's historical materials cost
+          // (see lib/cogs.js calcMaterialCost's overrideMaterials branch).
+          if (materialLines.length) {
+            await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:materialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+          }
         } else {
           setDeductionNotice("");
         }
