@@ -511,6 +511,11 @@ export default function DataManager(){
         {id:1006,strainName:"Zaza Runtz",spaceName:"Flower Room 3",spaceId:"gs_004",plants:64,d:"2026-03-15",wetWeightG:35200,totalDryWeight:8010,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1007,strainName:"Gorilla Cake",spaceName:"Flower Room 7",spaceId:"gs_007",plants:64,d:"2026-03-28",wetWeightG:34600,totalDryWeight:7850,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1008,strainName:"Mango Haze",spaceName:"Flower Room 8",spaceId:"gs_008",plants:64,d:"2026-04-25",wetWeightG:36100,totalDryWeight:8340,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        // ── January/February harvests — extend the trailing window back to
+        // the start of the year so Forecast/280E Annual Summary have a
+        // full year of history instead of starting in April.
+        {id:1021,strainName:"Zaza Runtz",spaceName:"Flower Room 4",spaceId:"gs_008",plants:64,d:"2026-01-18",wetWeightG:34800,totalDryWeight:7920,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
+        {id:1022,strainName:"Blueberry Headband",spaceName:"Flower Room 1",spaceId:"gs_005",plants:64,d:"2026-02-15",wetWeightG:35100,totalDryWeight:7990,status:"done",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1009,strainName:"Sour Diesel OG",spaceName:"Veg — Mixed Strains",spaceId:"gs_009",plants:64,d:"2026-07-25",wetWeightG:36400,totalDryWeight:8300,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1010,strainName:"Gorilla Cake",spaceName:"Flower Room 5",spaceId:"gs_001",plants:64,d:"2026-08-20",wetWeightG:35900,totalDryWeight:8180,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
         {id:1011,strainName:"Black Maple",spaceName:"Flower Room 6",spaceId:"gs_002",plants:64,d:"2026-09-20",wetWeightG:33800,totalDryWeight:7690,status:"scheduled",steps:[{n:"Hang Dry",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:14}]},
@@ -588,6 +593,14 @@ export default function DataManager(){
       // Trailing (3 months back) — trend context, sourced from the March/
       // April harvests above so every harvest→production date stays
       // chronologically valid.
+      // January/February — 2 batches/month against the two new early
+      // harvests above, so the trailing window reaches back to January.
+      const EARLY_TRAILING = [
+        {id:"pb_e01", d:"2026-01-25", flavorIdx:2, strainIdx:5, harvestBatchId:1021},
+        {id:"pb_e02", d:"2026-02-01", flavorIdx:3, strainIdx:3, harvestBatchId:1021},
+        {id:"pb_e03", d:"2026-02-22", flavorIdx:0, strainIdx:3, harvestBatchId:1022},
+        {id:"pb_e04", d:"2026-03-01", flavorIdx:1, strainIdx:5, harvestBatchId:1022},
+      ];
       const TRAILING = [
         {id:"pb_t01", d:"2026-04-12", flavorIdx:0, strainIdx:5, harvestBatchId:1006},
         {id:"pb_t02", d:"2026-04-26", flavorIdx:1, strainIdx:0, harvestBatchId:1007},
@@ -612,11 +625,12 @@ export default function DataManager(){
       });
 
       const spreadBatches = [
+        ...EARLY_TRAILING.map(t=>mkSpreadBatch(t.id, t.d, t.flavorIdx, t.strainIdx, t.harvestBatchId, "in_progress")),
         ...TRAILING.map(t=>mkSpreadBatch(t.id, t.d, t.flavorIdx, t.strainIdx, t.harvestBatchId, "in_progress")),
         ...FORWARD.map(t=>mkSpreadBatch(t.id, t.d, t.flavorIdx, t.strainIdx, t.harvestBatchId, "scheduled")),
       ];
       const spreadLaborLines = Object.fromEntries(
-        [...TRAILING, ...FORWARD].map(t => [t.id, LABOR_BY_FLAVOR[t.flavorIdx % SPREAD_FLAVORS.length]])
+        [...EARLY_TRAILING, ...TRAILING, ...FORWARD].map(t => [t.id, LABOR_BY_FLAVOR[t.flavorIdx % SPREAD_FLAVORS.length]])
       );
 
       const demoProdBatchesRaw = [
@@ -871,6 +885,73 @@ export default function DataManager(){
       ];
       for (const c of customersRaw) {
         await db.customers.upsert({...c, id: uid(c.id)});
+      }
+
+      // ── Broad booked-pipeline pass ── previously only 2 of ~40 production
+      // batches (pb_f01, pb_f04 above) had a real sales_orders booking
+      // against them, so nearly every batch showed full COGS against ~$0
+      // revenue and Forecast/P&L Summary looked like a loss machine even
+      // though costs were accruing normally for every batch. Book most
+      // batches against a real order, sales_orders being the only thing
+      // lib/revenue.js's bookedRevenueForBatch() counts (a batch's own
+      // cogs_records.revPerUnit is a price reference only — it needs a
+      // real order line's qty to turn into revenue). Sell-through tapers
+      // the further out a batch's date is, so the far end of the forecast
+      // still reads as "estimated", not fully pre-sold.
+      const ALREADY_BOOKED = new Set(["pb_f01","pb_f04"]);
+      const HAND_BATCH_UNITS = {
+        pb_001:810, pb_002:757, pb_003:1600, pb_004:1760, pb_005:200,
+        pb_006:1455, pb_007:257, pb_008:480, pb_009:245, pb_010:196, pb_011:65,
+      };
+      const DEMO_TODAY = "2026-07-22";
+      function sellThroughFor(dateStr) {
+        const monthsOut = (new Date(dateStr) - new Date(DEMO_TODAY)) / (1000*60*60*24*30);
+        if (monthsOut <= 0) return 0.85;
+        if (monthsOut <= 3) return 0.80;
+        if (monthsOut <= 6) return 0.60;
+        if (monthsOut <= 9) return 0.45;
+        return 0.30;
+      }
+      let custIdx = 0;
+      const nextCustomer = () => customersRaw[(custIdx++) % customersRaw.length];
+
+      const bookingOrders = [];
+      [...EARLY_TRAILING, ...TRAILING, ...FORWARD].forEach(t => {
+        if (ALREADY_BOOKED.has(t.id)) return;
+        const f = SPREAD_FLAVORS[t.flavorIdx % SPREAD_FLAVORS.length];
+        const pct = sellThroughFor(t.d);
+        const qty = Math.round(f.units * pct);
+        if (qty <= 0) return;
+        const cust = nextCustomer();
+        const orderDate = fmt(addD(t.d, 5));
+        const confirmed = pct >= 0.6;
+        bookingOrders.push({
+          id:`so_book_${t.id}`, customerName:cust.name, customerLicense:cust.licenseNumber,
+          orderDate, status:"open", importStatus: confirmed ? "confirmed" : "pending",
+          lines:[{id:`lb_${t.id}`, batchId:uid(t.id), product:`${f.nameSuffix} — batch ${t.id}`, qty, unitPrice:f.unitPrice, orderTotal:qty*f.unitPrice}],
+          notes:"Auto-generated demo booking", dueDate:fmt(addD(orderDate,14)),
+          amountPaid: confirmed ? Math.round(qty*f.unitPrice*0.4) : 0,
+        });
+      });
+      Object.entries(HAND_BATCH_UNITS).forEach(([id, units]) => {
+        const batch = demoProdBatchesRaw.find(p=>p.id===id);
+        if (!batch) return;
+        const pct = sellThroughFor(batch.d);
+        const qty = Math.round(units * pct);
+        if (qty <= 0) return;
+        const cust = nextCustomer();
+        const orderDate = fmt(addD(batch.d, 5));
+        const confirmed = pct >= 0.6;
+        bookingOrders.push({
+          id:`so_book_${id}`, customerName:cust.name, customerLicense:cust.licenseNumber,
+          orderDate, status:"open", importStatus: confirmed ? "confirmed" : "pending",
+          lines:[{id:`lb_${id}`, batchId:uid(id), product:batch.name, qty, unitPrice:batch.unitPrice, orderTotal:qty*batch.unitPrice}],
+          notes:"Auto-generated demo booking", dueDate:fmt(addD(orderDate,14)),
+          amountPaid: confirmed ? Math.round(qty*batch.unitPrice*0.4) : 0,
+        });
+      });
+      for (const so of bookingOrders) {
+        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes,dueDate:so.dueDate,amountPaid:so.amountPaid});
       }
 
       // ── Sales Goals ── current month goal so the Sales Goal Dial has live
