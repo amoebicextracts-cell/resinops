@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { auth } from "./lib/db";
-import { supabase } from "./lib/supabase";
+import { supabase, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles } from "./lib/supabase";
 import { MIN_PASSWORD_LENGTH, passwordResetRedirect, passwordValidationError } from "./lib/auth";
 
 const CSS = `
@@ -82,7 +82,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     const validationError = passwordValidationError(password, passwordConfirmation);
     if (validationError) { setError(validationError); return; }
     setLoading(true); setError("");
-    const { error: updateError } = await auth.updatePassword(password);
+    const { data, error: updateError } = await auth.updatePassword(password);
     if (updateError) {
       setError(updateError.message || "This invite link is invalid or expired. Ask for a new one.");
       setLoading(false);
@@ -94,8 +94,25 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
       setLoading(false);
       return;
     }
-    await auth.signOut('global');
-    onRecoveryComplete?.("Welcome to ResinOps — your account is ready. Sign in with your new password.");
+    // Load facility context directly here rather than relying on the
+    // onAuthStateChange listener elsewhere — that fires off the password
+    // update itself, which can race ahead of accept_facility_invite above
+    // and find no accepted row yet.
+    try {
+      const { data: membership } = await supabase
+        .from('facility_members')
+        .select('facility_id, role, scope_roles')
+        .eq('user_id', data.user.id)
+        .not('accepted_at', 'is', null)
+        .limit(1)
+        .single();
+      if (membership) {
+        setCurrentFacility(membership.facility_id);
+        setCurrentFacilityRole(membership.role);
+        setCurrentFacilityScopeRoles(membership.scope_roles || {});
+      }
+    } catch { /* best-effort — worst case the sidebar just shows no facility until a reload */ }
+    onAuth?.(data.user);
     setLoading(false);
   }
 

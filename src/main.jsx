@@ -75,11 +75,13 @@ function Root() {
   }
 
   if (invitePending) {
-    return <AuthScreen initialMode="accept-invite" onRecoveryComplete={notice => {
+    // Unlike password recovery, a brand-new invited account has no other
+    // sessions anywhere to invalidate — log them straight in instead of
+    // forcing a sign-out + fresh sign-in.
+    return <AuthScreen initialMode="accept-invite" onAuth={u => {
       window.history.replaceState({}, '', '/');
-      setAuthNotice(notice);
       setInvitePending(false);
-      setUser(null);
+      setUser(u);
     }} />;
   }
 

@@ -130,13 +130,27 @@ export default function FacilitySettings(){
     if(!fid || !supabase || !isAdmin) return;
     setMembersLoading(true);
     try{
-      const { data, error } = await supabase
+      // Two separate queries rather than a PostgREST embed (facility_members
+      // -> profiles) — that requires an explicit FK PostgREST's schema cache
+      // can detect, which isn't guaranteed to exist between these two
+      // tables. Fetching both and merging client-side works regardless.
+      const { data: rows, error } = await supabase
         .from('facility_members')
-        .select('id, user_id, role, scope_roles, accepted_at, created_at, profile:profiles(email, full_name)')
+        .select('id, user_id, role, scope_roles, accepted_at, created_at')
         .eq('facility_id', fid)
         .order('created_at');
       if(error) throw error;
-      setMembers(data||[]);
+      const userIds = [...new Set((rows||[]).map(r=>r.user_id))];
+      let profileById = {};
+      if(userIds.length){
+        const { data: profiles, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .in('id', userIds);
+        if(profileErr) throw profileErr;
+        profileById = Object.fromEntries((profiles||[]).map(p=>[p.id,p]));
+      }
+      setMembers((rows||[]).map(r=>({...r, profile: profileById[r.user_id]||null})));
     }catch(e){ setTeamErr("Could not load team: "+e.message); }
     setMembersLoading(false);
   }
