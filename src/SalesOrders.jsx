@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import SalesGoalDial from "./SalesGoalDial.jsx";
+import { agingBucket, paymentStatus } from "./lib/aging";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n){return Number(n||0).toLocaleString();}
@@ -49,6 +50,9 @@ const CSS = `
   .status-waitlist{background:rgba(150,100,200,0.15);color:#9060c0;}
   .status-fulfilled{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .status-canceled{background:rgba(100,100,100,0.15);color:var(--text-3);}
+  .status-paid{background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .status-partial{background:rgba(90,120,200,0.15);color:#7090f0;}
+  .status-unpaid{background:rgba(200,74,74,0.15);color:var(--danger);}
   .so-num{width:70px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;color:var(--text);font-family:monospace;font-size:12px;padding:3px 6px;text-align:center;}
   .so-num:focus{outline:none;border-color:var(--accent);}
 `;
@@ -191,6 +195,18 @@ export default function SalesOrders() {
       setDialRefresh(n=>n+1);
     }catch(e){ setErr("Could not delete: "+(e.message||e)); }
   }
+  async function setOrderPayment(order, amountPaid) {
+    try{
+      const saved = await db.sales_orders.upsert({...order, amountPaid:parseFloat(amountPaid)||0});
+      setOrders(p=>p.map(o=>o.id===order.id?saved:o));
+    }catch(e){ console.error("Payment update failed:",e); }
+  }
+  async function setOrderDueDate(order, dueDate) {
+    try{
+      const saved = await db.sales_orders.upsert({...order, dueDate});
+      setOrders(p=>p.map(o=>o.id===order.id?saved:o));
+    }catch(e){ console.error("Due date update failed:",e); }
+  }
 
   function lineTotal(l) { return (parseFloat(l.qty)||0)*(parseFloat(l.unitPrice)||0); }
   function orderTotal(o) { return o.lines.reduce((a,l)=>a+lineTotal(l),0); }
@@ -243,7 +259,7 @@ export default function SalesOrders() {
         })()}
 
         <div className="so-tabs">
-          {[["availability","📋 Availability Board"],["orders","🧾 Orders & Holds"],["goals","🎯 Goals"]].map(([v,l])=>(
+          {[["availability","📋 Availability Board"],["orders","🧾 Orders & Holds"],["ar","💰 Accounts Receivable"],["goals","🎯 Goals"]].map(([v,l])=>(
             <button key={v} className={"so-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -399,6 +415,61 @@ export default function SalesOrders() {
             </div>
           </>
         )}
+
+        {/* ── ACCOUNTS RECEIVABLE ── */}
+        {tab==="ar" && (() => {
+          const withBalance = orders.filter(o=>o.status!=="canceled").map(o => {
+            const total = orderTotal(o);
+            const paid = parseFloat(o.amountPaid)||0;
+            return { o, total, balance: total-paid, status: paymentStatus(total, paid), bucket: agingBucket(o.dueDate) };
+          }).filter(x=>x.balance>0.005);
+          const totalReceivable = withBalance.reduce((s,x)=>s+x.balance,0);
+          const overdue = withBalance.filter(x=>x.bucket && x.bucket!=="current");
+          const overdueTotal = overdue.reduce((s,x)=>s+x.balance,0);
+          const buckets = ["1-30","31-60","61-90","90+"].map(b=>({
+            b, total: withBalance.filter(x=>x.bucket===b).reduce((s,x)=>s+x.balance,0),
+          }));
+          return (
+          <div className="so-card">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:16}}>
+              {[
+                {label:"Total Receivable",value:fmtC(totalReceivable),color:"var(--text)"},
+                {label:"Overdue",value:fmtC(overdueTotal),color:overdueTotal>0?"var(--danger)":"var(--text)"},
+                ...buckets.map(b=>({label:b.b+" days",value:fmtC(b.total),color:"var(--text)"})),
+              ].map(({label,value,color})=>(
+                <div key={label} style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 14px",border:"1px solid var(--border-2)"}}>
+                  <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"var(--text-3)",marginBottom:4}}>{label}</div>
+                  <div style={{fontSize:18,fontWeight:700,color}}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {withBalance.length===0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>Nothing outstanding — every order is either paid in full or canceled.</div>
+            ) : (
+              <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                <table className="so-tbl">
+                  <thead><tr><th>Customer</th><th>Order Date</th><th>Due</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Aging</th></tr></thead>
+                  <tbody>
+                    {withBalance.sort((a,b)=>(a.o.dueDate||"9999").localeCompare(b.o.dueDate||"9999")).map(({o,total,balance,status,bucket})=>(
+                      <tr key={o.id}>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{o.customerName}</td>
+                        <td>{fmtD(o.orderDate)}</td>
+                        <td><input type="date" className="so-inp" style={{width:130}} value={o.dueDate||""} onChange={e=>setOrderDueDate(o,e.target.value)} /></td>
+                        <td>{fmtC(total)}</td>
+                        <td><input type="number" step="0.01" className="so-num" value={o.amountPaid||0} onChange={e=>setOrderPayment(o,e.target.value)} /></td>
+                        <td style={{color:balance>0.005?"var(--danger)":"var(--accent-2)"}}>{fmtC(balance)}</td>
+                        <td><span className={"so-pill status-"+status}>{status}</span></td>
+                        <td>{bucket && <span className={"so-pill "+(bucket==="current"?"avail-good":"avail-none")}>{bucket}</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          );
+        })()}
 
         {/* ── GOALS ── */}
         {tab==="goals" && (

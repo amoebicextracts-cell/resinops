@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { withdrawFifo } from "./lib/inventory";
+import { agingBucket, paymentStatus } from "./lib/aging";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
@@ -136,6 +137,14 @@ const CSS = `
   .po-sent{background:rgba(200,150,58,0.15);color:var(--amber);}
   .po-received{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .po-partial{background:rgba(90,120,200,0.15);color:#7090f0;}
+  .po-paid{background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .po-unpaid{background:rgba(200,74,74,0.15);color:var(--danger);}
+  .aging-pill{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:var(--surface-2);color:var(--text-3);}
+  .aging-current{background:rgba(74,124,89,0.15);color:var(--accent-2);}
+  .aging-overdue{background:rgba(200,74,74,0.15);color:var(--danger);}
+  .erp-stat{background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:12px 14px;}
+  .erp-stat-lbl{font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;}
+  .erp-stat-val{font-size:16px;font-weight:600;color:var(--text);}
 `;
 
 const EMPTY_ITEM = {
@@ -301,6 +310,9 @@ export default function InventoryERP() {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState([]);
   const [pos, setPOs] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [invoiceForm, setInvoiceForm] = useState(null);
+  const [invoiceErr, setInvoiceErr] = useState("");
   const [itemForm, setItemForm] = useState(null);
   const [vendorForm, setVendorForm] = useState(null);
   const [poForm, setPoForm] = useState(null);
@@ -342,14 +354,16 @@ export default function InventoryERP() {
   useEffect(()=>{
     async function load(){
       try{
-        const [inv, vnd, po] = await Promise.all([
+        const [inv, vnd, po, vi] = await Promise.all([
           db.inventory_items.list(),
           db.vendors.list(),
           db.purchase_orders.list(),
+          db.vendor_invoices.list(),
         ]);
         setItems(inv);
         setVendors(vnd);
         setPOs(po);
+        setInvoices(vi);
       }catch(e){ console.error("InventoryERP load error:",e); }
       setLoading(false);
     }
@@ -435,6 +449,34 @@ export default function InventoryERP() {
     }catch(e){ setErr("Save failed: "+e.message); }
   }
 
+  // Accounts Payable — vendor invoices
+  function openAddInvoice(){ setInvoiceForm({id:crypto.randomUUID(),vendorId:"",poId:"",invoiceNumber:"",invoiceDate:new Date().toISOString().split("T")[0],dueDate:"",amount:"",amountPaid:"0",notes:""}); setInvoiceErr(""); }
+  async function saveInvoice(){
+    if(!invoiceForm.vendorId){ setInvoiceErr("Select a vendor."); return; }
+    const toSave = {...invoiceForm, amount:parseFloat(invoiceForm.amount)||0, amountPaid:parseFloat(invoiceForm.amountPaid)||0};
+    try{
+      const saved = await db.vendor_invoices.upsert(toSave);
+      setInvoices(p=>{const i=p.findIndex(x=>x.id===saved.id);return i>=0?p.map(x=>x.id===saved.id?saved:x):[...p,saved];});
+      setInvoiceForm(null); setInvoiceErr("");
+    }catch(e){ setInvoiceErr("Save failed: "+e.message); }
+  }
+  async function removeInvoice(id){
+    try{ await db.vendor_invoices.delete(id); setInvoices(p=>p.filter(x=>x.id!==id)); }
+    catch(e){ console.error("Invoice delete failed:",e); }
+  }
+  async function setInvoicePaid(inv, amountPaid){
+    try{
+      const saved = await db.vendor_invoices.upsert({...inv, amountPaid:parseFloat(amountPaid)||0});
+      setInvoices(p=>p.map(x=>x.id===inv.id?saved:x));
+    }catch(e){ console.error("Invoice payment update failed:",e); }
+  }
+  async function setInvoiceDueDate(inv, dueDate){
+    try{
+      const saved = await db.vendor_invoices.upsert({...inv, dueDate});
+      setInvoices(p=>p.map(x=>x.id===inv.id?saved:x));
+    }catch(e){ console.error("Invoice due date update failed:",e); }
+  }
+
   // Receive PO
   function openReceive(po) {
     setReceiveModal({po, lines: po.items.map(l=>({...l, receiveNow:String(Math.max(0,l.qty-(l.receivedQty||0)))}))});
@@ -516,7 +558,7 @@ export default function InventoryERP() {
         )}
 
         <div className="erp-tabs">
-          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["coc","📄 Certificates of Conformity"],["ledger","📒 Stock Ledger"]].map(([v,l])=>(
+          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["ap","💳 Accounts Payable"],["coc","📄 Certificates of Conformity"],["ledger","📒 Stock Ledger"]].map(([v,l])=>(
             <button key={v} className={"erp-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -756,6 +798,88 @@ export default function InventoryERP() {
             )}
           </div>
         )}
+
+        {/* ── ACCOUNTS PAYABLE ── */}
+        {tab==="ap" && (() => {
+          const withBalance = invoices.map(inv => ({
+            inv,
+            balance: (parseFloat(inv.amount)||0) - (parseFloat(inv.amountPaid)||0),
+            status: paymentStatus(inv.amount, inv.amountPaid),
+            bucket: agingBucket(inv.dueDate),
+          }));
+          const outstanding = withBalance.filter(x=>x.balance>0.005);
+          const totalPayable = outstanding.reduce((s,x)=>s+x.balance,0);
+          const overdue = outstanding.filter(x=>x.bucket && x.bucket!=="current");
+          const overdueTotal = overdue.reduce((s,x)=>s+x.balance,0);
+          const buckets = ["1-30","31-60","61-90","90+"].map(b=>({
+            b, total: outstanding.filter(x=>x.bucket===b).reduce((s,x)=>s+x.balance,0),
+          }));
+          return (
+          <div className="erp-card">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:16}}>
+              <div className="erp-stat"><div className="erp-stat-lbl">Total Payable</div><div className="erp-stat-val">{fmtC(totalPayable)}</div></div>
+              <div className="erp-stat"><div className="erp-stat-lbl">Overdue</div><div className="erp-stat-val" style={{color:overdueTotal>0?"var(--danger)":undefined}}>{fmtC(overdueTotal)}</div></div>
+              {buckets.map(b=>(
+                <div key={b.b} className="erp-stat"><div className="erp-stat-lbl">{b.b} days</div><div className="erp-stat-val">{fmtC(b.total)}</div></div>
+              ))}
+            </div>
+
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+              {!invoiceForm && <button className="erp-btn erp-primary" onClick={openAddInvoice}>+ Add Invoice</button>}
+            </div>
+
+            {invoiceForm && (
+              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="erp-lbl">Vendor</label><select className="erp-sel" value={invoiceForm.vendorId} onChange={e=>setInvoiceForm(f=>({...f,vendorId:e.target.value}))}><option value="">— Select —</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.n}</option>)}</select></div>
+                  <div><label className="erp-lbl">Related PO (optional)</label><select className="erp-sel" value={invoiceForm.poId} onChange={e=>setInvoiceForm(f=>({...f,poId:e.target.value}))}><option value="">— None —</option>{pos.filter(p=>!invoiceForm.vendorId||p.vendorId===invoiceForm.vendorId).map(p=><option key={p.id} value={p.id}>{p.poNum||p.id.slice(0,8)}</option>)}</select></div>
+                  <div><label className="erp-lbl">Invoice #</label><input className="erp-inp" value={invoiceForm.invoiceNumber} onChange={e=>setInvoiceForm(f=>({...f,invoiceNumber:e.target.value}))} /></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="erp-lbl">Invoice date</label><input type="date" className="erp-inp" value={invoiceForm.invoiceDate} onChange={e=>setInvoiceForm(f=>({...f,invoiceDate:e.target.value}))} /></div>
+                  <div><label className="erp-lbl">Due date</label><input type="date" className="erp-inp" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm(f=>({...f,dueDate:e.target.value}))} /></div>
+                  <div><label className="erp-lbl">Amount ($)</label><input type="number" step="0.01" className="erp-inp" value={invoiceForm.amount} onChange={e=>setInvoiceForm(f=>({...f,amount:e.target.value}))} /></div>
+                  <div><label className="erp-lbl">Amount paid ($)</label><input type="number" step="0.01" className="erp-inp" value={invoiceForm.amountPaid} onChange={e=>setInvoiceForm(f=>({...f,amountPaid:e.target.value}))} /></div>
+                </div>
+                <div style={{marginBottom:10}}><label className="erp-lbl">Notes</label><input className="erp-inp" value={invoiceForm.notes||""} onChange={e=>setInvoiceForm(f=>({...f,notes:e.target.value}))} /></div>
+                {invoiceErr && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{invoiceErr}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button className="erp-btn erp-primary" onClick={saveInvoice}>Save</button>
+                  <button className="erp-btn erp-secondary" onClick={()=>setInvoiceForm(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {invoices.length===0 ? (
+              <div style={{textAlign:"center",padding:"24px",color:"var(--text-3)"}}>No vendor invoices logged yet.</div>
+            ) : (
+              <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                <table className="erp-tbl">
+                  <thead><tr><th>Vendor</th><th>Invoice #</th><th>Due</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th>Aging</th><th></th></tr></thead>
+                  <tbody>
+                    {withBalance.sort((a,b)=>(a.inv.dueDate||"9999").localeCompare(b.inv.dueDate||"9999")).map(({inv,balance,status,bucket})=>{
+                      const vendor = vendors.find(v=>v.id===inv.vendorId);
+                      return (
+                        <tr key={inv.id}>
+                          <td style={{fontWeight:500,color:"var(--text)"}}>{vendor?.n||"—"}</td>
+                          <td style={{fontSize:11}}>{inv.invoiceNumber||"—"}</td>
+                          <td><input type="date" className="erp-inp" style={{width:130}} value={inv.dueDate||""} onChange={e=>setInvoiceDueDate(inv,e.target.value)} /></td>
+                          <td>{fmtC(inv.amount)}</td>
+                          <td><input type="number" step="0.01" className="erp-num" value={inv.amountPaid} onChange={e=>setInvoicePaid(inv,e.target.value)} /></td>
+                          <td style={{color:balance>0.005?"var(--danger)":"var(--accent-2)"}}>{fmtC(balance)}</td>
+                          <td><span className={"po-status po-"+status}>{status}</span></td>
+                          <td>{bucket && <span className={"aging-pill "+(bucket==="current"?"aging-current":"aging-overdue")}>{bucket}</span>}</td>
+                          <td><button className="erp-danger" onClick={()=>removeInvoice(inv.id)}>✕</button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          );
+        })()}
 
         {/* ── LEDGER TAB ── */}
         {/* CoC Tab */}

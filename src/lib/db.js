@@ -47,6 +47,7 @@ const LS_KEYS = {
   employees:          'resinops_employees',
   vendors:            'resinops_vendors_v2',
   purchase_orders:    'resinops_purchase_orders',
+  vendor_invoices:    'resinops_vendor_invoices',
   work_orders:        'resinops_work_orders',
   pheno_hunts:        'resinops_pheno_hunts',
   metrc_transfer_manifests: 'resinops_metrc_transfer_manifests',

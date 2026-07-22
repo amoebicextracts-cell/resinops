@@ -833,16 +833,16 @@ export default function DataManager(){
 
       // ── Sales Orders ────────────────────────────────────
       const salesOrdersRaw = [
-        {id:"so_001",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-07-01",status:"open",importStatus:"confirmed",lines:[{id:"l1",product:"Gorilla Cake 3.5g",qty:100,unitPrice:18,orderTotal:1800},{id:"l2",product:"Black Maple 3.5g",qty:80,unitPrice:20,orderTotal:1600}],notes:"Regular weekly account"},
-        {id:"so_002",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-07-02",status:"open",importStatus:"confirmed",lines:[{id:"l3",product:"Mango Haze Pre-Roll 5pk",qty:200,unitPrice:24,orderTotal:4800}],notes:"Pre-roll program — confirmed"},
-        {id:"so_003",customerName:"Capital District Collective",customerLicense:"OCM-RO-003445",orderDate:"2026-07-03",status:"open",importStatus:"confirmed",lines:[{id:"l4",product:"Blueberry Headband 1g Vape",qty:150,unitPrice:28,orderTotal:4200},{id:"l5",product:"Sour Diesel OG 3.5g",qty:60,unitPrice:19,orderTotal:1140}],notes:"Vape program launching this month"},
-        {id:"so_004",customerName:"Brooklyn Bodega Cannabis",customerLicense:"OCM-RO-004122",orderDate:"2026-07-04",status:"open",importStatus:"pending",lines:[{id:"l6",product:"Zaza Runtz 7g",qty:80,unitPrice:42,orderTotal:3360}],notes:"Waiting on lab results — pending confirmation"},
+        {id:"so_001",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-07-01",status:"open",importStatus:"confirmed",lines:[{id:"l1",product:"Gorilla Cake 3.5g",qty:100,unitPrice:18,orderTotal:1800},{id:"l2",product:"Black Maple 3.5g",qty:80,unitPrice:20,orderTotal:1600}],notes:"Regular weekly account",dueDate:"2026-07-15",amountPaid:3400},
+        {id:"so_002",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-07-02",status:"open",importStatus:"confirmed",lines:[{id:"l3",product:"Mango Haze Pre-Roll 5pk",qty:200,unitPrice:24,orderTotal:4800}],notes:"Pre-roll program — confirmed",dueDate:"2026-07-16",amountPaid:2000},
+        {id:"so_003",customerName:"Capital District Collective",customerLicense:"OCM-RO-003445",orderDate:"2026-07-03",status:"open",importStatus:"confirmed",lines:[{id:"l4",product:"Blueberry Headband 1g Vape",qty:150,unitPrice:28,orderTotal:4200},{id:"l5",product:"Sour Diesel OG 3.5g",qty:60,unitPrice:19,orderTotal:1140}],notes:"Vape program launching this month",dueDate:"2026-07-17",amountPaid:0},
+        {id:"so_004",customerName:"Brooklyn Bodega Cannabis",customerLicense:"OCM-RO-004122",orderDate:"2026-07-04",status:"open",importStatus:"pending",lines:[{id:"l6",product:"Zaza Runtz 7g",qty:80,unitPrice:42,orderTotal:3360}],notes:"Waiting on lab results — pending confirmation",dueDate:"2026-06-01",amountPaid:500},
         {id:"so_005",customerName:"Finger Lakes Dispensary",customerLicense:"OCM-RO-005678",orderDate:"2026-07-05",status:"open",importStatus:"pending",lines:[{id:"l7",product:"Gorilla Cake 3.5g",qty:60,unitPrice:18,orderTotal:1080},{id:"l8",product:"Black Maple 3.5g",qty:40,unitPrice:20,orderTotal:800}],notes:"New account — pending credit approval"},
         {id:"so_006",customerName:"Catskill Mountain Wellness",customerLicense:"OCM-RO-006234",orderDate:"2026-07-05",status:"open",importStatus:"waitlist",lines:[{id:"l9",product:"Black Maple 3.5g",qty:100,unitPrice:20,orderTotal:2000}],notes:"Waitlisted — Black Maple sold out until Jul 22 harvest"},
         {id:"so_007",customerName:"Saratoga Smoke Shop",customerLicense:"OCM-RO-007891",orderDate:"2026-07-06",status:"open",importStatus:"waitlist",lines:[{id:"l10",product:"Zaza Runtz 3.5g",qty:120,unitPrice:22,orderTotal:2640}],notes:"Waitlisted — Zaza Runtz next harvest Jul 25"},
       ];
       for (const so of salesOrdersRaw) {
-        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
+        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes,dueDate:so.dueDate||"",amountPaid:so.amountPaid||0});
       }
 
       // ── Booked pipeline against the near-term forward batches above —
@@ -850,11 +850,11 @@ export default function DataManager(){
       // revenue split something real to show for the next couple months,
       // not just far-future SKU-price guesses.
       const forwardOrdersRaw = [
-        {id:"so_f01",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-08-01",status:"open",importStatus:"confirmed",lines:[{id:"lf1",batchId:uid("pb_f01"),product:"Sour Diesel OG 3.5g Retail",qty:300,unitPrice:19,orderTotal:5700}],notes:"August allocation — confirmed"},
+        {id:"so_f01",customerName:"Greenleaf Dispensary",customerLicense:"OCM-RO-001234",orderDate:"2026-08-01",status:"open",importStatus:"confirmed",lines:[{id:"lf1",batchId:uid("pb_f01"),product:"Sour Diesel OG 3.5g Retail",qty:300,unitPrice:19,orderTotal:5700}],notes:"August allocation — confirmed",dueDate:"2026-08-15",amountPaid:0},
         {id:"so_f02",customerName:"Hudson Valley Cannabis Co.",customerLicense:"OCM-RO-002891",orderDate:"2026-09-10",status:"open",importStatus:"confirmed",lines:[{id:"lf2",batchId:uid("pb_f04"),product:"Black Maple Hash Rosin",qty:40,unitPrice:65,orderTotal:2600}],notes:"September rosin allocation — confirmed"},
       ];
       for (const so of forwardOrdersRaw) {
-        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes});
+        await db.sales_orders.upsert({id:uid(so.id),customerName:so.customerName,customerLicense:so.customerLicense,orderDate:so.orderDate,status:so.status,importStatus:so.importStatus,lines:so.lines,notes:so.notes,dueDate:so.dueDate||"",amountPaid:so.amountPaid||0});
       }
 
       // ── Customers ── names match the sales_orders above exactly; Customers.jsx
@@ -966,6 +966,22 @@ export default function DataManager(){
       ];
       for (const po of purchaseOrdersRaw) {
         await db.purchase_orders.upsert({...po, id: uid(po.id)});
+      }
+
+      // ── Accounts Payable — vendor invoices. Mix of paid/partial/unpaid
+      // and current/overdue so the aging buckets have real spread. Two are
+      // pure vendor bills with no PO (HVAC service contract, a nutrient
+      // top-up) — real AP isn't limited to inventory purchases.
+      const vendorInvoicesRaw = [
+        {id:"vi_po001",vendorId:"vnd_001",poId:"po_001",invoiceNumber:"INV-8841",invoiceDate:"2026-06-17",dueDate:"2026-07-01",amount:4500,amountPaid:4500,notes:"Paid in full on receipt."},
+        {id:"vi_po002",vendorId:"vnd_002",poId:"po_002",invoiceNumber:"INV-5521",invoiceDate:"2026-06-20",dueDate:"2026-07-16",amount:4000,amountPaid:2000,notes:"Half paid — remainder due."},
+        {id:"vi_po003",vendorId:"vnd_004",poId:"po_003",invoiceNumber:"EHS-3390",invoiceDate:"2026-06-19",dueDate:"2026-07-03",amount:1600,amountPaid:0,notes:"Quarterly hydrocarbon solvent order."},
+        {id:"vi_po005",vendorId:"vnd_003",poId:"po_005",invoiceNumber:"KOP-1187",invoiceDate:"2026-06-08",dueDate:"2026-06-10",amount:1060,amountPaid:0,notes:"Initial IPM chemical + sachet stock."},
+        {id:"vi_hvac_q3",vendorId:"vnd_005",poId:"",invoiceNumber:"HVAC-Q3-2026",invoiceDate:"2026-07-15",dueDate:"2026-08-14",amount:850,amountPaid:0,notes:"Quarterly dehumidifier/HVAC preventive maintenance contract."},
+        {id:"vi_athena_old",vendorId:"vnd_002",poId:"",invoiceNumber:"ATH-0092",invoiceDate:"2026-04-15",dueDate:"2026-04-29",amount:720,amountPaid:0,notes:"Nutrient top-up order — severely past due, follow up."},
+      ];
+      for (const vi of vendorInvoicesRaw) {
+        await db.vendor_invoices.upsert({...vi, id:uid(vi.id), vendorId:uid(vi.vendorId), poId:vi.poId?uid(vi.poId):""});
       }
 
       // ── Backfill lots + CoC on items received above (mirrors what confirmReceive()
