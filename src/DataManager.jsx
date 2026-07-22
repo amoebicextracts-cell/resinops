@@ -223,6 +223,48 @@ const IMPORT_TARGETS = {
   applicatorName (column "Licensed Applicator")
   applicatorLicenseNum (column "Pesticide License #")
   notes (notes field)` },
+  customers:{ label:"Customers / Accounts", icon:"🤝", key:"resinops_customers",
+    schema:`Each record must use these EXACT field names:
+  name (dispensary or company name — may be called "Customer", "Account", "Dispensary Name", "Company", etc.)
+  licenseNumber (their license number — may be called "License Number", "License #", "OCM License", etc.)
+  contactName (primary contact person — may be called "Contact", "Contact Name", "Buyer", etc.)
+  phone (phone number)
+  email (email address)
+  address (street address — may be called "Address", "Location", etc.)
+  accountType (must be exactly one of: "dispensary", "processor", "wholesale", "other" — map based on the account's business type; default to "dispensary" if unclear)
+  pipelineStage (must be exactly one of: "lead", "prospect", "active", "inactive" — map "Customer"/"Confirmed"/"Buying" → "active"; "Prospect"/"Interested" → "prospect"; "Lead"/"New" → "lead"; "Churned"/"Former" → "inactive". Default to "active" if unclear)
+  notes (any notes field)` },
+  sales_goals:{ label:"Sales Goals", icon:"🎯", key:"resinops_sales_goals",
+    schema:`Each record must use these EXACT field names:
+  periodStart (goal period start date in YYYY-MM-DD — may be called "Period Start", "Start Date", "Month", etc. If only a month/year is given, use the 1st of that month)
+  periodEnd (goal period end date in YYYY-MM-DD — may be called "Period End", "End Date", etc. If only a month/year is given, use the last day of that month)
+  goalAmount (target revenue in dollars as a plain number — may be called "Goal", "Target", "Goal Amount", "Revenue Target", etc. Strip $ and commas)
+  notes (any notes field)` },
+  operating_expenses:{ label:"Operating Expenses", icon:"🧮", key:"resinops_operating_expenses",
+    schema:`Each record must use these EXACT field names (facility-wide, non-production overhead — §280E non-deductible for plant-touching cannabis businesses, NOT cost-of-goods items like rent or utilities):
+  name (expense description — may be called "Expense", "Description", "Item", "Line Item", etc.)
+  category (must be exactly one of: "g_and_a", "marketing", "admin_salaries", "legal_professional", "insurance_nonprod", "retail_operations", "other" — map "G&A"/"General & Admin" → "g_and_a"; "Marketing"/"Advertising" → "marketing"; "Admin Salaries"/"Office Payroll" → "admin_salaries"; "Legal"/"Professional Fees"/"Accounting" → "legal_professional"; "Insurance" (non-production/general liability) → "insurance_nonprod"; "Retail"/"Dispensary Ops" → "retail_operations"; anything else → "other")
+  amount (expense amount in dollars as a plain number — strip $ and commas)
+  date (expense date in YYYY-MM-DD — may be called "Date", "Expense Date", "Period", etc.)
+  notes (any notes field)` },
+  vendor_invoices:{ label:"Vendor Invoices (AP)", icon:"🧾", key:"resinops_vendor_invoices",
+    schema:`Each record must use these EXACT field names:
+  vendorName (the vendor/company being billed by — may be called "Vendor", "Vendor Name", "Company", "Supplier", etc. — this is used to look up the existing vendor record, so keep it exactly as it appears in the source)
+  invoiceNumber (the vendor's invoice number — may be called "Invoice #", "Invoice Number", "Ref #", etc.)
+  invoiceDate (invoice date in YYYY-MM-DD — may be called "Invoice Date", "Date", "Bill Date", etc.)
+  dueDate (payment due date in YYYY-MM-DD — may be called "Due Date", "Payment Due", "Terms Date", etc.)
+  amount (total invoice amount in dollars as a plain number — strip $ and commas)
+  amountPaid (amount already paid in dollars as a plain number — may be called "Amount Paid", "Paid", "Payments Applied", etc. Default to 0 if not specified)
+  notes (any notes field)` },
+  cost_pools:{ label:"Cost Pools (§263A Overhead)", icon:"🏗️", key:"resinops_cost_pools",
+    schema:`Each record must use these EXACT field names (facility-wide indirect costs allocated into COGS under §263A — e.g. building rent, utilities; NOT per-batch cultivation costs):
+  name (cost pool description — may be called "Name", "Cost", "Item", "Overhead Item", etc.)
+  category (must be exactly one of: "rent", "utilities", "depreciation" — map "Rent"/"Lease" → "rent"; "Utilities"/"Power"/"Electric" → "utilities"; "Depreciation"/"Equipment Depreciation" → "depreciation")
+  periodAmount (the recurring dollar amount per period as a plain number — strip $ and commas)
+  period (must be exactly one of: "monthly", "quarterly", "annual" — default to "monthly" if unclear)
+  productionPct (percentage of this cost attributable to production, 0-100 as a plain number — may be called "Production %", "COGS Allocation %", etc. Default to 100 if not specified)
+  allocationBasis (must be exactly one of: "batch_weight", "unit_count", "labor_hours", "flat_per_batch" — default to "batch_weight" if unclear)
+  notes (any notes field)` },
 };
 
 // Maps each import target to the real Supabase table it should persist
@@ -242,6 +284,11 @@ const TARGET_TABLE = {
   grow_schedule: 'grow_spaces',
   sales_orders: 'sales_orders',
   spray_log: 'spray_log',
+  customers: 'customers',
+  sales_goals: 'sales_goals',
+  operating_expenses: 'operating_expenses',
+  vendor_invoices: 'vendor_invoices',
+  cost_pools: 'cost_pools',
 };
 
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
@@ -1800,6 +1847,36 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             }]:[],
           };
         });
+      } else if(target==="customers"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Customer"]||r["Account"]||r["Dispensary Name"]||r["Company"]||"",licenseNumber:r.licenseNumber||r.license_number||r["License Number"]||r["License #"]||"",contactName:r.contactName||r.contact_name||r["Contact"]||r["Contact Name"]||r["Buyer"]||"",phone:r.phone||r["Phone"]||"",email:r.email||r["Email"]||"",address:r.address||r["Address"]||"",accountType:["dispensary","processor","wholesale","other"].includes((r.accountType||"").toLowerCase())?(r.accountType||"").toLowerCase():"dispensary",pipelineStage:["lead","prospect","active","inactive"].includes((r.pipelineStage||"").toLowerCase())?(r.pipelineStage||"").toLowerCase():"active",notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="sales_goals"){
+        newRecords = rawRecords.map(r=>({...r,id:r.id,periodStart:r.periodStart||r.period_start||r["Period Start"]||r["Start Date"]||"",periodEnd:r.periodEnd||r.period_end||r["Period End"]||r["End Date"]||"",goalAmount:parseFloat(String(r.goalAmount||r.goal_amount||r["Goal Amount"]||r["Goal"]||r["Target"]||0).replace(/[$,]/g,""))||0,notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="operating_expenses"){
+        const OPEX_CATS=["g_and_a","marketing","admin_salaries","legal_professional","insurance_nonprod","retail_operations","other"];
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Expense"]||r["Description"]||r["Item"]||"",category:OPEX_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"other",amount:parseFloat(String(r.amount||r["Amount"]||0).replace(/[$,]/g,""))||0,date:r.date||r["Date"]||r["Expense Date"]||"",notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="cost_pools"){
+        const CP_CATS=["rent","utilities","depreciation"], CP_PERIODS=["monthly","quarterly","annual"], CP_BASES=["batch_weight","unit_count","labor_hours","flat_per_batch"];
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Cost"]||r["Item"]||"",category:CP_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"rent",periodAmount:parseFloat(String(r.periodAmount||r.period_amount||r["Period Amount"]||0).replace(/[$,]/g,""))||0,period:CP_PERIODS.includes((r.period||"").toLowerCase())?(r.period||"").toLowerCase():"monthly",productionPct:parseFloat(r.productionPct||r.production_pct||r["Production %"]||100)||100,allocationBasis:CP_BASES.includes(r.allocationBasis||r.allocation_basis||"")?(r.allocationBasis||r.allocation_basis):"batch_weight",active:true,notes:r.notes||r["Notes"]||"",}));
+      } else if(target==="vendor_invoices"){
+        // vendorId is a real FK — resolve the vendor named in the source
+        // file against existing vendor records instead of expecting a raw
+        // uuid nobody would actually have in a spreadsheet.
+        const vendorsList = await db.vendors.list();
+        newRecords = rawRecords.map(r=>{
+          const vendorName = r.vendorName||r.vendor_name||r["Vendor Name"]||r["Vendor"]||r["Company"]||r["Supplier"]||"";
+          const match = vendorName ? vendorsList.find(v=>(v.n||"").toLowerCase()===vendorName.toLowerCase()) : null;
+          return {
+            id: r.id,
+            vendorId: match?.id||"",
+            poId: "",
+            invoiceNumber: r.invoiceNumber||r.invoice_number||r["Invoice Number"]||r["Invoice #"]||"",
+            invoiceDate: r.invoiceDate||r.invoice_date||r["Invoice Date"]||r["Date"]||"",
+            dueDate: r.dueDate||r.due_date||r["Due Date"]||"",
+            amount: parseFloat(String(r.amount||r["Amount"]||0).replace(/[$,]/g,""))||0,
+            amountPaid: parseFloat(String(r.amountPaid||r.amount_paid||r["Amount Paid"]||0).replace(/[$,]/g,""))||0,
+            notes: (r.notes||r["Notes"]||"")+(vendorName&&!match?` | Vendor "${vendorName}" not found — assign manually`:""),
+          };
+        });
       } else {
         newRecords = rawRecords;
       }
@@ -1925,6 +2002,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   ["Cult. Inputs","TEMPLATE_Cultivation_Inputs"],
                   ["Pesticide Log","TEMPLATE_Pesticide_Spray_Log"],
                   ["Sales Orders","TEMPLATE_Sales_Orders"],
+                  ["Customers","TEMPLATE_Customers"],
+                  ["Sales Goals","TEMPLATE_Sales_Goals"],
+                  ["Operating Expenses","TEMPLATE_Operating_Expenses"],
+                  ["Vendor Invoices","TEMPLATE_Vendor_Invoices"],
+                  ["Cost Pools","TEMPLATE_Cost_Pools"],
                 ].map(([label, file])=>(
                   <button key={file} className="dm-btn dm-secondary" style={{fontSize:10,padding:"4px 10px"}}
                     onClick={()=>{
@@ -1941,6 +2023,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                         TEMPLATE_Cultivation_Inputs:"Grow Space,Date,Input Type,Product,Manufacturer,Rate,Rate Unit,Amount Mixed,Volume Unit,Area Sq Ft,Cost Per Unit,Total Cost,Notes",
                         TEMPLATE_Pesticide_Spray_Log:"Application Date,Grow Space / Room,Product / Pesticide Name,EPA Registration Number,Label Rate,Amount Mixed (gallons),Area Treated (sq ft),Application Equipment,Target Pest / Disease,Temp at Application (F),Wind Speed (mph),Relative Humidity (%),Re-Entry Interval (hrs),Pre-Harvest Interval (days),Licensed Applicator,Pesticide License #,Notes",
                         TEMPLATE_Sales_Orders:"Order ID,Dispensary Name,License Number,Order Date,Requested Delivery,Product,Strain,Units Ordered,Unit Price,Order Total,Status,Notes",
+                        TEMPLATE_Customers:"Customer Name,License Number,Contact Name,Phone,Email,Address,Account Type,Pipeline Stage,Notes",
+                        TEMPLATE_Sales_Goals:"Period Start,Period End,Goal Amount,Notes",
+                        TEMPLATE_Operating_Expenses:"Expense Name,Category,Amount,Date,Notes",
+                        TEMPLATE_Vendor_Invoices:"Vendor Name,Invoice Number,Invoice Date,Due Date,Amount,Amount Paid,Notes",
+                        TEMPLATE_Cost_Pools:"Cost Pool Name,Category,Period Amount,Period,Production %,Allocation Basis,Notes",
                       };
                       const h = headers[file]||"";
                       const blob = new Blob([h+"\n"], {type:"text/csv"});
