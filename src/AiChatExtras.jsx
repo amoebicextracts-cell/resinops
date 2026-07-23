@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import { db } from "./lib/db";
+import { getCurrentFacility } from "./lib/supabase";
 
 export function ChatHistoryPanel({ module, onLoad }) {
   const [open, setOpen] = useState(false);
@@ -24,7 +25,7 @@ export function ChatHistoryPanel({ module, onLoad }) {
         const all = await db.ai_conversations.list();
         setConversations(
           all.filter(c => c.module === module)
-            .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
             .slice(0, 20)
         );
       } catch (e) { console.error("Load conversation history failed:", e); }
@@ -38,7 +39,7 @@ export function ChatHistoryPanel({ module, onLoad }) {
       const msgs = await db.ai_messages.list();
       const forConv = msgs
         .filter(m => m.conversationId === conv.id)
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       onLoad(conv.id, forConv.map(m => ({ role: m.role, content: m.content })));
       setOpen(false);
     } catch (e) { console.error("Load conversation failed:", e); }
@@ -58,7 +59,7 @@ export function ChatHistoryPanel({ module, onLoad }) {
               onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
               onMouseLeave={e => e.currentTarget.style.background = "none"}>
               <div style={{ fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title || "Untitled conversation"}</div>
-              <div style={{ fontSize: 10, color: "var(--text-3)" }}>{new Date(c.updatedAt || c.createdAt).toLocaleDateString()}</div>
+              <div style={{ fontSize: 10, color: "var(--text-3)" }}>{new Date(c.updated_at || c.created_at).toLocaleDateString()}</div>
             </button>
           ))}
         </div>
@@ -82,6 +83,7 @@ export function FlagCorrectionButton({ module, questionContext, sourceMessageId 
         questionContext: questionContext || "",
         correctionText: text.trim(),
         sourceMessageId: sourceMessageId || null,
+        submittedByFacilityId: getCurrentFacility() || null,
         tags: tags.split(",").map(t => t.trim().toLowerCase()).filter(Boolean),
       });
       setStatus("Submitted — thanks. A ResinOps admin reviews corrections before they go live for other clients.");

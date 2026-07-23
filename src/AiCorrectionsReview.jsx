@@ -42,7 +42,7 @@ function CorrectionCard({ c, facilityName, onDecide }) {
     <div style={{ background: "var(--surface)", border: "1px solid var(--border-2)", borderRadius: 8, padding: 14, marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>
         <span>{MODULE_LABELS[c.module] || c.module} &middot; {facilityName || "Unknown facility"}</span>
-        <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+        <span>{new Date(c.created_at).toLocaleDateString()}</span>
       </div>
       {c.questionContext && (
         <div style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 6 }}>
@@ -99,8 +99,8 @@ export default function AiCorrectionsReview() {
     setCorrections(prev => prev.filter(c => c.id !== id));
   }
 
-  const pending = corrections.filter(c => c.status === "pending").sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const decided = corrections.filter(c => c.status !== "pending").sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  const pending = corrections.filter(c => c.status === "pending").sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const decided = corrections.filter(c => c.status !== "pending").sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 16px" }}>
