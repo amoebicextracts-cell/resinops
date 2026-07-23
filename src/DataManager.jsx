@@ -354,7 +354,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|customers|sales_goals|operating_expenses|vendor_invoices|cost_pools|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -1461,7 +1461,12 @@ RULE 3 — sales_orders if file has dispensary/account names AND order totals AN
 RULE 4 — production_batches if file has product type/category AND scheduled dates AND batch status.
 RULE 5 — harvest_batches if file has batch IDs AND harvest dates AND wet weight.
 RULE 6 — qc_tests if file has sample IDs AND cannabinoid percentages AND lab pass/fail panels.
-RULE 7 — employees, equipment, inventory, vendors, strains, spaces for all other types.
+RULE 7 — customers if file has dispensary/wholesale account names AND (license number OR contact name OR pipeline stage) but NO order totals or order dates (that combination is sales_orders instead).
+RULE 8 — sales_goals if file has a month/period AND a target or goal dollar amount, with no individual line-item orders.
+RULE 9 — vendor_invoices if file has an invoice number AND a vendor name AND a due date AND an invoice amount — this is an accounts-payable bill, not a vendor's contact record (that's vendors instead).
+RULE 10 — operating_expenses if file has an expense name/category AND an amount AND a date, and is clearly a non-COGS facility cost (rent, utilities, insurance, admin, software) rather than a vendor bill or purchase order.
+RULE 11 — cost_pools if file has overhead category names AND period dollar amounts AND an allocation basis (labor hours, square footage, headcount) — used for §263A cost allocation, not a single expense line.
+RULE 12 — employees, equipment, inventory, vendors, strains, spaces for all other types.
 
 MOST IMPORTANT: Any file containing nutrient products (Athena, CalMag, Grotek, Botanicare, etc.) or beneficial insects (Koppert, cucumeris) with NO EPA registration numbers is ALWAYS cult_inputs. It is NEVER spray_log.`}
 
