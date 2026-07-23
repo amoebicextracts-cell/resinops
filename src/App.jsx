@@ -50,6 +50,7 @@ import GMPHub from "./GMPHub.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
 import Dashboard from "./Dashboard.jsx";
 import DataManager from "./DataManager.jsx";
+import HelpCenter from "./HelpCenter.jsx";
 import FacilitySettings from "./FacilitySettings.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
@@ -1131,7 +1132,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center"].includes(activeModule);
   const isAIChat = activeModule === "ai-assistant";
 
   const showWelcome = messages.length === 0;
@@ -1325,6 +1326,9 @@ export default function ResinOps() {
                   <button className="user-dropdown-item" onClick={()=>{switchModule("facility-settings");setUserMenuOpen(false);}}>
                     🏢 Facility Settings
                   </button>
+                  <button className="user-dropdown-item" onClick={()=>{switchModule("help-center");setUserMenuOpen(false);}}>
+                    ❓ Help
+                  </button>
                   <div className="user-dropdown-divider"/>
                   <button className="user-dropdown-item danger" onClick={handleSignOut}>
                     🚪 Sign Out
@@ -1368,6 +1372,7 @@ export default function ResinOps() {
             {activeModule === "ipm-tracker" ? <IPMTracker /> : null}
             {activeModule === "sales" ? <SalesOrders /> : null}
             {activeModule === "customers" ? <Customers /> : null}
+            {activeModule === "help-center" ? <HelpCenter /> : null}
           </ErrorBoundary>
 
           <div className="chat-area" style={{display: (isSchedulerActive && !isAIChat) ? "none" : undefined}}>
