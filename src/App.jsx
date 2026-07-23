@@ -1356,7 +1356,7 @@ export default function ResinOps() {
             {activeModule === "employees" ? <Employees /> : null}
             {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
             {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}
-            {activeModule === "data-manager" ? <DataManager /> : null}
+            {activeModule === "data-manager" ? <DataManager isPlatformAdmin={isPlatformAdmin} /> : null}
             {activeModule === "facility-settings" ? <FacilitySettings /> : null}
             {activeModule === "labor-setup" ? <LaborManager /> : null}
             {activeModule === "labor-dash" ? <LaborDashboard /> : null}

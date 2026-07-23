@@ -403,7 +403,7 @@ const CSS=`
   .conf-low{background:rgba(200,74,74,0.15);color:var(--danger);}
 `;
 
-export default function DataManager(){
+export default function DataManager({ isPlatformAdmin }){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
   const [importHistory, setImportHistory] = useState([]);
@@ -422,7 +422,7 @@ export default function DataManager(){
   const [clearLoading,setClearLoading]=useState(false);
 
   async function loadDemoData(){
-    if (demoLoading) return;
+    if (demoLoading || !isPlatformAdmin) return;
     setDemoLoading(true);
     setStatusMsg("Loading demo data…");
     try {
@@ -1303,6 +1303,7 @@ export default function DataManager(){
   const fileRef=useRef();
 
   async function clearAllData(){
+    if(!isPlatformAdmin) return;
     if(!window.confirm("This will permanently delete ALL data in ResinOps — every table, for this facility. Are you sure? This cannot be undone.")) return;
     setClearLoading(true);
     setStatusMsg("Clearing all data…");
@@ -2301,12 +2302,16 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 ))}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={loadDemoData}>
-                  {demoLoading ? "Loading demo data…" : "✨ Load demo facility settings"}
-                </button>
-                <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={clearLoading} onClick={clearAllData}>
-                  {clearLoading ? "Clearing…" : "🗑 Clear all data"}
-                </button>
+                {isPlatformAdmin && (
+                  <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={loadDemoData}>
+                    {demoLoading ? "Loading demo data…" : "✨ Load demo facility settings"}
+                  </button>
+                )}
+                {isPlatformAdmin && (
+                  <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={clearLoading} onClick={clearAllData}>
+                    {clearLoading ? "Clearing…" : "🗑 Clear all data"}
+                  </button>
+                )}
               </div>
               {statusMsg&&<div style={{marginTop:10,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}
             </div>
