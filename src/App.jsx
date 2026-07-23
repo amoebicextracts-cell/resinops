@@ -967,7 +967,7 @@ export default function ResinOps() {
 
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
-    if (id !== "ai-corrections-review" && !mod?.available) return;
+    if (id !== "ai-corrections-review" && id !== "help-center" && !mod?.available) return;
     if(window.__resinopsUnsaved && activeModule !== id) {
       if(!window.confirm("You have unsaved changes. Leave anyway?")) return;
       window.__resinopsUnsaved = false;
