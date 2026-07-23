@@ -269,6 +269,11 @@ const IMPORT_TARGETS = {
   productionPct (percentage of this cost attributable to production, 0-100 as a plain number — may be called "Production %", "COGS Allocation %", etc. Default to 100 if not specified)
   allocationBasis (must be exactly one of: "batch_weight", "unit_count", "labor_hours", "flat_per_batch" — default to "batch_weight" if unclear)
   notes (any notes field)` },
+  strain_descriptions:{ label:"Strain Descriptions", icon:"📝", key:"resinops_strain_descriptions",
+    schema:`Each record must use these EXACT field names:
+  strainName (the strain this description is for — may be called "Strain", "Cultivar", "Strain Name", etc. — MUST match an existing strain name already in the Strain Database; records that don't match a known strain will be skipped)
+  productType (must be exactly one of: "flower", "pre_roll", "vape", "extract", "edible", "other" — map "Flower"/"Bud" → "flower"; "Pre-Roll"/"Joint" → "pre_roll"; "Vape"/"Cart"/"Cartridge" → "vape"; "Extract"/"Concentrate"/"Live Resin"/"Rosin"/"Diamonds" → "extract"; "Edible"/"Gummy"/"Chocolate" → "edible"; anything else → "other")
+  description (the budtender-facing product description / talking points text)` },
 };
 
 // Maps each import target to the real Supabase table it should persist
@@ -293,6 +298,7 @@ const TARGET_TABLE = {
   operating_expenses: 'operating_expenses',
   vendor_invoices: 'vendor_invoices',
   cost_pools: 'cost_pools',
+  strain_descriptions: 'strain_descriptions',
 };
 
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
@@ -354,7 +360,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|customers|sales_goals|operating_expenses|vendor_invoices|cost_pools|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|customers|sales_goals|operating_expenses|vendor_invoices|cost_pools|strain_descriptions|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -1466,7 +1472,8 @@ RULE 8 — sales_goals if file has a month/period AND a target or goal dollar am
 RULE 9 — vendor_invoices if file has an invoice number AND a vendor name AND a due date AND an invoice amount — this is an accounts-payable bill, not a vendor's contact record (that's vendors instead).
 RULE 10 — operating_expenses if file has an expense name/category AND an amount AND a date, and is clearly a non-COGS facility cost (rent, utilities, insurance, admin, software) rather than a vendor bill or purchase order.
 RULE 11 — cost_pools if file has overhead category names AND period dollar amounts AND an allocation basis (labor hours, square footage, headcount) — used for §263A cost allocation, not a single expense line.
-RULE 12 — employees, equipment, inventory, vendors, strains, spaces for all other types.
+RULE 12 — strain_descriptions if file has a strain/cultivar name AND a product type/format (flower, vape, pre-roll, extract, edible) AND descriptive/marketing or talking-point text — not just numeric COA/lab data (that combination is qc_tests instead).
+RULE 13 — employees, equipment, inventory, vendors, strains, spaces for all other types.
 
 MOST IMPORTANT: Any file containing nutrient products (Athena, CalMag, Grotek, Botanicare, etc.) or beneficial insects (Koppert, cucumeris) with NO EPA registration numbers is ALWAYS cult_inputs. It is NEVER spray_log.`}
 
@@ -1889,6 +1896,23 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             notes: (r.notes||r["Notes"]||"")+(vendorName&&!match?` | Vendor "${vendorName}" not found — assign manually`:""),
           };
         });
+      } else if(target==="strain_descriptions"){
+        // strainId is a real FK — resolve the strain named in the source
+        // file against existing strain records; rows that don't match a
+        // known strain are dropped (strain_id is NOT NULL in the schema).
+        const strainsList = await db.strains.list();
+        const PT=["flower","pre_roll","vape","extract","edible","other"];
+        newRecords = rawRecords.map(r=>{
+          const strainName = r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||r["Cultivar"]||"";
+          const match = strainName ? strainsList.find(s=>(s.name||"").toLowerCase()===strainName.toLowerCase()) : null;
+          const rawPt = (r.productType||r.product_type||r["Product Type"]||"").toLowerCase().replace(/[\s-]+/g,"_");
+          return {
+            id: r.id,
+            strainId: match?.id||"",
+            productType: PT.includes(rawPt)?rawPt:"other",
+            description: r.description||r["Description"]||"",
+          };
+        }).filter(r=>r.strainId);
       } else {
         newRecords = rawRecords;
       }

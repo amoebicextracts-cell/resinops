@@ -44,8 +44,29 @@ async function callDescriptionAPI(messages, systemPrompt){
   const resp=await authenticatedApiFetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({purpose:'strain-description',system:systemPrompt,prompt:messages[messages.length-1].content,history:messages.slice(0,-1)})});
   const data=await resp.json();
   if(!resp.ok||data.error) throw new Error(formatApiError(resp,data,'AI request failed'));
-  return data.content?.map(b=>b.text).join("")||"";
+  const blocks=data.content||[];
+  const text=blocks.filter(b=>b.type==="text").map(b=>b.text).join("");
+  // Collect citation URLs from any web_search_tool_result blocks, so the
+  // UI can show the operator where lineage/genetics info was verified.
+  const sources=[];
+  const seen=new Set();
+  blocks.forEach(b=>{
+    if(b.type!=="web_search_tool_result"||!Array.isArray(b.content)) return;
+    b.content.forEach(r=>{
+      if(r.url&&!seen.has(r.url)){ seen.add(r.url); sources.push({url:r.url,title:r.title||r.url}); }
+    });
+  });
+  return {text,sources};
 }
+
+const PRODUCT_TYPES=[
+  {value:"flower",label:"Flower",icon:"🌸"},
+  {value:"pre_roll",label:"Pre-Roll",icon:"🚬"},
+  {value:"vape",label:"Vape",icon:"💨"},
+  {value:"extract",label:"Extract / Concentrate",icon:"🧪"},
+  {value:"edible",label:"Edible",icon:"🍬"},
+  {value:"other",label:"Other",icon:"📦"},
+];
 
 const VALID_TYPES = ["Indica","Sativa","Hybrid","Indica-dominant","Sativa-dominant","Ruderalis"];
 function normalizeStrainType(raw){
@@ -101,21 +122,28 @@ export default function StrainDatabase(){
   const [descChat,setDescChat]=useState([]);
   const [descInput,setDescInput]=useState("");
   const [showDescChat,setShowDescChat]=useState(false);
+  const [detailTab,setDetailTab]=useState("overview");
+  const [productDescs,setProductDescs]=useState([]);
+  const [generatingProduct,setGeneratingProduct]=useState(null);
+  const [editingType,setEditingType]=useState(null);
+  const [editText,setEditText]=useState("");
 
   // Load all data from db layer on mount
   useEffect(()=>{
     async function load(){
       try{
-        const [s, hb, pb, ph]=await Promise.all([
+        const [s, hb, pb, ph, pd]=await Promise.all([
           db.strains.list(),
           db.harvest_batches.list(),
           db.production_batches.list(),
           db.pheno_hunts.list(),
+          db.strain_descriptions.list(),
         ]);
         setStrains(s.map(normalizeStrain));
         setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked));
         setPhenoHunts(ph);
+        setProductDescs(pd);
       }catch(e){ console.error("StrainDatabase load error:",e); }
       setLoading(false);
     }
@@ -125,8 +153,32 @@ export default function StrainDatabase(){
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
   const activeStrain=strains.find(s=>s.id===activeId);
 
-  // Reset chat when switching strains
-  useEffect(()=>{ setDescChat([]); setDescInput(""); setShowDescChat(false); },[activeId]);
+  // Reset chat and budtender-training tab state when switching strains
+  useEffect(()=>{ setDescChat([]); setDescInput(""); setShowDescChat(false); setDetailTab("overview"); setEditingType(null); setEditText(""); },[activeId]);
+
+  async function generateProductDescription(productType){
+    if(!activeStrain) return;
+    setGeneratingProduct(productType);
+    setErr("");
+    const ptLabel=PRODUCT_TYPES.find(p=>p.value===productType)?.label||productType;
+    const prompt=`Write a budtender-facing training description for ${activeStrain.name} specifically as a ${ptLabel} product. Cover what makes this product FORMAT distinct — potency delivery, onset speed, ideal use case/occasion — and give the budtender 2-3 concrete talking points for recommending it to a customer. Base cannabinoid/terpene data only on the data provided. Keep it under 150 words.`;
+    try{
+      const {text,sources}=await callDescriptionAPI([{role:"user",content:prompt}], strainSystemPrompt(activeStrain));
+      const existing=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===productType);
+      const saved=await db.strain_descriptions.upsert({id:existing?.id,strainId:activeStrain.id,productType,description:text,sources});
+      setProductDescs(p=>existing?p.map(d=>d.id===saved.id?saved:d):[...p,saved]);
+    }catch(e){ setErr("AI generation failed — check API connection."); }
+    finally{ setGeneratingProduct(null); }
+  }
+
+  async function saveProductDescription(productType,text){
+    if(!activeStrain) return;
+    const existing=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===productType);
+    try{
+      const saved=await db.strain_descriptions.upsert({id:existing?.id,strainId:activeStrain.id,productType,description:text,sources:existing?.sources||null});
+      setProductDescs(p=>existing?p.map(d=>d.id===saved.id?saved:d):[...p,saved]);
+    }catch(e){ setErr("Save failed: "+e.message); }
+  }
   function openForm(strain){ setForm(strain?{...strain}:{...EMPTY_STRAIN}); setDescChat([]); setDescInput(""); setShowDescChat(false); setErr(""); }
 
   // Pull harvest + production data for this strain
@@ -192,6 +244,8 @@ Strain data on file:
 
 Rules:
 - Never invent cannabinoid percentages, genetics, or breeder info not provided above
+- Never invent lab/cannabinoid/terpene data — those numbers must come only from what's listed above
+- You have a web_search tool available. Use it only to verify genetic lineage/parentage or breeder history when the provided parentage/breeder fields are missing, vague, or look questionable — not for cannabinoid or terpene data. When you use it, briefly note in the description (or a short aside) which detail you verified and that it came from a web source, so the operator knows to double-check it
 - Keep descriptions under 200 words unless asked for more
 - When the operator asks for revisions, apply them and return only the updated description
 - If genetics or lineage seems wrong, flag it and ask the operator to confirm before using it`;
@@ -204,10 +258,10 @@ Rules:
     const newChat=[{role:"user",content:initialPrompt}];
     setDescChat(newChat);
     try{
-      const reply=await callDescriptionAPI(newChat, strainSystemPrompt(form));
-      const updated=[...newChat,{role:"assistant",content:reply}];
+      const {text}=await callDescriptionAPI(newChat, strainSystemPrompt(form));
+      const updated=[...newChat,{role:"assistant",content:text}];
       setDescChat(updated);
-      setForm(f=>({...f,salesDescription:reply}));
+      setForm(f=>({...f,salesDescription:text}));
     }catch(e){setErr("AI generation failed — check API connection.");}
     finally{setGenerating(false);}
   }
@@ -220,11 +274,11 @@ Rules:
     setDescInput("");
     setGenerating(true);
     try{
-      const reply=await callDescriptionAPI(newChat, strainSystemPrompt(form));
-      const updated=[...newChat,{role:"assistant",content:reply}];
+      const {text}=await callDescriptionAPI(newChat, strainSystemPrompt(form));
+      const updated=[...newChat,{role:"assistant",content:text}];
       setDescChat(updated);
       // Auto-update the description field with the latest AI output
-      setForm(f=>({...f,salesDescription:reply}));
+      setForm(f=>({...f,salesDescription:text}));
     }catch(e){setErr("AI generation failed.");}
     finally{setGenerating(false);}
   }
@@ -453,25 +507,89 @@ Rules:
                   <button className="sd-sm sd-del" onClick={()=>remove(activeStrain.id)}>Delete</button>
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-                {[{l:"THCa %",v:activeStrain.thcaAvg},{l:"THC %",v:activeStrain.thcAvg},{l:"CBD %",v:activeStrain.cbdAvg},{l:"Total terps %",v:activeStrain.terpsAvg},{l:"Avg yield g/sqft",v:activeStrain.avgYieldGPerSqft},{l:"Flower weeks",v:activeStrain.avgFlowerWeeks},{l:"Harvest batches",v:agg.harvestBatchCount||0},{l:"Prod batches",v:agg.prodBatchCount||0},...(agg.avgWetHashYieldPct!=null?[{l:"Avg wet hash yield",v:agg.avgWetHashYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFreezeDryYieldPct!=null?[{l:"Avg freeze-dry yield",v:agg.avgFreezeDryYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFlowerRosinYieldPct!=null?[{l:"Avg flower rosin yield",v:agg.avgFlowerRosinYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgHashRosinYieldPct!=null?[{l:"Avg hash rosin yield",v:agg.avgHashRosinYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgDiamondSauceYieldPct!=null?[{l:"Avg diamond/sauce yield",v:agg.avgDiamondSauceYieldPct.toFixed(1)+"%"}]:[])].map((s,i)=>(
-                  <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"8px 10px"}}>
-                    <div style={{fontSize:9,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.l}</div>
-                    <div style={{fontSize:15,fontWeight:700,color:"var(--accent-2)"}}>{s.v||"—"}</div>
-                  </div>
+
+              <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid var(--border-2)"}}>
+                {[["overview","Overview"],["training","Budtender Training"]].map(([k,l])=>(
+                  <button key={k} onClick={()=>setDetailTab(k)} style={{
+                    background:"none",border:"none",cursor:"pointer",
+                    borderBottom:detailTab===k?"2px solid var(--accent)":"2px solid transparent",
+                    color:detailTab===k?"var(--text)":"var(--text-3)",fontWeight:600,fontSize:12,
+                    padding:"0 4px 8px",marginRight:18,fontFamily:"'Inter',sans-serif",
+                  }}>{l}</button>
                 ))}
               </div>
-              {activeStrain.dominantTerpenes&&<div style={{fontSize:12,color:"var(--text-2)",marginBottom:10}}><strong>Dominant terpenes:</strong> {activeStrain.dominantTerpenes}</div>}
-              {activeStrain.salesDescription&&(
+
+              {detailTab==="overview"&&(<>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+                  {[{l:"THCa %",v:activeStrain.thcaAvg},{l:"THC %",v:activeStrain.thcAvg},{l:"CBD %",v:activeStrain.cbdAvg},{l:"Total terps %",v:activeStrain.terpsAvg},{l:"Avg yield g/sqft",v:activeStrain.avgYieldGPerSqft},{l:"Flower weeks",v:activeStrain.avgFlowerWeeks},{l:"Harvest batches",v:agg.harvestBatchCount||0},{l:"Prod batches",v:agg.prodBatchCount||0},...(agg.avgWetHashYieldPct!=null?[{l:"Avg wet hash yield",v:agg.avgWetHashYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFreezeDryYieldPct!=null?[{l:"Avg freeze-dry yield",v:agg.avgFreezeDryYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgFlowerRosinYieldPct!=null?[{l:"Avg flower rosin yield",v:agg.avgFlowerRosinYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgHashRosinYieldPct!=null?[{l:"Avg hash rosin yield",v:agg.avgHashRosinYieldPct.toFixed(1)+"%"}]:[]),...(agg.avgDiamondSauceYieldPct!=null?[{l:"Avg diamond/sauce yield",v:agg.avgDiamondSauceYieldPct.toFixed(1)+"%"}]:[])].map((s,i)=>(
+                    <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"8px 10px"}}>
+                      <div style={{fontSize:9,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.l}</div>
+                      <div style={{fontSize:15,fontWeight:700,color:"var(--accent-2)"}}>{s.v||"—"}</div>
+                    </div>
+                  ))}
+                </div>
+                {activeStrain.dominantTerpenes&&<div style={{fontSize:12,color:"var(--text-2)",marginBottom:10}}><strong>Dominant terpenes:</strong> {activeStrain.dominantTerpenes}</div>}
+                {activeStrain.salesDescription&&(
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Sales & Marketing Description</div>
+                    <div className="sd-desc">{activeStrain.salesDescription}</div>
+                  </div>
+                )}
+                {!activeStrain.salesDescription&&(
+                  <button className="sd-btn sd-ai" onClick={()=>{openForm(activeStrain);setTimeout(handleGenerateDescription,100);}}>✨ Generate description with AI</button>
+                )}
+                {linkedHunt&&<div style={{fontSize:11,color:"var(--text-3)",marginTop:10}}>Linked pheno hunt: {linkedHunt.strainName} ({linkedHunt.breeder})</div>}
+              </>)}
+
+              {detailTab==="training"&&(
                 <div>
-                  <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Sales & Marketing Description</div>
-                  <div className="sd-desc">{activeStrain.salesDescription}</div>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>Product-specific talking points for budtenders — potency delivery, onset, and ideal use case per format. Generation can use live web search to verify uncertain genetic lineage/breeder info.</div>
+                  <div style={{display:"grid",gap:12}}>
+                    {PRODUCT_TYPES.map(pt=>{
+                      const rec=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===pt.value);
+                      const isEditing=editingType===pt.value;
+                      const isGenerating=generatingProduct===pt.value;
+                      return(
+                        <div key={pt.value} className="sd-card" style={{margin:0}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                            <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{pt.icon} {pt.label}</div>
+                            <div style={{display:"flex",gap:6}}>
+                              {!isEditing&&<button className="sd-sm sd-edit" onClick={()=>{setEditingType(pt.value);setEditText(rec?.description||"");}}>Edit</button>}
+                              <button className="sd-btn sd-ai" style={{fontSize:11,padding:"4px 12px"}} onClick={()=>generateProductDescription(pt.value)} disabled={isGenerating}>
+                                {isGenerating?"✨ Generating…":rec?.description?"✨ Regenerate":"✨ Generate with AI"}
+                              </button>
+                            </div>
+                          </div>
+                          {isEditing?(
+                            <>
+                              <textarea className="sd-inp" rows={4} style={{resize:"vertical"}} value={editText} onChange={e=>setEditText(e.target.value)} />
+                              <div style={{display:"flex",gap:8,marginTop:8}}>
+                                <button className="sd-btn sd-primary" style={{fontSize:11}} onClick={async()=>{await saveProductDescription(pt.value,editText);setEditingType(null);}}>Save</button>
+                                <button className="sd-btn sd-secondary" style={{fontSize:11}} onClick={()=>setEditingType(null)}>Cancel</button>
+                              </div>
+                            </>
+                          ):(
+                            rec?.description?(
+                              <>
+                                <div className="sd-desc">{rec.description}</div>
+                                {rec.sources?.length>0&&(
+                                  <div style={{fontSize:10,color:"var(--text-3)",marginTop:6}}>
+                                    Verified via web search: {rec.sources.map((s,i)=>(
+                                      <a key={i} href={s.url} target="_blank" rel="noreferrer" style={{color:"var(--accent-2)",marginRight:8}}>{s.title||s.url}</a>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            ):(
+                              <div style={{fontSize:12,color:"var(--text-3)",fontStyle:"italic"}}>No {pt.label.toLowerCase()} description yet.</div>
+                            )
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-              {!activeStrain.salesDescription&&(
-                <button className="sd-btn sd-ai" onClick={()=>{openForm(activeStrain);setTimeout(handleGenerateDescription,100);}}>✨ Generate description with AI</button>
-              )}
-              {linkedHunt&&<div style={{fontSize:11,color:"var(--text-3)",marginTop:10}}>Linked pheno hunt: {linkedHunt.strainName} ({linkedHunt.breeder})</div>}
             </div>
           );
         })()}

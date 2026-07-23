@@ -53,6 +53,7 @@ const SCHEMAS = {
   ipm_log: ['id','created_at','updated_at','facility_id','created_by','entry_type','room_name','grow_space_id','batch_ids','scheduled_date','performed_date','status','target_pest','species','release_rate','release_unit','pest_count','threshold_exceeded','action_taken','performed_by','notes'],
   customers: ['id','created_at','updated_at','facility_id','created_by','name','license_number','contact_name','phone','email','address','account_type','pipeline_stage','notes'],
   sales_goals: ['id','created_at','updated_at','facility_id','created_by','period_start','period_end','goal_amount','notes'],
+  strain_descriptions: ['id','created_at','updated_at','facility_id','created_by','strain_id','product_type','description','sources','notes'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -659,6 +660,10 @@ const FIELD_OVERRIDES = {
     periodStart: 'period_start',
     periodEnd: 'period_end',
     goalAmount: 'goal_amount',
+  },
+  strain_descriptions: {
+    strainId: 'strain_id',
+    productType: 'product_type',
   },
 };
 

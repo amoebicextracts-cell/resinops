@@ -70,6 +70,7 @@ const LS_KEYS = {
   sales_goals:        'resinops_sales_goals',
   cost_pools:         'resinops_cost_pools',
   operating_expenses: 'resinops_operating_expenses',
+  strain_descriptions:'resinops_strain_descriptions',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

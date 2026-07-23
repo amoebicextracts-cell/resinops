@@ -43,7 +43,8 @@ export default async function handler(req, res) {
 
   // Use higher token limit for import operations (large CSVs need room)
   const isImport = purpose === 'data-import';
-  const max_tokens = isImport ? 4000 : 1000;
+  const isStrainDescription = purpose === 'strain-description';
+  const max_tokens = isImport ? 4000 : (isStrainDescription ? 2000 : 1000);
   const isChat = purpose === 'general-chat' || purpose === 'operations-analyst';
   const chatModule = module || (purpose === 'operations-analyst' ? 'ops-analyst' : 'ai-assistant');
 
@@ -52,20 +53,31 @@ export default async function handler(req, res) {
     systemPrompt += await fetchRelevantCorrections(auth.supabase, chatModule, prompt);
   }
 
+  // Strain descriptions can use live web search to verify genetic
+  // lineage/breeder info instead of relying solely on trained knowledge —
+  // this is a server-side tool, so Claude runs the search itself and
+  // returns synthesized text; no client-side tool execution needed here.
+  const tools = isStrainDescription
+    ? [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }]
+    : undefined;
+
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const requestBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens,
+      system: systemPrompt,
+      messages,
+      ...(tools ? { tools } : {}),
+    };
+
+    let response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens,
-        system: systemPrompt,
-        messages,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -77,7 +89,31 @@ export default async function handler(req, res) {
       return sendApiError(res, 502, "AI service request failed", requestId);
     }
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // Server-side web search runs its own internal tool loop (default cap
+    // 10 iterations); if it hits the cap mid-search, stop_reason comes
+    // back as "pause_turn". Resume by re-sending the same messages plus
+    // the assistant's partial turn — no synthetic "Continue" message.
+    let resumeAttempts = 0;
+    while (tools && data.stop_reason === "pause_turn" && resumeAttempts < 3) {
+      resumeAttempts++;
+      const resumeBody = {
+        ...requestBody,
+        messages: [...messages, { role: "assistant", content: data.content }],
+      };
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(resumeBody),
+      });
+      if (!response.ok) break;
+      data = await response.json();
+    }
 
     // For import calls, attempt to repair truncated JSON before returning
     if (isImport && data.content) {
