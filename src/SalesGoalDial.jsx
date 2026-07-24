@@ -22,7 +22,7 @@ export function activeGoal(goals){
   const today=new Date().toISOString().split("T")[0];
   const inPeriod=goals.filter(g=>g.periodStart<=today&&today<=g.periodEnd);
   if(!inPeriod.length) return null;
-  return inPeriod.reduce((a,g)=>!a||new Date(g.createdAt||0)>new Date(a.createdAt||0)?g:a, null);
+  return inPeriod.reduce((a,g)=>!a||new Date(g.created_at||0)>new Date(a.created_at||0)?g:a, null);
 }
 
 export default function SalesGoalDial({compact,refreshToken}){

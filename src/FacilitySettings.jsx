@@ -259,6 +259,7 @@ export default function FacilitySettings(){
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             {saved&&<span className="fs-saved">✓ Saved</span>}
+            {err&&<span style={{fontSize:12,color:"var(--danger)",fontWeight:500}}>{err}</span>}
             <button className="fs-btn fs-primary" onClick={save} disabled={!!supabase&&!canAdministerFacility(getCurrentFacilityRole())}>Save settings</button>
           </div>
         </div>
