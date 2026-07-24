@@ -274,6 +274,41 @@ const IMPORT_TARGETS = {
   strainName (the strain this description is for — may be called "Strain", "Cultivar", "Strain Name", etc. — MUST match an existing strain name already in the Strain Database; records that don't match a known strain will be skipped)
   productType (must be exactly one of: "flower", "pre_roll", "vape", "extract", "edible", "other" — map "Flower"/"Bud" → "flower"; "Pre-Roll"/"Joint" → "pre_roll"; "Vape"/"Cart"/"Cartridge" → "vape"; "Extract"/"Concentrate"/"Live Resin"/"Rosin"/"Diamonds" → "extract"; "Edible"/"Gummy"/"Chocolate" → "edible"; anything else → "other")
   description (the budtender-facing product description / talking points text)` },
+  skus:{ label:"SKU / Product Pricing", icon:"🏷️", key:"resinops_skus",
+    schema:`Each record must use these EXACT field names:
+  product (product/SKU name — may be called "Product", "SKU Name", "Item", "Product Name", etc.)
+  size (package size — may be called "Size", "Package Size", "Weight", etc.)
+  channel (must be exactly one of: "retail", "wholesale", "direct" — default to "wholesale" if unclear)
+  price (price per unit in dollars as a plain number — may be called "Price", "Unit Price", "Wholesale Price", etc. Strip $ and commas)` },
+  labor_types:{ label:"Labor Types", icon:"👷", key:"resinops_labor_types",
+    schema:`Each record must use these EXACT field names:
+  n (job role/title name — may be called "Role", "Position", "Title", "Job Role", etc.)
+  cat (department/category — may be called "Department", "Category", "Area", etc.)
+  count (headcount for this role as a plain number — may be called "Headcount", "Count", "# of Staff", etc.)
+  rate (hourly rate in dollars as a plain number — may be called "Hourly Rate", "Rate", "Pay Rate", etc. Strip $ and commas)` },
+  mother_plants:{ label:"Mother Plants", icon:"🌳", key:"resinops_mothers",
+    schema:`Each record must use these EXACT field names:
+  strainName (strain name — may be called "Strain", "Cultivar", "Strain Name", etc.)
+  roomName (the room/space these mothers live in — may be called "Room", "Space", "Location", etc. — should match an existing room name in the Grow Map, but the record still imports if it doesn't; assign the room manually afterward)
+  plantCount (number of mother plants as a plain number — may be called "Plant Count", "Count", "# of Plants", etc.)
+  cycleWeeks (weeks between cut cycles as a plain number — may be called "Cycle Weeks", "Cycle", etc.)
+  cutsPerPlantPerCycle (cuts taken per plant per cycle as a plain number — may be called "Cuts Per Plant", "Cuts", etc.)
+  introducedDate (date these mothers were introduced, in YYYY-MM-DD — may be called "Introduced Date", "Start Date", "Date", etc.)` },
+  facility_map_spaces:{ label:"Facility Map Spaces", icon:"🏢", key:"resinops_facility_map",
+    schema:`Each record must use these EXACT field names (non-cultivation spaces — processing, storage, packaging, office; NOT grow rooms, which use the separate Grow Map import target):
+  name (room/space name — may be called "Name", "Room", "Space", etc.)
+  type (space type — may be called "Type", "Room Type", "Space Type", etc. — e.g. "Processing Room", "Storage", "Packaging")
+  sqft (square footage as a plain number — may be called "Sq Ft", "Square Footage", "Size", etc.)
+  cleanIntervalDays (days between required cleanings as a plain number — may be called "Cleaning Interval", "Clean Interval", "Reset Days", etc. Default to 7 if unclear)` },
+  ipm_log:{ label:"IPM Log", icon:"🐛", key:"resinops_ipm_log",
+    schema:`Each record must use these EXACT field names (pest scouting and beneficial insect release entries — separate from the regulated Pesticide Spray Log, which is only for EPA-registered chemical applications):
+  entryType (must be exactly one of: "scouting", "beneficial_release" — map "Scouting"/"Inspection" → "scouting"; "Release"/"Beneficial"/"Predator Release" → "beneficial_release". Default to "scouting" if unclear)
+  roomName (the room/grow space where this occurred — may be called "Room", "Space", "Grow Space", etc. — should match an existing room name in the Grow Map, but the record still imports if it doesn't)
+  targetPest (target pest or disease — may be called "Pest", "Target Pest", "Issue", etc.)
+  species (beneficial insect species, only if this is a release — may be called "Species", "Predator", "Beneficial Insect", etc. Leave blank for scouting entries)
+  performedDate (date performed, in YYYY-MM-DD — may be called "Date", "Date Performed", "Performed Date", etc.)
+  releaseRate (release rate as a plain number, only for beneficial releases — may be called "Rate", "Release Rate", etc.)
+  releaseUnit (unit for the release rate, e.g. "insects/plant", only for beneficial releases)` },
 };
 
 // Maps each import target to the real Supabase table it should persist
@@ -299,6 +334,11 @@ const TARGET_TABLE = {
   vendor_invoices: 'vendor_invoices',
   cost_pools: 'cost_pools',
   strain_descriptions: 'strain_descriptions',
+  skus: 'skus',
+  labor_types: 'labor_types',
+  mother_plants: 'mother_plants',
+  facility_map_spaces: 'facility_map_spaces',
+  ipm_log: 'ipm_log',
 };
 
 async function callClaude(prompt, isCOA=false, fieldSchema=""){
@@ -360,7 +400,7 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
-Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|customers|sales_goals|operating_expenses|vendor_invoices|cost_pools|strain_descriptions|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
+Always return exactly: { "detectedType": "employees|equipment|inventory|vendors|strains|spaces|grow_schedule|qc_tests|cult_inputs|spray_log|harvest_batches|production_batches|sales_orders|customers|sales_goals|operating_expenses|vendor_invoices|cost_pools|strain_descriptions|skus|labor_types|mother_plants|facility_map_spaces|ipm_log|unknown", "confidence": 0-100, "summary": "one line", "records": [...] }
 ${mappingRule}
 ${coaInstructions}`;
 
@@ -1584,7 +1624,12 @@ RULE 9 — vendor_invoices if file has an invoice number AND a vendor name AND a
 RULE 10 — operating_expenses if file has an expense name/category AND an amount AND a date, and is clearly a non-COGS facility cost (rent, utilities, insurance, admin, software) rather than a vendor bill or purchase order.
 RULE 11 — cost_pools if file has overhead category names AND period dollar amounts AND an allocation basis (labor hours, square footage, headcount) — used for §263A cost allocation, not a single expense line.
 RULE 12 — strain_descriptions if file has a strain/cultivar name AND a product type/format (flower, vape, pre-roll, extract, edible) AND descriptive/marketing or talking-point text — not just numeric COA/lab data (that combination is qc_tests instead).
-RULE 13 — employees, equipment, inventory, vendors, strains, spaces for all other types.
+RULE 13 — skus if file has a product/SKU name AND a package size AND a price — a product price list, not a sales order or inventory stock count.
+RULE 14 — labor_types if file has job role/title names AND headcount AND hourly rate, with no individual employee names — a staffing plan, not the Employee Roster (that's "employees" instead, which has individual people's names).
+RULE 15 — mother_plants if file has a strain name AND a plant count AND cycle/cut timing (cycle weeks, cuts per plant) — mother plant stock, not a harvest or grow schedule.
+RULE 16 — facility_map_spaces if file has non-cultivation room/space names (processing, storage, packaging, office) AND square footage or a cleaning interval — NOT grow/cultivation rooms, which are "spaces" instead.
+RULE 17 — ipm_log if file has pest scouting or beneficial insect release entries (target pest, species, release rate) with NO EPA registration number — that combination with an EPA number is spray_log instead.
+RULE 18 — employees, equipment, inventory, vendors, strains, spaces for all other types.
 
 MOST IMPORTANT: Any file containing nutrient products (Athena, CalMag, Grotek, Botanicare, etc.) or beneficial insects (Koppert, cucumeris) with NO EPA registration numbers is ALWAYS cult_inputs. It is NEVER spray_log.`}
 
@@ -2028,6 +2073,85 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             description: r.description||r["Description"]||"",
           };
         }).filter(r=>r.strainId);
+      } else if(target==="skus"){
+        const CHANNELS=["retail","wholesale","direct"];
+        newRecords = rawRecords.map(r=>{
+          const product=resolveRequired(r.product||r["Product"]||r["SKU Name"]||r["Item"]||r["Product Name"]||r.name||r["Name"]||"",r,/product|sku|item|name/i);
+          return {
+            id:r.id,
+            product,
+            size:r.size||r["Size"]||r["Package Size"]||r["Weight"]||"",
+            channel:CHANNELS.includes((r.channel||"").toLowerCase())?(r.channel||"").toLowerCase():"wholesale",
+            price:parseFloat(String(r.price||r["Price"]||r["Unit Price"]||r["Wholesale Price"]||0).replace(/[$,]/g,""))||0,
+          };
+        });
+      } else if(target==="labor_types"){
+        newRecords = rawRecords.map(r=>{
+          const n=resolveRequired(r.n||r["Role"]||r["Position"]||r["Title"]||r["Job Role"]||r.name||r["Name"]||"",r,/role|position|title|job|name/i);
+          return {
+            id:r.id,
+            n,
+            cat:r.cat||r["Department"]||r["Category"]||r["Area"]||"Other",
+            count:parseInt(r.count||r["Headcount"]||r["Count"]||r["# of Staff"]||1)||1,
+            rate:parseFloat(String(r.rate||r["Hourly Rate"]||r["Rate"]||r["Pay Rate"]||0).replace(/[$,]/g,""))||0,
+          };
+        });
+      } else if(target==="mother_plants"){
+        // roomId is a real FK but nullable — unlike strain_descriptions'
+        // strain_id, an unmatched room doesn't block the import; it just
+        // leaves roomId blank and flags it in notes for manual assignment.
+        const roomsList = await db.grow_rooms.list();
+        newRecords = rawRecords.map(r=>{
+          const strainName=resolveRequired(r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||r["Cultivar"]||"",r,/strain|cultivar/i);
+          const roomName=r.roomName||r.room_name||r["Room"]||r["Space"]||r["Location"]||"";
+          const match=roomName?roomsList.find(sp=>(sp.name||"").toLowerCase()===roomName.toLowerCase()):null;
+          return {
+            id:r.id,
+            strainName,
+            roomId:match?.id||"",
+            plantCount:parseInt(r.plantCount||r.plant_count||r["Plant Count"]||r["Count"]||1)||1,
+            cycleWeeks:parseInt(r.cycleWeeks||r.cycle_weeks||r["Cycle Weeks"]||r["Cycle"]||6)||6,
+            cutsPerPlantPerCycle:parseInt(r.cutsPerPlantPerCycle||r.cuts_per_plant_per_cycle||r["Cuts Per Plant"]||r["Cuts"]||8)||8,
+            introducedDate:r.introducedDate||r.introduced_date||r["Introduced Date"]||r["Start Date"]||r["Date"]||"",
+            status:"active",
+            notes:(r.notes||r["Notes"]||"")+(roomName&&!match?` | Room "${roomName}" not found — assign manually`:""),
+          };
+        });
+      } else if(target==="facility_map_spaces"){
+        newRecords = rawRecords.map(r=>{
+          const name=resolveRequired(r.name||r["Name"]||r["Room"]||r["Space"]||"",r,/name|room|space/i);
+          return {
+            id:r.id,
+            name,
+            type:r.type||r["Type"]||r["Room Type"]||r["Space Type"]||"Processing Room",
+            sqft:r.sqft||r["Sq Ft"]||r["Square Footage"]||r["Size"]||"",
+            cleanIntervalDays:parseInt(r.cleanIntervalDays||r.clean_interval_days||r["Cleaning Interval"]||r["Clean Interval"]||r["Reset Days"]||7)||7,
+            status:"active",
+          };
+        });
+      } else if(target==="ipm_log"){
+        const roomsList = await db.grow_rooms.list();
+        const ET=["scouting","beneficial_release"];
+        newRecords = rawRecords.map(r=>{
+          const rawType=(r.entryType||r.entry_type||r["Entry Type"]||r["Type"]||"").toLowerCase();
+          const entryType=ET.includes(rawType)?rawType:(rawType.includes("release")||rawType.includes("beneficial")?"beneficial_release":"scouting");
+          const roomName=r.roomName||r.room_name||r["Room"]||r["Space"]||r["Grow Space"]||"";
+          const match=roomName?roomsList.find(sp=>(sp.name||"").toLowerCase()===roomName.toLowerCase()):null;
+          return {
+            id:r.id,
+            entryType,
+            roomName,
+            spaceId:match?.id||"",
+            targetPest:r.targetPest||r.target_pest||r["Target Pest"]||r["Pest"]||r["Issue"]||"",
+            species:r.species||r["Species"]||r["Predator"]||r["Beneficial Insect"]||"",
+            performedDate:r.performedDate||r.performed_date||r["Date"]||r["Date Performed"]||r["Performed Date"]||"",
+            scheduledDate:"",
+            status:"completed",
+            releaseRate:r.releaseRate||r.release_rate||r["Rate"]||r["Release Rate"]||"",
+            releaseUnit:r.releaseUnit||r.release_unit||r["Unit"]||"insects/plant",
+            notes:(r.notes||r["Notes"]||"")+(roomName&&!match?` | Room "${roomName}" not found`:""),
+          };
+        });
       } else {
         newRecords = rawRecords;
       }
@@ -2201,6 +2325,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   ["Operating Expenses","TEMPLATE_Operating_Expenses"],
                   ["Vendor Invoices","TEMPLATE_Vendor_Invoices"],
                   ["Cost Pools","TEMPLATE_Cost_Pools"],
+                  ["Strain Descriptions","TEMPLATE_Strain_Descriptions"],
+                  ["SKU Pricing","TEMPLATE_SKUs"],
+                  ["Labor Types","TEMPLATE_Labor_Types"],
+                  ["Mother Plants","TEMPLATE_Mother_Plants"],
+                  ["Facility Map","TEMPLATE_Facility_Map_Spaces"],
+                  ["IPM Log","TEMPLATE_IPM_Log"],
                 ].map(([label, file])=>(
                   <button key={file} className="dm-btn dm-secondary" style={{fontSize:10,padding:"4px 10px"}}
                     onClick={()=>{
@@ -2222,6 +2352,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                         TEMPLATE_Operating_Expenses:"Expense Name,Category,Amount,Date,Notes",
                         TEMPLATE_Vendor_Invoices:"Vendor Name,Invoice Number,Invoice Date,Due Date,Amount,Amount Paid,Notes",
                         TEMPLATE_Cost_Pools:"Cost Pool Name,Category,Period Amount,Period,Production %,Allocation Basis,Notes",
+                        TEMPLATE_Strain_Descriptions:"Strain Name,Product Type,Description",
+                        TEMPLATE_SKUs:"Product,Size,Channel,Price",
+                        TEMPLATE_Labor_Types:"Role,Department,Headcount,Hourly Rate",
+                        TEMPLATE_Mother_Plants:"Strain Name,Room,Plant Count,Cycle Weeks,Cuts Per Plant,Introduced Date",
+                        TEMPLATE_Facility_Map_Spaces:"Name,Type,Sq Ft,Cleaning Interval (days)",
+                        TEMPLATE_IPM_Log:"Entry Type,Room,Target Pest,Species,Date Performed,Release Rate,Release Unit",
                       };
                       const h = headers[file]||"";
                       const blob = new Blob([h+"\n"], {type:"text/csv"});
