@@ -2265,6 +2265,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
     try{
       const results=await Promise.allSettled(h.recordIds.map(id=>db[h.tableName].delete(id)));
       const failed=results.filter(r=>r.status==="rejected").length;
+      if(failed===h.recordIds.length){
+        const reason=results[0].status==="rejected"?results[0].reason?.message:null;
+        setRollbackErr(`Rollback failed: none of the ${h.recordIds.length} record(s) could be deleted${reason?" ("+reason+")":""}.`);
+        return;
+      }
       const updated=await db.import_history.upsert({...h,rolledBack:true,rolledBackAt:new Date().toISOString()});
       setImportHistory(p=>p.map(x=>x.id===updated.id?updated:x));
       if(failed>0) setRollbackErr(`Rolled back, but ${failed} of ${h.recordIds.length} record(s) failed to delete (already removed or dependent elsewhere).`);

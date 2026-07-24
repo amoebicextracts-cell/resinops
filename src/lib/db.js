@@ -140,8 +140,14 @@ async function sbUpsert(table, record) {
 }
 
 async function sbDelete(table, id) {
-  const { error } = await supabase.from(table).delete().eq('id', id);
+  // .select() makes Postgres return the deleted row(s) so we can tell a real
+  // delete apart from one silently blocked by RLS (e.g. wrong role) — a
+  // blocked delete matches 0 rows and comes back with no error at all.
+  const { data, error } = await supabase.from(table).delete().eq('id', id).select('id');
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error(`Delete of ${table} record was blocked (no matching row, or you don't have permission).`);
+  }
 }
 
 // ── Universal table interface factory ────────────────────────
