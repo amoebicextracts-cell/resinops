@@ -196,8 +196,9 @@ export default function FacilitySettings(){
 
   async function removeMember(member){
     try{
-      const { error } = await supabase.from('facility_members').delete().eq('id', member.id);
+      const { data, error } = await supabase.from('facility_members').delete().eq('id', member.id).select('id');
       if(error) throw error;
+      if(!data || data.length===0) throw new Error("blocked (no matching row, or you don't have permission)");
       setMembers(prev=>prev.filter(m=>m.id!==member.id));
     }catch(e){ setTeamErr("Remove failed: "+e.message); }
   }
