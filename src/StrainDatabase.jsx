@@ -165,9 +165,9 @@ export default function StrainDatabase(){
     try{
       const {text,sources}=await callDescriptionAPI([{role:"user",content:prompt}], strainSystemPrompt(activeStrain));
       const existing=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===productType);
-      const saved=await db.strain_descriptions.upsert({id:existing?.id,strainId:activeStrain.id,productType,description:text,sources});
+      const saved=await db.strain_descriptions.upsert({id:existing?.id||crypto.randomUUID(),strainId:activeStrain.id,productType,description:text,sources});
       setProductDescs(p=>existing?p.map(d=>d.id===saved.id?saved:d):[...p,saved]);
-    }catch(e){ setErr("AI generation failed — check API connection."); }
+    }catch(e){ setErr("AI generation failed: "+e.message); }
     finally{ setGeneratingProduct(null); }
   }
 
@@ -175,7 +175,7 @@ export default function StrainDatabase(){
     if(!activeStrain) return;
     const existing=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===productType);
     try{
-      const saved=await db.strain_descriptions.upsert({id:existing?.id,strainId:activeStrain.id,productType,description:text,sources:existing?.sources||null});
+      const saved=await db.strain_descriptions.upsert({id:existing?.id||crypto.randomUUID(),strainId:activeStrain.id,productType,description:text,sources:existing?.sources||null});
       setProductDescs(p=>existing?p.map(d=>d.id===saved.id?saved:d):[...p,saved]);
     }catch(e){ setErr("Save failed: "+e.message); }
   }
@@ -518,6 +518,8 @@ Rules:
                   }}>{l}</button>
                 ))}
               </div>
+
+              {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:12}}>{err}</div>}
 
               {detailTab==="overview"&&(<>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
