@@ -1996,6 +1996,20 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
 
   function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({}); }
 
+  // Lets the operator fix a bad AI field mapping directly in the preview
+  // table instead of canceling the whole import and starting over (or,
+  // worse, importing the mistake and fixing it later inside the target
+  // module). confirmImport() reads importResult.records directly, so an
+  // edit here is exactly what gets saved.
+  function updateRecordField(rowIndex,key,value){
+    setImportResult(prev=>{
+      if(!prev?.records) return prev;
+      const records=prev.records.slice();
+      records[rowIndex]={...records[rowIndex],[key]:value};
+      return {...prev,records};
+    });
+  }
+
   // Deletes exactly the rows a past import wrote (by table + id list
   // recorded on the history entry at import time), then marks the entry
   // rolled back so it can't be undone twice. Does not touch anything the
@@ -2179,19 +2193,44 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   <div style={{flex:1,fontSize:12,color:"var(--text-2)",fontStyle:"italic"}}>{importResult.summary}</div>
                 </div>
 
-                {importResult.records?.length>0&&(
+                {importResult.records?.length>0&&(()=>{
+                  // Column set is fixed to the first record's keys — every
+                  // cell below is looked up by key (r[k]), not by
+                  // positional Object.values() order, so a record whose
+                  // AI-returned key order differs from the first record's
+                  // still lines up under the correct header.
+                  const previewCols=Object.keys(importResult.records[0]||{}).slice(0,8);
+                  return (
                   <>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:6}}>Spot a mistake? Edit any cell below before importing — highlighted cells are blank.</div>
                   <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden",marginBottom:14,maxHeight:320,overflowY:"auto"}}>
                     <table className="dm-tbl">
-                      <thead><tr>{Object.keys(importResult.records[0]||{}).slice(0,8).map(k=><th key={k}>{k}</th>)}</tr></thead>
+                      <thead><tr>{previewCols.map(k=><th key={k}>{k}</th>)}</tr></thead>
                       <tbody>
                         {importResult.records.slice(0,20).map((r,i)=>(
-                          <tr key={i}>{Object.values(r).slice(0,8).map((v,j)=><td key={j} style={{maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{String(v||"")}</td>)}</tr>
+                          <tr key={i}>{previewCols.map(k=>{
+                            const v=r[k];
+                            const isEmpty=v===""||v===null||v===undefined;
+                            return (
+                              <td key={k} style={{maxWidth:160,padding:0}}>
+                                <input
+                                  value={v??""}
+                                  onChange={e=>updateRecordField(i,k,e.target.value)}
+                                  style={{width:"100%",boxSizing:"border-box",background:isEmpty?"rgba(200,150,58,0.14)":"transparent",border:"none",color:"var(--text)",fontSize:12,fontFamily:"inherit",padding:"6px 8px",outline:"none"}}
+                                />
+                              </td>
+                            );
+                          })}</tr>
                         ))}
                       </tbody>
                     </table>
-                    {importResult.records.length>20&&<div style={{padding:"6px 10px",fontSize:11,color:"var(--text-3)"}}>Showing 20 of {importResult.records.length} records</div>}
+                    {importResult.records.length>20&&<div style={{padding:"6px 10px",fontSize:11,color:"var(--text-3)"}}>Showing 20 of {importResult.records.length} records — the rest import as-is (not editable here)</div>}
                   </div>
+                  </>
+                  );
+                })()}
+                {importResult.records?.length>0&&(
+                  <>
                   <details style={{marginBottom:14}}>
                     <summary style={{fontSize:11,color:"var(--text-3)",cursor:"pointer",padding:"4px 0"}}>🔍 Debug: raw first record (copy and share if fields look wrong)</summary>
                     <pre style={{fontSize:10,background:"var(--surface-2)",borderRadius:6,padding:"8px 10px",overflowX:"auto",color:"var(--text-2)",marginTop:6,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
