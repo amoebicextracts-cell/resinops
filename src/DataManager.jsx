@@ -409,6 +409,20 @@ const CSS=`
   .conf-low{background:rgba(200,74,74,0.15);color:var(--danger);}
 `;
 
+// Last-resort resolver for columns that are NOT NULL with no database
+// default. A miss on one of these isn't cosmetic — an empty string
+// becomes an explicit null on write (see transformForDb) and the insert
+// fails outright, the way a real Operating Expenses import once did
+// when the AI returned "expense_name" instead of the schema's exact
+// "name" key. `direct` is the existing alias chain's result; if that's
+// empty, scan every key on the raw record for anything matching
+// `pattern` before giving up.
+function resolveRequired(direct, r, pattern){
+  if(direct) return direct;
+  const k=Object.keys(r).find(k=>pattern.test(k));
+  return k?String(r[k]||""):"";
+}
+
 export default function DataManager({ isPlatformAdmin }){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
@@ -1617,10 +1631,10 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           if(!cat)cat="Other";
           const pmRaw=r.pmFreqDays||r.pm_freq_days||r.service_interval||r["Service Interval"]||"90";
           const pmDays=typeof pmRaw==="string"?(pmRaw.toLowerCase().includes("annual")||pmRaw.includes("365")?"365":pmRaw.toLowerCase().includes("month")||pmRaw.includes("30")?"30":pmRaw.toLowerCase().includes("semi")||pmRaw.includes("180")?"180":parseInt(pmRaw)||"90"):pmRaw;
-          return {...r,id:r.id,name:r.name||r.asset_description||r.equipment_name||r["Asset Description"]||r["Equipment Name"]||r["Item"]||"",cat,make:r.make||r.brand||r.manufacturer||r.brand_manufacturer||r["Brand"]||r["Manufacturer"]||r["Brand / Manufacturer"]||"",model:r.model||r.model_number||r["Model Number"]||r["Model"]||"",serial:r.serial||r.serial_number||r["Serial Number"]||r["Serial"]||"",assetTag:r.assetTag||r.asset_tag||r["Asset Tag"]||"",location:r.location||r.room_location||r["Room / Location"]||r["Location"]||"",purchaseDate:r.purchaseDate||r.purchase_date||r["Purchase Date"]||"",purchasePrice:String(r.purchasePrice||r.purchase_price||r.cost||r["Cost (USD)"]||r["Cost"]||"").replace(/[$,]/g,""),warrantyExpires:r.warrantyExpires||r.warranty_expiration||r.warranty_expires||r["Warranty Expiration"]||"",pmFreqDays:String(pmDays),lastServiceDate:r.lastServiceDate||r.last_service||r.last_service_date||r["Last Service"]||"",usefulLifeMonths:r.usefulLifeMonths||r.useful_life_months||r["Useful Life"]||r["Useful Life (months)"]||"",salvageValue:String(r.salvageValue||r.salvage_value||r["Salvage Value"]||r["Residual Value"]||"0").replace(/[$,]/g,""),status:"active",notes:r.notes||r["Notes"]||"",};
+          return {...r,id:r.id,name:resolveRequired(r.name||r.asset_description||r.equipment_name||r["Asset Description"]||r["Equipment Name"]||r["Item"]||"",r,/name|equipment|asset|item/i),cat,make:r.make||r.brand||r.manufacturer||r.brand_manufacturer||r["Brand"]||r["Manufacturer"]||r["Brand / Manufacturer"]||"",model:r.model||r.model_number||r["Model Number"]||r["Model"]||"",serial:r.serial||r.serial_number||r["Serial Number"]||r["Serial"]||"",assetTag:r.assetTag||r.asset_tag||r["Asset Tag"]||"",location:r.location||r.room_location||r["Room / Location"]||r["Location"]||"",purchaseDate:r.purchaseDate||r.purchase_date||r["Purchase Date"]||"",purchasePrice:String(r.purchasePrice||r.purchase_price||r.cost||r["Cost (USD)"]||r["Cost"]||"").replace(/[$,]/g,""),warrantyExpires:r.warrantyExpires||r.warranty_expiration||r.warranty_expires||r["Warranty Expiration"]||"",pmFreqDays:String(pmDays),lastServiceDate:r.lastServiceDate||r.last_service||r.last_service_date||r["Last Service"]||"",usefulLifeMonths:r.usefulLifeMonths||r.useful_life_months||r["Useful Life"]||r["Useful Life (months)"]||"",salvageValue:String(r.salvageValue||r.salvage_value||r["Salvage Value"]||r["Residual Value"]||"0").replace(/[$,]/g,""),status:"active",notes:r.notes||r["Notes"]||"",};
         });
       } else if(target==="strains"){
-        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r.cultivar_name||r.strain_name||r.strain||r["Cultivar Name"]||r["Strain Name"]||r["Strain"]||"",type:r.type||r.strain_type||r["Strain Type"]||r["Type"]||"Hybrid",parentage:r.parentage||r.genetic_cross||r.genetic_cross_lineage||r.lineage||r["Genetic Cross / Lineage"]||r["Lineage"]||r["Genetics"]||"",breeder:r.breeder||r.original_breeder||r["Original Breeder"]||r["Breeder"]||r["Seed Company"]||"",thcaAvg:r.thcaAvg||r.avg_thca||r.avg_thca_pct||r.thca_avg||r["Avg THCa %"]||r["Avg THCa"]||"",thcAvg:r.thcAvg||r.avg_thc||r.avg_thc_pct||r["Avg THC %"]||r["Avg THC"]||"",cbdAvg:r.cbdAvg||r.avg_cbd||r.avg_cbd_pct||r["Avg CBD %"]||r["Avg CBD"]||"",terpsAvg:r.terpsAvg||r.avg_total_terpenes||r.avg_terpenes||r.avg_total_terpenes_pct||r["Avg Total Terpenes %"]||r["Avg Total Terpenes"]||"",dominantTerpenes:r.dominantTerpenes||r.dominant_terpenes||r["Dominant Terpenes"]||r["Top Terpenes"]||"",avgYieldGPerSqft:r.avgYieldGPerSqft||r.avg_yield||r.avg_yield_g_sqft||r["Avg Yield (g/sqft canopy)"]||r["Avg Yield"]||"",avgFlowerWeeks:r.avgFlowerWeeks||r.flower_time_weeks||r.flower_time||r.flower_weeks||r["Flower Time (weeks)"]||r["Flower Weeks"]||"",avgVegWeeks:r.avgVegWeeks||r.veg_time_weeks||r.veg_time||r["Veg Time (weeks)"]||r["Veg Weeks"]||"",aroma:r.aroma||r.aroma_notes||r["Aroma Notes"]||r["Aroma"]||"",flavor:r.flavor||r.flavor_profile||r["Flavor Profile"]||r["Flavor"]||"",effectProfile:r.effectProfile||r.effect_description||r.effects||r["Effect Description"]||r["Effects"]||"",notes:r.notes||r.internal_notes||r["Internal Notes"]||r["Notes"]||"",status:r.status||"active",salesDescription:r.salesDescription||r.sales_description||r["Sales Description"]||"",}));
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:resolveRequired(r.name||r.cultivar_name||r.strain_name||r.strain||r["Cultivar Name"]||r["Strain Name"]||r["Strain"]||"",r,/name|strain|cultivar/i),type:r.type||r.strain_type||r["Strain Type"]||r["Type"]||"Hybrid",parentage:r.parentage||r.genetic_cross||r.genetic_cross_lineage||r.lineage||r["Genetic Cross / Lineage"]||r["Lineage"]||r["Genetics"]||"",breeder:r.breeder||r.original_breeder||r["Original Breeder"]||r["Breeder"]||r["Seed Company"]||"",thcaAvg:r.thcaAvg||r.avg_thca||r.avg_thca_pct||r.thca_avg||r["Avg THCa %"]||r["Avg THCa"]||"",thcAvg:r.thcAvg||r.avg_thc||r.avg_thc_pct||r["Avg THC %"]||r["Avg THC"]||"",cbdAvg:r.cbdAvg||r.avg_cbd||r.avg_cbd_pct||r["Avg CBD %"]||r["Avg CBD"]||"",terpsAvg:r.terpsAvg||r.avg_total_terpenes||r.avg_terpenes||r.avg_total_terpenes_pct||r["Avg Total Terpenes %"]||r["Avg Total Terpenes"]||"",dominantTerpenes:r.dominantTerpenes||r.dominant_terpenes||r["Dominant Terpenes"]||r["Top Terpenes"]||"",avgYieldGPerSqft:r.avgYieldGPerSqft||r.avg_yield||r.avg_yield_g_sqft||r["Avg Yield (g/sqft canopy)"]||r["Avg Yield"]||"",avgFlowerWeeks:r.avgFlowerWeeks||r.flower_time_weeks||r.flower_time||r.flower_weeks||r["Flower Time (weeks)"]||r["Flower Weeks"]||"",avgVegWeeks:r.avgVegWeeks||r.veg_time_weeks||r.veg_time||r["Veg Time (weeks)"]||r["Veg Weeks"]||"",aroma:r.aroma||r.aroma_notes||r["Aroma Notes"]||r["Aroma"]||"",flavor:r.flavor||r.flavor_profile||r["Flavor Profile"]||r["Flavor"]||"",effectProfile:r.effectProfile||r.effect_description||r.effects||r["Effect Description"]||r["Effects"]||"",notes:r.notes||r.internal_notes||r["Internal Notes"]||r["Notes"]||"",status:r.status||"active",salesDescription:r.salesDescription||r.sales_description||r["Sales Description"]||"",}));
       } else if(target==="spray_log"){
         newRecords = rawRecords.map(r=>({...r,
           id: r.id,
@@ -1693,7 +1707,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           notes: r.notes||r["Notes"]||"",
         }));
       } else if(target==="spaces"){
-        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",type:r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",sqft:r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",canopy:r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",maxPlants:r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",lightType:r.lightType||r.light_type||r["Light Type"]||"LED",lightCount:r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",lightWatts:r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",resetDays:r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",lastHarvestDate:r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",status:r.status||"active",notes:r.notes||r["Notes"]||"",}));
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:resolveRequired(r.name||r.room_name||r["Room Name"]||r["Space Name"]||r["Room"]||"",r,/name|room|space/i),type:r.type||r.room_type||r["Room Type"]||r["Type"]||"Indoor",sqft:r.sqft||r.total_sq_ft||r["Total Sq Ft"]||r["Square Footage"]||r["Sq Ft"]||"",canopy:r.canopy||r.canopy_sq_ft||r["Canopy Sq Ft"]||r["Canopy Square Footage"]||"",maxPlants:r.maxPlants||r.max_plants||r["Max Plants"]||r["Max Plant Count"]||"",lightType:r.lightType||r.light_type||r["Light Type"]||"LED",lightCount:r.lightCount||r.light_count||r["Lights Count"]||r["Light Count"]||"",lightWatts:r.lightWatts||r.watts_per_light||r.watts_per_fixture||r["Watts Per Light"]||r["Watts Per Fixture"]||"",resetDays:r.resetDays||r.reset_days||r.clean_reset_duration||r["Clean & Reset Duration"]||r["Reset Days"]||"",lastHarvestDate:r.lastHarvestDate||r.last_harvest_date||r["Last Harvest Date"]||"",status:r.status||"active",notes:r.notes||r["Notes"]||"",}));
       } else if(target==="cult_inputs"){
         newRecords = rawRecords.map(r=>{
           // Get the raw type from all possible column names
@@ -1724,7 +1738,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         });
       } else if(target==="inventory"){
           newRecords = rawRecords.map(r=>{
-          const name=r.n||r.name||r.item_name||r.item||r.description||r.item_description||r["Item Name"]||r["Item"]||r["Description"]||"";
+          const name=resolveRequired(r.n||r.name||r.item_name||r.item||r.description||r.item_description||r["Item Name"]||r["Item"]||r["Description"]||"",r,/name|item|description/i);
           const rawCat=r.cat||r.category||r.item_category||r["Category"]||"";
           const ICL=["Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies","Pre-Roll Supplies","Vape Hardware","Edible Ingredients","Lab Supplies","Nutrients & Amendments","Growing Media","IPM Products","Cultivation Supplies","Cleaning & Sanitation","Other"];
           const ICM={"packag":"Packaging","label":"Packaging","bag":"Packaging","jar":"Packaging","solvent":"Extraction Solvents","butane":"Extraction Solvents","ethanol":"Extraction Solvents","filter":"Extraction Consumables","trim":"Post-Harvest Supplies","pre-roll":"Pre-Roll Supplies","cone":"Pre-Roll Supplies","preroll":"Pre-Roll Supplies","vape":"Vape Hardware","cartridge":"Vape Hardware","nutrient":"Nutrients & Amendments","amendment":"Nutrients & Amendments","coco":"Growing Media","perlite":"Growing Media","soil":"Growing Media","ipm":"IPM Products","pesticide":"IPM Products","cultivation":"Cultivation Supplies","pot":"Cultivation Supplies","clean":"Cleaning & Sanitation","sanit":"Cleaning & Sanitation","lab":"Lab Supplies"};
@@ -1753,7 +1767,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           return {
             ...r,
             id: r.id,
-            name: r.name||r.batch_name||r["Batch Name"]||r["Name"]||"",
+            name: resolveRequired(r.name||r.batch_name||r["Batch Name"]||r["Name"]||"",r,/name|batch/i),
             cat,
             catLabel: r.catLabel||r.cat_label||catLabel,
             subLabel: r.subLabel||r.sub_label||r.sub_type||r["Sub-Type"]||r["Sub Type"]||"",
@@ -1788,7 +1802,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           return {
             ...r,
             id:r.id,
-            strainName:r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",
+            strainName:resolveRequired(r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",r,/strain/i),
             spaceName:r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
             plants:r.plants||r.plant_count||r["Plant Count"]||"",
             d:r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
@@ -1870,26 +1884,18 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           };
         });
       } else if(target==="customers"){
-        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Customer"]||r["Account"]||r["Dispensary Name"]||r["Company"]||"",licenseNumber:r.licenseNumber||r.license_number||r["License Number"]||r["License #"]||"",contactName:r.contactName||r.contact_name||r["Contact"]||r["Contact Name"]||r["Buyer"]||"",phone:r.phone||r["Phone"]||"",email:r.email||r["Email"]||"",address:r.address||r["Address"]||"",accountType:["dispensary","processor","wholesale","other"].includes((r.accountType||"").toLowerCase())?(r.accountType||"").toLowerCase():"dispensary",pipelineStage:["lead","prospect","active","inactive"].includes((r.pipelineStage||"").toLowerCase())?(r.pipelineStage||"").toLowerCase():"active",notes:r.notes||r["Notes"]||"",}));
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:resolveRequired(r.name||r["Name"]||r["Customer"]||r["Account"]||r["Dispensary Name"]||r["Company"]||"",r,/name|customer|account|dispensary|company/i),licenseNumber:r.licenseNumber||r.license_number||r["License Number"]||r["License #"]||"",contactName:r.contactName||r.contact_name||r["Contact"]||r["Contact Name"]||r["Buyer"]||"",phone:r.phone||r["Phone"]||"",email:r.email||r["Email"]||"",address:r.address||r["Address"]||"",accountType:["dispensary","processor","wholesale","other"].includes((r.accountType||"").toLowerCase())?(r.accountType||"").toLowerCase():"dispensary",pipelineStage:["lead","prospect","active","inactive"].includes((r.pipelineStage||"").toLowerCase())?(r.pipelineStage||"").toLowerCase():"active",notes:r.notes||r["Notes"]||"",}));
       } else if(target==="sales_goals"){
-        newRecords = rawRecords.map(r=>({...r,id:r.id,periodStart:r.periodStart||r.period_start||r["Period Start"]||r["Start Date"]||"",periodEnd:r.periodEnd||r.period_end||r["Period End"]||r["End Date"]||"",goalAmount:parseFloat(String(r.goalAmount||r.goal_amount||r["Goal Amount"]||r["Goal"]||r["Target"]||0).replace(/[$,]/g,""))||0,notes:r.notes||r["Notes"]||"",}));
+        newRecords = rawRecords.map(r=>({...r,id:r.id,periodStart:resolveRequired(r.periodStart||r.period_start||r["Period Start"]||r["Start Date"]||"",r,/period.?start|start.?date/i),periodEnd:resolveRequired(r.periodEnd||r.period_end||r["Period End"]||r["End Date"]||"",r,/period.?end|end.?date/i),goalAmount:parseFloat(String(r.goalAmount||r.goal_amount||r["Goal Amount"]||r["Goal"]||r["Target"]||0).replace(/[$,]/g,""))||0,notes:r.notes||r["Notes"]||"",}));
       } else if(target==="operating_expenses"){
         const OPEX_CATS=["g_and_a","marketing","admin_salaries","legal_professional","insurance_nonprod","retail_operations","other"];
         newRecords = rawRecords.map(r=>{
-          // "name" is NOT NULL on the table — a miss here isn't cosmetic,
-          // it's a failed insert. The AI sometimes returns a plausible but
-          // wrong exact key (e.g. expense_name instead of the schema's
-          // required "name"); fall back to scanning every key on the
-          // record before giving up, same pattern spray_log already uses.
-          const name=r.name||r["Name"]||r["Expense"]||r["Description"]||r["Item"]||r.expense_name||r["Expense Name"]||(()=>{
-            const k=Object.keys(r).find(k=>/name|expense|description|item/i.test(k));
-            return k?String(r[k]||""):"";
-          })();
+          const name=resolveRequired(r.name||r["Name"]||r["Expense"]||r["Description"]||r["Item"]||r.expense_name||r["Expense Name"]||"",r,/name|expense|description|item/i);
           return {...r,id:r.id,name,category:OPEX_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"other",amount:parseFloat(String(r.amount||r["Amount"]||0).replace(/[$,]/g,""))||0,date:r.date||r["Date"]||r["Expense Date"]||"",notes:r.notes||r["Notes"]||"",};
         });
       } else if(target==="cost_pools"){
         const CP_CATS=["rent","utilities","depreciation"], CP_PERIODS=["monthly","quarterly","annual"], CP_BASES=["batch_weight","unit_count","labor_hours","flat_per_batch"];
-        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Cost"]||r["Item"]||"",category:CP_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"rent",periodAmount:parseFloat(String(r.periodAmount||r.period_amount||r["Period Amount"]||0).replace(/[$,]/g,""))||0,period:CP_PERIODS.includes((r.period||"").toLowerCase())?(r.period||"").toLowerCase():"monthly",productionPct:parseFloat(r.productionPct||r.production_pct||r["Production %"]||100)||100,allocationBasis:CP_BASES.includes(r.allocationBasis||r.allocation_basis||"")?(r.allocationBasis||r.allocation_basis):"batch_weight",active:true,notes:r.notes||r["Notes"]||"",}));
+        newRecords = rawRecords.map(r=>({...r,id:r.id,name:resolveRequired(r.name||r["Name"]||r["Cost"]||r["Item"]||"",r,/name|cost|item/i),category:CP_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"rent",periodAmount:parseFloat(String(r.periodAmount||r.period_amount||r["Period Amount"]||0).replace(/[$,]/g,""))||0,period:CP_PERIODS.includes((r.period||"").toLowerCase())?(r.period||"").toLowerCase():"monthly",productionPct:parseFloat(r.productionPct||r.production_pct||r["Production %"]||100)||100,allocationBasis:CP_BASES.includes(r.allocationBasis||r.allocation_basis||"")?(r.allocationBasis||r.allocation_basis):"batch_weight",active:true,notes:r.notes||r["Notes"]||"",}));
       } else if(target==="vendor_invoices"){
         // vendorId is a real FK — resolve the vendor named in the source
         // file against existing vendor records instead of expecting a raw
