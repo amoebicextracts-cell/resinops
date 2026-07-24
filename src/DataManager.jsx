@@ -413,6 +413,8 @@ export default function DataManager({ isPlatformAdmin }){
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
   const [importHistory, setImportHistory] = useState([]);
+  const [rollingBackId, setRollingBackId] = useState(null);
+  const [rollbackErr, setRollbackErr] = useState("");
 
   useEffect(()=>{
     db.import_history.list().then(setImportHistory).catch(e=>console.error("Import history load error:",e));
@@ -1976,19 +1978,43 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       const skipped=rawRecords.length-newRecords.length;
       const skipMsg=skipped>0?` (${skipped} skipped — missing required fields)`:"";
       setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+skipMsg+" ✓");
-      // Log to import history
+      // Log to import history — record exactly which rows this import
+      // wrote (table + ids) so a bad import can be rolled back later,
+      // instead of just a filename/count summary nothing can act on.
       const histSaved=await db.import_history.upsert({
         id:crypto.randomUUID(),
         fileName:importResult?.fileName||"unknown",
         dataType:tgt.label,
         recordCount:newRecords.length,
         status:"success",
+        tableName:table,
+        recordIds:newRecords.map(r=>r.id),
       });
       setImportHistory(p=>[histSaved,...p].slice(0,50));
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
   function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({}); }
+
+  // Deletes exactly the rows a past import wrote (by table + id list
+  // recorded on the history entry at import time), then marks the entry
+  // rolled back so it can't be undone twice. Does not touch anything the
+  // import triggered indirectly (e.g. QC-import auto-created strains) —
+  // only the rows imported directly into the target table.
+  async function rollbackImport(h){
+    if(!h.tableName||!h.recordIds?.length||h.rolledBack) return;
+    if(!window.confirm(`Delete ${h.recordIds.length} record(s) imported from "${h.fileName}" into ${h.dataType}? This cannot be undone.`)) return;
+    setRollingBackId(h.id);
+    setRollbackErr("");
+    try{
+      const results=await Promise.allSettled(h.recordIds.map(id=>db[h.tableName].delete(id)));
+      const failed=results.filter(r=>r.status==="rejected").length;
+      const updated=await db.import_history.upsert({...h,rolledBack:true,rolledBackAt:new Date().toISOString()});
+      setImportHistory(p=>p.map(x=>x.id===updated.id?updated:x));
+      if(failed>0) setRollbackErr(`Rolled back, but ${failed} of ${h.recordIds.length} record(s) failed to delete (already removed or dependent elsewhere).`);
+    }catch(e){ setRollbackErr("Rollback failed: "+e.message); }
+    finally{ setRollingBackId(null); }
+  }
 
   const stepStatus=(step)=>{
     const order=["idle","reading","analyzing","preview","coamatch","done"];
@@ -2279,6 +2305,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 }catch(e){ console.error("Clear import history failed:",e); }
               }}>Clear history</button>}
             </div>
+            {rollbackErr&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{rollbackErr}</div>}
             {importHistory.length===0?(
               <div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>
                 <div style={{fontSize:24,marginBottom:8}}>📋</div>
@@ -2287,9 +2314,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             ):(
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="dm-tbl" style={{fontSize:12}}>
-                  <thead><tr><th>Date & Time</th><th>File</th><th>Module</th><th>Records</th></tr></thead>
+                  <thead><tr><th>Date & Time</th><th>File</th><th>Module</th><th>Records</th><th>Status</th><th></th></tr></thead>
                   <tbody>
-                    {importHistory.map((h,i)=>(
+                    {importHistory.map((h,i)=>{
+                      const canRollback=h.tableName&&h.recordIds?.length&&!h.rolledBack;
+                      return(
                       <tr key={h.id} style={{background:i%2===0?"transparent":"var(--surface-2)"}}>
                         <td style={{whiteSpace:"nowrap",color:"var(--text-3)",fontSize:11}}>
                           {new Date(h.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})} {new Date(h.created_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
@@ -2297,8 +2326,21 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                         <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-2)"}}>{h.fileName}</td>
                         <td><span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(74,124,89,0.15)",color:"var(--accent-2)"}}>{h.dataType}</span></td>
                         <td style={{fontWeight:600,color:"var(--accent-2)"}}>{h.recordCount} records</td>
+                        <td>
+                          {h.rolledBack
+                            ? <span style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:"rgba(200,74,74,0.1)",color:"var(--danger)"}}>Rolled back</span>
+                            : (h.tableName&&h.recordIds?.length
+                              ? <span style={{fontSize:10,color:"var(--text-3)"}}>Undoable</span>
+                              : <span style={{fontSize:10,color:"var(--text-3)"}}>—</span>)}
+                        </td>
+                        <td>
+                          {canRollback&&<button className="dm-btn dm-secondary" style={{fontSize:10,padding:"3px 9px",color:"var(--danger)"}} disabled={rollingBackId===h.id} onClick={()=>rollbackImport(h)}>
+                            {rollingBackId===h.id?"Rolling back…":"Rollback"}
+                          </button>}
+                        </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
