@@ -1580,6 +1580,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
     const tgt=IMPORT_TARGETS[target];
     const table=TARGET_TABLE[target];
     if(!tgt||!table){ setImportErr("Cannot identify where to save this data. Please select a data type above and re-analyze."); return; }
+    setImportErr("");
     try{
       const rawRecords=importResult.records.map(r=>({
         ...r,
@@ -1874,7 +1875,18 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         newRecords = rawRecords.map(r=>({...r,id:r.id,periodStart:r.periodStart||r.period_start||r["Period Start"]||r["Start Date"]||"",periodEnd:r.periodEnd||r.period_end||r["Period End"]||r["End Date"]||"",goalAmount:parseFloat(String(r.goalAmount||r.goal_amount||r["Goal Amount"]||r["Goal"]||r["Target"]||0).replace(/[$,]/g,""))||0,notes:r.notes||r["Notes"]||"",}));
       } else if(target==="operating_expenses"){
         const OPEX_CATS=["g_and_a","marketing","admin_salaries","legal_professional","insurance_nonprod","retail_operations","other"];
-        newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Expense"]||r["Description"]||r["Item"]||"",category:OPEX_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"other",amount:parseFloat(String(r.amount||r["Amount"]||0).replace(/[$,]/g,""))||0,date:r.date||r["Date"]||r["Expense Date"]||"",notes:r.notes||r["Notes"]||"",}));
+        newRecords = rawRecords.map(r=>{
+          // "name" is NOT NULL on the table — a miss here isn't cosmetic,
+          // it's a failed insert. The AI sometimes returns a plausible but
+          // wrong exact key (e.g. expense_name instead of the schema's
+          // required "name"); fall back to scanning every key on the
+          // record before giving up, same pattern spray_log already uses.
+          const name=r.name||r["Name"]||r["Expense"]||r["Description"]||r["Item"]||r.expense_name||r["Expense Name"]||(()=>{
+            const k=Object.keys(r).find(k=>/name|expense|description|item/i.test(k));
+            return k?String(r[k]||""):"";
+          })();
+          return {...r,id:r.id,name,category:OPEX_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"other",amount:parseFloat(String(r.amount||r["Amount"]||0).replace(/[$,]/g,""))||0,date:r.date||r["Date"]||r["Expense Date"]||"",notes:r.notes||r["Notes"]||"",};
+        });
       } else if(target==="cost_pools"){
         const CP_CATS=["rent","utilities","depreciation"], CP_PERIODS=["monthly","quarterly","annual"], CP_BASES=["batch_weight","unit_count","labor_hours","flat_per_batch"];
         newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r["Name"]||r["Cost"]||r["Item"]||"",category:CP_CATS.includes((r.category||"").toLowerCase())?(r.category||"").toLowerCase():"rent",periodAmount:parseFloat(String(r.periodAmount||r.period_amount||r["Period Amount"]||0).replace(/[$,]/g,""))||0,period:CP_PERIODS.includes((r.period||"").toLowerCase())?(r.period||"").toLowerCase():"monthly",productionPct:parseFloat(r.productionPct||r.production_pct||r["Production %"]||100)||100,allocationBasis:CP_BASES.includes(r.allocationBasis||r.allocation_basis||"")?(r.allocationBasis||r.allocation_basis):"batch_weight",active:true,notes:r.notes||r["Notes"]||"",}));
@@ -2002,6 +2014,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
   // module). confirmImport() reads importResult.records directly, so an
   // edit here is exactly what gets saved.
   function updateRecordField(rowIndex,key,value){
+    setImportErr("");
     setImportResult(prev=>{
       if(!prev?.records) return prev;
       const records=prev.records.slice();
@@ -2243,6 +2256,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 {importResult.confidence<60&&(
                   <div style={{background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"var(--amber)"}}>
                     Low confidence mapping. Review the preview carefully before importing. You can still import — just verify the data looks right in the table above.
+                  </div>
+                )}
+
+                {importErr&&(
+                  <div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:8,padding:"10px 14px",marginBottom:12,fontSize:12,color:"var(--danger)"}}>
+                    {importErr}
                   </div>
                 )}
 
