@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { db, TABLE_NAMES } from "./lib/db";
 import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
@@ -429,6 +429,16 @@ export default function DataManager({ isPlatformAdmin }){
   const [importHistory, setImportHistory] = useState([]);
   const [rollingBackId, setRollingBackId] = useState(null);
   const [rollbackErr, setRollbackErr] = useState("");
+  // Multi-file batch queue — files[1..] wait here while the current file
+  // goes through its own full read -> AI-detect -> editable preview ->
+  // confirm cycle, so the phase-2 human-review step still applies to
+  // every file individually; only the "next file, please" step is
+  // automated.
+  const [fileQueue,setFileQueue]=useState([]);
+  const [batchTotal,setBatchTotal]=useState(0);
+  const [batchIndex,setBatchIndex]=useState(0);
+  const [autoTargetNote,setAutoTargetNote]=useState("");
+  const batchFixedTargetRef=useRef("");
 
   useEffect(()=>{
     db.import_history.list().then(setImportHistory).catch(e=>console.error("Import history load error:",e));
@@ -1324,6 +1334,84 @@ export default function DataManager({ isPlatformAdmin }){
   }
   const fileRef=useRef();
 
+  // Strip extension, digits, and separators so "sales_sept.csv" and
+  // "sales_oct2.csv" compare as the same recurring file shape.
+  function normalizeFileName(name){
+    return (name||"").toLowerCase().replace(/\.[a-z0-9]+$/,"").replace(/[0-9]+/g,"").replace(/[-_\s]+/g,"");
+  }
+
+  function suggestTargetFor(fileName){
+    const norm=normalizeFileName(fileName);
+    if(norm.length<3) return null;
+    const hit=importHistory.find(h=>{
+      const hNorm=normalizeFileName(h.fileName||"");
+      return hNorm.length>=3 && (hNorm===norm||hNorm.includes(norm)||norm.includes(hNorm));
+    });
+    if(!hit) return null;
+    const key=Object.entries(IMPORT_TARGETS).find(([,v])=>v.label===hit.dataType)?.[0];
+    return key?{key,label:hit.dataType}:null;
+  }
+
+  // Recurring-import reminders — purely computed from import_history,
+  // no new schema needed. Needs >=3 real (non-rolled-back) imports of a
+  // type before trusting a cadence; flags it once we're meaningfully
+  // past the typical gap rather than right on schedule.
+  const importReminders=useMemo(()=>{
+    const byType={};
+    importHistory.forEach(h=>{
+      if(!h.dataType||h.rolledBack||!h.created_at) return;
+      (byType[h.dataType]=byType[h.dataType]||[]).push(new Date(h.created_at).getTime());
+    });
+    const DAY=86400000, now=Date.now();
+    const out=[];
+    Object.entries(byType).forEach(([label,times])=>{
+      if(times.length<3) return;
+      times.sort((a,b)=>a-b);
+      const gaps=[];
+      for(let i=1;i<times.length;i++) gaps.push(times[i]-times[i-1]);
+      gaps.sort((a,b)=>a-b);
+      const medianGapDays=gaps[Math.floor(gaps.length/2)]/DAY;
+      const daysSinceLast=(now-times[times.length-1])/DAY;
+      if(medianGapDays>=3&&daysSinceLast>medianGapDays*1.3){
+        out.push({label,medianGapDays:Math.round(medianGapDays),daysSinceLast:Math.round(daysSinceLast)});
+      }
+    });
+    return out.sort((a,b)=>(b.daysSinceLast/b.medianGapDays)-(a.daysSinceLast/a.medianGapDays)).slice(0,2);
+  },[importHistory]);
+
+  function beginFile(file){
+    setAutoTargetNote("");
+    let target=batchFixedTargetRef.current||"";
+    if(!target){
+      const sug=suggestTargetFor(file.name);
+      if(sug){
+        target=sug.key;
+        setAutoTargetNote(`Looks like a repeat of a file you've imported before as "${sug.label}" — pre-selected below, change the dropdown if this file is different.`);
+      }
+    }
+    setImportTarget(target);
+    processFile(file,target);
+  }
+
+  function startFiles(files){
+    if(!files||files.length===0) return;
+    setBatchTotal(files.length);
+    setBatchIndex(1);
+    setFileQueue(files.slice(1));
+    batchFixedTargetRef.current=importTarget||"";
+    beginFile(files[0]);
+  }
+
+  function advanceQueue(){
+    setFileQueue(prev=>{
+      if(prev.length===0){ setBatchTotal(0); setBatchIndex(0); return prev; }
+      const [next,...rest]=prev;
+      setBatchIndex(i=>i+1);
+      beginFile(next);
+      return rest;
+    });
+  }
+
   async function clearAllData(){
     if(!isPlatformAdmin) return;
     if(!window.confirm("This will permanently delete ALL data in ResinOps — every table, for this facility. Are you sure? This cannot be undone.")) return;
@@ -1409,7 +1497,14 @@ export default function DataManager({ isPlatformAdmin }){
   const stats=getStats();
 
   // ── AI Import ─────────────────────────────────────────────────────────────
-  async function processFile(file){
+  async function processFile(file,targetOverride){
+    // targetOverride lets callers (batch queue, remembered-target
+    // suggestion) pin the target for this specific call without
+    // depending on the importTarget *state* having committed yet —
+    // setImportTarget() right before calling processFile() would
+    // otherwise still read the stale value below due to React's async
+    // state updates.
+    const effectiveTarget=targetOverride!==undefined?targetOverride:importTarget;
     setImportState("reading");
     setImportErr("");
     setImportResult(null);
@@ -1465,7 +1560,7 @@ export default function DataManager({ isPlatformAdmin }){
       }
 
       setImportState("analyzing");
-      const detectedTarget=importTarget||"";
+      const detectedTarget=effectiveTarget||"";
       const targetInfo=IMPORT_TARGETS[detectedTarget];
       const prompt=`File name: "${file.name}"
 ${targetInfo
@@ -1500,7 +1595,7 @@ ${content}
 
 Return every row as a record. Do not skip rows. Map all columns you can identify — leave out columns that have no clear match.`;
 
-      const isCOA = (importTarget==="qc_tests") || (!importTarget && ext==="pdf");
+      const isCOA = (effectiveTarget==="qc_tests") || (!effectiveTarget && ext==="pdf");
       const fieldSchema = !isCOA && targetInfo ? targetInfo.schema : "";
       const result=await callClaude(prompt, isCOA, fieldSchema);
       setImportResult({...result,fileName:file.name,fileType:ext,isCOA:isCOA||result.detectedType==="qc_tests"});
@@ -2009,10 +2104,14 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         recordIds:newRecords.map(r=>r.id),
       });
       setImportHistory(p=>[histSaved,...p].slice(0,50));
+      // Batch mode: move to the next queued file automatically instead of
+      // stopping at "done" — the brief delay lets this file's success
+      // message register before the next one starts reading.
+      if(fileQueue.length>0) setTimeout(()=>advanceQueue(),900);
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
-  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({}); }
+  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({});setFileQueue([]);setBatchTotal(0);setBatchIndex(0);setAutoTargetNote("");batchFixedTargetRef.current=""; }
 
   // Lets the operator fix a bad AI field mapping directly in the preview
   // table instead of canceling the whole import and starting over (or,
@@ -2140,6 +2239,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             {/* Progress steps */}
             {importState!=="idle"&&(
               <div style={{marginBottom:16}}>
+                {batchTotal>1&&(
+                  <div style={{fontSize:11,color:"#9080f0",fontWeight:600,marginBottom:8}}>📚 Batch: file {batchIndex} of {batchTotal}{fileQueue.length>0?` — ${fileQueue.length} more queued after this one`:""}</div>
+                )}
+                {autoTargetNote&&(
+                  <div style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic",marginBottom:8}}>{autoTargetNote}</div>
+                )}
                 {(importResult?.isCOA||(importTarget||importResult?.detectedType)==="qc_tests"
                   ?[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview COA data"],["coamatch","🔗 Link to harvest batches"],["done","✅ Import complete"]]
                   :[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview — confirm before saving"],["done","✅ Import complete"]]
@@ -2155,8 +2260,15 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
 
             {importState==="idle"&&(
               <>
+                {importReminders.length>0&&(
+                  <div style={{background:"rgba(90,60,160,0.08)",border:"1px solid rgba(90,60,160,0.25)",borderRadius:8,padding:"10px 14px",marginBottom:12}}>
+                    {importReminders.map(r=>(
+                      <div key={r.label} style={{fontSize:12,color:"#9080f0"}}>🔁 {r.label} is usually imported about every {r.medianGapDays} days — it's been {r.daysSinceLast} days since the last one.</div>
+                    ))}
+                  </div>
+                )}
                 <div style={{marginBottom:10}}>
-                  <label className="dm-lbl">Data type (optional — leave blank for auto-detect)</label>
+                  <label className="dm-lbl">Data type (optional — leave blank for auto-detect; applies to every file if you select several at once)</label>
                   <select className="dm-inp" style={{cursor:"pointer"}} value={importTarget} onChange={e=>setImportTarget(e.target.value)}>
                     <option value="">Auto-detect from file content</option>
                     {Object.entries(IMPORT_TARGETS).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
@@ -2165,13 +2277,13 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <div className={"dm-drop"+(dragOver?" over":"")}
                   onDragOver={e=>{e.preventDefault();setDragOver(true);}}
                   onDragLeave={()=>setDragOver(false)}
-                  onDrop={e=>{e.preventDefault();setDragOver(false);const f=e.dataTransfer.files[0];if(f)processFile(f);}}
+                  onDrop={e=>{e.preventDefault();setDragOver(false);const files=Array.from(e.dataTransfer.files||[]);if(files.length)startFiles(files);}}
                   onClick={()=>fileRef.current.click()}>
                   <div style={{fontSize:36,marginBottom:8}}>📂</div>
-                  <div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:4}}>Drop your file here, or click to browse</div>
-                  <div style={{fontSize:11,color:"var(--text-3)"}}>Supports: CSV, Excel (.xlsx), PDF (COAs, reports), Word (.docx), JSON</div>
+                  <div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:4}}>Drop your file(s) here, or click to browse</div>
+                  <div style={{fontSize:11,color:"var(--text-3)"}}>Supports: CSV, Excel (.xlsx), PDF (COAs, reports), Word (.docx), JSON — select multiple to import them one after another</div>
                   <div style={{fontSize:11,color:"var(--text-3)",marginTop:4}}>Common imports: employee lists, COA PDFs, spray logs, strain databases, equipment lists, Smartsheet exports</div>
-                  <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.pdf,.docx,.json,.txt" style={{display:"none"}} onChange={e=>{if(e.target.files[0])processFile(e.target.files[0]);e.target.value="";}} />
+                  <input ref={fileRef} type="file" multiple accept=".csv,.xlsx,.xls,.pdf,.docx,.json,.txt" style={{display:"none"}} onChange={e=>{const files=Array.from(e.target.files||[]);if(files.length)startFiles(files);e.target.value="";}} />
                 </div>
               </>
             )}
@@ -2346,7 +2458,9 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <div style={{fontSize:40,marginBottom:10}}>✅</div>
                 <div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:4}}>Import complete</div>
                 <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16}}>{statusMsg}</div>
-                <button className="dm-btn dm-primary" onClick={reset}>Import another file</button>
+                {fileQueue.length>0
+                  ? <div style={{fontSize:12,color:"#9080f0"}}>📚 Loading next file ({batchIndex+1} of {batchTotal})…</div>
+                  : <button className="dm-btn dm-primary" onClick={reset}>Import another file</button>}
               </div>
             )}
           </div>
