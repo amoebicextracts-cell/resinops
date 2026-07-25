@@ -3,6 +3,7 @@ import { db, TABLE_NAMES } from "./lib/db";
 import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { DEFAULT_LABOR_TYPES } from "./LaborManager.jsx";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -933,7 +934,7 @@ export default function DataManager({ isPlatformAdmin }){
         await db.gmp_sops.upsert({id:uid(s.id),title:s.title,department:s.category,category:s.category,version:s.version,status:s.status,approvedBy:s.approvedBy,content:contentText});
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayLocalISO();
       const shiftsRaw = [
         {id:"shift_001",date:today,type:"day",lead:"Marcus Webb",startTime:"06:00",endTime:"14:30",spaces:["Flower Room 6","Flower Room 7","Veg Room"],notes:"Standard cultivation shift — fed FR6 and FR7 with Athena PK week 5 protocol. Topped canopy in FR7. No issues.",tasks:[{task:"Nutrient feed FR6 + FR7",done:true},{task:"Canopy inspection all rooms",done:true},{task:"Beneficial insect check clone room",done:true}]},
         {id:"shift_002",date:today,type:"processing",lead:"Taryn Delacroix",startTime:"07:00",endTime:"15:00",spaces:["Processing Room","Dry / Cure Room"],notes:"Post-harvest processing — Mango Haze cure check. Moisture at 9.1% — one more week. Black Maple packaging complete 2,400 units.",tasks:[{task:"Cure check Mango Haze",done:true},{task:"Black Maple packaging run",done:true},{task:"Trim machine blade inspection",done:true}]},
@@ -1757,7 +1758,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           // is to a harvest batch (linkedBatch comes from hb, the
           // harvest_batches list), so batchType stays the "harvest"
           // default normalizeQCRecord already applies.
-          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",harvestBatchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+new Date(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
+          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",harvestBatchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+parseDateLocal(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
         });
       } else if(target==="employees"){
         newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r.full_name||r["Full Name"]||r["Employee Name"]||"",role:r.role||r.job_title||r["Job Title"]||r["Title"]||r["Position"]||"Other",department:r.department||r["Department / Area"]||r["Department"]||r["Area"]||"Other",status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",hireDate:r.hireDate||r.employment_start||r["Employment Start"]||r["Start Date"]||r["Hire Date"]||"",phone:r.phone||r.cell_phone||r["Cell Phone"]||r["Phone"]||"",email:r.email||r.work_email||r["Work Email"]||r["Email"]||"",pestLicenseNum:r.pestLicenseNum||r.pesticide_cert_number||r.cert_number||r["Pesticide Cert #"]||r["License #"]||"",pestLicenseCategory:r.pestLicenseCategory||r.pesticide_cert_category||r.cert_category||r["Cert Category"]||r["License Type"]||"",pestLicenseExpiry:r.pestLicenseExpiry||r.pesticide_cert_expiry||r.cert_expiry_date||r["Cert Expiry Date"]||r["License Expires"]||"",certs:Array.isArray(r.certs)?r.certs:[],trainings:Array.isArray(r.trainings)?r.trainings:[],notes:r.notes||r["Notes"]||"",}));
@@ -1887,7 +1888,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           if(!cat)cat="Other";
           const stock=parseFloat(r.stock??r.current_stock??r.qty??r["Current Stock"]??0)||0;
           const cost=parseFloat(r.cost??r.unit_cost??r["Unit Cost"]??0)||0;
-          const lots=Array.isArray(r.lots)?r.lots:(stock>0?[{id:"lot_imp_"+Date.now()+Math.random(),date:new Date().toISOString().split("T")[0],qty:stock,remaining:stock,costPerUnit:cost,poId:"ai_import"}]:[]);
+          const lots=Array.isArray(r.lots)?r.lots:(stock>0?[{id:"lot_imp_"+Date.now()+Math.random(),date:todayLocalISO(),qty:stock,remaining:stock,costPerUnit:cost,poId:"ai_import"}]:[]);
           return {...r,id:r.id,n:name,cat,uom:r.uom||r.unit||r.unit_of_measure||r["Unit of Measure"]||"each",reorderAt:parseFloat(r.reorderAt??r.reorder_at??r.reorder_point??r["Reorder At"]??0)||0,reorderQty:parseFloat(r.reorderQty??r.reorder_qty??r["Reorder Qty"]??0)||0,vm:["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())?(r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase():"average",lots,lastCost:cost||0,notes:r.notes||r["Notes"]||"",};
         });
       } else if(target==="production_batches"){
@@ -1945,7 +1946,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             strainName:resolveRequired(r.strainName||r.strain_name||r["Strain Name"]||r["Strain"]||"",r,/strain/i),
             spaceName:r.spaceName||r.space_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
             plants:r.plants||r.plant_count||r["Plant Count"]||"",
-            d:r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+            d:r.d||r.harvest_date||r["Harvest Date"]||todayLocalISO(),
             wetWeightG,totalDryWeight,status,
             coaSampleId:r.coaSampleId||r.coa_sample_id||r["COA Sample ID"]||r["Sample ID"]||"",
             labName:r.labName||r.lab_name||r["Lab Name"]||"",
@@ -1972,8 +1973,8 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           if(strain2) strains.push({id:Date.now()+Math.random(),name:strain2,plants:String(plants2)});
           return {
             id: r.id,
-            name: r.name||r.batch_name||r["Batch Name"]||r["Room / Batch"]||r["Name"]||(strain1+" — "+new Date().toISOString().split("T")[0]),
-            d: r.d||r.clone_date||r.seed_date||r["Clone / Seed Date"]||r["Clone Date"]||r["Start Date"]||new Date().toISOString().split("T")[0],
+            name: r.name||r.batch_name||r["Batch Name"]||r["Room / Batch"]||r["Name"]||(strain1+" — "+todayLocalISO()),
+            d: r.d||r.clone_date||r.seed_date||r["Clone / Seed Date"]||r["Clone Date"]||r["Start Date"]||todayLocalISO(),
             veg: String(r.veg||r.veg_weeks||r["Veg Weeks"]||r["Veg (weeks)"]||"4"),
             flw: String(r.flw||r.flower_weeks||r["Flower Weeks"]||r["Flower (weeks)"]||"9"),
             strains,
@@ -2200,7 +2201,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               await db.harvest_batches.upsert({
                 id:crypto.randomUUID(),
                 strainName:r.strainName||"Unknown",
-                d:r.receivedDate||r.submittedDate||new Date().toISOString().split("T")[0],
+                d:r.receivedDate||r.submittedDate||todayLocalISO(),
                 status:"complete",coaSampleId:r.sampleId,labName:r.labName,
                 thca:r.thca,thc:r.thc,totalTerpenes:r.totalTerpenes,
                 notes:"Auto-created from passing COA import ("+(r.sampleId||"no sample ID")+")",
@@ -2579,7 +2580,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                           <option value="">— No match / create placeholder batch —</option>
                           {hb.filter(b=>!b.source||b.source!=="coa_import").map(b=>(
                             <option key={b.id} value={b.id}>
-                              {b.strainName} {b.d?`(${new Date(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.coaSampleId?`— ${b.coaSampleId}`:""}
+                              {b.strainName} {b.d?`(${parseDateLocal(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.coaSampleId?`— ${b.coaSampleId}`:""}
                             </option>
                           ))}
                         </select>

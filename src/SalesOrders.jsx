@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import SalesGoalDial from "./SalesGoalDial.jsx";
 import { agingBucket, paymentStatus } from "./lib/aging";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n){return Number(n||0).toLocaleString();}
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 // Parse estimated unit count out of a batch's yieldEst string (same approach used in Finance.jsx)
 function extractUnits(yieldEst) {
@@ -57,7 +58,7 @@ const CSS = `
   .so-num:focus{outline:none;border-color:var(--accent);}
 `;
 
-const EMPTY_ORDER = { customerId:"", customerName:"", customerLicense:"", orderDate:new Date().toISOString().split("T")[0], status:"open", lines:[], notes:"" };
+const EMPTY_ORDER = { customerId:"", customerName:"", customerLicense:"", orderDate:todayLocalISO(), status:"open", lines:[], notes:"" };
 const NEW_CUSTOMER = "__new";
 
 export default function SalesOrders() {
@@ -476,7 +477,7 @@ export default function SalesOrders() {
           <div className="so-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontSize:12,color:"var(--text-2)"}}>Set a revenue goal for a period. The dial at the top tracks confirmed Sales Orders revenue against whichever goal's period includes today.</div>
-              {!goalForm && <button className="so-btn so-primary" onClick={()=>setGoalForm({periodStart:new Date().toISOString().split("T")[0],periodEnd:new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split("T")[0],goalAmount:"",notes:""})}>+ Set goal</button>}
+              {!goalForm && <button className="so-btn so-primary" onClick={()=>setGoalForm({periodStart:todayLocalISO(),periodEnd:new Date(new Date().getFullYear(),new Date().getMonth()+1,0).toISOString().split("T")[0],goalAmount:"",notes:""})}>+ Set goal</button>}
             </div>
 
             {goalForm && (

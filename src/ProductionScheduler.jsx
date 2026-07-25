@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -1039,8 +1040,8 @@ function r134aCalcDays(inputG,machineType){
 // ── Date helpers ───────────────────────────────────────────────────────────
 function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
-function fmtS(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
-function fmtF(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function fmtS(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function fmtF(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{name:s.n,days:s.days,start:s0,end:e};});}
 
 const CSS=`
@@ -1161,7 +1162,7 @@ export default function ProductionScheduler(){
         };
         setBatches(pb.map(b=>({
           ...b,
-          d: b.d||b.scheduled_date||new Date().toISOString().split("T")[0],
+          d: b.d||b.scheduled_date||todayLocalISO(),
           steps: Array.isArray(b.steps)&&b.steps.length>0
             ? b.steps
             : (DS[b.cat||b.category]||DS.extract).map(s=>({...s})),
@@ -1274,7 +1275,7 @@ export default function ProductionScheduler(){
   function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
   function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};if(s.n==="Micron Filtration")return{...s,days:r134aInfo.filterDays};if(s.n==="Vacuum Purge (12 hr)")return{...s,days:r134aInfo.purgeDays};return s;})}));}
 
-  function openAdd(){window.__resinopsUnsaved=true;const d=new Date().toISOString().split("T")[0];const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
+  function openAdd(){window.__resinopsUnsaved=true;const d=todayLocalISO();const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
   function openEdit(b){window.__resinopsUnsaved=true;
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
@@ -1673,7 +1674,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(80,180,220,0.08)",border:"1px dashed rgba(80,180,220,0.4)",borderRadius:8,color:"#78c8f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const ws=[...(form.washEvents||[])];ws.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],waterTempF:"",iceRatio:"",agitationMethod:"manual_paddle",agitationTimeMin:"",numberOfWashes:"",washVessel:"",inputWeightG:"",grades:MICRON_GRADES.map(m=>({micron:m,wetWeightG:""}))});setF("washEvents",ws);}}>
+                onClick={()=>{const ws=[...(form.washEvents||[])];ws.push({id:crypto.randomUUID(),date:todayLocalISO(),waterTempF:"",iceRatio:"",agitationMethod:"manual_paddle",agitationTimeMin:"",numberOfWashes:"",washVessel:"",inputWeightG:"",grades:MICRON_GRADES.map(m=>({micron:m,wetWeightG:""}))});setF("washEvents",ws);}}>
                 + Add wash
               </button>
             </div>}
@@ -1738,7 +1739,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(120,150,240,0.08)",border:"1px dashed rgba(120,150,240,0.4)",borderRadius:8,color:"#9ab0f8",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const cs=[...(form.freezeDryCycles||[])];cs.push({id:crypto.randomUUID(),sourceWashId:"",date:new Date().toISOString().split("T")[0],equipmentBrand:"harvest_right",equipmentModel:"hr_medium",batchSizeG:"",shelfTempF:"",condenserTempF:"",vacuumLevel:"",cycleTimeHours:"",finalDryWeightG:""});setF("freezeDryCycles",cs);}}>
+                onClick={()=>{const cs=[...(form.freezeDryCycles||[])];cs.push({id:crypto.randomUUID(),sourceWashId:"",date:todayLocalISO(),equipmentBrand:"harvest_right",equipmentModel:"hr_medium",batchSizeG:"",shelfTempF:"",condenserTempF:"",vacuumLevel:"",cycleTimeHours:"",finalDryWeightG:""});setF("freezeDryCycles",cs);}}>
                 + Add freeze-dry cycle
               </button>
             </div>}
@@ -1831,7 +1832,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(200,150,58,0.08)",border:"1px dashed rgba(200,150,58,0.4)",borderRadius:8,color:"var(--amber)",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const ps=[...(form.pressRuns||[])];ps.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],sourceBatchId:"",sourceFreezeDryId:"",pressBrand:"lowtemp",pressModel:"lt_v2_3x5",plateTempF:"",pressTimeSec:"",pressure:"",bagMicron:"",packingMethod:"loose_bag",prePressWeightG:"",postPressYieldG:"",notes:""});setF("pressRuns",ps);}}>
+                onClick={()=>{const ps=[...(form.pressRuns||[])];ps.push({id:crypto.randomUUID(),date:todayLocalISO(),sourceBatchId:"",sourceFreezeDryId:"",pressBrand:"lowtemp",pressModel:"lt_v2_3x5",plateTempF:"",pressTimeSec:"",pressure:"",bagMicron:"",packingMethod:"loose_bag",prePressWeightG:"",postPressYieldG:"",notes:""});setF("pressRuns",ps);}}>
                 + Add press run
               </button>
             </div>}
@@ -1872,7 +1873,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(90,120,200,0.08)",border:"1px dashed rgba(90,120,200,0.4)",borderRadius:8,color:"#7090f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const cs=[...(form.coldCureBatches||[])];cs.push({id:crypto.randomUUID(),sourcePressRunId:"",dateStarted:new Date().toISOString().split("T")[0],dateEnded:"",tempF:"",resultingConsistency:"",notes:""});setF("coldCureBatches",cs);}}>
+                onClick={()=>{const cs=[...(form.coldCureBatches||[])];cs.push({id:crypto.randomUUID(),sourcePressRunId:"",dateStarted:todayLocalISO(),dateEnded:"",tempF:"",resultingConsistency:"",notes:""});setF("coldCureBatches",cs);}}>
                 + Add cold cure batch
               </button>
             </div>}
@@ -1922,7 +1923,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(80,180,220,0.08)",border:"1px dashed rgba(80,180,220,0.4)",borderRadius:8,color:"#78c8f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const ds=[...(form.dewaxPasses||[])];ds.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],extractorBrand:"ets",columnMedia:"celite",columnTempF:"",holdTimeMin:"",filterMicron:"",prePassWeightG:"",postPassWeightG:"",notes:""});setF("dewaxPasses",ds);}}>
+                onClick={()=>{const ds=[...(form.dewaxPasses||[])];ds.push({id:crypto.randomUUID(),date:todayLocalISO(),extractorBrand:"ets",columnMedia:"celite",columnTempF:"",holdTimeMin:"",filterMicron:"",prePassWeightG:"",postPassWeightG:"",notes:""});setF("dewaxPasses",ds);}}>
                 + Add dewax pass
               </button>
             </div>}
@@ -1970,7 +1971,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(200,150,58,0.08)",border:"1px dashed rgba(200,150,58,0.4)",borderRadius:8,color:"var(--amber)",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const ps=[...(form.purgeRuns||[])];ps.push({id:crypto.randomUUID(),date:new Date().toISOString().split("T")[0],ovenBrand:"across_intl",tempF:"",vacuumInHg:"",durationHours:"",filmThicknessMm:"",whipTechnique:"none",prePurgeWeightG:"",postPurgeWeightG:"",notes:""});setF("purgeRuns",ps);}}>
+                onClick={()=>{const ps=[...(form.purgeRuns||[])];ps.push({id:crypto.randomUUID(),date:todayLocalISO(),ovenBrand:"across_intl",tempF:"",vacuumInHg:"",durationHours:"",filmThicknessMm:"",whipTechnique:"none",prePurgeWeightG:"",postPurgeWeightG:"",notes:""});setF("purgeRuns",ps);}}>
                 + Add purge run
               </button>
             </div>}
@@ -2020,7 +2021,7 @@ export default function ProductionScheduler(){
                 );
               })}
               <button style={{width:"100%",padding:"7px",background:"rgba(90,120,200,0.08)",border:"1px dashed rgba(90,120,200,0.4)",borderRadius:8,color:"#7090f0",fontSize:12,fontWeight:600,cursor:"pointer"}}
-                onClick={()=>{const ds=[...(form.diamondSauceBatches||[])];ds.push({id:crypto.randomUUID(),dateStarted:new Date().toISOString().split("T")[0],dateEnded:"",crystallizationMethod:"jar_tech",vesselNotes:"",crashTempF:"",separationMethod:"mesh_strainer",inputCrudeWeightG:"",diamondYieldG:"",sauceYieldG:"",notes:""});setF("diamondSauceBatches",ds);}}>
+                onClick={()=>{const ds=[...(form.diamondSauceBatches||[])];ds.push({id:crypto.randomUUID(),dateStarted:todayLocalISO(),dateEnded:"",crystallizationMethod:"jar_tech",vesselNotes:"",crashTempF:"",separationMethod:"mesh_strainer",inputCrudeWeightG:"",diamondYieldG:"",sauceYieldG:"",notes:""});setF("diamondSauceBatches",ds);}}>
                 + Add diamond/sauce batch
               </button>
             </div>}

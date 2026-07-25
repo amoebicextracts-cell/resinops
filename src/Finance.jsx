@@ -7,6 +7,7 @@ import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { todayLocalISO } from "./lib/dateUtils";
 
 const QTY_TYPES = [
   {v:"per_unit_output",l:"per output unit"},
@@ -262,7 +263,7 @@ export default function Finance() {
 
   const [opexForm, setOpexForm] = useState(null);
   const [errOpex, setErrOpex] = useState("");
-  function openAddOpex(){ setOpexForm({id:crypto.randomUUID(),name:"",category:"g_and_a",amount:"",date:new Date().toISOString().split("T")[0],notes:""}); setErrOpex(""); }
+  function openAddOpex(){ setOpexForm({id:crypto.randomUUID(),name:"",category:"g_and_a",amount:"",date:todayLocalISO(),notes:""}); setErrOpex(""); }
   async function saveOpex(){
     if(!opexForm.name.trim()){ setErrOpex("Enter a name for this expense."); return; }
     const toSave = {...opexForm, name:opexForm.name.trim(), amount:parseFloat(opexForm.amount)||0};
@@ -371,7 +372,7 @@ export default function Finance() {
       ["Grand Total Non-Deductible (batch-flagged + facility OpEx)", totalNonDeductible.toFixed(2)],
       [],
       ["Batches included", String(yearBatches.length)],
-      ["Generated", new Date().toISOString().split("T")[0]],
+      ["Generated", todayLocalISO()],
       ["Note","Capitalized COGS across production batches for the year only — not a full return. Review with your tax advisor before filing."],
     ];
     const csv = rows.map(r=>r.map(esc).join(",")).join("\r\n");
@@ -396,7 +397,7 @@ export default function Finance() {
     doc.setFontSize(10); doc.setFont(undefined,"normal");
     y += 7;
     if (facility.facilityName) { doc.text(facility.facilityName + (facility.licenseNumber?" — "+facility.licenseNumber:""), 14, y); y += 5; }
-    doc.text(`Tax year ${summaryYear} · ${yearBatches.length} batch${yearBatches.length===1?"":"es"} · Generated ${new Date().toISOString().split("T")[0]}`, 14, y);
+    doc.text(`Tax year ${summaryYear} · ${yearBatches.length} batch${yearBatches.length===1?"":"es"} · Generated ${todayLocalISO()}`, 14, y);
     y += 8;
 
     doc.setFontSize(9); doc.setTextColor(90);
@@ -1078,7 +1079,7 @@ export default function Finance() {
                 )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                   {costPoolForm.linkedToEquipment ? (
-                    <div><label className="fin-lbl">Amount per period ($)</label><input className="fin-inp" disabled style={{opacity:0.6,cursor:"not-allowed"}} value={fmtC(calcEquipmentDepreciationPool(equipment, new Date().toISOString().split("T")[0]).monthly * (costPoolForm.period==="annual"?12:costPoolForm.period==="quarterly"?3:1))} /></div>
+                    <div><label className="fin-lbl">Amount per period ($)</label><input className="fin-inp" disabled style={{opacity:0.6,cursor:"not-allowed"}} value={fmtC(calcEquipmentDepreciationPool(equipment, todayLocalISO()).monthly * (costPoolForm.period==="annual"?12:costPoolForm.period==="quarterly"?3:1))} /></div>
                   ) : (
                     <div><label className="fin-lbl">Amount per period ($)</label><input type="number" step="0.01" className="fin-inp" value={costPoolForm.periodAmount} onChange={e=>setCostPoolForm(f=>({...f,periodAmount:e.target.value}))} placeholder="8000" /></div>
                   )}
@@ -1114,7 +1115,7 @@ export default function Finance() {
                         <td style={{fontSize:11,textTransform:"capitalize"}}>{(pool.category||"").replace(/_/g," ")}</td>
                         <td>
                           {pool.linkedToEquipment
-                            ? fmtC(calcEquipmentDepreciationPool(equipment, new Date().toISOString().split("T")[0]).monthly * (pool.period==="annual"?12:pool.period==="quarterly"?3:1))
+                            ? fmtC(calcEquipmentDepreciationPool(equipment, todayLocalISO()).monthly * (pool.period==="annual"?12:pool.period==="quarterly"?3:1))
                             : fmtC(pool.periodAmount)}
                           /{pool.period==="annual"?"yr":pool.period==="quarterly"?"qtr":"mo"}
                           {pool.linkedToEquipment && <div style={{fontSize:10,color:"var(--text-3)"}}>from Equipment Registry</div>}

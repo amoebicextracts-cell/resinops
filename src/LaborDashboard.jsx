@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { STEP_LABOR } from "./LaborManager.jsx";
+import { parseDateLocal } from "./lib/dateUtils";
 
 // ── Date helpers ───────────────────────────────────────────────────────────
 function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
-function fmtDay(dt){return new Date(dt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
-function fmtShort(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function fmtDay(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});}
+function fmtShort(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 function startOfWeek(dt){const d=new Date(dt);d.setDate(d.getDate()-d.getDay());d.setHours(0,0,0,0);return d;}
 function isSameDay(a,b){const x=new Date(a),y=new Date(b);return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate();}
 function isToday(dt){return isSameDay(dt,new Date());}

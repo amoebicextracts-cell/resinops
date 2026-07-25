@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const INPUT_TYPES=[
   {v:"nutrient",l:"Nutrient Application"},
@@ -12,7 +13,7 @@ const APP_METHODS=["Backpack sprayer","Boom sprayer","Hand sprayer","Drench / Ir
 const VOL_UNITS=["gal","L","ml","oz","qt","fl oz"];
 const RATE_UNITS=["oz/gal","ml/L","tsp/gal","tbsp/gal","fl oz/gal","lb/acre","g/plant","ml/plant","oz/plant","as labeled"];
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtC(n){return n?("$"+Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):"—";}
 
 const CSS=`
@@ -43,7 +44,7 @@ const CSS=`
   .t-other{background:rgba(100,100,100,0.15);color:var(--text-3);}
 `;
 
-const EMPTY={spaceId:"",date:new Date().toISOString().split("T")[0],type:"nutrient",
+const EMPTY={spaceId:"",date:todayLocalISO(),type:"nutrient",
   product:"",manufacturer:"",epaRegNum:"",rate:"",rateUnit:"oz/gal",
   volumeApplied:"",volumeUnit:"gal",areaApplied:"",costPerUnit:"",totalCost:"",
   rei:"",phi:"",applicationMethod:"Backpack sprayer",targetPest:"",

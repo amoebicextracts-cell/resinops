@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const APP_METHODS = ["Backpack sprayer","Boom sprayer","Hand sprayer","Drench / Irrigation injection","Fogger / ULV","Broadcast","Other"];
 const VOL_UNITS = ["gal","L","ml","oz","qt"];
@@ -13,7 +14,7 @@ const SPRAY_TYPES = [
   {v:"herbicide", l:"Herbicide Application"},
 ];
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 const CSS=`
   .sl-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -41,7 +42,7 @@ const CSS=`
 `;
 
 const EMPTY={
-  date:new Date().toISOString().split("T")[0],
+  date:todayLocalISO(),
   type:"ipm_spray",
   spaceId:"",spaceName:"",
   product:"",manufacturer:"",

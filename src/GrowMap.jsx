@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal } from "./lib/dateUtils";
 
 const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Genetics Lab / TC","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
@@ -11,7 +12,7 @@ const STATUSES = [
   {v:"offline",l:"Offline"},
 ];
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntilReady(space){
   if(space.status!=="cleaning"||!space.lastHarvestDate||!space.resetDays) return null;
   const ready=new Date(space.lastHarvestDate);

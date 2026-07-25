@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
+import { parseDateLocal } from "./lib/dateUtils";
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function pct(n,t){return t?Math.round(n/t*100):0;}
 
 const SCORE_MARKERS=[
