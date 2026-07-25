@@ -161,7 +161,15 @@ export default function StrainDatabase(){
     setGeneratingProduct(productType);
     setErr("");
     const ptLabel=PRODUCT_TYPES.find(p=>p.value===productType)?.label||productType;
-    const prompt=`Write a budtender-facing training description for ${activeStrain.name} specifically as a ${ptLabel} product. Cover what makes this product FORMAT distinct — potency delivery, onset speed, ideal use case/occasion — and give the budtender 2-3 concrete talking points for recommending it to a customer. Base cannabinoid/terpene data only on the data provided. Keep it under 150 words.`;
+    // This is a one-shot generate-and-save action with no follow-up turn —
+    // unlike the Overview tab's chat, there's nowhere for the operator to
+    // answer a clarifying question, so the shared system prompt's "ask the
+    // operator to confirm" instruction (meant for that chat) must be
+    // overridden here, or the model's question gets silently saved as if
+    // it were the description.
+    const prompt=`Write a budtender-facing training description for ${activeStrain.name} specifically as a ${ptLabel} product. Cover what makes this product FORMAT distinct — potency delivery, onset speed, ideal use case/occasion — and give the budtender 2-3 concrete talking points for recommending it to a customer. Base cannabinoid/terpene data only on the data provided. Keep it under 150 words.
+
+This is a one-shot generation with no opportunity for follow-up — do not ask a clarifying question instead of answering. If some data (cannabinoids, terpenes, lineage, etc.) is missing or unclear, write the best possible description using whatever is available and note the gap in a single brief phrase within the description itself, rather than stopping to ask.`;
     try{
       const {text,sources}=await callDescriptionAPI([{role:"user",content:prompt}], strainSystemPrompt(activeStrain));
       const existing=productDescs.find(d=>d.strainId===activeStrain.id&&d.productType===productType);
