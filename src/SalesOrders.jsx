@@ -58,7 +58,11 @@ const CSS = `
   .so-num:focus{outline:none;border-color:var(--accent);}
 `;
 
-const EMPTY_ORDER = { customerId:"", customerName:"", customerLicense:"", orderDate:todayLocalISO(), status:"open", lines:[], notes:"" };
+// importStatus explicitly null (not omitted) so the insert overrides the
+// database's import_status DEFAULT 'pending' — that default exists for
+// the AI-import pipeline-confirmation tracker, not for orders created
+// straight through this form, which have no import to be "pending" on.
+const EMPTY_ORDER = { customerId:"", customerName:"", customerLicense:"", orderDate:todayLocalISO(), status:"open", importStatus:null, lines:[], notes:"" };
 const NEW_CUSTOMER = "__new";
 
 export default function SalesOrders() {
@@ -184,7 +188,15 @@ export default function SalesOrders() {
     const order = orders.find(o=>o.id===id);
     if (!order) return;
     try{
-      const saved = await db.sales_orders.upsert({...order, status});
+      // import_status defaults to 'pending' at the database level for
+      // every order — including ones never touched by an import — so the
+      // status pill (which prefers importStatus over status) can get
+      // stuck showing "pending" forever even after Fulfill/Reopen flips
+      // the real status. Fulfilling or canceling is a definitive action
+      // on the order itself, so it supersedes whatever stale pipeline
+      // confirmation state it was created with.
+      const clearImportStatus = status === "fulfilled" || status === "canceled";
+      const saved = await db.sales_orders.upsert({...order, status, ...(clearImportStatus ? {importStatus:null} : {})});
       setOrders(p=>p.map(o=>o.id===id?saved:o));
       setDialRefresh(n=>n+1);
     }catch(e){ setErr("Could not update status: "+(e.message||e)); }
