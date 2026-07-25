@@ -3,6 +3,7 @@ import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
 import { SUBS } from "./ProductionScheduler.jsx";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const LBS_TO_G = 453.592;
 
@@ -27,7 +28,7 @@ function calcDose(tyamCfu, tabCfu, aspergillus, gyPerHour, turnRequired, weightG
 }
 
 function fmtN(n,d=2){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 const CSS = `
   .rm-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -61,7 +62,7 @@ const CSS = `
 function emptyForm() {
   return {
     sourceType: "harvest", sourceId: "", strainName: "", weightG: "",
-    labName: "", labReportRef: "", testDate: new Date().toISOString().split("T")[0],
+    labName: "", labReportRef: "", testDate: todayLocalISO(),
     tyamCfu: "", tabCfu: "", aspergillus: false,
     gyPerHour: "1000", turnRequired: true,
     status: "flagged", retestResult: "", notes: "",

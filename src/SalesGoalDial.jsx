@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { pipelineRevenue } from "./lib/revenue";
+import { todayLocalISO } from "./lib/dateUtils";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});}
 
@@ -19,7 +20,7 @@ function businessDaysRemaining(end){
 }
 
 export function activeGoal(goals){
-  const today=new Date().toISOString().split("T")[0];
+  const today=todayLocalISO();
   const inPeriod=goals.filter(g=>g.periodStart<=today&&today<=g.periodEnd);
   if(!inPeriod.length) return null;
   return inPeriod.reduce((a,g)=>!a||new Date(g.created_at||0)>new Date(a.created_at||0)?g:a, null);

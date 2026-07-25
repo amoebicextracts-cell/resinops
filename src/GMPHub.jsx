@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
-function fmtDT(dt){return dt?new Date(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtDT(dt){return dt?parseDateLocal(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
 const DEPT=["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","All"];
 const DEV_TYPES=["Process Deviation","Equipment Failure","Contamination / Environmental","Documentation Error","Personnel / Training","Material / Input Issue","Other"];
 const DEV_SEVERITIES=["minor","major","critical"];
@@ -43,8 +44,8 @@ const CSS=`
 `;
 
 const EMPTY_SOP={title:"",version:"1.0",department:"Cultivation",effectiveDate:"",approvedBy:"",status:"draft",linkedStepTypes:"",content:""};
-const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:new Date().toISOString().split("T")[0],type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
-const EMPTY_SHIFT={date:new Date().toISOString().split("T")[0],department:"Cultivation",supervisorId:"",notes:""};
+const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:todayLocalISO(),type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
+const EMPTY_SHIFT={date:todayLocalISO(),department:"Cultivation",supervisorId:"",notes:""};
 const EMPTY_SIGNOFF={batchType:"harvest",batchId:"",stepName:"",performedById:"",verifiedById:"",timestamp:new Date().toISOString().slice(0,16),notes:""};
 
 export default function GMPHub(){

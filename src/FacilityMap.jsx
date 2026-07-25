@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const FACILITY_ROOM_TYPES = [
   "Processing Room","Dry / Cure Room","Packaging Room","Extraction Lab",
@@ -10,7 +11,7 @@ const FACILITY_ROOM_TYPES = [
 
 const CLEAN_TYPES = ["Full Sanitation","Equipment Clean","Surface Wipe-Down","Deep Clean","Inspection Clean"];
 
-function fmtD(dt){ return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"; }
+function fmtD(dt){ return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"; }
 function daysAgo(dt){ return dt?Math.round((new Date()-new Date(dt))/86400000):null; }
 
 const CSS = `
@@ -52,7 +53,7 @@ const EMPTY_ROOM = {
 };
 
 const EMPTY_CLEAN = {
-  date: new Date().toISOString().split("T")[0],
+  date: todayLocalISO(),
   type:"Full Sanitation", by:"", notes:"", batchId:"",
 };
 

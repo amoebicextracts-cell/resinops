@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const ENTRY_TYPES=[
   {v:"scouting",l:"Pest Scouting"},
@@ -8,7 +9,7 @@ const ENTRY_TYPES=[
   {v:"note",l:"General IPM Note"},
 ];
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 const CSS=`
   .ipm-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -41,7 +42,7 @@ const CSS=`
 `;
 
 const EMPTY={entryType:"scouting",spaceId:"",batchIds:[],status:"completed",
-  scheduledDate:"",performedDate:new Date().toISOString().split("T")[0],
+  scheduledDate:"",performedDate:todayLocalISO(),
   targetPest:"",species:"",releaseRate:"",releaseUnit:"insects/plant",
   pestCount:"",thresholdExceeded:false,actionTaken:"",performedBy:"",notes:""};
 
@@ -104,7 +105,7 @@ export default function IPMTracker(){
   }
   async function markCompleted(r){
     try{
-      const saved=await db.ipm_log.upsert({...r,status:"completed",performedDate:r.performedDate||new Date().toISOString().split("T")[0]});
+      const saved=await db.ipm_log.upsert({...r,status:"completed",performedDate:r.performedDate||todayLocalISO()});
       setRecords(p=>p.map(x=>x.id===saved.id?saved:x));
     }catch(e){ console.error("IPM log complete failed:",e); }
   }

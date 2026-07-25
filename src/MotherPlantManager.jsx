@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const DEFAULT_CYCLE_WEEKS = 9;
 
-function fmtD(dt){ return dt ? new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"; }
+function fmtD(dt){ return dt ? parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"; }
 function addWeeks(dateStr, weeks){
   const d = new Date(dateStr);
   d.setDate(d.getDate() + weeks * 7);
@@ -53,7 +54,7 @@ const CSS = `
 
 const EMPTY_MOM = {
   id:"", strainName:"", roomId:"", plantCount:1,
-  introducedDate: new Date().toISOString().split("T")[0],
+  introducedDate: todayLocalISO(),
   cycleWeeks: DEFAULT_CYCLE_WEEKS,
   status:"active",
   cutsPerPlantPerCycle: 8,
@@ -385,7 +386,7 @@ export default function MotherPlantManager(){
                           </div>
                         </div>
                       ):(
-                        <button className="mm-btn mm-primary" style={{width:"100%",marginTop:4}} onClick={()=>setCutForm({date:new Date().toISOString().split("T")[0]})}>
+                        <button className="mm-btn mm-primary" style={{width:"100%",marginTop:4}} onClick={()=>setCutForm({date:todayLocalISO()})}>
                           ✂️ Log cut event
                         </button>
                       )

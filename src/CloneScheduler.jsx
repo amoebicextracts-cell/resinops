@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal } from "./lib/dateUtils";
 
 const LBS_TO_G=453.592;
 function addDays(dt,n){try{const d=new Date(dt);if(isNaN(d.getTime()))return new Date();d.setDate(d.getDate()+n);return d;}catch{return new Date();}}
-function fmtD(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return"—";return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch{return"—";}}
+function fmtD(dt){try{const d=parseDateLocal(dt);if(isNaN(d.getTime()))return"—";return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch{return"—";}}
 function daysFromNow(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return null;return Math.round((d-new Date())/86400000);}catch{return null;}}
 function isoDate(dt){try{const d=new Date(dt);if(isNaN(d.getTime()))return"";return d.toISOString().split("T")[0];}catch{return"";}}
 function safeDate(d){return d&&typeof d==="string"&&d.length>=8?d:null;}
