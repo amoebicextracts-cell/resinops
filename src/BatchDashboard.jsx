@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { SUBS } from "./ProductionScheduler.jsx";
 import { batchPnL } from "./lib/cogs";
+import { parseDateLocal } from "./lib/dateUtils";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n,d=1){return Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});}
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function pct(a,b){return b?((a/b)*100).toFixed(1)+"%":"—";}
 
 const CSS=`

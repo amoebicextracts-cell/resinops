@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { matchesStrain } from "./strainUtils.js";
+import { parseDateLocal } from "./lib/dateUtils";
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 const CSS=`
   .sd-wrap{padding:24px;flex:1;overflow-y:auto;}

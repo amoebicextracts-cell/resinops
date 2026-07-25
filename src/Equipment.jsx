@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const EQUIP_CATS = [
   "Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging",
@@ -13,12 +14,12 @@ const PM_FREQ = [
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
-function fmtD(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function fmtD(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function daysUntil(dt){return Math.round((new Date(dt)-new Date())/86400000);}
 
 function nextPMDate(eq) {
   if (!eq.pmFreqDays || eq.pmFreqDays==="none") return null;
-  const lastDate = eq.lastServiceDate || eq.purchaseDate || new Date().toISOString().split("T")[0];
+  const lastDate = eq.lastServiceDate || eq.purchaseDate || todayLocalISO();
   return dAdd(lastDate, parseInt(eq.pmFreqDays));
 }
 
@@ -129,7 +130,7 @@ export default function Equipment() {
     }catch(e){ setErr("Could not delete: "+(e.message||e)); }
   }
 
-  function openService(eq) { setServiceForm({ equipId:eq.id, date:new Date().toISOString().split("T")[0], type:"pm", tech:"", vendorId:"", cost:"", notes:"" }); }
+  function openService(eq) { setServiceForm({ equipId:eq.id, date:todayLocalISO(), type:"pm", tech:"", vendorId:"", cost:"", notes:"" }); }
   async function saveService() {
     const rec = {...serviceForm, id:crypto.randomUUID()};
     try{

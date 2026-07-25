@@ -7,6 +7,7 @@ import {
   syncTransfers, getMetrcStateOptions, METRC_STATES,
   createMetrcPackage, createMetrcHarvest, recordLabTest, createMetrcOutgoingTransfer,
 } from "./lib/metrc";
+import { todayLocalISO } from "./lib/dateUtils";
 
 const CANNABINOID_FIELDS = [
   { k: "thca", t: "THCA" }, { k: "thc", t: "Delta 9 THC" }, { k: "cbd", t: "CBD" },
@@ -203,7 +204,7 @@ export default function MetrcHub() {
   }
 
   // ── Push to METRC ──────────────────────────────────────────────
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayLocalISO();
 
   function emptyPushForm(type) {
     if (type === "package") return { metrcTag: "", location: "", item: "", quantity: "", unitOfMeasure: "Grams", notes: "", date: today };

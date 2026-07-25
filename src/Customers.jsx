@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { bookedRevenueForBatch } from "./lib/revenue";
+import { parseDateLocal } from "./lib/dateUtils";
 
 const ACCOUNT_TYPES = ["dispensary","processor","wholesale","other"];
 const PIPELINE_STAGES = ["lead","prospect","active","inactive"];
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});}
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 
 const CSS=`
   .cu-wrap{padding:24px;flex:1;overflow-y:auto;}

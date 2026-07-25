@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtD(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
-function fmtDT(dt){return dt?new Date(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";}
+function fmtD(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function fmtDT(dt){return dt?parseDateLocal(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";}
 function hoursBetween(a,b){ if(!a||!b) return null; return ((new Date(b)-new Date(a))/3600000).toFixed(1); }
 
 const CATEGORIES = ["Equipment Repair","Building / Facility","Electrical","Plumbing","HVAC","Pest / IPM","Safety Hazard","Other"];
@@ -57,7 +58,7 @@ const EMPTY_WO = {
 };
 
 const EMPTY_LOTO = {
-  equipId:"", date:new Date().toISOString().split("T")[0], reason:"",
+  equipId:"", date:todayLocalISO(), reason:"",
   lockedBy:"", lockTime:"", reenergizedBy:"", reenergizeTime:"",
   verifiedSafe:false, notes:"", status:"open",
 };

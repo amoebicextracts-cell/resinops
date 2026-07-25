@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
 function pf(v){return v===true?"PASS":v===false?"FAIL":"—";}
 function pfColor(v){return v===true?"var(--accent-2)":v===false?"var(--danger)":"var(--text-3)";}
@@ -127,7 +128,7 @@ export default function QCTesting(){
         if(!alreadyExists){
           try{
             const newBatch={id:crypto.randomUUID(),strainName:form.strainName||"Unknown",
-              d:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
+              d:form.receivedDate||form.submittedDate||todayLocalISO(),
               status:"complete",coaSampleId:form.sampleId,labName:form.labName,
               thca:form.thca,notes:"Auto-created from passing COA import"};
             const savedHb=await db.harvest_batches.upsert(newBatch);
@@ -167,7 +168,7 @@ export default function QCTesting(){
               strainName:form.strainName||"Unknown",
               labName:form.labName,
               labReportRef:form.sampleId,
-              testDate:form.receivedDate||form.submittedDate||new Date().toISOString().split("T")[0],
+              testDate:form.receivedDate||form.submittedDate||todayLocalISO(),
               tyamCfu:form.tyam,
               tabCfu:form.tab,
               aspergillus:form.aspergillus===true,

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 const LBS_TO_G = 453.592;
 
 
@@ -45,8 +46,8 @@ const STEPS_DEFAULT = [
 
 function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
-function fmtS(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
-function fmtF(dt){return new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function fmtS(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
+function fmtF(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{...s,start:s0,end:e};});}
 
 function calcBuckDays(wetWeightLbs, throughput) {
@@ -116,7 +117,7 @@ export default function HarvestBatches() {
       spaceId: r.spaceId||r.space_id||r.grow_space_id||"",
       spaceName: r.spaceName||r.space_name||r.room_name||r.harvest_room||r["Harvest Room"]||r["Grow Space"]||"",
       plants: r.plants||r.plant_count||r["Plant Count"]||"",
-      d: r.d||r.harvest_date||r["Harvest Date"]||new Date().toISOString().split("T")[0],
+      d: r.d||r.harvest_date||r["Harvest Date"]||todayLocalISO(),
       wetWeightG,
       totalDryWeight,
       status,
@@ -174,7 +175,7 @@ export default function HarvestBatches() {
 
   function emptyForm() {
     return {
-      spaceId:"", strainName:"", plants:"", d:new Date().toISOString().split("T")[0],
+      spaceId:"", strainName:"", plants:"", d:todayLocalISO(),
       wetWeightG:"",
       buckMachine:"centp_hp1", buckThroughput:"175",
       steps: STEPS_DEFAULT.map(s=>({...s})),
@@ -280,7 +281,7 @@ export default function HarvestBatches() {
     } catch(e) { setErr("Delete failed: "+e.message); }
   }
 
-  const timelines = batches.map(b=>buildTimeline(b.d||new Date().toISOString().split("T")[0], Array.isArray(b.steps)&&b.steps.length>0 ? b.steps : STEPS_DEFAULT.map(s=>({...s}))));
+  const timelines = batches.map(b=>buildTimeline(b.d||todayLocalISO(), Array.isArray(b.steps)&&b.steps.length>0 ? b.steps : STEPS_DEFAULT.map(s=>({...s}))));
   const today = new Date();
 
   function exportHarvest() {
@@ -290,7 +291,7 @@ export default function HarvestBatches() {
       const tl = timelines[idx]; const end = tl[tl.length-1]?.end;
       const stepRows = tl.map(s=>'<tr><td style="padding:4px 12px 4px 0;color:#555;font-size:13px;">'+s.n+'</td><td style="font-size:13px;">'+fmtF(s.start)+' \u2192 '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");
       const gradeRows = GRADES.map(g=>{const gd=(b.grades&&b.grades[g.k])||{};return gd.weight?'<tr><td style="padding:3px 12px 3px 0;font-size:13px;">'+g.l+'</td><td style="font-size:13px;">'+gd.weight+'g</td><td style="font-size:12px;color:#666;">'+(gd.s2s||"—")+'</td></tr>':'';}).join("");
-      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+(b.wetWeightG||0)+'g wet \u00b7 Harvested '+fmtF(new Date((b.d||new Date().toISOString().split("T")[0])+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+(parseFloat(b.totalDryWeight)||0).toFixed(1)+'g</p></div>';
+      return '<div style="margin-bottom:28px;border-left:4px solid #2d5a3d;padding-left:14px;"><h2 style="font-size:15px;font-weight:700;margin:0 0 2px;">'+b.strainName+' — '+b.spaceName+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.plants+' plants \u00b7 '+(b.wetWeightG||0)+'g wet \u00b7 Harvested '+fmtF(new Date((b.d||todayLocalISO())+"T12:00:00"))+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;font-weight:700;margin:10px 0 4px;">Final Grade Weights</p><table style="border-collapse:collapse;">'+gradeRows+'</table><p style="font-size:13px;font-weight:600;margin-top:6px;">Total dry weight: '+(parseFloat(b.totalDryWeight)||0).toFixed(1)+'g</p></div>';
     }).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
     const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Harvest Batches</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;}h1{font-size:22px;color:#2d5a3d;}</style></head><body><h1>ResinOps — Harvest Batches</h1><p style="color:#666;font-size:13px;">Exported '+date+'</p>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Harvest-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);

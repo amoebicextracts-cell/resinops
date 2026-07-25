@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import StrainCombo from "./StrainCombo.jsx";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ const CONTAM_TYPES = ["Bacterial (cloudy media)","Fungal — white/grey (Aspergi
 const MEDIA_BASES  = ["Athena Shoots","Athena Roots","MS (Murashige & Skoog)","WPM (Woody Plant Medium)","Custom"];
 const HEALTH_OPTS  = ["Excellent","Good","Fair","Poor — consider discard"];
 
-function fmtD(dt){ return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"; }
+function fmtD(dt){ return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—"; }
 function daysAgo(dt){ return dt?Math.round((new Date()-new Date(dt))/86400000):null; }
 function daysIn(stage, vessel){ return vessel.stageDate ? daysAgo(vessel.stageDate) : null; }
 
@@ -67,14 +68,14 @@ const CSS = `
 
 const EMPTY_ACCESSION = {
   id:"", strainName:"", sourceType:"mother_plant", sourceId:"",
-  initiatedDate: new Date().toISOString().split("T")[0],
+  initiatedDate: todayLocalISO(),
   initiatedBy:"", purpose:"preservation",
   hlvStatus:"unknown", notes:"", status:"active",
 };
 
 const EMPTY_VESSEL = {
   id:"", accessionId:"", label:"",
-  stage:"explant", stageDate: new Date().toISOString().split("T")[0],
+  stage:"explant", stageDate: todayLocalISO(),
   mediaBase:"Athena Shoots", mediaLotNum:"",
   contaminated:false, contamType:"", contamDate:"",
   health:"Good", transferCount:0,
@@ -170,7 +171,7 @@ export default function TCTracker(){
     // Add log entry for new stage if changed
     if(!vesselForm.id || vesselForm._stageChanged){
       rec.log = [...(rec.log||[]), {
-        date: new Date().toISOString().split("T")[0],
+        date: todayLocalISO(),
         event: vesselForm.id?"stage_change":"created",
         stage: rec.stage,
         notes: vesselForm._stageNote||"",
@@ -189,9 +190,9 @@ export default function TCTracker(){
   async function markContaminated(vessel, contamType){
     const updated = {...vessel,
       contaminated:true, contamType,
-      contamDate: new Date().toISOString().split("T")[0],
+      contamDate: todayLocalISO(),
       log:[...(vessel.log||[]),{
-        date: new Date().toISOString().split("T")[0],
+        date: todayLocalISO(),
         event:"contamination",
         stage:vessel.stage,
         notes:"Contamination: "+contamType,
@@ -212,10 +213,10 @@ export default function TCTracker(){
     const nextStage = activeStages[idx+1];
     const updated = {...vessel,
       stage: nextStage,
-      stageDate: new Date().toISOString().split("T")[0],
+      stageDate: todayLocalISO(),
       transferCount: (vessel.transferCount||0)+1,
       log:[...(vessel.log||[]),{
-        date: new Date().toISOString().split("T")[0],
+        date: todayLocalISO(),
         event:"stage_advance",
         stage:nextStage,
         notes:"Advanced to "+TC_STAGES.find(s=>s.id===nextStage)?.label,
@@ -235,9 +236,9 @@ export default function TCTracker(){
 
     const updatedVessel = {...vessel,
       stage:"transferred",
-      stageDate: new Date().toISOString().split("T")[0],
+      stageDate: todayLocalISO(),
       log:[...(vessel.log||[]),{
-        date: new Date().toISOString().split("T")[0],
+        date: todayLocalISO(),
         event:"transferred",
         stage:"transferred",
         notes:"Transferred to mother room. "+transferDest.notes,
@@ -248,7 +249,7 @@ export default function TCTracker(){
       strainName: accession?.strainName||"Unknown",
       roomId: transferDest.roomId,
       plantCount: parseInt(transferDest.plantCount)||1,
-      introducedDate: new Date().toISOString().split("T")[0],
+      introducedDate: todayLocalISO(),
       cycleWeeks: 9,
       cutsPerPlantPerCycle: 8,
       status: "acclimating",
@@ -412,7 +413,7 @@ export default function TCTracker(){
                   <select className="tc-sel" value={vesselForm.accessionId} onChange={e=>setVF("accessionId",e.target.value)}>
                     <option value="">— Select accession —</option>
                     {accessions.filter(a=>a.status==="active").map(a=>(
-                      <option key={a.id} value={a.id}>{a.strainName} ({new Date(a.initiatedDate).toLocaleDateString("en-US",{month:"short",year:"numeric"})})</option>
+                      <option key={a.id} value={a.id}>{a.strainName} ({parseDateLocal(a.initiatedDate).toLocaleDateString("en-US",{month:"short",year:"numeric"})})</option>
                     ))}
                   </select>
                 </div>

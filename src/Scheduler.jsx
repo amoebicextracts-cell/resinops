@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const ROOTING   = 14;
 const DRYING    = 12;
@@ -34,8 +35,8 @@ const MS = [
 
 function dAdd(dt, n) { const r = new Date(dt); r.setDate(r.getDate() + n); return r; }
 function dDiff(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
-function fmtShort(dt) { return new Date(dt).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-function fmtFull(dt)  { return new Date(dt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function fmtShort(dt) { return parseDateLocal(dt).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+function fmtFull(dt)  { return parseDateLocal(dt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 function fmtISO(dt)   { return new Date(dt).toISOString().split("T")[0]; }
 function cloneTarget(n) { return Math.ceil(n * 1.1); }
 
@@ -198,7 +199,7 @@ export default function Scheduler() {
   function removeStrainRow(i) { setForm(f => ({ ...f, strains: f.strains.filter((_,idx)=>idx!==i) })); }
 
   function openAdd() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocalISO();
     setForm({ ...EMPTY_FORM, d: today, strains: [{ id: Date.now(), name: "", plants: "" }], growMapId: "" });
     setFormMode("add");
     setFormErr("");
@@ -218,7 +219,7 @@ export default function Scheduler() {
 
   // ── Topping events ───────────────────────────────────────────────────────
   function openTopping(sp) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayLocalISO();
     const strainNames = (sp.strains||[]).filter(s=>s.name).map(s=>s.name);
     setToppingForm({ date: today, node: "", strainName: strainNames.length===1 ? strainNames[0] : "" });
     setToppingPanelId(sp.id);

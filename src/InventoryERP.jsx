@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { withdrawFifo } from "./lib/inventory";
 import { agingBucket, paymentStatus } from "./lib/aging";
+import { todayLocalISO } from "./lib/dateUtils";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
@@ -341,7 +342,7 @@ export default function InventoryERP() {
   async function confirmCSVImport() {
     if (!csvPreview || !csvPreview.rows.length) return;
     const newItems = csvPreview.rows.map(r => {
-      const lot = r.stock > 0 ? [{ id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty:r.stock, remaining:r.stock, costPerUnit:r.cost, poId:"csv_import" }] : [];
+      const lot = r.stock > 0 ? [{ id:crypto.randomUUID(), date:todayLocalISO(), qty:r.stock, remaining:r.stock, costPerUnit:r.cost, poId:"csv_import" }] : [];
       return { id:crypto.randomUUID(), n:r.n, cat:r.cat, uom:r.uom, reorderAt:r.reorderAt, reorderQty:r.reorderQty, vm:r.vm, notes:"Imported from CSV", lots:lot, lastCost:r.cost };
     });
     try{
@@ -411,7 +412,7 @@ export default function InventoryERP() {
   // PO creation
   function openNewPO() {
     setPoForm({id:crypto.randomUUID(), poNum:"PO-"+String(pos.length+1).padStart(4,"0"),
-      vendorId:vendors[0]?.id||"", date:new Date().toISOString().split("T")[0],
+      vendorId:vendors[0]?.id||"", date:todayLocalISO(),
       expectedDelivery:"", status:"draft",
       items:[], notes:""});
   }
@@ -450,7 +451,7 @@ export default function InventoryERP() {
   }
 
   // Accounts Payable — vendor invoices
-  function openAddInvoice(){ setInvoiceForm({id:crypto.randomUUID(),vendorId:"",poId:"",invoiceNumber:"",invoiceDate:new Date().toISOString().split("T")[0],dueDate:"",amount:"",amountPaid:"0",notes:""}); setInvoiceErr(""); }
+  function openAddInvoice(){ setInvoiceForm({id:crypto.randomUUID(),vendorId:"",poId:"",invoiceNumber:"",invoiceDate:todayLocalISO(),dueDate:"",amount:"",amountPaid:"0",notes:""}); setInvoiceErr(""); }
   async function saveInvoice(){
     if(!invoiceForm.vendorId){ setInvoiceErr("Select a vendor."); return; }
     const toSave = {...invoiceForm, amount:parseFloat(invoiceForm.amount)||0, amountPaid:parseFloat(invoiceForm.amountPaid)||0};
@@ -522,7 +523,7 @@ export default function InventoryERP() {
     if (!qty) { setAdjustModal(null); return; }
     let updated, shortfallMsg="";
     if (qty > 0) {
-      const lot = { id:crypto.randomUUID(), date:new Date().toISOString().split("T")[0], qty, remaining:qty, costPerUnit:cost, poId:"manual", note:adjNote||"" };
+      const lot = { id:crypto.randomUUID(), date:todayLocalISO(), qty, remaining:qty, costPerUnit:cost, poId:"manual", note:adjNote||"" };
       updated = {...item, lots:[...(item.lots||[]),lot], lastCost:cost};
     } else {
       const { item: withdrawn, shortfall } = withdrawFifo(item, Math.abs(qty));

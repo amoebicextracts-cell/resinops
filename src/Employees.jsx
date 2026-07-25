@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { parseDateLocal } from "./lib/dateUtils";
 
 const DEPARTMENTS = ["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","Management","Security","Other"];
 const ROLES = ["Cultivation Tech","Lead Grower","Master Grower","Trim Tech","Post-Harvest Lead","Extraction Tech","Extraction Lead","Processing Tech","Production Manager","QC Tech","QC Manager","Maintenance Tech","Shift Supervisor","Department Manager","Director of Operations","VP of Processing","CEO / Owner","Other"];
 const PEST_CATS = ["Category 1A — Commercial Pesticide Technician","Category 3A — Ornamental & Turf","Category 7A — Industrial, Institutional & Structural","Category 7B — Wood Preserving & Treatment","Category 24 — Private Pesticide Applicator","Category 27 — Nitrogen Stabilizers","Certified Pesticide Applicator (other state)","None / Not Licensed"];
 const GMP_CERTS = ["ServSafe / Food Handler","OSHA 10","OSHA 30","GMP Fundamentals","Cannabis GMP","HACCP","Forklift / Scissor Lift","First Aid / CPR","Other"];
 
-function fmtD(dt){return dt?new Date(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
+function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
 
 const CSS=`
