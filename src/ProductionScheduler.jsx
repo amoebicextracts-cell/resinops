@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
@@ -1116,7 +1116,7 @@ const EMPTY={
 function loadHarvestBatches(){ return []; } // loaded async now
 const GRADE_LABELS={a:"A-Bud",b:"B-Bud",c:"C-Bud",trim:"Trim"};
 
-export default function ProductionScheduler(){
+export default function ProductionScheduler({onNavigate}){
   const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
   const[batches,setBatches]=useState([]);
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
@@ -1140,19 +1140,23 @@ export default function ProductionScheduler(){
   }
   const[inventoryData,setInventoryData]=useState([]);
   const[boms,setBoms]=useState([]);
+  const[qcTests,setQcTests]=useState([]);
+  const[expandedSteps,setExpandedSteps]=useState(null);
   const[deductionNotice,setDeductionNotice]=useState("");
   const[loading,setLoading]=useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, inv, bm]=await Promise.all([
+        const [pb, hb, inv, bm, qc]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.inventory_items.list(),
           db.boms.list(),
+          db.qc_tests.list(),
         ]);
         setBoms(bm);
+        setQcTests(qc);
         const DS={
           whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
           pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
@@ -1402,6 +1406,36 @@ export default function ProductionScheduler(){
   }
   function batchStatus(b,tl){const start=new Date(b.d+"T00:00:00");const end=tl[tl.length-1]?.end;if(!end)return{label:"—",cls:"sp-u"};if(end<today0)return{label:"Complete",cls:"sp-c"};if(start>today0)return{label:"Upcoming",cls:"sp-u"};return{label:"In Progress",cls:"sp-a"};}
 
+  // Only a handful of step names have an actual data-entry record backing
+  // them (the extraction sub-forms further down, plus linked QC tests) —
+  // most step names (Drying, Bucking, Curing, Packaging, etc.) have no
+  // completion tracking in the data model at all, so this deliberately
+  // returns trackable:false for those rather than fabricating a status.
+  function getStepTracking(step,b){
+    const isHash=b.cat==="extract"&&b.sub==="hash";
+    const isRosinFl=b.sub==="rosin_fl";
+    const isRosinHash=b.sub==="rosin_hash";
+    const isBhoProduct=b.cat==="extract"&&["shatter","badder","live_resin","sugar","diamonds"].includes(b.sub);
+    const n=step.name;
+    if(n==="QC / Testing"){
+      const count=qcTests.filter(t=>t.batchType==="production"&&String(t.productionBatchId)===String(b.id)).length;
+      return {trackable:true,kind:"qc",count};
+    }
+    if(n==="Washing"&&isHash) return {trackable:true,kind:"wash",count:(b.washEvents||[]).length};
+    if(n==="Lyophilization"&&isHash) return {trackable:true,kind:"freezeDry",count:(b.freezeDryCycles||[]).length};
+    if(n==="Pressing"&&(isRosinFl||isRosinHash)) return {trackable:true,kind:"press",count:(b.pressRuns||[]).length};
+    if(n==="Purge / Process"&&isBhoProduct) return {trackable:true,kind:"purge",count:(b.purgeRuns||[]).length+(b.dewaxPasses||[]).length};
+    return {trackable:false};
+  }
+
+  function jumpToStep(b,kind){
+    if(kind==="qc"){ onNavigate?.("qc-testing"); return; }
+    openEdit(b);
+    const ids={wash:"ps-box-wash",freezeDry:"ps-box-freezedry",press:"ps-box-press",purge:"ps-box-dewax"};
+    const id=ids[kind];
+    if(id) setTimeout(()=>document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"center"}),150);
+  }
+
   function exportProd(){
     if(!batches.length)return;
     const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
@@ -1632,7 +1666,7 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Ice Water Hash — Wash Log (repeatable, multiple washes per batch) */}
-            {isHash&&<div className="ps-box">
+            {isHash&&<div className="ps-box" id="ps-box-wash">
               <div className="ps-box-t">Wash Log</div>
               {(form.washEvents||[]).map((w,idx)=>{
                 const total=(w.grades||[]).reduce((s,g)=>s+(parseFloat(g.wetWeightG)||0),0);
@@ -1680,7 +1714,7 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Ice Water Hash — Freeze Dry Cycles (repeatable, can pull from any wash logged above) */}
-            {isHash&&<div className="ps-box">
+            {isHash&&<div className="ps-box" id="ps-box-freezedry">
               <div className="ps-box-t">Freeze Dry Cycles</div>
               {(form.freezeDryCycles||[]).map((c,idx)=>{
                 const model=fdModel(c.equipmentBrand,c.equipmentModel);
@@ -1745,7 +1779,7 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* Rosin — Press Runs (repeatable; hash rosin can pull from another batch's dried hash) */}
-            {isRosin&&<div className="ps-box">
+            {isRosin&&<div className="ps-box" id="ps-box-press">
               <div className="ps-box-t">Press Runs</div>
               {(form.pressRuns||[]).map((p,idx)=>{
                 const pm=pressModel(p.pressBrand,p.pressModel);
@@ -1879,7 +1913,7 @@ export default function ProductionScheduler(){
             </div>}
 
             {/* BHO — Dewax (cryo-column, inline on the extractor — not winterization) */}
-            {isBhoProduct&&<div className="ps-box">
+            {isBhoProduct&&<div className="ps-box" id="ps-box-dewax">
               <div className="ps-box-t">Dewax</div>
               <div style={{fontSize:10,color:"var(--text-3)",marginBottom:8}}>Inline cryo-column dewax on the crude — separate from winterization. Optional; leave empty if this batch wasn't dewaxed.</div>
               {(form.dewaxPasses||[]).map((d,idx)=>{
@@ -2726,7 +2760,8 @@ export default function ProductionScheduler(){
             {batches.map((b,idx)=>{
               const tl=timelines[idx];const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
               return(
-                <div key={b.id} className="ps-row" style={{minHeight:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
+                <Fragment key={b.id}>
+                <div className="ps-row" style={{minHeight:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
                   <div className="ps-left" style={{height:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
                     <div style={{fontSize:12,fontWeight:600,color:b.isLinked?"#8090d0":"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.isLinked?"↳ ":""}{b.name}</div>
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
@@ -2746,8 +2781,9 @@ export default function ProductionScheduler(){
                       </div>
                     )}
                     {(b.s2sOutputTags||b.s2s_barcode)&&<div style={{fontSize:9,color:"var(--text-3)",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>🏷 {(b.s2sOutputTags||b.s2s_barcode||'').split(',')[0].trim()}</div>}
-                    <div style={{display:"flex",gap:6,marginTop:5}}>
+                    <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap"}}>
                       {!b.isLinked&&<button className="ps-btn ps-sm ps-edit" onClick={()=>openEdit(b)}>Edit</button>}
+                      {!b.isLinked&&<button className="ps-btn ps-sm ps-secondary" onClick={()=>setExpandedSteps(x=>x===b.id?null:b.id)}>{expandedSteps===b.id?"Hide steps":"Steps"}</button>}
                       <button className="ps-btn ps-sm ps-del" onClick={()=>removeBatch(b.id)}>✕</button>
                     </div>
                   </div>
@@ -2757,6 +2793,37 @@ export default function ProductionScheduler(){
                     {todayOff>=0&&todayOff<=total&&<div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />}
                   </div>
                 </div>
+                {expandedSteps===b.id&&!b.isLinked&&(
+                  <div className="ps-row" style={{background:"var(--surface)"}}>
+                    <div style={{width:"100%",padding:"10px 14px"}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>Steps — {b.name}</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                        {tl.map((step,si)=>{
+                          const tr=getStepTracking(step,b);
+                          return(
+                            <div key={si} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,padding:"5px 8px",borderRadius:6,background:"var(--surface-2)"}}>
+                              <span style={{flex:"0 0 180px",fontWeight:500,color:"var(--text)"}}>{step.name}</span>
+                              <span style={{flex:"0 0 160px",color:"var(--text-3)",fontSize:11}}>{fmtF(step.start)} → {fmtF(step.end)}</span>
+                              {tr.trackable ? (
+                                <>
+                                  <span className="ps-sm" style={{padding:"2px 8px",borderRadius:10,fontWeight:600,background:tr.count>0?"rgba(74,124,89,0.2)":"rgba(200,150,58,0.15)",color:tr.count>0?"var(--accent-2)":"var(--amber)"}}>
+                                    {tr.count>0?`Logged (${tr.count})`:"Not logged yet"}
+                                  </span>
+                                  <button className="ps-btn ps-sm ps-edit" onClick={()=>jumpToStep(b,tr.kind)}>
+                                    {tr.kind==="qc"?"Go to QC Testing →":"Log this step →"}
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic"}}>No tracking recorded for this step yet</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                </Fragment>
               );
             })}
           </div>
