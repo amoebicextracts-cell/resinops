@@ -1342,7 +1342,7 @@ export default function ResinOps() {
             {activeModule === "ai-corrections-review" ? (isPlatformAdmin ? <AiCorrectionsReview /> : null) : null}
             {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
-            {activeModule === "production" ? <ProductionScheduler /> : null}
+            {activeModule === "production" ? <ProductionScheduler onNavigate={switchModule} /> : null}
             {activeModule === "yield-dashboard" ? <YieldDashboard /> : null}
             {activeModule === "harvest" ? <HarvestBatches /> : null}
             {activeModule === "remediation" ? <Remediation /> : null}
