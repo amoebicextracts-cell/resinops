@@ -204,6 +204,12 @@ Be specific. Operators making post-harvest decisions balance quality, throughput
 
 // ── Suggested Questions ───────────────────────────────────────────────────────
 const SUGGESTIONS = {
+  "ai-assistant": [
+    "What's the real difference between running a Quest Intelliclimate vs. separate mini-splits plus standalone dehu units in a commercial flower room?",
+    "We're running BHO on fresh frozen and our live resin is coming out darker than expected. What are the most likely causes and how do I dial it in?",
+    "My plants in late flower are showing brown tips on the fan leaves. EC is at 2.4. What's most likely going on?",
+    "Walk me through the difference between running a cold column passive dewax vs. inline active chilling for BHO — when does each make sense?",
+  ],
   "post-harvest": [
     "We're running a commercial dry room at 60/60 but the center of the room is reading 68% RH three days in. What's happening and how do I fix it?",
     "What's the honest trade-off between running a Twister T6 vs. a Mobius M108S for a 200 lb/week dry weight operation?",
@@ -1386,7 +1392,7 @@ export default function ResinOps() {
                 </div>
                 <div className="suggestions-label">Try asking</div>
                 <div className="suggestions">
-                  {(SUGGESTIONS[activeModule] || []).map((s, i) => (
+                  {(SUGGESTIONS[activeModule] || SUGGESTIONS["ai-assistant"]).map((s, i) => (
                     <button key={i} className="suggestion-btn" onClick={() => send(s)}>
                       {s}
                     </button>
