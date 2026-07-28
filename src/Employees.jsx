@@ -42,7 +42,21 @@ const CSS=`
 
 const EMPTY={name:"",role:"Cultivation Tech",department:"Cultivation",status:"active",hireDate:"",phone:"",email:"",
   pestLicenseNum:"",pestLicenseCategory:"None / Not Licensed",pestLicenseState:"NY",pestLicenseExpiry:"",
-  certs:[],trainings:[],notes:""};
+  certs:[],trainings:[],notes:"",tier:""};
+
+// Sign-off tier — separate from `role` (a free-text job title like
+// "Cultivation Tech") and separate from the app's own permission role
+// (owner/admin/manager/member/viewer). This is specifically "who is
+// allowed to sign off at which tier of a GMP step approval," which
+// needs a controlled vocabulary to be checkable — free-text role can't
+// reliably answer "is this person a supervisor?".
+const SIGNOFF_TIERS=[
+  {v:"",l:"— None —"},
+  {v:"worker",l:"Worker"},
+  {v:"supervisor",l:"Supervisor"},
+  {v:"manager",l:"Manager"},
+  {v:"qc_head",l:"Head of QC / Production"},
+];
 
 export default function Employees(){
   const [employees,setEmployees]=useState([]);
@@ -162,6 +176,13 @@ export default function Employees(){
                   <div><label className="em-lbl">Role</label><select className="em-sel" value={form.role} onChange={e=>setF("role",e.target.value)}>{!roleOptions.includes(form.role)&&form.role&&<option key={form.role}>{form.role}</option>}{roleOptions.map(r=><option key={r}>{r}</option>)}</select></div>
                   <div><label className="em-lbl">Department</label><select className="em-sel" value={form.department} onChange={e=>setF("department",e.target.value)}>{DEPARTMENTS.map(d=><option key={d}>{d}</option>)}</select></div>
                 </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10}}>
+                  <div>
+                    <label className="em-lbl">Sign-off tier</label>
+                    <select className="em-sel" value={form.tier||""} onChange={e=>setF("tier",e.target.value)}>{SIGNOFF_TIERS.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}</select>
+                    <div style={{fontSize:11,color:"var(--text-3)",marginTop:3}}>Which level of GMP step sign-off this person can perform — separate from their job title above and from their app login permissions.</div>
+                  </div>
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="em-lbl">Status</label><select className="em-sel" value={form.status} onChange={e=>setF("status",e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="leave">On Leave</option></select></div>
                   <div><label className="em-lbl">Hire date</label><input type="date" className="em-inp" value={form.hireDate} onChange={e=>setF("hireDate",e.target.value)} /></div>
@@ -264,7 +285,7 @@ export default function Employees(){
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                     <div>
                       <div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{e.name}</div>
-                      <div style={{fontSize:11,color:"var(--text-3)"}}>{e.role} · {e.department}</div>
+                      <div style={{fontSize:11,color:"var(--text-3)"}}>{e.role} · {e.department}{e.tier?" · "+(SIGNOFF_TIERS.find(t=>t.v===e.tier)?.l||e.tier):""}</div>
                     </div>
                     <span className={"em-pill s-"+e.status}>{e.status}</span>
                   </div>

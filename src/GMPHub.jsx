@@ -9,6 +9,46 @@ const DEPT=["Cultivation","Post-Harvest","Extraction","Processing","Packaging","
 const DEV_TYPES=["Process Deviation","Equipment Failure","Contamination / Environmental","Documentation Error","Personnel / Training","Material / Input Issue","Other"];
 const DEV_SEVERITIES=["minor","major","critical"];
 
+// Tiered step sign-offs — worker/supervisor/manager/qc_head, matching
+// Employees.jsx's SIGNOFF_TIERS. Which tiers a given step needs is
+// facility-configurable (facilities.step_signoff_requirements, a
+// {stepName: tier[]} map edited in Facility Settings); these keyword
+// defaults only apply when a step has no explicit facility config, so
+// a fresh facility isn't stuck with zero requirements everywhere.
+const TIER_ORDER=["worker","supervisor","manager","qc_head"];
+const TIER_LABELS={worker:"Worker",supervisor:"Supervisor",manager:"Manager",qc_head:"QC/Production Head"};
+function getRequiredTiers(stepName,facility){
+  const configured=facility?.step_signoff_requirements?.[stepName];
+  if(Array.isArray(configured)) return configured.filter(t=>TIER_ORDER.includes(t));
+  const l=(stepName||"").toLowerCase();
+  if(l.includes("qc")||l.includes("test")||l.includes("packag")||l.includes("releas")) return ["worker","supervisor","qc_head"];
+  if(l.includes("extraction")||l.includes("purge")||l.includes("dewax")||l.includes("crystall")||l.includes("distill")) return ["worker","supervisor"];
+  return ["worker"];
+}
+
+// Inline "sign off as [tier]" control — a filtered employee picker plus
+// a confirm button, used both in the outstanding-sign-offs dashboard and
+// the batch record. Module-level (not a nested function) so it doesn't
+// remount and lose its own pending-selection state on every parent render.
+function TierSignoffPicker({tier,employees,onSign}){
+  const [empId,setEmpId]=useState("");
+  const pool=employees.filter(e=>e.tier===tier);
+  if(!pool.length) return (
+    <div style={{fontSize:11,color:"var(--amber)",background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:6,padding:"4px 8px"}}>
+      {TIER_LABELS[tier]} — no employees set to this tier yet
+    </div>
+  );
+  return (
+    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+      <select className="gh-sel" style={{width:"auto",fontSize:11,padding:"3px 6px"}} value={empId} onChange={e=>setEmpId(e.target.value)}>
+        <option value="">— {TIER_LABELS[tier]} —</option>
+        {pool.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+      <button className="gh-sm gh-edit" disabled={!empId} onClick={()=>{onSign(empId);setEmpId("");}}>Sign</button>
+    </div>
+  );
+}
+
 const CSS=`
   .gh-wrap{padding:24px;flex:1;overflow-y:auto;}
   .gh-tabs{display:flex;gap:2px;background:var(--surface-2);border-radius:8px;padding:3px;margin-bottom:18px;}
@@ -46,7 +86,6 @@ const CSS=`
 const EMPTY_SOP={title:"",version:"1.0",department:"Cultivation",effectiveDate:"",approvedBy:"",status:"draft",linkedStepTypes:"",content:""};
 const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:todayLocalISO(),type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
 const EMPTY_SHIFT={date:todayLocalISO(),department:"Cultivation",supervisorId:"",notes:""};
-const EMPTY_SIGNOFF={batchType:"harvest",batchId:"",stepName:"",performedById:"",verifiedById:"",timestamp:new Date().toISOString().slice(0,16),notes:""};
 
 export default function GMPHub(){
   const [tab,setTab]=useState("shifts");
@@ -104,7 +143,7 @@ export default function GMPHub(){
   const [sopForm,setSopForm]=useState(null);
   const [devForm,setDevForm]=useState(null);
   const [shiftForm,setShiftForm]=useState(null);
-  const [soForm,setSoForm]=useState(null); // sign-off form
+  const [soView,setSoView]=useState("outstanding"); // outstanding | history
   const [shiftEntries,setShiftEntries]=useState([]);
   const [batchRecordId,setBatchRecordId]=useState({type:"harvest",id:""});
   const [err,setErr]=useState("");
@@ -150,22 +189,32 @@ export default function GMPHub(){
   function setEntry(i,k,v){setShiftEntries(p=>p.map((e,idx)=>idx===i?{...e,[k]:v}:e));}
   function calcHours(tin,tout){if(!tin||!tout)return "";const d=(new Date("1970-01-01T"+tout)-new Date("1970-01-01T"+tin))/3600000;return d>0?d.toFixed(2):"";}
 
-  // ── Sign-offs ──
-  async function saveSo(){
-    if(!soForm.stepName.trim()||!soForm.performedById){setErr("Step name and performed-by are required.");return;}
-    const s={...soForm,id:soForm.id||crypto.randomUUID()};
-    try{
-      const saved=await db.gmp_signoffs.upsert(s);
-      if(soForm.id) setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
-      else setSignoffs(p=>[...p,saved]);
-      setSoForm(null);setErr("");
-    }catch(e){ setErr("Save failed: "+e.message); }
+  // ── Sign-offs ── one gmp_signoffs row per batch+step (see the unique
+  // index added in 20260803090000), with up to 4 tier id/timestamp pairs
+  // on it rather than one row per approval.
+  function findSignoff(type,batchId,stepName){
+    return signoffs.find(s=>s.batchType===type&&String(s.batchId)===String(batchId)&&s.stepName===stepName);
   }
-  async function removeSo(id){
+  async function signOffTier(type,batchId,stepName,tier,employeeId){
+    if(!employeeId) return;
+    const existing=findSignoff(type,batchId,stepName);
+    const base=existing||{id:crypto.randomUUID(),batchType:type,batchId,stepName,notes:""};
+    const updated={...base,[tier+"Id"]:employeeId,[tier+"At"]:new Date().toISOString()};
     try{
-      await db.gmp_signoffs.delete(id);
-      setSignoffs(p=>p.filter(x=>x.id!==id));
-    }catch(e){ setErr("Could not delete: "+e.message); }
+      const saved=await db.gmp_signoffs.upsert(updated);
+      setSignoffs(p=>existing?p.map(x=>x.id===saved.id?saved:x):[...p,saved]);
+      setErr("");
+    }catch(e){ setErr("Sign-off failed: "+e.message); }
+  }
+  async function unsignTier(type,batchId,stepName,tier){
+    const existing=findSignoff(type,batchId,stepName);
+    if(!existing) return;
+    if(!window.confirm(`Remove the ${TIER_LABELS[tier]} sign-off for "${stepName}"?`)) return;
+    const updated={...existing,[tier+"Id"]:null,[tier+"At"]:null};
+    try{
+      const saved=await db.gmp_signoffs.upsert(updated);
+      setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
+    }catch(e){ setErr("Could not undo: "+e.message); }
   }
 
   // ── Batch Record ──
@@ -192,11 +241,40 @@ export default function GMPHub(){
           </div>
         </div>
 
-        {batchSignoffs.length>0&&(
-          <div className="batch-section"><div className="batch-section-t">✅ Step Sign-Offs ({batchSignoffs.length})</div>
-            <table className="gh-tbl"><thead><tr><th>Step</th><th>Performed By</th><th>Verified By</th><th>Timestamp</th><th>Notes</th></tr></thead>
-              <tbody>{batchSignoffs.map(s=><tr key={s.id}><td style={{fontWeight:500}}>{s.stepName}</td><td>{empName(s.performedById)}</td><td>{s.verifiedById?empName(s.verifiedById):"Not required"}</td><td style={{fontSize:11,whiteSpace:"nowrap"}}>{fmtDT(s.timestamp)}</td><td style={{fontSize:11,color:"var(--text-3)"}}>{s.notes||"—"}</td></tr>)}</tbody>
-            </table>
+        {Array.isArray(batch.steps)&&batch.steps.length>0&&(
+          <div className="batch-section">
+            <div className="batch-section-t">✅ Step Sign-Offs</div>
+            {batch.steps.map(step=>{
+              const so=batchSignoffs.find(s=>s.stepName===step.n);
+              const required=getRequiredTiers(step.n,facility);
+              const allSigned=required.every(t=>so?.[t+"Id"]);
+              return(
+                <div key={step.n} style={{background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <span style={{fontWeight:500,color:"var(--text)",fontSize:12}}>{step.n}</span>
+                    <span className="gh-pill" style={{background:allSigned?"rgba(74,124,89,0.2)":"rgba(200,150,58,0.15)",color:allSigned?"var(--accent-2)":"var(--amber)"}}>
+                      {allSigned?"Fully signed off":`${required.filter(t=>so?.[t+"Id"]).length}/${required.length} signed`}
+                    </span>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {required.map(tier=>{
+                      const signedId=so?.[tier+"Id"];
+                      const signedAt=so?.[tier+"At"];
+                      return signedId?(
+                        <div key={tier} style={{fontSize:11,background:"var(--surface-2)",borderRadius:6,padding:"3px 8px",display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{color:"var(--text-3)"}}>{TIER_LABELS[tier]}:</span>
+                          <span style={{color:"var(--text)"}}>{empName(signedId)}</span>
+                          <span style={{color:"var(--text-3)"}}>{fmtDT(signedAt)}</span>
+                          <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>unsignTier(type,id,step.n,tier)}>✕</button>
+                        </div>
+                      ):(
+                        <TierSignoffPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffTier(type,id,step.n,tier,empId)} />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -321,55 +399,85 @@ export default function GMPHub(){
         )}
 
         {/* ── STEP SIGN-OFFS ── */}
-        {tab==="signoffs"&&(
+        {tab==="signoffs"&&(()=>{
+          // Build one row per (batch, step) across both batch types, using
+          // each batch's real scheduled step list -- not a free-text log,
+          // so this always reflects what's actually on the schedule.
+          const allStepRows=[
+            ...harvestBatches.flatMap(b=>(Array.isArray(b.steps)?b.steps:[]).map(step=>({type:"harvest",batch:b,stepName:step.n}))),
+            ...prodBatches.flatMap(b=>(Array.isArray(b.steps)?b.steps:[]).map(step=>({type:"production",batch:b,stepName:step.n}))),
+          ].map(r=>{
+            const so=findSignoff(r.type,r.batch.id,r.stepName);
+            const required=getRequiredTiers(r.stepName,facility);
+            const missing=required.filter(t=>!so?.[t+"Id"]);
+            return {...r,so,required,missing};
+          });
+          const outstanding=allStepRows.filter(r=>r.missing.length>0);
+          const grouped={};
+          outstanding.forEach(r=>{
+            const key=r.type+":"+r.batch.id;
+            (grouped[key]=grouped[key]||{type:r.type,batch:r.batch,rows:[]}).rows.push(r);
+          });
+          const historyRows=allStepRows.filter(r=>r.so&&TIER_ORDER.some(t=>r.so[t+"Id"]))
+            .sort((a,b)=>{
+              const latest=r=>Math.max(...TIER_ORDER.map(t=>r.so[t+"At"]?new Date(r.so[t+"At"]).getTime():0));
+              return latest(b)-latest(a);
+            });
+          return (
           <div className="gh-card">
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-              {!soForm&&<button className="gh-btn gh-primary" onClick={()=>setSoForm({...EMPTY_SIGNOFF})}>+ Record sign-off</button>}
+            <div className="gh-tabs" style={{maxWidth:360,marginBottom:14}}>
+              <button className={"gh-tab "+(soView==="outstanding"?"active":"")} onClick={()=>setSoView("outstanding")}>Outstanding ({outstanding.length})</button>
+              <button className={"gh-tab "+(soView==="history"?"active":"")} onClick={()=>setSoView("history")}>History</button>
             </div>
-            {soForm&&(
-              <div style={{background:"var(--surface-2)",border:"1px solid var(--border-2)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:10}}>
-                  <div><label className="gh-lbl">Batch type</label><select className="gh-sel" value={soForm.batchType} onChange={e=>setSoForm(f=>({...f,batchType:e.target.value,batchId:""}))}><option value="harvest">Harvest Batch</option><option value="production">Production Batch</option></select></div>
-                  <div><label className="gh-lbl">Batch</label><select className="gh-sel" value={soForm.batchId} onChange={e=>setSoForm(f=>({...f,batchId:e.target.value}))}>
-                    <option value="">— Select batch —</option>
-                    {(soForm.batchType==="harvest"?harvestBatches:prodBatches).map(b=><option key={b.id} value={b.id}>{soForm.batchType==="harvest"?b.strainName:b.name}</option>)}
-                  </select></div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label className="gh-lbl">Step / operation name</label><input className="gh-inp" value={soForm.stepName} onChange={e=>setSoForm(f=>({...f,stepName:e.target.value}))} placeholder="e.g. Bucking, Trim, Pack, Extraction start…" /></div>
-                  <div><label className="gh-lbl">Date / time completed</label><input type="datetime-local" className="gh-inp" value={soForm.timestamp} onChange={e=>setSoForm(f=>({...f,timestamp:e.target.value}))} /></div>
-                  <div><label className="gh-lbl">Performed by</label><select className="gh-sel" value={soForm.performedById} onChange={e=>setSoForm(f=>({...f,performedById:e.target.value}))}><option value="">—</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:10}}>
-                  <div><label className="gh-lbl">Verified by (supervisor)</label><select className="gh-sel" value={soForm.verifiedById} onChange={e=>setSoForm(f=>({...f,verifiedById:e.target.value}))}><option value="">— Optional —</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-                  <div><label className="gh-lbl">Notes</label><input className="gh-inp" value={soForm.notes} onChange={e=>setSoForm(f=>({...f,notes:e.target.value}))} /></div>
-                </div>
-                {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
-                <div style={{display:"flex",gap:8}}>
-                  <button className="gh-btn gh-primary" onClick={saveSo}>Save sign-off</button>
-                  <button className="gh-btn gh-secondary" onClick={()=>{setSoForm(null);setErr("");}}>Cancel</button>
-                </div>
-              </div>
+
+            {soView==="outstanding"&&(
+              Object.keys(grouped).length===0
+                ?<div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>✅ Nothing outstanding — every tracked step across scheduled batches has its required sign-offs.</div>
+                :Object.values(grouped).map(g=>(
+                  <div key={g.type+g.batch.id} className="batch-section">
+                    <div className="batch-section-t">{g.type==="harvest"?g.batch.strainName:g.batch.name} — {g.type==="harvest"?"Harvest":"Production"}</div>
+                    {g.rows.map(r=>(
+                      <div key={r.stepName} className="signoff-row" style={{flexWrap:"wrap",alignItems:"flex-start"}}>
+                        <div style={{minWidth:140,fontWeight:500,color:"var(--text)",paddingTop:4}}>{r.stepName}</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",flex:1}}>
+                          {r.required.map(tier=>{
+                            const signedId=r.so?.[tier+"Id"];
+                            return signedId?(
+                              <span key={tier} style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.15)",borderRadius:6,padding:"3px 8px"}}>✓ {TIER_LABELS[tier]}: {empName(signedId)}</span>
+                            ):(
+                              <TierSignoffPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffTier(r.type,r.batch.id,r.stepName,tier,empId)} />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
             )}
-            {signoffs.length===0&&!soForm&&<div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>No step sign-offs yet. Record each completed step for the GMP batch record.</div>}
-            {signoffs.length>0&&<div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
-              <table className="gh-tbl">
-                <thead><tr><th>Batch</th><th>Step</th><th>Performed By</th><th>Verified By</th><th>Date/Time</th><th>Notes</th><th></th></tr></thead>
-                <tbody>{[...signoffs].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).map(s=>{
-                  const batch=s.batchType==="harvest"?harvestBatches.find(b=>String(b.id)===String(s.batchId)):prodBatches.find(b=>String(b.id)===String(s.batchId));
-                  return(<tr key={s.id}>
-                    <td style={{fontSize:11}}>{batch?s.batchType==="harvest"?batch.strainName:batch.name:s.batchId}</td>
-                    <td style={{fontWeight:500,color:"var(--text)"}}>{s.stepName}</td>
-                    <td>{empName(s.performedById)}</td><td>{s.verifiedById?empName(s.verifiedById):"—"}</td>
-                    <td style={{fontSize:11,whiteSpace:"nowrap"}}>{fmtDT(s.timestamp)}</td>
-                    <td style={{fontSize:11,color:"var(--text-3)"}}>{s.notes||"—"}</td>
-                    <td><button className="gh-sm gh-del" onClick={()=>removeSo(s.id)}>✕</button></td>
-                  </tr>);
-                })}</tbody>
-              </table>
-            </div>}
+
+            {soView==="history"&&(
+              historyRows.length===0
+                ?<div style={{textAlign:"center",padding:32,color:"var(--text-3)"}}>No sign-offs recorded yet.</div>
+                :<div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
+                  <table className="gh-tbl">
+                    <thead><tr><th>Batch</th><th>Step</th>{TIER_ORDER.map(t=><th key={t}>{TIER_LABELS[t]}</th>)}</tr></thead>
+                    <tbody>{historyRows.map(r=>(
+                      <tr key={r.type+r.batch.id+r.stepName}>
+                        <td style={{fontSize:11}}>{r.type==="harvest"?r.batch.strainName:r.batch.name}</td>
+                        <td style={{fontWeight:500,color:"var(--text)"}}>{r.stepName}</td>
+                        {TIER_ORDER.map(t=>{
+                          const id=r.so?.[t+"Id"];
+                          return <td key={t} style={{fontSize:11}}>{id?<>{empName(id)}<br/><span style={{color:"var(--text-3)"}}>{fmtDT(r.so[t+"At"])}</span></>:<span style={{color:"var(--text-3)"}}>—</span>}</td>;
+                        })}
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+            )}
+            {err&&<div style={{fontSize:12,color:"var(--danger)",marginTop:10}}>{err}</div>}
           </div>
-        )}
+          );
+        })()}
 
         {/* ── BATCH RECORD ── */}
         {tab==="record"&&(
