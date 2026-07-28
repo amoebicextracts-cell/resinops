@@ -1046,7 +1046,7 @@ function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s
 
 const CSS=`
   .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
-  .ps-outer{overflow-x:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .ps-outer{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
   .ps-row{display:flex;border-bottom:1px solid var(--border);}
   .ps-row:last-child{border-bottom:none;}
   .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
@@ -2750,8 +2750,8 @@ export default function ProductionScheduler({onNavigate}){
 
         {hasBatches&&gStart&&(<>
           <div className="ps-outer">
-            <div className="ps-row" style={{height:HH,background:"var(--surface-2)"}}>
-              <div className="ps-left" style={{height:HH,background:"var(--surface-2)"}}><span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span></div>
+            <div className="ps-row" style={{height:HH,background:"var(--surface-2)",position:"sticky",top:0,zIndex:5}}>
+              <div className="ps-left" style={{height:HH,background:"var(--surface-2)",zIndex:6}}><span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span></div>
               <div className="ps-tl" style={{minWidth:twPx,height:HH,overflow:"hidden"}}>
                 {months.map((m,i)=><div key={i} style={{position:"absolute",left:m.x,top:0,width:m.w,height:24,borderRight:"1px solid var(--border)",padding:"0 8px",display:"flex",alignItems:"center",overflow:"hidden"}}><span style={{fontSize:11,fontWeight:600,color:"var(--text-2)",whiteSpace:"nowrap"}}>{m.label}</span></div>)}
                 {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:24,bottom:0,borderLeft:"1px solid var(--border)",paddingLeft:4,display:"flex",flexDirection:"column",justifyContent:"center"}}><div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",lineHeight:1.2}}>W{w.wn}</div><div style={{fontSize:9,color:"var(--text-3)",lineHeight:1.2}}>{w.date}</div></div>)}
