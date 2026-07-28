@@ -6,6 +6,17 @@ import { auth } from './lib/db.js'
 import { isSupabaseEnabled, passwordRecoveryFromInitialUrl, inviteFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles, supabase } from './lib/supabase.js'
 import { isPasswordRecoveryEvent } from './lib/auth.js'
 
+// A SIGNED_IN event fires as soon as the password verifies, at aal1 --
+// before any TOTP step-up. If the account has a verified MFA factor
+// enrolled, treating that event as "fully authenticated" would skip the
+// challenge entirely. AuthScreen's own handleSignIn already runs this
+// same check and renders the challenge screen itself; this just has to
+// avoid preempting it by flipping `user` first.
+async function needsMfaStepUp() {
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  return !!data && data.nextLevel === 'aal2' && data.nextLevel !== data.currentLevel;
+}
+
 async function fetchAndSetFacility(userId) {
   if (!supabase || !userId) return;
   setCurrentFacility(null);
@@ -44,6 +55,7 @@ function Root() {
     // Check for existing session
     auth.getSession().then(async session => {
       const u = session?.user || null;
+      if (u && await needsMfaStepUp()) { setUser(null); return; }
       if (u) await fetchAndSetFacility(u.id);
       setUser(u);
     });
@@ -55,6 +67,7 @@ function Root() {
         return;
       }
       const u = session?.user || null;
+      if (u && await needsMfaStepUp()) return; // AuthScreen's own flow owns the challenge step
       if (u) await fetchAndSetFacility(u.id);
       else {
         setCurrentFacility(null);

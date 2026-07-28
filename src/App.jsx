@@ -51,6 +51,7 @@ import BatchDashboard from "./BatchDashboard.jsx";
 import Dashboard from "./Dashboard.jsx";
 import DataManager from "./DataManager.jsx";
 import HelpCenter from "./HelpCenter.jsx";
+import TwoFactorSettings from "./TwoFactorSettings.jsx";
 import FacilitySettings from "./FacilitySettings.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
@@ -1112,7 +1113,7 @@ export default function ResinOps() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           purpose: 'general-chat',
-          system: "You are an expert cannabis operations consultant with 25 years of experience across cultivation, extraction, processing, compliance, and business management. You have deep knowledge of NY OCM regulations, NY DEC pesticide requirements, METRC, extraction methods (R-134a, CO2, hydrocarbon, ethanol, solventless), GMP practices, and cannabis business operations. Answer questions clearly and specifically. When relevant, reference NY-specific regulations, licensing requirements, and best practices for licensed cannabis operators.",
+          system: "You are an expert cannabis operations consultant with 25 years of experience across cultivation, extraction, processing, compliance, and business management. You have deep operational knowledge of METRC, extraction methods (R-134a, CO2, hydrocarbon, ethanol, solventless), and GMP practices. For state-specific regulatory questions (licensing, testing, packaging/labeling, pesticide rules, etc.), rely only on the regulatory reference material provided below, if any is present, and cite its source and date — do not answer from your own general knowledge of a state's regulations, since they change frequently and vary by state. If no reference material is provided for the question asked, say plainly that you don't have current sourced material for that and the operator should verify directly with their state's regulator.",
           prompt: query,
           history: messages.filter(m => typeof m.content === 'string').slice(-10),
           module: 'ai-assistant',
@@ -1502,6 +1503,7 @@ export default function ResinOps() {
             <div style={{display:"flex",gap:8,marginBottom:20}}>
               <button className={`acct-btn ${acctTab==="profile"?"primary":"secondary"}`} onClick={()=>{setAcctTab("profile");setAcctMsg({text:"",type:""});}}>Email</button>
               <button className={`acct-btn ${acctTab==="password"?"primary":"secondary"}`} onClick={()=>{setAcctTab("password");setAcctMsg({text:"",type:""});}}>Password</button>
+              <button className={`acct-btn ${acctTab==="2fa"?"primary":"secondary"}`} onClick={()=>{setAcctTab("2fa");setAcctMsg({text:"",type:""});}}>Two-Factor</button>
             </div>
 
             {acctTab==="profile" && (
@@ -1540,7 +1542,9 @@ export default function ResinOps() {
               </>
             )}
 
-            {acctMsg.text && <div className={`acct-msg ${acctMsg.type}`}>{acctMsg.text}</div>}
+            {acctTab==="2fa" && <TwoFactorSettings />}
+
+            {acctTab!=="2fa" && acctMsg.text && <div className={`acct-msg ${acctMsg.type}`}>{acctMsg.text}</div>}
           </div>
         </div>
       )}

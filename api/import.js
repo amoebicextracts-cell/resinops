@@ -7,6 +7,7 @@ import {
 } from './_request-security.js';
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 import { fetchRelevantCorrections, persistExchange } from './_corrections.js';
+import { fetchRelevantCompliance } from './_compliance.js';
 
 export default async function handler(req, res) {
   const requestId = initializeApiRequest(req, res);
@@ -51,6 +52,7 @@ export default async function handler(req, res) {
   let systemPrompt = system || "You are a helpful assistant.";
   if (isChat) {
     systemPrompt += await fetchRelevantCorrections(auth.supabase, chatModule, prompt);
+    systemPrompt += await fetchRelevantCompliance(auth.supabase, facilityId, prompt);
   }
 
   // Strain descriptions can use live web search to verify genetic
