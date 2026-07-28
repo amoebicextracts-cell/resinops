@@ -63,7 +63,7 @@ function getSched(sp) {
 
 const CSS = `
   .sch-wrap { padding: 24px; flex: 1; overflow-y: auto; }
-  .sch-outer { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
+  .sch-outer { overflow: auto; max-height: 60vh; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
   .sch-row { display: flex; border-bottom: 1px solid var(--border); }
   .sch-row:last-child { border-bottom: none; }
   .sch-left {
@@ -613,8 +613,8 @@ export default function Scheduler() {
             <div className="sch-outer">
 
               {/* Header row */}
-              <div className="sch-row" style={{ height: HH, background: "var(--surface-2)" }}>
-                <div className="sch-left" style={{ height: HH, background: "var(--surface-2)", justifyContent: "center" }}>
+              <div className="sch-row" style={{ height: HH, background: "var(--surface-2)", position: "sticky", top: 0, zIndex: 5 }}>
+                <div className="sch-left" style={{ height: HH, background: "var(--surface-2)", justifyContent: "center", zIndex: 6 }}>
                   <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-2)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Grow Space</span>
                 </div>
                 <div className="sch-tl" style={{ minWidth: twPx, height: HH, overflow: "hidden" }}>
