@@ -36,6 +36,9 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(initialNotice);
+  const [mfaFactorId, setMfaFactorId] = useState(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [pendingUser, setPendingUser] = useState(null);
 
   function changeMode(nextMode) {
     setMode(nextMode);
@@ -47,7 +50,32 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     setLoading(true); setError("");
     const { data, error: signInError } = await auth.signIn(email.trim(), password);
     if (signInError) { setError(signInError.message); setLoading(false); return; }
+
+    // Password alone only gets an aal1 session -- if this account has a
+    // verified TOTP factor enrolled, Supabase's own next-AAL check says a
+    // step-up is required before treating sign-in as complete.
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === "aal2" && aal.nextLevel !== aal.currentLevel) {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const factor = factors?.totp?.[0];
+      if (factor) {
+        setPendingUser(data.user);
+        setMfaFactorId(factor.id);
+        changeMode("mfa-challenge");
+        setLoading(false);
+        return;
+      }
+    }
     onAuth?.(data.user);
+    setLoading(false);
+  }
+
+  async function handleMfaVerify() {
+    if (!mfaCode.trim()) return;
+    setLoading(true); setError("");
+    const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode.trim() });
+    if (verifyError) { setError(verifyError.message); setLoading(false); return; }
+    onAuth?.(pendingUser);
     setLoading(false);
   }
 
@@ -122,6 +150,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     else if (mode === "forgot") handleForgotPassword();
     else if (mode === "recovery") handleRecovery();
     else if (mode === "accept-invite") handleAcceptInvite();
+    else if (mode === "mfa-challenge") handleMfaVerify();
   }
 
   return (
@@ -161,6 +190,24 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
             <div className="auth-toggle">
               Need an account? <a href="https://resinops.com/#waitlist" target="_blank" rel="noopener noreferrer">Request access</a>
             </div>
+          </>}
+
+          {mode === "mfa-challenge" && <>
+            <div className="auth-title">Enter your 2FA code</div>
+            <div className="auth-sub">Open your authenticator app and enter the 6-digit code for ResinOps.</div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="mfa-code">Code</label>
+              <input id="mfa-code" className="auth-inp" value={mfaCode}
+                onChange={event=>setMfaCode(event.target.value.replace(/\D/g,"").slice(0,6))}
+                onKeyDown={handleKey} placeholder="123456" inputMode="numeric"
+                style={{fontFamily:"monospace",letterSpacing:2}} autoFocus />
+            </div>
+            <button className="auth-btn" onClick={handleMfaVerify} disabled={loading || mfaCode.length!==6}>
+              {loading ? "Verifying..." : "Verify"}
+            </button>
+            <button className="auth-btn secondary" onClick={()=>{changeMode("signin");setMfaCode("");setPendingUser(null);setMfaFactorId(null);}} disabled={loading}>
+              Back to Sign In
+            </button>
           </>}
 
           {mode === "forgot" && <>

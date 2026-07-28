@@ -52,7 +52,9 @@ export default async function handler(req, res) {
   }
 
   const latestUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-  const systemPrompt = basePrompt + await fetchRelevantCorrections(auth.supabase, module, latestUserMessage);
+  const systemPrompt = basePrompt
+    + await fetchRelevantCorrections(auth.supabase, module, latestUserMessage)
+    + await fetchRelevantCompliance(auth.supabase, facilityId, latestUserMessage);
 
   try {
     const MAX_CONTINUATIONS = 2;
@@ -114,6 +116,7 @@ export default async function handler(req, res) {
 }
 import { authenticateRequest } from './_auth.js';
 import { fetchRelevantCorrections, persistExchange } from './_corrections.js';
+import { fetchRelevantCompliance } from './_compliance.js';
 import {
   applyCors,
   checkRateLimit,
