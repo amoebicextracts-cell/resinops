@@ -1,8 +1,42 @@
 import { useState, useEffect, Fragment } from "react";
 import { db } from "./lib/db";
+import { supabase, getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+
+// Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS/getRequiredTiers —
+// duplicated rather than shared so each screen's sign-off UI stays simple
+// and self-contained (per-facility overrides still keep both in sync at
+// the data level, via facility.step_signoff_requirements).
+const SO_TIER_ORDER=["worker","supervisor","manager","qc_head"];
+const SO_TIER_LABELS={worker:"Worker",supervisor:"Supervisor",manager:"Manager",qc_head:"QC/Production Head"};
+function getRequiredSignoffTiers(stepName,facility){
+  const configured=facility?.step_signoff_requirements?.[stepName];
+  if(Array.isArray(configured)) return configured.filter(t=>SO_TIER_ORDER.includes(t));
+  const l=(stepName||"").toLowerCase();
+  if(l.includes("qc")||l.includes("test")||l.includes("packag")||l.includes("releas")) return ["worker","supervisor","qc_head"];
+  if(l.includes("extraction")||l.includes("purge")||l.includes("dewax")||l.includes("crystall")||l.includes("distill")) return ["worker","supervisor"];
+  return ["worker"];
+}
+function SignoffTierPicker({tier,employees,onSign}){
+  const [empId,setEmpId]=useState("");
+  const pool=employees.filter(e=>e.tier===tier);
+  if(!pool.length) return (
+    <span style={{fontSize:10,color:"var(--amber)",background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:6,padding:"2px 7px"}}>
+      {SO_TIER_LABELS[tier]} — no employees set to this tier
+    </span>
+  );
+  return (
+    <span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
+      <select className="ps-sel" style={{width:"auto",fontSize:10,padding:"2px 5px"}} value={empId} onChange={e=>setEmpId(e.target.value)}>
+        <option value="">— {SO_TIER_LABELS[tier]} —</option>
+        {pool.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
+      </select>
+      <button className="ps-btn ps-sm ps-edit" disabled={!empId} onClick={()=>{onSign(empId);setEmpId("");}}>Sign</button>
+    </span>
+  );
+}
 
 const LW=280, RH=96, HH=56, PX=11;
 const UNIT_TO_G={g:1,lbs:453.592,kg:1000};
@@ -1141,6 +1175,9 @@ export default function ProductionScheduler({onNavigate}){
   const[inventoryData,setInventoryData]=useState([]);
   const[boms,setBoms]=useState([]);
   const[qcTests,setQcTests]=useState([]);
+  const[employees,setEmployees]=useState([]);
+  const[signoffs,setSignoffs]=useState([]);
+  const[facility,setFacility]=useState({});
   const[expandedSteps,setExpandedSteps]=useState(null);
   const[deductionNotice,setDeductionNotice]=useState("");
   const[loading,setLoading]=useState(true);
@@ -1148,15 +1185,22 @@ export default function ProductionScheduler({onNavigate}){
   useEffect(()=>{
     async function load(){
       try{
-        const [pb, hb, inv, bm, qc]=await Promise.all([
+        const fid=getCurrentFacility();
+        const [pb, hb, inv, bm, qc, emp, so, facRes]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.inventory_items.list(),
           db.boms.list(),
           db.qc_tests.list(),
+          db.employees.list(),
+          db.gmp_signoffs.list(),
+          fid&&supabase?supabase.from('facilities').select('*').eq('id',fid).single():Promise.resolve({data:null}),
         ]);
         setBoms(bm);
         setQcTests(qc);
+        setEmployees(emp);
+        setSignoffs(so);
+        setFacility(facRes?.data||{});
         const DS={
           whole_flower:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
           pre_roll:[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
@@ -1426,6 +1470,31 @@ export default function ProductionScheduler({onNavigate}){
     if(n==="Pressing"&&(isRosinFl||isRosinHash)) return {trackable:true,kind:"press",count:(b.pressRuns||[]).length};
     if(n==="Purge / Process"&&isBhoProduct) return {trackable:true,kind:"purge",count:(b.purgeRuns||[]).length+(b.dewaxPasses||[]).length};
     return {trackable:false};
+  }
+
+  function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
+  function findSignoff(batchId,stepName){
+    return signoffs.find(s=>s.batchType==="production"&&String(s.batchId)===String(batchId)&&s.stepName===stepName);
+  }
+  async function signOffStepTier(batchId,stepName,tier,employeeId){
+    if(!employeeId) return;
+    const existing=findSignoff(batchId,stepName);
+    const base=existing||{id:crypto.randomUUID(),batchType:"production",batchId,stepName,notes:""};
+    const updated={...base,[tier+"Id"]:employeeId,[tier+"At"]:new Date().toISOString()};
+    try{
+      const saved=await db.gmp_signoffs.upsert(updated);
+      setSignoffs(p=>existing?p.map(x=>x.id===saved.id?saved:x):[...p,saved]);
+    }catch(e){ console.error("Sign-off failed:",e); }
+  }
+  async function unsignStepTier(batchId,stepName,tier){
+    const existing=findSignoff(batchId,stepName);
+    if(!existing) return;
+    if(!window.confirm(`Remove the ${SO_TIER_LABELS[tier]} sign-off for "${stepName}"?`)) return;
+    const updated={...existing,[tier+"Id"]:null,[tier+"At"]:null};
+    try{
+      const saved=await db.gmp_signoffs.upsert(updated);
+      setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
+    }catch(e){ console.error("Could not undo sign-off:",e); }
   }
 
   function jumpToStep(b,kind){
@@ -2800,22 +2869,44 @@ export default function ProductionScheduler({onNavigate}){
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         {tl.map((step,si)=>{
                           const tr=getStepTracking(step,b);
+                          const so=findSignoff(b.id,step.name);
+                          const required=getRequiredSignoffTiers(step.name,facility);
+                          const allSigned=required.every(t=>so?.[t+"Id"]);
                           return(
-                            <div key={si} style={{display:"flex",alignItems:"center",gap:10,fontSize:12,padding:"5px 8px",borderRadius:6,background:"var(--surface-2)"}}>
-                              <span style={{flex:"0 0 180px",fontWeight:500,color:"var(--text)"}}>{step.name}</span>
-                              <span style={{flex:"0 0 160px",color:"var(--text-3)",fontSize:11}}>{fmtF(step.start)} → {fmtF(step.end)}</span>
-                              {tr.trackable ? (
-                                <>
-                                  <span className="ps-sm" style={{padding:"2px 8px",borderRadius:10,fontWeight:600,background:tr.count>0?"rgba(74,124,89,0.2)":"rgba(200,150,58,0.15)",color:tr.count>0?"var(--accent-2)":"var(--amber)"}}>
-                                    {tr.count>0?`Logged (${tr.count})`:"Not logged yet"}
-                                  </span>
-                                  <button className="ps-btn ps-sm ps-edit" onClick={()=>jumpToStep(b,tr.kind)}>
-                                    {tr.kind==="qc"?"Go to QC Testing →":"Log this step →"}
-                                  </button>
-                                </>
-                              ) : (
-                                <span style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic"}}>No tracking recorded for this step yet</span>
-                              )}
+                            <div key={si} style={{padding:"5px 8px",borderRadius:6,background:"var(--surface-2)"}}>
+                              <div style={{display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+                                <span style={{flex:"0 0 180px",fontWeight:500,color:"var(--text)"}}>{step.name}</span>
+                                <span style={{flex:"0 0 160px",color:"var(--text-3)",fontSize:11}}>{fmtF(step.start)} → {fmtF(step.end)}</span>
+                                {tr.trackable ? (
+                                  <>
+                                    <span className="ps-sm" style={{padding:"2px 8px",borderRadius:10,fontWeight:600,background:tr.count>0?"rgba(74,124,89,0.2)":"rgba(200,150,58,0.15)",color:tr.count>0?"var(--accent-2)":"var(--amber)"}}>
+                                      {tr.count>0?`Logged (${tr.count})`:"Not logged yet"}
+                                    </span>
+                                    <button className="ps-btn ps-sm ps-edit" onClick={()=>jumpToStep(b,tr.kind)}>
+                                      {tr.kind==="qc"?"Go to QC Testing →":"Log this step →"}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic"}}>No tracking recorded for this step yet</span>
+                                )}
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginTop:5,paddingLeft:2}}>
+                                <span className="ps-sm" style={{padding:"2px 8px",borderRadius:10,fontWeight:600,background:allSigned?"rgba(74,124,89,0.2)":"rgba(200,150,58,0.15)",color:allSigned?"var(--accent-2)":"var(--amber)"}}>
+                                  {allSigned?"✅ Signed off":`${required.filter(t=>so?.[t+"Id"]).length}/${required.length} signed`}
+                                </span>
+                                {required.map(tier=>{
+                                  const signedId=so?.[tier+"Id"];
+                                  return signedId?(
+                                    <span key={tier} style={{fontSize:10,background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:6,padding:"2px 6px",display:"inline-flex",alignItems:"center",gap:5}}>
+                                      <span style={{color:"var(--text-3)"}}>{SO_TIER_LABELS[tier]}:</span>
+                                      <span style={{color:"var(--text)"}}>{empName(signedId)}</span>
+                                      <button className="ps-btn ps-sm ps-del" style={{padding:"0 4px"}} onClick={()=>unsignStepTier(b.id,step.name,tier)}>✕</button>
+                                    </span>
+                                  ):(
+                                    <SignoffTierPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffStepTier(b.id,step.name,tier,empId)} />
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })}

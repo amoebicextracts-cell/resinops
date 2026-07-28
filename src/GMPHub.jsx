@@ -241,9 +241,20 @@ export default function GMPHub(){
           </div>
         </div>
 
-        {Array.isArray(batch.steps)&&batch.steps.length>0&&(
+        {Array.isArray(batch.steps)&&batch.steps.length>0&&(()=>{
+          const missingSteps=batch.steps.filter(step=>{
+            const so=batchSignoffs.find(s=>s.stepName===step.n);
+            const required=getRequiredTiers(step.n,facility);
+            return !required.every(t=>so?.[t+"Id"]);
+          });
+          return(
           <div className="batch-section">
             <div className="batch-section-t">✅ Step Sign-Offs</div>
+            {facility.signoff_enforcement==="hard_block"&&missingSteps.length>0&&(
+              <div style={{background:"rgba(200,74,74,0.1)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"var(--danger)",fontWeight:500}}>
+                ⚠ {missingSteps.length} step{missingSteps.length>1?"s":""} missing required sign-off{missingSteps.length>1?"s":""}: {missingSteps.map(s=>s.n).join(", ")}
+              </div>
+            )}
             {batch.steps.map(step=>{
               const so=batchSignoffs.find(s=>s.stepName===step.n);
               const required=getRequiredTiers(step.n,facility);
@@ -276,7 +287,8 @@ export default function GMPHub(){
               );
             })}
           </div>
-        )}
+          );
+        })()}
 
         {batchShiftEntries.length>0&&(
           <div className="batch-section"><div className="batch-section-t">👥 Labor Entries ({batchShiftEntries.length})</div>
