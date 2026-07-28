@@ -1046,7 +1046,7 @@ function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s
 
 const CSS=`
   .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
-  .ps-outer{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .ps-outer{overflow:auto;max-height:42vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
   .ps-row{display:flex;border-bottom:1px solid var(--border);}
   .ps-row:last-child{border-bottom:none;}
   .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
