@@ -43,6 +43,7 @@ const DEFAULTS = {
   fiscalYearStart:"01",tagSystem:"METRC",
   productTier:"commercial",moduleOverrides:{},
   defaultCultivationAllocationBasis:"batch_weight",qbAccountMap:{},
+  signoffEnforcement:"track_only",stepSignoffRequirements:{},
 };
 
 const QB_ACCOUNT_FIELDS = [
@@ -81,12 +82,42 @@ const ROLE_OPTIONS = [FACILITY_ROLES.VIEWER, FACILITY_ROLES.MEMBER, FACILITY_ROL
 const SCOPE_ROLE_OPTIONS = ["none", ...ROLE_OPTIONS];
 const EMPTY_INVITE = { email:"", role:FACILITY_ROLES.MEMBER, scopeRoles:{} };
 
+// Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS and
+// 20260803090000_add_tiered_signoffs.sql's employees.tier check constraint.
+const SIGNOFF_TIERS = [
+  ["worker","Worker"],["supervisor","Supervisor"],["manager","Manager"],["qc_head","QC/Production Head"],
+];
+// Common step names pulled from the Production Scheduler's step templates —
+// a starting point for the requirements list, not an exhaustive/enforced set.
+const COMMON_STEP_NAMES = [
+  "Drying","Bucking","Trimming","Curing","QC / Testing","Packaging","Inventory",
+  "Extraction","Purge","Winterization","Distillation","Crystallization",
+];
+
 export default function FacilitySettings(){
   const [settings,setSettings] = useState(DEFAULTS);
   const [saved,setSaved] = useState(false);
   const [loading,setLoading] = useState(true);
   const [err,setErr] = useState("");
   const setF = (k,v) => setSettings(s=>({...s,[k]:v}));
+
+  const [newStepName,setNewStepName] = useState("");
+  function addStepRequirement(){
+    const name = newStepName.trim();
+    if(!name || settings.stepSignoffRequirements[name]) return;
+    setF("stepSignoffRequirements",{...settings.stepSignoffRequirements,[name]:["worker"]});
+    setNewStepName("");
+  }
+  function removeStepRequirement(name){
+    const next = {...settings.stepSignoffRequirements};
+    delete next[name];
+    setF("stepSignoffRequirements",next);
+  }
+  function toggleStepTier(name,tier){
+    const current = settings.stepSignoffRequirements[name]||[];
+    const next = current.includes(tier) ? current.filter(t=>t!==tier) : [...current,tier];
+    setF("stepSignoffRequirements",{...settings.stepSignoffRequirements,[name]:next});
+  }
 
   const [members,setMembers] = useState([]);
   const [membersLoading,setMembersLoading] = useState(false);
@@ -125,6 +156,8 @@ export default function FacilitySettings(){
               moduleOverrides: data.module_overrides||{},
               defaultCultivationAllocationBasis: data.default_cultivation_allocation_basis||"batch_weight",
               qbAccountMap: data.qb_account_map||{},
+              signoffEnforcement: data.signoff_enforcement||"track_only",
+              stepSignoffRequirements: data.step_signoff_requirements||{},
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -234,6 +267,8 @@ export default function FacilitySettings(){
           module_overrides: settings.moduleOverrides,
           default_cultivation_allocation_basis: settings.defaultCultivationAllocationBasis,
           qb_account_map: settings.qbAccountMap,
+          signoff_enforcement: settings.signoffEnforcement,
+          step_signoff_requirements: settings.stepSignoffRequirements,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;
@@ -365,6 +400,46 @@ export default function FacilitySettings(){
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="fs-card">
+          <div className="fs-section" style={{marginTop:0}}>GMP Step Sign-Offs</div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+            Controls which employee tiers must sign off each production/harvest step in GMP Hub, and what happens if a step is missing its sign-offs. Steps without an override below fall back to a default based on the step name — QC/testing/packaging steps need Worker + Supervisor + QC Head, extraction-type steps need Worker + Supervisor, everything else just needs a Worker.
+          </div>
+
+          <div style={{marginBottom:16}}>
+            <label className="fs-lbl">If a step is missing its required sign-off(s)</label>
+            <select className="fs-sel" style={{maxWidth:360}} value={settings.signoffEnforcement} onChange={e=>setF("signoffEnforcement",e.target.value)}>
+              <option value="track_only">Track only — no warning shown</option>
+              <option value="hard_block">Hard block — show a warning banner on the batch record</option>
+            </select>
+          </div>
+
+          <label className="fs-lbl">Step overrides</label>
+          {Object.keys(settings.stepSignoffRequirements).length===0 && (
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>No overrides yet — all steps use the default tiers above.</div>
+          )}
+          {Object.entries(settings.stepSignoffRequirements).map(([name,tiers])=>(
+            <div key={name} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 10px",background:"var(--surface-2)",borderRadius:6,marginBottom:6,flexWrap:"wrap"}}>
+              <div style={{minWidth:140,fontSize:12,fontWeight:600,color:"var(--text)"}}>{name}</div>
+              <div style={{display:"flex",gap:10,flex:1,flexWrap:"wrap"}}>
+                {SIGNOFF_TIERS.map(([tv,tl])=>(
+                  <label key={tv} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"var(--text-2)"}}>
+                    <input type="checkbox" checked={(tiers||[]).includes(tv)} onChange={()=>toggleStepTier(name,tv)} />
+                    {tl}
+                  </label>
+                ))}
+              </div>
+              <button className="fs-btn fs-danger" style={{fontSize:11,padding:"4px 8px"}} onClick={()=>removeStepRequirement(name)}>Remove</button>
+            </div>
+          ))}
+
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <input className="fs-inp" style={{flex:1}} list="fs-step-names" value={newStepName} onChange={e=>setNewStepName(e.target.value)} placeholder="Step name — must match the step name used on the scheduler exactly, e.g. QC / Testing" />
+            <button className="fs-btn fs-secondary" onClick={addStepRequirement} disabled={!newStepName.trim()}>+ Add override</button>
+          </div>
+          <datalist id="fs-step-names">{COMMON_STEP_NAMES.map(n=><option key={n} value={n} />)}</datalist>
         </div>
 
         {supabase && isAdmin && (
