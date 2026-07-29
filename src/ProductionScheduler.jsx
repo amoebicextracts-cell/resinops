@@ -1214,7 +1214,7 @@ export default function ProductionScheduler({onNavigate}){
           steps: Array.isArray(b.steps)&&b.steps.length>0
             ? b.steps
             : (DS[b.cat||b.category]||DS.extract).map(s=>({...s})),
-        })));
+        })).sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
         setHarvestBatchesData(hb);
         setInventoryData(inv);
       }catch(e){ console.error("ProductionScheduler load error:",e); }
@@ -1361,7 +1361,7 @@ export default function ProductionScheduler({onNavigate}){
     try{
       if(formMode==="edit"){
         const saved=await db.production_batches.upsert(mainBatch);
-        setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,saved];});
+        setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d));});
       } else {
         const newBatches=[mainBatch];
         // Auto-create HTE linked batch for THCa isolate
@@ -1387,7 +1387,7 @@ export default function ProductionScheduler({onNavigate}){
           newBatches.push(htBatch);
         }
         const saved=await Promise.all(newBatches.map(b=>db.production_batches.upsert(b)));
-        setBatches(p=>[...p,...saved]);
+        setBatches(p=>[...p,...saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
 
         // Real stock deduction — default trigger is "at batch creation"
         // (matches the deductTrigger dropdown's own default in Finance.jsx
@@ -1431,11 +1431,24 @@ export default function ProductionScheduler({onNavigate}){
     if(!b.d||!Array.isArray(b.steps)||b.steps.length===0) return [];
     try{ return buildTimeline(b.d,b.steps); }catch{ return []; }
   });
-  const hasBatches=batches.length>0;
+  // Completed batches roll off the live scheduler automatically at the end
+  // of the calendar month they finished in — no manual archive step. Their
+  // full record stays reachable via GMP Hub's Batch Record lookup, which
+  // queries harvest/production batches directly and isn't filtered here.
+  function isRolledOff(tl){
+    const end=tl[tl.length-1]?.end;
+    if(!end) return false;
+    const endOfCompletionMonth=new Date(end.getFullYear(),end.getMonth()+1,0,23,59,59,999);
+    return today>endOfCompletionMonth;
+  }
+  const visibleIdx=batches.map((_,i)=>i).filter(i=>!isRolledOff(timelines[i]));
+  const visibleBatches=visibleIdx.map(i=>batches[i]);
+  const visibleTimelines=visibleIdx.map(i=>timelines[i]);
+  const hasBatches=visibleBatches.length>0;
   let gStart,total,twPx,todayOff,months,weeks;
   if(hasBatches){
-    const allS=timelines.map(tl=>tl[0]?.start).filter(Boolean);
-    const allE=timelines.map(tl=>tl[tl.length-1]?.end).filter(Boolean);
+    const allS=visibleTimelines.map(tl=>tl[0]?.start).filter(Boolean);
+    const allE=visibleTimelines.map(tl=>tl[tl.length-1]?.end).filter(Boolean);
     if(!allS.length||!allE.length){
       // All batches have empty timelines — skip Gantt rendering
       gStart=null;total=0;twPx=0;todayOff=0;months=[];weeks=[];
@@ -2826,8 +2839,8 @@ export default function ProductionScheduler({onNavigate}){
                 {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:24,bottom:0,borderLeft:"1px solid var(--border)",paddingLeft:4,display:"flex",flexDirection:"column",justifyContent:"center"}}><div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",lineHeight:1.2}}>W{w.wn}</div><div style={{fontSize:9,color:"var(--text-3)",lineHeight:1.2}}>{w.date}</div></div>)}
               </div>
             </div>
-            {batches.map((b,idx)=>{
-              const tl=timelines[idx];const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
+            {visibleBatches.map((b,idx)=>{
+              const tl=visibleTimelines[idx];const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
               return(
                 <Fragment key={b.id}>
                 <div className="ps-row" style={{minHeight:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
@@ -2929,7 +2942,7 @@ export default function ProductionScheduler({onNavigate}){
             <table className="ps-tbl">
               <thead><tr><th>Batch</th><th>Product</th><th>Strains</th><th>Input</th><th>Est. Output</th><th>Actual Yield</th><th>Cannabinoids</th><th>Start</th><th>Completion</th><th>S2S Tags (out/in)</th><th>Status</th></tr></thead>
               <tbody>
-                {batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
+                {visibleBatches.map((b,idx)=>{const tl=visibleTimelines[idx];const end=tl[tl.length-1]?.end;const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
                   <td style={{color:b.isLinked?"#8090d0":"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.isLinked?"↳ ":""}{b.name}</td>
                   <td style={{whiteSpace:"nowrap"}}>{b.catLabel}{sub?" — "+sub.l:""}</td>
                   <td>{b.strains||"—"}</td>
