@@ -1081,6 +1081,8 @@ function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s
 const CSS=`
   .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
   .ps-outer{overflow:auto;max-height:42vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .ps-gantt-full{position:fixed;inset:0;z-index:1000;background:var(--bg);padding:24px;overflow-y:auto;}
+  .ps-gantt-full .ps-outer{max-height:calc(100vh - 190px);}
   .ps-row{display:flex;border-bottom:1px solid var(--border);}
   .ps-row:last-child{border-bottom:none;}
   .ps-left{position:sticky;left:0;z-index:4;width:${LW}px;min-width:${LW}px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:10px 14px;display:flex;flex-direction:column;justify-content:center;gap:3px;box-sizing:border-box;}
@@ -1184,6 +1186,13 @@ export default function ProductionScheduler({onNavigate}){
   const[summarySort,setSummarySort]=useState({col:null,dir:"asc"});
   const[deductionNotice,setDeductionNotice]=useState("");
   const[loading,setLoading]=useState(true);
+  const[ganttExpanded,setGanttExpanded]=useState(false);
+  useEffect(()=>{
+    if(!ganttExpanded) return;
+    function onKey(e){ if(e.key==="Escape") setGanttExpanded(false); }
+    document.addEventListener("keydown",onKey);
+    return ()=>document.removeEventListener("keydown",onKey);
+  },[ganttExpanded]);
 
   useEffect(()=>{
     async function load(){
@@ -2907,6 +2916,10 @@ export default function ProductionScheduler({onNavigate}){
         )}
 
         {hasBatches&&gStart&&(<>
+          <div className={ganttExpanded?"ps-gantt-full":undefined}>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <button className="ps-btn ps-sm ps-secondary" onClick={()=>setGanttExpanded(x=>!x)}>{ganttExpanded?"✕ Collapse":"⛶ Expand"}</button>
+          </div>
           <div className="ps-outer">
             <div className="ps-row" style={{height:HH,background:"var(--surface-2)",position:"sticky",top:0,zIndex:5}}>
               <div className="ps-left" style={{height:HH,background:"var(--surface-2)",zIndex:6}}><span style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.08em",textTransform:"uppercase"}}>Batch</span></div>
@@ -3011,6 +3024,7 @@ export default function ProductionScheduler({onNavigate}){
           <div style={{display:"flex",flexWrap:"wrap",gap:"6px 14px",marginBottom:20}}>
             {Object.entries(SBG).map(([name,bg])=><div key={name} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:12,height:10,borderRadius:2,background:bg,border:"1px solid rgba(255,255,255,0.12)"}} /><span style={{fontSize:10,color:"var(--text-3)"}}>{name}</span></div>)}
             <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:2,height:12,background:"var(--danger)",borderRadius:1}} /><span style={{fontSize:10,color:"var(--text-3)"}}>Today</span></div>
+          </div>
           </div>
 
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
