@@ -64,6 +64,8 @@ function getSched(sp) {
 const CSS = `
   .sch-wrap { padding: 24px; flex: 1; overflow-y: auto; }
   .sch-outer { overflow: auto; max-height: 60vh; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
+  .sch-gantt-full { position: fixed; inset: 0; z-index: 1000; background: var(--bg); padding: 24px; overflow-y: auto; }
+  .sch-gantt-full .sch-outer { max-height: calc(100vh - 190px); }
   .sch-row { display: flex; border-bottom: 1px solid var(--border); }
   .sch-row:last-child { border-bottom: none; }
   .sch-left {
@@ -152,6 +154,13 @@ export default function Scheduler() {
   const [editId, setEditId]     = useState(null);
   const [formErr, setFormErr]   = useState("");
   const [toppingPanelId, setToppingPanelId] = useState(null);
+  const [ganttExpanded, setGanttExpanded] = useState(false);
+  useEffect(()=>{
+    if(!ganttExpanded) return;
+    function onKey(e){ if(e.key==="Escape") setGanttExpanded(false); }
+    document.addEventListener("keydown",onKey);
+    return ()=>document.removeEventListener("keydown",onKey);
+  },[ganttExpanded]);
   const [toppingForm, setToppingForm]       = useState(null);
   const [toppingErr, setToppingErr]         = useState("");
 
@@ -622,6 +631,10 @@ export default function Scheduler() {
         {/* Gantt chart */}
         {hasSpaces && (
           <>
+            <div className={ganttExpanded ? "sch-gantt-full" : undefined}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="sch-btn sch-btn-sm sch-btn-edit" onClick={() => setGanttExpanded(x => !x)}>{ganttExpanded ? "✕ Collapse" : "⛶ Expand"}</button>
+            </div>
             <div className="sch-outer">
 
               {/* Header row */}
@@ -742,6 +755,7 @@ export default function Scheduler() {
                 <div style={{ width: 2, height: 14, background: "var(--danger)", borderRadius: 1 }} />
                 <span style={{ fontSize: "11px", color: "var(--text-2)" }}>Today</span>
               </div>
+            </div>
             </div>
           </>
         )}
