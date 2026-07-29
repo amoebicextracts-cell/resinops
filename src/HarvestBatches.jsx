@@ -96,6 +96,9 @@ export default function HarvestBatches() {
   const [spaces, setSpaces] = useState([]);
   const [batches, setBatches] = useState([]);
   const [laborTypes, setLaborTypes] = useState([]);
+  const [hbSearch, setHbSearch] = useState("");
+  const [hbFilters, setHbFilters] = useState({});
+  const [hbSort, setHbSort] = useState({col:null,dir:"asc"});
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
   const [formMode, setFormMode] = useState(null);
@@ -298,6 +301,77 @@ export default function HarvestBatches() {
   }
 
   if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading harvest batches…</div>);
+
+  // ── Batch table: search, per-column filters, sort ───────────────────────
+  const hbRows=batches.map(b=>({
+    b,
+    batchId:b.id||"",
+    strain:b.strainName||"",
+    space:b.spaceName||"",
+    plants:parseFloat(b.plants)||0,
+    wetWt:parseFloat(b.wetWeightG)||0,
+    gA:parseFloat(b.grades?.a?.weight||b.grades?.aa?.weight)||0,
+    gB:parseFloat(b.grades?.b?.weight)||0,
+    gC:parseFloat(b.grades?.c?.weight)||0,
+    gTrim:parseFloat(b.grades?.trim?.weight)||0,
+    totalDry:parseFloat(b.totalDryWeight)||0,
+    status:b.status==="done"?"Complete":"In Progress",
+  }));
+  const strainOptions=[...new Set(hbRows.map(r=>r.strain).filter(Boolean))].sort();
+  const spaceOptions=[...new Set(hbRows.map(r=>r.space).filter(Boolean))].sort();
+  const hbStatusOptions=["In Progress","Complete"];
+  function setHbFilter(col,val){setHbFilters(f=>({...f,[col]:val}));}
+  const hq=hbSearch.trim().toLowerCase();
+  let filteredHbRows=hbRows.filter(r=>{
+    if(hq){
+      const hay=[r.batchId,r.strain,r.space,r.status].join(" ").toLowerCase();
+      if(!hay.includes(hq)) return false;
+    }
+    const f=hbFilters;
+    if(f.batchId&&!r.batchId.toLowerCase().includes(f.batchId.toLowerCase())) return false;
+    if(f.strain&&r.strain!==f.strain) return false;
+    if(f.space&&r.space!==f.space) return false;
+    if(f.plantsMin&&r.plants<parseFloat(f.plantsMin)) return false;
+    if(f.plantsMax&&r.plants>parseFloat(f.plantsMax)) return false;
+    if(f.wetWtMin&&r.wetWt<parseFloat(f.wetWtMin)) return false;
+    if(f.wetWtMax&&r.wetWt>parseFloat(f.wetWtMax)) return false;
+    if(f.gAMin&&r.gA<parseFloat(f.gAMin)) return false;
+    if(f.gAMax&&r.gA>parseFloat(f.gAMax)) return false;
+    if(f.gBMin&&r.gB<parseFloat(f.gBMin)) return false;
+    if(f.gBMax&&r.gB>parseFloat(f.gBMax)) return false;
+    if(f.gCMin&&r.gC<parseFloat(f.gCMin)) return false;
+    if(f.gCMax&&r.gC>parseFloat(f.gCMax)) return false;
+    if(f.gTrimMin&&r.gTrim<parseFloat(f.gTrimMin)) return false;
+    if(f.gTrimMax&&r.gTrim>parseFloat(f.gTrimMax)) return false;
+    if(f.totalDryMin&&r.totalDry<parseFloat(f.totalDryMin)) return false;
+    if(f.totalDryMax&&r.totalDry>parseFloat(f.totalDryMax)) return false;
+    if(f.status&&r.status!==f.status) return false;
+    return true;
+  });
+  if(hbSort.col){
+    const{col,dir}=hbSort;
+    const mul=dir==="asc"?1:-1;
+    filteredHbRows=[...filteredHbRows].sort((a,b)=>{
+      const av=a[col],bv=b[col];
+      if(typeof av==="number"&&typeof bv==="number") return(av-bv)*mul;
+      return String(av).localeCompare(String(bv))*mul;
+    });
+  }
+  function toggleHbSort(col){
+    setHbSort(s=>s.col!==col?{col,dir:"asc"}:s.dir==="asc"?{col,dir:"desc"}:{col:null,dir:"asc"});
+  }
+  function HbTh({col,children}){
+    const active=hbSort.col===col;
+    return(<th style={{cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}} onClick={()=>toggleHbSort(col)}>
+      {children}{active?(hbSort.dir==="asc"?" ▲":" ▼"):""}
+    </th>);
+  }
+  function HbRangeFilter({col}){
+    return(<div style={{display:"flex",gap:2}}>
+      <input type="number" className="hb-inp" style={{padding:"3px 4px",fontSize:10,width:44}} placeholder="min" value={hbFilters[col+"Min"]||""} onChange={e=>setHbFilter(col+"Min",e.target.value)} />
+      <input type="number" className="hb-inp" style={{padding:"3px 4px",fontSize:10,width:44}} placeholder="max" value={hbFilters[col+"Max"]||""} onChange={e=>setHbFilter(col+"Max",e.target.value)} />
+    </div>);
+  }
 
   return (
     <>
@@ -525,11 +599,48 @@ export default function HarvestBatches() {
 
         {!form && batches.length>0 && (
           <div className="hb-card">
+            <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <input className="hb-inp" style={{width:220,padding:"5px 9px",fontSize:12}} placeholder="Search all columns…" value={hbSearch} onChange={e=>setHbSearch(e.target.value)} />
+                {(hbSearch||Object.values(hbFilters).some(Boolean))&&
+                  <button className="hb-btn hb-sm hb-secondary" onClick={()=>{setHbSearch("");setHbFilters({});}}>Clear filters</button>}
+              </div>
+            </div>
             <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
               <table className="hb-tbl">
-                <thead><tr><th>Batch ID</th><th>Strain</th><th>Space</th><th>Plants</th><th>Wet Wt</th><th>A</th><th>B</th><th>C</th><th>Trim</th><th>Total Dry</th><th>Status</th><th></th></tr></thead>
+                <thead>
+                  <tr>
+                    <HbTh col="batchId">Batch ID</HbTh>
+                    <HbTh col="strain">Strain</HbTh>
+                    <HbTh col="space">Space</HbTh>
+                    <HbTh col="plants">Plants</HbTh>
+                    <HbTh col="wetWt">Wet Wt</HbTh>
+                    <HbTh col="gA">A</HbTh>
+                    <HbTh col="gB">B</HbTh>
+                    <HbTh col="gC">C</HbTh>
+                    <HbTh col="gTrim">Trim</HbTh>
+                    <HbTh col="totalDry">Total Dry</HbTh>
+                    <HbTh col="status">Status</HbTh>
+                    <th></th>
+                  </tr>
+                  <tr>
+                    <th><input className="hb-inp" style={{padding:"3px 6px",fontSize:11}} value={hbFilters.batchId||""} onChange={e=>setHbFilter("batchId",e.target.value)} /></th>
+                    <th><select className="hb-sel" style={{padding:"3px 6px",fontSize:11}} value={hbFilters.strain||""} onChange={e=>setHbFilter("strain",e.target.value)}><option value="">All</option>{strainOptions.map(s=><option key={s} value={s}>{s}</option>)}</select></th>
+                    <th><select className="hb-sel" style={{padding:"3px 6px",fontSize:11}} value={hbFilters.space||""} onChange={e=>setHbFilter("space",e.target.value)}><option value="">All</option>{spaceOptions.map(s=><option key={s} value={s}>{s}</option>)}</select></th>
+                    <th><HbRangeFilter col="plants" /></th>
+                    <th><HbRangeFilter col="wetWt" /></th>
+                    <th><HbRangeFilter col="gA" /></th>
+                    <th><HbRangeFilter col="gB" /></th>
+                    <th><HbRangeFilter col="gC" /></th>
+                    <th><HbRangeFilter col="gTrim" /></th>
+                    <th><HbRangeFilter col="totalDry" /></th>
+                    <th><select className="hb-sel" style={{padding:"3px 6px",fontSize:11}} value={hbFilters.status||""} onChange={e=>setHbFilter("status",e.target.value)}><option value="">All</option>{hbStatusOptions.map(s=><option key={s} value={s}>{s}</option>)}</select></th>
+                    <th></th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {batches.map(b=>(
+                  {filteredHbRows.length===0&&<tr><td colSpan={12} style={{textAlign:"center",padding:20,color:"var(--text-3)"}}>No batches match your search/filters.</td></tr>}
+                  {filteredHbRows.map(r=>{const b=r.b;return(
                     <tr key={b.id}>
                       <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text-3)"}}>{b.id||"—"}</td>
                       <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}{b.isFreshFrozen&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(80,180,220,0.15)",color:"#78c8f0"}}>FRESH FROZEN</span>}</td>
@@ -541,13 +652,13 @@ export default function HarvestBatches() {
                       <td>{b.grades?.c?.weight?b.grades.c.weight+"g":"—"}</td>
                       <td>{b.grades?.trim?.weight?b.grades.trim.weight+"g":"—"}</td>
                       <td style={{fontWeight:600,color:"var(--accent-2)"}}>{b.totalDryWeight?(parseFloat(b.totalDryWeight)||0).toFixed(0)+"g":"—"}</td>
-                      <td><span className={"hb-pill hb-status-"+(b.status==="done"?"done":"open")}>{b.status==="done"?"Complete":"In Progress"}</span></td>
+                      <td><span className={"hb-pill hb-status-"+(b.status==="done"?"done":"open")}>{r.status}</span></td>
                       <td><div style={{display:"flex",gap:6}}>
                         <button className="hb-sm hb-edit" onClick={()=>openEdit(b)}>Edit</button>
                         <button className="hb-sm hb-del" onClick={()=>removeBatch(b.id)}>✕</button>
                       </div></td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>

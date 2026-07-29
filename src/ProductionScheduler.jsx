@@ -1179,6 +1179,9 @@ export default function ProductionScheduler({onNavigate}){
   const[signoffs,setSignoffs]=useState([]);
   const[facility,setFacility]=useState({});
   const[expandedSteps,setExpandedSteps]=useState(null);
+  const[summarySearch,setSummarySearch]=useState("");
+  const[summaryFilters,setSummaryFilters]=useState({});
+  const[summarySort,setSummarySort]=useState({col:null,dir:"asc"});
   const[deductionNotice,setDeductionNotice]=useState("");
   const[loading,setLoading]=useState(true);
 
@@ -1524,6 +1527,79 @@ export default function ProductionScheduler({onNavigate}){
     const rows=batches.map((b,idx)=>{const tl=timelines[idx];const end=tl[tl.length-1]?.end;const subLabel=SUBS[b.cat]?.find(s=>s.v===b.sub)?.l||"";const stepRows=tl.map(s=>'<tr><td style="padding:4px 14px 4px 0;color:#555;font-size:13px;white-space:nowrap;">'+s.name+'</td><td style="padding:4px 14px 4px 0;font-size:13px;">'+fmtF(s.start)+' → '+fmtF(s.end)+'</td><td style="color:#666;font-size:13px;">'+s.days+' days</td></tr>').join("");return'<div style="margin-bottom:28px;page-break-inside:avoid;border-left:4px solid '+(b.isLinked?"#5a78cc":"#2d5a3d")+';padding-left:14px;"><h2 style="font-size:15px;font-weight:700;color:#1a1a1a;margin:0 0 2px;">'+b.name+(b.isLinked?' <span style="font-size:11px;color:#5a78cc;">[Linked Batch]</span>':'')+'</h2><p style="font-size:12px;color:#555;margin:0 0 10px;">'+b.catLabel+(subLabel?' — '+subLabel:'')+' &nbsp;·&nbsp; '+b.inputAmt+b.unit+(b.strains?' &nbsp;·&nbsp; '+b.strains:'')+'</p><table style="border-collapse:collapse;">'+stepRows+'</table><p style="font-size:12px;color:#333;margin:6px 0 0;"><strong>Est. output:</strong> '+(b.yieldEst||'—')+(b.actual_yield?' &nbsp;·&nbsp; <strong>Actual:</strong> '+b.actual_yield:'')+(b.cannabinoids?.length?' &nbsp;·&nbsp; '+b.cannabinoids.join(', '):'')+(b.s2s_barcode?' &nbsp;·&nbsp; S2S: '+b.s2s_barcode:'')+'</p></div>';}).join('<hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0;">');
     const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ResinOps Production Schedule</title><style>body{font-family:Arial,sans-serif;max-width:900px;margin:48px auto;padding:0 24px;color:#1a1a1a;line-height:1.6;}h1{font-size:22px;color:#2d5a3d;margin:0 0 4px;}.meta{font-size:13px;color:#666;margin-bottom:28px;padding-bottom:14px;border-bottom:2px solid #e0e0e0;}@media print{body{margin:24px;}}</style></head><body><h1>ResinOps — Production Schedule</h1><div class="meta">Exported '+date+' &nbsp;·&nbsp; '+batches.filter(b=>!b.isLinked).length+' batches<br><small>Ctrl+P → Save as PDF &nbsp;|&nbsp; File → Open in Word</small></div>'+rows+'</body></html>';
     const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ResinOps-Production-"+new Date().toISOString().slice(0,10)+".html";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+  }
+
+  // ── Batch Summary table: search, per-column filters, sort ──────────────
+  // visibleBatches is already in chronological (oldest-first) order — that
+  // stays the default; sorting only kicks in once a column header is clicked.
+  const summaryRows=visibleBatches.map((b,idx)=>{
+    const tl=visibleTimelines[idx];
+    const end=tl[tl.length-1]?.end||null;
+    const st=batchStatus(b,tl);
+    const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);
+    return{
+      b,end,
+      name:b.name||"",
+      product:b.catLabel+(sub?" — "+sub.l:""),
+      strains:b.strains||"",
+      input:b.isLinked?"(auto)":(b.inputAmt||"")+(b.unit||""),
+      estOutput:b.yieldEst||"",
+      actualYield:b.actual_yield||"",
+      cannabinoids:b.cannabinoids||[],
+      start:b.d?parseDateLocal(b.d):null,
+      completion:end,
+      s2sTags:[b.s2sOutputTags,b.s2s_barcode].filter(Boolean).join(" "),
+      status:b.isLinked?"Linked":st.label,
+      statusCls:b.isLinked?"sp-l":st.cls,
+    };
+  });
+  const productOptions=[...new Set(summaryRows.map(r=>r.product).filter(Boolean))].sort();
+  const cannabinoidOptions=[...new Set(summaryRows.flatMap(r=>r.cannabinoids))].sort();
+  const statusOptions=[...new Set(summaryRows.map(r=>r.status).filter(Boolean))].sort();
+  function setSummaryFilter(col,val){setSummaryFilters(f=>({...f,[col]:val}));}
+  const q=summarySearch.trim().toLowerCase();
+  let filteredSummaryRows=summaryRows.filter(r=>{
+    if(q){
+      const hay=[r.name,r.product,r.strains,r.input,r.estOutput,r.actualYield,r.cannabinoids.join(" "),r.s2sTags,r.status].join(" ").toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    const f=summaryFilters;
+    if(f.name&&!r.name.toLowerCase().includes(f.name.toLowerCase())) return false;
+    if(f.product&&r.product!==f.product) return false;
+    if(f.strains&&!r.strains.toLowerCase().includes(f.strains.toLowerCase())) return false;
+    if(f.input&&!r.input.toLowerCase().includes(f.input.toLowerCase())) return false;
+    if(f.estOutput&&!r.estOutput.toLowerCase().includes(f.estOutput.toLowerCase())) return false;
+    if(f.actualYield&&!r.actualYield.toLowerCase().includes(f.actualYield.toLowerCase())) return false;
+    if(f.cannabinoids&&!r.cannabinoids.includes(f.cannabinoids)) return false;
+    if(f.startFrom&&(!r.start||r.start<parseDateLocal(f.startFrom))) return false;
+    if(f.startTo&&(!r.start||r.start>parseDateLocal(f.startTo))) return false;
+    if(f.completionFrom&&(!r.completion||r.completion<parseDateLocal(f.completionFrom))) return false;
+    if(f.completionTo&&(!r.completion||r.completion>parseDateLocal(f.completionTo))) return false;
+    if(f.s2sTags&&!r.s2sTags.toLowerCase().includes(f.s2sTags.toLowerCase())) return false;
+    if(f.status&&r.status!==f.status) return false;
+    return true;
+  });
+  if(summarySort.col){
+    const{col,dir}=summarySort;
+    const mul=dir==="asc"?1:-1;
+    filteredSummaryRows=[...filteredSummaryRows].sort((a,b)=>{
+      let av=a[col],bv=b[col];
+      if(col==="cannabinoids"){av=av.join(", ");bv=bv.join(", ");}
+      if(av instanceof Date||bv instanceof Date){
+        av=av?av.getTime():-Infinity;bv=bv?bv.getTime():-Infinity;
+        return(av-bv)*mul;
+      }
+      return String(av).localeCompare(String(bv))*mul;
+    });
+  }
+  function toggleSummarySort(col){
+    setSummarySort(s=>s.col!==col?{col,dir:"asc"}:s.dir==="asc"?{col,dir:"desc"}:{col:null,dir:"asc"});
+  }
+  function SortableTh({col,children}){
+    const active=summarySort.col===col;
+    return(<th style={{cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}} onClick={()=>toggleSummarySort(col)}>
+      {children}{active?(summarySort.dir==="asc"?" ▲":" ▼"):""}
+    </th>);
   }
 
   return(
@@ -2937,23 +3013,58 @@ export default function ProductionScheduler({onNavigate}){
             <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:2,height:12,background:"var(--danger)",borderRadius:1}} /><span style={{fontSize:10,color:"var(--text-3)"}}>Today</span></div>
           </div>
 
-          <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Batch Summary</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text-2)",letterSpacing:"0.06em",textTransform:"uppercase"}}>Batch Summary</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input className="ps-inp" style={{width:220,padding:"5px 9px",fontSize:12}} placeholder="Search all columns…" value={summarySearch} onChange={e=>setSummarySearch(e.target.value)} />
+              {(summarySearch||Object.values(summaryFilters).some(Boolean))&&
+                <button className="ps-btn ps-sm ps-secondary" onClick={()=>{setSummarySearch("");setSummaryFilters({});}}>Clear filters</button>}
+            </div>
+          </div>
           <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:10}}>
             <table className="ps-tbl">
-              <thead><tr><th>Batch</th><th>Product</th><th>Strains</th><th>Input</th><th>Est. Output</th><th>Actual Yield</th><th>Cannabinoids</th><th>Start</th><th>Completion</th><th>S2S Tags (out/in)</th><th>Status</th></tr></thead>
+              <thead>
+                <tr>
+                  <SortableTh col="name">Batch</SortableTh>
+                  <SortableTh col="product">Product</SortableTh>
+                  <SortableTh col="strains">Strains</SortableTh>
+                  <SortableTh col="input">Input</SortableTh>
+                  <SortableTh col="estOutput">Est. Output</SortableTh>
+                  <SortableTh col="actualYield">Actual Yield</SortableTh>
+                  <SortableTh col="cannabinoids">Cannabinoids</SortableTh>
+                  <SortableTh col="start">Start</SortableTh>
+                  <SortableTh col="completion">Completion</SortableTh>
+                  <SortableTh col="s2sTags">S2S Tags (out/in)</SortableTh>
+                  <SortableTh col="status">Status</SortableTh>
+                </tr>
+                <tr>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.name||""} onChange={e=>setSummaryFilter("name",e.target.value)} /></th>
+                  <th><select className="ps-sel" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.product||""} onChange={e=>setSummaryFilter("product",e.target.value)}><option value="">All</option>{productOptions.map(p=><option key={p} value={p}>{p}</option>)}</select></th>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.strains||""} onChange={e=>setSummaryFilter("strains",e.target.value)} /></th>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.input||""} onChange={e=>setSummaryFilter("input",e.target.value)} /></th>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.estOutput||""} onChange={e=>setSummaryFilter("estOutput",e.target.value)} /></th>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.actualYield||""} onChange={e=>setSummaryFilter("actualYield",e.target.value)} /></th>
+                  <th><select className="ps-sel" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.cannabinoids||""} onChange={e=>setSummaryFilter("cannabinoids",e.target.value)}><option value="">All</option>{cannabinoidOptions.map(c=><option key={c} value={c}>{c}</option>)}</select></th>
+                  <th><div style={{display:"flex",gap:2}}><input type="date" className="ps-inp" style={{padding:"3px 4px",fontSize:10,width:"auto"}} value={summaryFilters.startFrom||""} onChange={e=>setSummaryFilter("startFrom",e.target.value)} /><input type="date" className="ps-inp" style={{padding:"3px 4px",fontSize:10,width:"auto"}} value={summaryFilters.startTo||""} onChange={e=>setSummaryFilter("startTo",e.target.value)} /></div></th>
+                  <th><div style={{display:"flex",gap:2}}><input type="date" className="ps-inp" style={{padding:"3px 4px",fontSize:10,width:"auto"}} value={summaryFilters.completionFrom||""} onChange={e=>setSummaryFilter("completionFrom",e.target.value)} /><input type="date" className="ps-inp" style={{padding:"3px 4px",fontSize:10,width:"auto"}} value={summaryFilters.completionTo||""} onChange={e=>setSummaryFilter("completionTo",e.target.value)} /></div></th>
+                  <th><input className="ps-inp" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.s2sTags||""} onChange={e=>setSummaryFilter("s2sTags",e.target.value)} /></th>
+                  <th><select className="ps-sel" style={{padding:"3px 6px",fontSize:11}} value={summaryFilters.status||""} onChange={e=>setSummaryFilter("status",e.target.value)}><option value="">All</option>{statusOptions.map(s=><option key={s} value={s}>{s}</option>)}</select></th>
+                </tr>
+              </thead>
               <tbody>
-                {visibleBatches.map((b,idx)=>{const tl=visibleTimelines[idx];const end=tl[tl.length-1]?.end;const st=batchStatus(b,tl);const sub=SUBS[b.cat]?.find(s=>s.v===b.sub);return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
+                {filteredSummaryRows.length===0&&<tr><td colSpan={11} style={{textAlign:"center",padding:20,color:"var(--text-3)"}}>No batches match your search/filters.</td></tr>}
+                {filteredSummaryRows.map(r=>{const b=r.b;const end=r.end;return(<tr key={b.id} style={{background:b.isLinked?"rgba(90,120,200,0.05)":undefined}}>
                   <td style={{color:b.isLinked?"#8090d0":"var(--text)",fontWeight:500,whiteSpace:"nowrap"}}>{b.isLinked?"↳ ":""}{b.name}</td>
-                  <td style={{whiteSpace:"nowrap"}}>{b.catLabel}{sub?" — "+sub.l:""}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{r.product}</td>
                   <td>{b.strains||"—"}</td>
-                  <td style={{whiteSpace:"nowrap"}}>{b.isLinked?"(auto)":b.inputAmt+b.unit}</td>
+                  <td style={{whiteSpace:"nowrap"}}>{r.input||"—"}</td>
                   <td style={{fontSize:11}}>{b.yieldEst||"—"}</td>
                   <td style={{fontSize:11,color:b.actual_yield?"var(--accent-2)":"var(--text-3)"}}>{b.actual_yield||"—"}</td>
                   <td style={{fontSize:10}}>{b.cannabinoids?.join(", ")||"—"}</td>
                   <td style={{whiteSpace:"nowrap"}}>{fmtS(new Date(b.d+"T12:00:00"))}</td>
                   <td style={{whiteSpace:"nowrap"}}>{end?fmtS(end):"—"}</td>
                   <td style={{fontFamily:"monospace",fontSize:9}}><div>{b.s2sOutputTags?b.s2sOutputTags.split(",").map(t=>t.trim()).filter(Boolean).map((t,i)=><div key={i}>{t}</div>):b.s2s_barcode||"—"}</div><div style={{color:"var(--text-3)",marginTop:1}}>{b.s2sSourceTags?"← "+b.s2sSourceTags.split(",").length+" src":""}</div></td>
-                  <td><span className={"sp "+(b.isLinked?"sp-l":st.cls)}>{b.isLinked?"Linked":st.label}</span></td>
+                  <td><span className={"sp "+r.statusCls}>{r.status}</span></td>
                 </tr>);})}
               </tbody>
             </table>
