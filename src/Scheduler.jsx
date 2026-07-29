@@ -652,10 +652,10 @@ export default function Scheduler() {
               {spaces_v.map((sp, idx) => {
                 const sc = scheds[idx];
                 return (
-                  <div key={sp.id} className="sch-row" style={{ height: RH }}>
+                  <div key={sp.id} className="sch-row" style={{ minHeight: RH }}>
 
                     {/* Left cell */}
-                    <div className="sch-left" style={{ height: RH }}>
+                    <div className="sch-left" style={{ minHeight: RH }}>
                       <div className="sch-space-name">{sp.name}</div>
                       <div className="sch-space-strain">{strainSummary(sp)}</div>
                       <div style={{ fontSize: "10px", color: "var(--text-3)", marginTop: "1px" }}>
@@ -676,7 +676,7 @@ export default function Scheduler() {
                     </div>
 
                     {/* Timeline cell */}
-                    <div className="sch-tl" style={{ minWidth: twPx, height: RH }}>
+                    <div className="sch-tl" style={{ minWidth: twPx, minHeight: RH }}>
                       {weeks.map((w, i) => (
                         <div key={i} style={{ position: "absolute", left: w.x, top: 0, bottom: 0,
                           width: 1, background: "var(--border)", opacity: 0.4 }} />

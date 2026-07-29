@@ -2920,7 +2920,7 @@ export default function ProductionScheduler({onNavigate}){
               return(
                 <Fragment key={b.id}>
                 <div className="ps-row" style={{minHeight:RH,background:b.isLinked?"rgba(90,120,200,0.04)":undefined}}>
-                  <div className="ps-left" style={{height:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
+                  <div className="ps-left" style={{minHeight:RH,borderLeft:b.isLinked?"2px solid rgba(90,120,200,0.4)":"none",paddingLeft:b.isLinked?12:14}}>
                     <div style={{fontSize:12,fontWeight:600,color:b.isLinked?"#8090d0":"var(--text)",wordBreak:"break-word",lineHeight:1.3}}>{b.isLinked?"↳ ":""}{b.name}</div>
                     <div style={{fontSize:11,color:"var(--text-2)",lineHeight:1.3}}>{b.catLabel}{sub?" — "+sub.l:""}</div>
                     {b.packagingContainer&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>{PKG_CONTAINERS[b.cat]?.find(c=>c.v===b.packagingContainer)?.l||b.packagingContainer}{b.packagingUnitsPerPack>1?` · ${b.packagingUnitsPerPack}-pack`:""}</div>}
@@ -2945,7 +2945,7 @@ export default function ProductionScheduler({onNavigate}){
                       <button className="ps-btn ps-sm ps-del" onClick={()=>removeBatch(b.id)}>✕</button>
                     </div>
                   </div>
-                  <div className="ps-tl" style={{minWidth:twPx,height:RH}}>
+                  <div className="ps-tl" style={{minWidth:twPx,minHeight:RH}}>
                     {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />)}
                     {tl.map((step,si)=>{const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" → "+fmtF(step.end)+" ("+step.days+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
                     {todayOff>=0&&todayOff<=total&&<div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />}
