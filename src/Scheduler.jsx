@@ -162,7 +162,7 @@ export default function Scheduler() {
           db.grow_spaces.list(),
           db.grow_rooms.list(),
         ]);
-        setSpaces(sp);
+        setSpaces([...sp].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
         setGrowMap(gm);
       }catch(e){ console.error("Scheduler load error:",e); }
       setLoading(false);
@@ -281,7 +281,7 @@ export default function Scheduler() {
     };
     try {
       const saved = await db.grow_spaces.upsert(record);
-      setSpaces(prev => [...prev, saved]);
+      setSpaces(prev => [...prev, saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
       autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
       await syncToGrowMap(form.name.trim(), form.growMapId);
       closeForm();
@@ -299,7 +299,7 @@ export default function Scheduler() {
     try {
       const existing = spaces.find(sp => sp.id === editId);
       const saved = await db.grow_spaces.upsert({ ...existing, ...updated });
-      setSpaces(prev => prev.map(sp => sp.id === editId ? { ...sp, ...saved } : sp));
+      setSpaces(prev => prev.map(sp => sp.id === editId ? { ...sp, ...saved } : sp).sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
       autoPopulateStrains(strains.map(s => s.name), { source: "Cultivation Scheduler" });
       await syncToGrowMap(form.name.trim(), form.growMapId);
       closeForm();
@@ -380,8 +380,20 @@ export default function Scheduler() {
   }
 
   // ── Gantt render ──────────────────────────────────────────────────────────
-  const scheds     = spaces.map(getSched);
-  const hasSpaces  = spaces.length > 0;
+  // Completed cycles roll off the live scheduler automatically at the end of
+  // the calendar month they finished in — no manual archive step. The full
+  // record stays reachable via GMP Hub's Batch Record lookup.
+  function isRolledOff(sc){
+    const end=sc.end;
+    if(!end) return false;
+    const endOfCompletionMonth=new Date(end.getFullYear(),end.getMonth()+1,0,23,59,59,999);
+    return new Date()>endOfCompletionMonth;
+  }
+  const allScheds  = spaces.map(getSched);
+  const visibleIdx = spaces.map((_,i)=>i).filter(i=>!isRolledOff(allScheds[i]));
+  const spaces_v   = visibleIdx.map(i=>spaces[i]);
+  const scheds     = visibleIdx.map(i=>allScheds[i]);
+  const hasSpaces  = spaces_v.length > 0;
   let gStart, total, twPx, todayOff, months, weeks;
 
   if (hasSpaces) {
@@ -637,7 +649,7 @@ export default function Scheduler() {
               </div>
 
               {/* Space rows */}
-              {spaces.map((sp, idx) => {
+              {spaces_v.map((sp, idx) => {
                 const sc = scheds[idx];
                 return (
                   <div key={sp.id} className="sch-row" style={{ height: RH }}>
