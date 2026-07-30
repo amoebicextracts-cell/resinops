@@ -24,16 +24,23 @@ jobs:
         with:
           node-version: 22
 
-      # Ubuntu's default "postgresql-client" package lags behind Supabase's
+      # Ubuntu's default "postgresql-client" package (and ubuntu-latest's
+      # preinstalled /usr/bin/pg_dump wrapper) lags behind Supabase's
       # Postgres version (16.x vs. Supabase's 17.x) -- pg_dump refuses to run
-      # against a newer server than itself. Add the official PGDG repo and
-      # install the matching major version explicitly.
+      # against a newer server than itself. Installing postgresql-client-17
+      # alone isn't enough since the preinstalled wrapper still shadows it on
+      # PATH -- prepend the versioned binary directory via GITHUB_PATH so
+      # later steps resolve `pg_dump` to 17, not the wrapper's 16.
       - name: Install PostgreSQL 17 client (pg_dump)
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Verify pg_dump resolves to the matching major version
+        run: pg_dump --version
 
       - name: Run production backup
         run: node scripts/backup-production.mjs
