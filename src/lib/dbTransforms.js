@@ -44,7 +44,7 @@ const SCHEMAS = {
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes','worker_id','worker_at','supervisor_id','supervisor_at','manager_id','manager_at','qc_head_id','qc_head_at'],
-  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override','materials_locked_at'],
+  cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override','materials_locked_at','actual_material_usage'],
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis','co2_override','co2_actual_lbs'],
   cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes','linked_to_equipment'],
   operating_expenses: ['id','created_at','updated_at','facility_id','created_by','name','category','amount','date','notes'],
@@ -624,6 +624,7 @@ const FIELD_OVERRIDES = {
     revPerUnit: 'rev_per_unit',
     totalRevOverride: 'total_rev_override',
     materialsLockedAt: 'materials_locked_at',
+    actualMaterialUsage: 'actual_material_usage',
   },
   cultivation_costs: {
     spaceId: 'grow_space_id',
