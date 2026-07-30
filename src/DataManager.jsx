@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { db, TABLE_NAMES } from "./lib/db";
-import { getCurrentFacility, supabase, isSupabaseEnabled } from "./lib/supabase";
+import { db, TABLE_NAMES, UNSCOPED_TABLES } from "./lib/db";
+import { getCurrentFacility, getCurrentFacilityRole, supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { canAdministerFacility } from "./lib/roles";
 import { DEFAULT_LABOR_TYPES } from "./LaborManager.jsx";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
@@ -493,6 +494,8 @@ export default function DataManager({ isPlatformAdmin }){
   const [statusMsg,setStatusMsg]=useState("");
   const [demoLoading,setDemoLoading]=useState(false);
   const [clearLoading,setClearLoading]=useState(false);
+  const [exportLoading,setExportLoading]=useState(false);
+  const isFacilityAdmin = canAdministerFacility(getCurrentFacilityRole());
 
   async function loadDemoData(){
     if (demoLoading || !isPlatformAdmin) return;
@@ -1508,6 +1511,47 @@ export default function DataManager({ isPlatformAdmin }){
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setStatusMsg("Backup downloaded ✓");
     setTimeout(()=>setStatusMsg(""),3000);
+  }
+
+  // ── Real cloud data export (Privacy Policy §8) ────────────────────────────
+  // Unlike backup() above (a localStorage-only, dev-era snapshot), this pulls
+  // the facility's actual hosted Supabase data — every table db.js knows
+  // about except the 3 unscoped ones (facilities/profiles/ai_corrections
+  // aren't this facility's data to begin with). Gated to any facility
+  // owner/admin via canAdministerFacility, not isPlatformAdmin, since this
+  // has to be reachable by a real customer, not just us.
+  async function exportFacilityData(){
+    if (!isFacilityAdmin) return;
+    if (!isSupabaseEnabled) { setStatusMsg("Cloud export requires a connected Supabase facility."); return; }
+    const fid = getCurrentFacility();
+    if (!fid) { setStatusMsg("No active facility selected — select a facility and try again."); return; }
+    setExportLoading(true);
+    setStatusMsg("Exporting your facility's data…");
+    try{
+      const settings=JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}");
+      const facilityName=settings.facilityName||"ResinOps";
+      const tables = TABLE_NAMES.filter(t => !UNSCOPED_TABLES.has(t));
+      const data = {};
+      const failed = [];
+      for (const table of tables) {
+        try { data[table] = await db[table].list(); }
+        catch(e){ console.error(`Export of ${table} failed:`, e); failed.push(table); }
+      }
+      const payload=JSON.stringify({version:"1.0",exported:new Date().toISOString(),facility:facilityName,facilityId:fid,data},null,2);
+      const a=document.createElement("a");
+      a.href=URL.createObjectURL(new Blob([payload],{type:"application/json"}));
+      a.download=facilityName.replace(/\s+/g,"_")+"_ResinOps_Cloud_Export_"+new Date().toISOString().slice(0,10)+".json";
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setStatusMsg(failed.length
+        ? "⚠ Export downloaded, but these tables couldn't be read: "+failed.join(", ")
+        : "Cloud data export downloaded ✓");
+    }catch(e){
+      console.error("Cloud export error:", e);
+      setStatusMsg("✗ Export failed: "+e.message);
+    }finally{
+      setExportLoading(false);
+      setTimeout(()=>setStatusMsg(""),5000);
+    }
   }
 
   function restoreFromFile(file){
@@ -2707,9 +2751,23 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               {statusMsg&&<div style={{marginTop:10,fontSize:12,color:"var(--accent-2)",fontWeight:500}}>{statusMsg}</div>}
             </div>
 
+            {isSupabaseEnabled && (
+              <div className="dm-card">
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Export my facility's data (cloud)</div>
+                <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Downloads every record ResinOps has stored for your facility in the cloud — cultivation, production, inventory, financials, and more — as a single JSON file. Available to any facility owner or admin, per our <a href="https://resinops.com/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</div>
+                {isFacilityAdmin ? (
+                  <button className="dm-btn dm-primary" disabled={exportLoading} onClick={exportFacilityData}>
+                    {exportLoading ? "Exporting…" : "☁ Export my facility's data"}
+                  </button>
+                ) : (
+                  <div style={{fontSize:12,color:"var(--text-3)"}}>Only a facility owner or admin can export this facility's data.</div>
+                )}
+              </div>
+            )}
+
             <div className="dm-card">
-              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Export full data backup</div>
-              <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Downloads all ResinOps data as a single JSON file. Store it somewhere safe — this is your only protection against browser data loss until the V2 cloud backend is live.</div>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Export full data backup {isSupabaseEnabled && <span style={{fontWeight:400,color:"var(--text-3)"}}>(local/legacy)</span>}</div>
+              <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>Downloads all ResinOps data as a single JSON file. {isSupabaseEnabled ? "This snapshots only what's cached in this browser's local storage, not your full cloud-hosted data — use \"Export my facility's data (cloud)\" above for that." : "Store it somewhere safe — this is your only protection against browser data loss until the V2 cloud backend is live."}</div>
               <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
                 <div style={{flex:1,background:"var(--surface-2)",borderRadius:8,padding:"10px 14px"}}>
                   <div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Total data size</div>

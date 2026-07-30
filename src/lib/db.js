@@ -20,7 +20,7 @@ import { transformForDb, transformFromDb } from './dbTransforms';
 // facility on list/upsert. ai_corrections is intentionally global (the
 // shared cross-client corrections knowledge base); facilities/profiles
 // predate the per-facility model entirely.
-const UNSCOPED_TABLES = new Set(['facilities', 'profiles', 'ai_corrections']);
+export const UNSCOPED_TABLES = new Set(['facilities', 'profiles', 'ai_corrections']);
 
 // ── localStorage key mapping ──────────────────────────────────
 const LS_KEYS = {

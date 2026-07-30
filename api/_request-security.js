@@ -91,6 +91,16 @@ export function validateInvitePayload(body) {
   return null;
 }
 
+export function validateErrorReportPayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request body';
+  const { message, module = '', facilityId = '' } = body;
+  if (typeof message !== 'string' || !message.trim()) return 'message is required';
+  if (message.length > 4_000) return 'message is too long';
+  if (typeof module !== 'string' || module.length > 200) return 'module is invalid';
+  if (typeof facilityId !== 'string' || facilityId.length > 200) return 'facilityId is invalid';
+  return null;
+}
+
 export function checkRateLimit(key, { limit, windowMs }, now = Date.now()) {
   const existing = rateBuckets.get(key);
   if (!existing || now - existing.startedAt >= windowMs) {

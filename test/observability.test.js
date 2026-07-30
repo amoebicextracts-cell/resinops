@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   getRequestId,
   initializeApiRequest,
+  logApiError,
+  notifySlack,
   sendApiError,
 } from '../api/_observability.js';
 import healthHandler from '../api/health.js';
@@ -39,6 +41,68 @@ test('API errors include the support reference without internal details', () => 
   sendApiError(res, 503, 'Service unavailable', 'request_12345678');
   assert.equal(res.statusCode, 503);
   assert.deepEqual(res.payload, { error: 'Service unavailable', requestId: 'request_12345678' });
+});
+
+test('notifySlack is a no-op without a configured webhook URL', async () => {
+  const originalFetch = global.fetch;
+  const originalUrl = process.env.ALERT_WEBHOOK_URL;
+  delete process.env.ALERT_WEBHOOK_URL;
+  let called = false;
+  global.fetch = async () => { called = true; return { ok: true }; };
+  try {
+    notifySlack('should not send');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(called, false);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.ALERT_WEBHOOK_URL;
+    else process.env.ALERT_WEBHOOK_URL = originalUrl;
+  }
+});
+
+test('notifySlack posts Slack-shaped JSON to the configured webhook', async () => {
+  const originalFetch = global.fetch;
+  const originalUrl = process.env.ALERT_WEBHOOK_URL;
+  process.env.ALERT_WEBHOOK_URL = 'https://hooks.slack.example/services/test';
+  let capturedUrl, capturedBody;
+  global.fetch = async (url, opts) => {
+    capturedUrl = url;
+    capturedBody = JSON.parse(opts.body);
+    return { ok: true };
+  };
+  try {
+    notifySlack('production incident');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(capturedUrl, 'https://hooks.slack.example/services/test');
+    assert.deepEqual(capturedBody, { text: 'production incident' });
+  } finally {
+    global.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.ALERT_WEBHOOK_URL;
+    else process.env.ALERT_WEBHOOK_URL = originalUrl;
+  }
+});
+
+test('logApiError alerts on unexpected failures and genuine upstream 5xx, not expected 4xx', async () => {
+  const originalFetch = global.fetch;
+  process.env.ALERT_WEBHOOK_URL = 'https://hooks.slack.example/services/test';
+  let callCount = 0;
+  global.fetch = async () => { callCount += 1; return { ok: true }; };
+  try {
+    logApiError({ requestId: 'r1', route: 'invite', upstreamStatus: 409 }, new Error('already registered'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(callCount, 0);
+
+    logApiError({ requestId: 'r2', route: 'invite', upstreamStatus: 502 }, new Error('upstream failed'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(callCount, 1);
+
+    logApiError({ requestId: 'r3', route: 'chat' }, new Error('unexpected'));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(callCount, 2);
+  } finally {
+    global.fetch = originalFetch;
+    delete process.env.ALERT_WEBHOOK_URL;
+  }
 });
 
 test('health endpoint reports liveness without dependency or credential details', () => {
