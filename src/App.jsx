@@ -761,6 +761,8 @@ const css = `
   /* User menu */
   .theme-toggle-btn{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin-left:auto;flex-shrink:0;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;cursor:pointer;color:var(--text-2);font-size:14px;transition:all 0.15s;}
   .theme-toggle-btn:hover{color:var(--text);border-color:var(--accent);}
+  .report-issue-btn{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--text-2);font-family:var(--sans);font-size:12px;font-weight:600;transition:all 0.15s;white-space:nowrap;}
+  .report-issue-btn:hover{border-color:var(--accent);color:var(--text);}
   .user-menu-wrap{position:relative;flex-shrink:0;margin-left:10px;}
   .user-menu-btn{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border-2);border-radius:10px;padding:6px 12px 6px 8px;cursor:pointer;color:var(--text-2);font-family:var(--sans);font-size:12px;transition:all 0.15s;}
   .user-menu-btn:hover{border-color:var(--accent);color:var(--text);}
@@ -1331,7 +1333,6 @@ export default function ResinOps() {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
               <div className="plan-badge">ResinOps V1</div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <button title="Report an issue" onClick={()=>{setReportIssueStatus("");setShowReportIssue(true);}} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:6,color:"var(--text-3)",fontSize:11,padding:"2px 6px",cursor:"pointer"}}>🐞</button>
                 <button title="Show setup guide" onClick={()=>{setOnboardStep(0);setShowOnboarding(true);}} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:6,color:"var(--text-3)",fontSize:11,padding:"2px 6px",cursor:"pointer"}}>?</button>
                 <span style={{fontSize:9,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Beta</span>
               </div>
@@ -1366,6 +1367,13 @@ export default function ResinOps() {
         {/* ── Main ── */}
         <main className="main">
           <div className="header" style={{padding:"10px 24px",justifyContent:"flex-end"}}>
+            <button
+              className="report-issue-btn"
+              onClick={()=>{setReportIssueStatus("");setShowReportIssue(true);}}
+              title="Report a problem to ResinOps support"
+            >
+              🐞 Report issue
+            </button>
             <button
               className="theme-toggle-btn"
               onClick={()=>setTheme(t=>t==="dark"?"light":"dark")}
