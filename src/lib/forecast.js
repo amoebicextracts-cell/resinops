@@ -22,6 +22,21 @@ function stockOnHand(item) {
   return (item.lots || []).reduce((a, l) => a + (l.remaining || 0), 0);
 }
 
+// grow_spaces.projectedHarvest is a real, allowlisted column but nothing in
+// the app ever writes to it — Scheduler.jsx computes the harvest date live
+// from clone_date + a 14-day rooting period + veg/flower weeks (its own
+// getSched()) rather than persisting it. Mirror that exact math here
+// instead of reading a column that's always null in practice.
+const ROOTING_DAYS = 14;
+function estimatedHarvestDate(cycle) {
+  if (cycle.projectedHarvest) return cycle.projectedHarvest;
+  if (!cycle.d) return null;
+  const d = new Date(cycle.d + 'T12:00:00');
+  const days = ROOTING_DAYS + (parseFloat(cycle.veg) || 0) * 7 + (parseFloat(cycle.flw) || 0) * 7;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 // CO2 (cultivation enrichment) is never pre-deducted anywhere in the app —
 // nothing withdraws it until a facility manually logs actual usage at
 // harvest close-out (HarvestBatches.jsx). Current stock therefore hasn't
@@ -31,7 +46,7 @@ export function projectCo2Depletion(growSpaces, growRooms, items, windowDays) {
   const byItem = {};
   for (const cycle of growSpaces || []) {
     if (!cycle.co2EnrichmentEnabled) continue;
-    if (!inWindow(cycle.projectedHarvest, windowDays)) continue;
+    if (!inWindow(estimatedHarvestDate(cycle), windowDays)) continue;
     const room = (growRooms || []).find(r => r.id === cycle.growMapId);
     if (!room || !room.co2Method || !room.co2InventoryItemId) continue;
     const usage = calcCo2Usage(room, cycle, daysEnrichedForCycle(cycle));
@@ -55,9 +70,17 @@ export function projectCo2Depletion(growSpaces, growRooms, items, windowDays) {
 // resolved from each item's most recent purchase order (no per-item
 // vendor link exists on inventory_items — the PO history already has the
 // same information).
-export function projectBomShortfall(items, purchaseOrders, vendors) {
+//
+// Scoped to items an actual BOM line references — InventoryERP.jsx's own
+// "at or below reorder point" banner already covers every item regardless
+// of type, so flagging all items here too would just duplicate it (and
+// mislabel non-production items, e.g. a cultivation-only supply, as
+// "Extraction / Production").
+export function projectBomShortfall(items, boms, purchaseOrders, vendors) {
+  const referencedItemIds = new Set((boms || []).flatMap(b => (b.items || []).map(l => l.itemId)));
   const flagged = [];
   for (const item of items || []) {
+    if (!referencedItemIds.has(item.id)) continue;
     const stock = stockOnHand(item);
     if (stock > (parseFloat(item.reorderAt) || 0)) continue;
     let leadDays = null;
