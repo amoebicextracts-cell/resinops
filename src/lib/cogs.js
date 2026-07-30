@@ -30,6 +30,7 @@
 
 import { resolveBom, inputLbsFromBatch, estUnitsFromBatch, resolveBomMaterialLines } from './inventory.js';
 import { bookedRevenueForBatch } from './revenue.js';
+import { calcCo2Usage, daysEnrichedForCycle } from './co2.js';
 
 function fmtN(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 
@@ -89,14 +90,34 @@ export function calcDirectLaborCost(cogsRecord, laborTypes) {
 // by how long each harvest's grow cycle (grow space clone date -> harvest
 // date) occupied the space relative to other harvests from it, then
 // carries that harvest's share down to its production batches by weight.
-export function calcCultivationCost(batch, cultivationCosts, harvestBatches, allProductionBatches, growSpaces) {
+// Resolves a grow space's CO2 cost line: cc.co2Override (hand-entered $)
+// short-circuits the computed estimate if set, same override precedent as
+// cogs_records.cultCost. Otherwise computes from the cycle's enrichment
+// settings and the room it ran in via lib/co2.js, priced off the room's
+// linked CO2 inventory item (item.lastCost, the same unit-cost convention
+// resolveBomMaterialLines uses).
+function resolveCo2Line(cc, spaceId, growSpaces, growRooms, items) {
+  if (cc.co2Override !== undefined && cc.co2Override !== null && cc.co2Override !== '') {
+    return { co2Cost: parseFloat(cc.co2Override) || 0, co2Lbs: 0 };
+  }
+  const cycle = (growSpaces || []).find(s => s.id === spaceId);
+  if (!cycle || !cycle.co2EnrichmentEnabled) return { co2Cost: 0, co2Lbs: 0 };
+  const room = (growRooms || []).find(r => r.id === cycle.growMapId);
+  if (!room || !room.co2Method) return { co2Cost: 0, co2Lbs: 0 };
+  const usage = calcCo2Usage(room, cycle, daysEnrichedForCycle(cycle));
+  const co2Item = (items || []).find(i => i.id === room.co2InventoryItemId);
+  return { co2Cost: usage.lbs * (co2Item?.lastCost || 0), co2Lbs: usage.lbs };
+}
+
+export function calcCultivationCost(batch, cultivationCosts, harvestBatches, allProductionBatches, growSpaces, growRooms, items) {
   if (!batch.harvestBatchId) return { cultivationCost: 0, cultivationLines: [] };
   const hb = (harvestBatches || []).find(h => h.id === batch.harvestBatchId);
   if (!hb || !hb.spaceId) return { cultivationCost: 0, cultivationLines: [] };
   const cc = (cultivationCosts || []).find(c => c.spaceId === hb.spaceId);
   if (!cc) return { cultivationCost: 0, cultivationLines: [] };
 
-  const total = (parseFloat(cc.media) || 0) + (parseFloat(cc.nutrients) || 0) + (parseFloat(cc.ipm) || 0) + (parseFloat(cc.other) || 0);
+  const { co2Cost, co2Lbs } = resolveCo2Line(cc, hb.spaceId, growSpaces, growRooms, items);
+  const total = (parseFloat(cc.media) || 0) + (parseFloat(cc.nutrients) || 0) + (parseFloat(cc.ipm) || 0) + (parseFloat(cc.other) || 0) + co2Cost;
   if (total <= 0) return { cultivationCost: 0, cultivationLines: [] };
 
   const siblingBatches = (allProductionBatches || []).filter(b => {
@@ -129,7 +150,7 @@ export function calcCultivationCost(batch, cultivationCosts, harvestBatches, all
 
   return {
     cultivationCost: share,
-    cultivationLines: [{ spaceId: hb.spaceId, roomName: hb.roomName, total: fmtN(total), basis: cc.allocationBasis || 'batch_weight', share: fmtN(share) }],
+    cultivationLines: [{ spaceId: hb.spaceId, roomName: hb.roomName, total: fmtN(total), basis: cc.allocationBasis || 'batch_weight', share: fmtN(share), co2Cost: fmtN(co2Cost), co2Lbs: fmtN(co2Lbs) }],
   };
 }
 
@@ -247,7 +268,7 @@ export function calcNonDeductibleCostPoolRemainder(costPools, equipment) {
 
 // ── Full batch COGS ──────────────────────────────────────────────────────
 export function calcBatchCOGS(batch, ctx) {
-  const { boms = [], cogsRecords = [], items = [], laborTypes = [], costPools = [], cultivationCosts = [], harvestBatches = [], growSpaces = [], allBatches = [], equipment = [] } = ctx || {};
+  const { boms = [], cogsRecords = [], items = [], laborTypes = [], costPools = [], cultivationCosts = [], harvestBatches = [], growSpaces = [], growRooms = [], allBatches = [], equipment = [] } = ctx || {};
   const record = cogsRecords.find(r => r.batchId === batch.id) || {};
   const cogsRecordsByBatchId = Object.fromEntries(cogsRecords.map(r => [r.batchId, r]));
 
@@ -256,7 +277,7 @@ export function calcBatchCOGS(batch, ctx) {
   const testFee = parseFloat(record.testFee !== undefined && record.testFee !== null && record.testFee !== '' ? record.testFee : (bom?.testFee || 350));
   const { cultivationCost, cultivationLines } = record.cultCost !== undefined && record.cultCost !== null && record.cultCost !== ''
     ? { cultivationCost: parseFloat(record.cultCost) || 0, cultivationLines: [] }
-    : calcCultivationCost(batch, cultivationCosts, harvestBatches, allBatches.length ? allBatches : [batch], growSpaces);
+    : calcCultivationCost(batch, cultivationCosts, harvestBatches, allBatches.length ? allBatches : [batch], growSpaces, growRooms, items);
   const { allocatedOverhead, overheadLines } = calcAllocatedOverhead(batch, costPools, allBatches.length ? allBatches : [batch], cogsRecordsByBatchId, equipment);
 
   const totalCOGS = materialCost + directLaborCost + testFee + cultivationCost + allocatedOverhead;
