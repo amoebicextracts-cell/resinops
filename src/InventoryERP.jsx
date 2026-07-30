@@ -85,6 +85,9 @@ const DEFAULT_ITEMS = [
   {id:"i26", n:"Base Nutrients — Bloom",     cat:"Nutrients & Amendments", uom:"L",    stock:0, reorderAt:5,    reorderQty:20,   vm:"average", lots:[]},
   {id:"i27", n:"Compliance Sample Bag",      cat:"Lab Supplies",           uom:"each", stock:0, reorderAt:50,   reorderQty:200,  vm:"average", lots:[]},
   {id:"i28", n:"Trim Bag — Large",           cat:"Post-Harvest Supplies",  uom:"each", stock:0, reorderAt:20,   reorderQty:100,  vm:"average", lots:[]},
+  {id:"i29", n:"CO2 (Extraction Grade)",     cat:"Extraction Solvents",    uom:"lb",   stock:0, reorderAt:100,  reorderQty:500,  vm:"fifo",    lots:[]},
+  {id:"i30", n:"R-134a Refrigerant (Extraction Grade)", cat:"Extraction Solvents", uom:"lb", stock:0, reorderAt:20, reorderQty:100, vm:"fifo", lots:[]},
+  {id:"i31", n:"CO2 (Cultivation Enrichment)", cat:"Cultivation Supplies", uom:"lb",   stock:0, reorderAt:100,  reorderQty:500,  vm:"fifo",    lots:[]},
 ];
 
 // Cost helpers
