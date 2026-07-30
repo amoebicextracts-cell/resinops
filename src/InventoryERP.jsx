@@ -3,6 +3,7 @@ import { db } from "./lib/db";
 import { withdrawFifo } from "./lib/inventory";
 import { agingBucket, paymentStatus } from "./lib/aging";
 import { todayLocalISO } from "./lib/dateUtils";
+import { projectCo2Depletion, projectBomShortfall, projectCleaningDepletion } from "./lib/forecast";
 
 const ITEM_CATS = [
   "Packaging","Extraction Solvents","Extraction Consumables","Post-Harvest Supplies",
@@ -315,6 +316,10 @@ export default function InventoryERP() {
   const [vendors, setVendors] = useState([]);
   const [pos, setPOs] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [growSpaces, setGrowSpaces] = useState([]);
+  const [growRooms, setGrowRooms] = useState([]);
+  const [facilityMapSpaces, setFacilityMapSpaces] = useState([]);
+  const [forecastWindow, setForecastWindow] = useState(30);
   const [invoiceForm, setInvoiceForm] = useState(null);
   const [invoiceErr, setInvoiceErr] = useState("");
   const [itemForm, setItemForm] = useState(null);
@@ -358,16 +363,22 @@ export default function InventoryERP() {
   useEffect(()=>{
     async function load(){
       try{
-        const [inv, vnd, po, vi] = await Promise.all([
+        const [inv, vnd, po, vi, gs, gr, fms] = await Promise.all([
           db.inventory_items.list(),
           db.vendors.list(),
           db.purchase_orders.list(),
           db.vendor_invoices.list(),
+          db.grow_spaces.list(),
+          db.grow_rooms.list(),
+          db.facility_map_spaces.list(),
         ]);
         setItems(inv);
         setVendors(vnd);
         setPOs(po);
         setInvoices(vi);
+        setGrowSpaces(gs);
+        setGrowRooms(gr);
+        setFacilityMapSpaces(fms);
       }catch(e){ console.error("InventoryERP load error:",e); }
       setLoading(false);
     }
@@ -562,7 +573,7 @@ export default function InventoryERP() {
         )}
 
         <div className="erp-tabs">
-          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["ap","💳 Accounts Payable"],["coc","📄 Certificates of Conformity"],["ledger","📒 Stock Ledger"]].map(([v,l])=>(
+          {[["items","📦 Items"],["vendors","🏢 Vendors"],["pos","📋 Purchase Orders"],["ap","💳 Accounts Payable"],["coc","📄 Certificates of Conformity"],["ledger","📒 Stock Ledger"],["forecast","📈 Depletion Forecast"]].map(([v,l])=>(
             <button key={v} className={"erp-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -919,6 +930,58 @@ export default function InventoryERP() {
             )}
           </div>
         )}
+
+        {/* ── DEPLETION FORECAST TAB ── */}
+        {tab==="forecast" && (()=>{
+          const co2Rows = projectCo2Depletion(growSpaces, growRooms, items, forecastWindow).map(r=>({...r,kind:"CO2 (Cultivation)"}));
+          const cleanRows = projectCleaningDepletion(facilityMapSpaces, items, forecastWindow).map(r=>({...r,kind:"Cleaning Supply"}));
+          const bomRows = projectBomShortfall(items, pos, vendors).map(r=>({...r,kind:"Extraction / Production (BOM)"}));
+          return (
+            <div className="erp-card">
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:12,color:"var(--text-2)",maxWidth:620}}>
+                  Projects consumption forward against current stock. CO2 and cleaning supplies are summed forward since neither is pre-deducted from inventory today; extraction/production materials already deduct at batch creation, so those just flag items already at or below their reorder point, with lead time pulled from the item's most recent purchase order.
+                </div>
+                <select className="erp-sel" style={{width:160}} value={forecastWindow} onChange={e=>setForecastWindow(parseInt(e.target.value))}>
+                  <option value={30}>Next 30 days</option>
+                  <option value={60}>Next 60 days</option>
+                  <option value={90}>Next 90 days</option>
+                </select>
+              </div>
+              {[...co2Rows,...cleanRows].filter(r=>r.shortfall>0).length===0 && bomRows.length===0 ? (
+                <div style={{textAlign:"center",padding:"32px",color:"var(--text-3)",fontSize:13}}>No projected shortfalls in this window.</div>
+              ) : (
+                <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
+                  <table className="erp-tbl">
+                    <thead><tr><th>Item</th><th>Type</th><th>Current Stock</th><th>Projected Need / Reorder At</th><th>Vendor Lead Time</th><th></th></tr></thead>
+                    <tbody>
+                      {[...co2Rows,...cleanRows].filter(r=>r.shortfall>0).map((r,i)=>(
+                        <tr key={"proj"+i}>
+                          <td style={{fontWeight:500,color:"var(--text)"}}>{r.name}</td>
+                          <td style={{fontSize:11,color:"var(--text-3)"}}>{r.kind}</td>
+                          <td>{fmtN(r.stock)} {r.uom}</td>
+                          <td>{fmtN(r.projectedNeed)} {r.uom} needed</td>
+                          <td style={{fontSize:11,color:"var(--text-3)"}}>—</td>
+                          <td><span style={{fontSize:10,color:"var(--danger)",fontWeight:600}}>⚠ Short {fmtN(r.shortfall)} {r.uom}</span></td>
+                        </tr>
+                      ))}
+                      {bomRows.map((r,i)=>(
+                        <tr key={"bom"+i}>
+                          <td style={{fontWeight:500,color:"var(--text)"}}>{r.name}</td>
+                          <td style={{fontSize:11,color:"var(--text-3)"}}>{r.kind}</td>
+                          <td>{fmtN(r.stock)} {r.uom}</td>
+                          <td>{fmtN(r.reorderAt)} {r.uom} reorder point</td>
+                          <td style={{fontSize:11,color:"var(--text-3)"}}>{r.leadDays!=null?r.leadDays+" days":"No PO history yet"}</td>
+                          <td><span style={{fontSize:10,color:"var(--danger)",fontWeight:600}}>⚠ At/below reorder</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Receive modal */}
         {receiveModal && (
