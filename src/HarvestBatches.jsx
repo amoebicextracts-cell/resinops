@@ -207,7 +207,13 @@ export default function HarvestBatches() {
   const updateStep = (i,v) => setForm(f=>({...f, steps:f.steps.map((s,idx)=>idx===i?{...s,days:parseInt(v)||0}:s)}));
 
   // when a grow space is selected, pull strain list as quick-fill options
-  const selSpace = spaces.find(s=>s.id===parseInt(form?.spaceId));
+  // Pre-existing bug found live-testing the new CO2 panel below: spaceId is
+  // a real uuid string (e.g. from Scheduler.jsx's growMapId-style ids), so
+  // parseInt(form.spaceId) always evaluated to NaN and selSpace was never
+  // actually resolved for any real grow space — silently breaking the
+  // strain quick-fill this file already had, and would have silently
+  // broken the CO2 panel below too before it ever shipped.
+  const selSpace = spaces.find(s=>s.id===form?.spaceId);
   const spaceStrains = selSpace ? (selSpace.strains||[]) : [];
 
   // CO2 actual-vs-estimate — the real grow->harvest close-out transition

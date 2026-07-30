@@ -319,6 +319,7 @@ export default function InventoryERP() {
   const [growSpaces, setGrowSpaces] = useState([]);
   const [growRooms, setGrowRooms] = useState([]);
   const [facilityMapSpaces, setFacilityMapSpaces] = useState([]);
+  const [boms, setBoms] = useState([]);
   const [forecastWindow, setForecastWindow] = useState(30);
   const [invoiceForm, setInvoiceForm] = useState(null);
   const [invoiceErr, setInvoiceErr] = useState("");
@@ -363,7 +364,7 @@ export default function InventoryERP() {
   useEffect(()=>{
     async function load(){
       try{
-        const [inv, vnd, po, vi, gs, gr, fms] = await Promise.all([
+        const [inv, vnd, po, vi, gs, gr, fms, bm] = await Promise.all([
           db.inventory_items.list(),
           db.vendors.list(),
           db.purchase_orders.list(),
@@ -371,7 +372,9 @@ export default function InventoryERP() {
           db.grow_spaces.list(),
           db.grow_rooms.list(),
           db.facility_map_spaces.list(),
+          db.boms.list(),
         ]);
+        setBoms(bm);
         setItems(inv);
         setVendors(vnd);
         setPOs(po);
@@ -935,7 +938,7 @@ export default function InventoryERP() {
         {tab==="forecast" && (()=>{
           const co2Rows = projectCo2Depletion(growSpaces, growRooms, items, forecastWindow).map(r=>({...r,kind:"CO2 (Cultivation)"}));
           const cleanRows = projectCleaningDepletion(facilityMapSpaces, items, forecastWindow).map(r=>({...r,kind:"Cleaning Supply"}));
-          const bomRows = projectBomShortfall(items, pos, vendors).map(r=>({...r,kind:"Extraction / Production (BOM)"}));
+          const bomRows = projectBomShortfall(items, boms, pos, vendors).map(r=>({...r,kind:"Extraction / Production (BOM)"}));
           return (
             <div className="erp-card">
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
