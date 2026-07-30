@@ -7,6 +7,7 @@ import {
   isMetrcWriteAction,
   isOriginAllowed,
   validateAiPayload,
+  validateErrorReportPayload,
   validateMetrcPayload,
 } from '../api/_request-security.js';
 
@@ -60,6 +61,15 @@ test('METRC validation requires facility scope and known actions', () => {
   assert.match(validateMetrcPayload({ ...valid, facilityId: '' }, states, endpoints), /facilityId/i);
   assert.match(validateMetrcPayload({ ...valid, action: 'unknown' }, states, endpoints), /unknown/i);
   assert.match(validateMetrcPayload({ ...valid, state: 'XX' }, states, endpoints), /state/i);
+});
+
+test('error report validation requires a message and bounds field lengths', () => {
+  assert.equal(validateErrorReportPayload({ message: 'it broke' }), null);
+  assert.equal(validateErrorReportPayload({ message: 'it broke', module: 'inventory', facilityId: 'f1' }), null);
+  assert.match(validateErrorReportPayload({ message: '' }), /message/i);
+  assert.match(validateErrorReportPayload({ message: '  ' }), /message/i);
+  assert.match(validateErrorReportPayload({ message: 'x'.repeat(4_001) }), /long/i);
+  assert.match(validateErrorReportPayload(null), /invalid/i);
 });
 
 test('METRC writes are distinguishable for deny-by-default enforcement', () => {

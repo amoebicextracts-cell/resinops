@@ -39,6 +39,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
   const [mfaFactorId, setMfaFactorId] = useState(null);
   const [mfaCode, setMfaCode] = useState("");
   const [pendingUser, setPendingUser] = useState(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   function changeMode(nextMode) {
     setMode(nextMode);
@@ -109,6 +110,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
   async function handleAcceptInvite() {
     const validationError = passwordValidationError(password, passwordConfirmation);
     if (validationError) { setError(validationError); return; }
+    if (!termsAccepted) { setError("You must agree to the Terms of Service and Privacy Policy to continue."); return; }
     setLoading(true); setError("");
     const { data, error: updateError } = await auth.updatePassword(password);
     if (updateError) {
@@ -116,7 +118,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
       setLoading(false);
       return;
     }
-    const { error: acceptError } = await supabase.rpc('accept_facility_invite');
+    const { error: acceptError } = await supabase.rpc('accept_facility_invite', { p_terms_accepted: true });
     if (acceptError) {
       setError("Password set, but activating your invite failed: " + acceptError.message);
       setLoading(false);
@@ -260,7 +262,18 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
                 onChange={event=>setPasswordConfirmation(event.target.value)} onKeyDown={handleKey}
                 autoComplete="new-password" />
             </div>
-            <button className="auth-btn" onClick={handleAcceptInvite} disabled={loading || !password || !passwordConfirmation}>
+            <div className="auth-field" style={{display:"flex",alignItems:"flex-start",gap:8}}>
+              <input id="invite-terms" type="checkbox" checked={termsAccepted}
+                onChange={event=>setTermsAccepted(event.target.checked)}
+                style={{marginTop:3,flexShrink:0}} />
+              <label htmlFor="invite-terms" style={{fontSize:12,color:"#7a9a7a",lineHeight:1.4}}>
+                I agree to the{" "}
+                <a className="auth-link" href="https://resinops.com/terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+                {" "}and{" "}
+                <a className="auth-link" href="https://resinops.com/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+              </label>
+            </div>
+            <button className="auth-btn" onClick={handleAcceptInvite} disabled={loading || !password || !passwordConfirmation || !termsAccepted}>
               {loading ? "Activating..." : "Activate Account"}
             </button>
           </>}

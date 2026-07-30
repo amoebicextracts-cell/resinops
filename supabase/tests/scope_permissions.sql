@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(19);
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
@@ -133,11 +133,27 @@ select is(
   'a pending (unaccepted) invitee cannot read facility data yet'
 );
 
+-- Terms/Privacy acceptance is enforced server-side, not just by a
+-- client-side checkbox that a direct RPC call could skip.
+select throws_ok(
+  $$select public.accept_facility_invite()$$,
+  'P0001',
+  'Terms of Service and Privacy Policy must be accepted to continue.',
+  'accept_facility_invite() rejects the call without explicit terms acceptance'
+);
+
+select throws_ok(
+  $$select public.accept_facility_invite(false)$$,
+  'P0001',
+  'Terms of Service and Privacy Policy must be accepted to continue.',
+  'accept_facility_invite(false) rejects the call as well'
+);
+
 -- Self-accepting via the RPC flips their own row and immediately grants
 -- read access at their assigned global role (member, in this case).
 select lives_ok(
-  $$select public.accept_facility_invite()$$,
-  'a pending invitee can call accept_facility_invite() on their own behalf'
+  $$select public.accept_facility_invite(true)$$,
+  'a pending invitee can call accept_facility_invite(true) on their own behalf'
 );
 
 select is(
@@ -145,7 +161,15 @@ select is(
    where facility_id = 'c0000000-0000-0000-0000-000000000001'
      and user_id = 'a1000000-0000-0000-0000-00000000000e'),
   true,
-  'accept_facility_invite() sets accepted_at on the caller''s own pending row'
+  'accept_facility_invite(true) sets accepted_at on the caller''s own pending row'
+);
+
+select is(
+  (select terms_accepted_at is not null from public.facility_members
+   where facility_id = 'c0000000-0000-0000-0000-000000000001'
+     and user_id = 'a1000000-0000-0000-0000-00000000000e'),
+  true,
+  'accept_facility_invite(true) records terms_accepted_at on the caller''s own pending row'
 );
 
 select is(

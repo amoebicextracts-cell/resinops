@@ -8,18 +8,28 @@ import { getCurrentFacility, getCurrentFacilityRole, getCurrentFacilityScopeRole
 import { isModuleVisible } from "./lib/moduleVisibility";
 import { MODULES, ALL_SECTION_NAMES } from "./lib/modules";
 
+export const SUPPORT_EMAIL = "support@resinops.com";
+
 class ErrorBoundary extends Component {
-  constructor(props){ super(props); this.state={hasError:false,error:null}; }
+  constructor(props){ super(props); this.state={hasError:false,error:null,reported:false}; }
   static getDerivedStateFromError(error){ return {hasError:true,error}; }
-  componentDidCatch(error,info){ console.error("ResinOps module error:",error,info); }
+  componentDidCatch(error,info){
+    console.error("ResinOps module error:",error,info);
+    if (this.props.onReport) {
+      const detail = `${error?.message || 'Unknown error'}\n${(info?.componentStack||'').slice(0,1000)}`;
+      this.props.onReport(detail, this.props.moduleName)
+        .then(ok=>this.setState({reported:!!ok}))
+        .catch(()=>{});
+    }
+  }
   render(){
     if(this.state.hasError){
       return(
         <div style={{padding:32,textAlign:"center"}}>
           <div style={{fontSize:28,marginBottom:12}}>⚠️</div>
           <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:8}}>Module Error</div>
-          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16,maxWidth:420,margin:"0 auto 16px"}}>Try this module again, then reload ResinOps if the problem continues. Export a backup before changing or clearing any data, and include the module name when reporting the issue.</div>
-          <button style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",cursor:"pointer",fontSize:13,fontWeight:600}} onClick={()=>this.setState({hasError:false,error:null})}>Try again</button>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16,maxWidth:420,margin:"0 auto 16px"}}>Try this module again, then reload ResinOps if the problem continues. Export a backup before changing or clearing any data. {this.state.reported ? "This error was automatically reported to ResinOps support." : "Still stuck?"} Email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.</div>
+          <button style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,padding:"8px 20px",cursor:"pointer",fontSize:13,fontWeight:600}} onClick={()=>this.setState({hasError:false,error:null,reported:false})}>Try again</button>
         </div>
       );
     }
@@ -946,6 +956,34 @@ export default function ResinOps() {
     window.location.reload();
   }
 
+  const [showReportIssue, setShowReportIssue] = useState(false);
+  const [reportIssueText, setReportIssueText] = useState("");
+  const [reportIssueStatus, setReportIssueStatus] = useState(""); // "" | "sending" | "sent" | "error"
+
+  // Best-effort: used both by the ErrorBoundary (automatic, on a caught
+  // render error) and the manual "Report an issue" button. Never throws —
+  // a failure to report shouldn't itself surface as a second error.
+  async function submitIssueReport(message, moduleId) {
+    try {
+      const res = await authenticatedApiFetch('/api/report-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, module: moduleId || activeModule || '', facilityId: getCurrentFacility() || '' }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function handleManualReport() {
+    if (!reportIssueText.trim()) return;
+    setReportIssueStatus("sending");
+    const ok = await submitIssueReport(reportIssueText.trim(), activeModule);
+    setReportIssueStatus(ok ? "sent" : "error");
+    if (ok) setReportIssueText("");
+  }
+
   async function handleUpdateEmail() {
     if (!acctNewEmail.trim()) { setAcctMsg({text:"Enter a new email.",type:"err"}); return; }
     setAcctLoading(true);
@@ -1293,6 +1331,7 @@ export default function ResinOps() {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
               <div className="plan-badge">ResinOps V1</div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <button title="Report an issue" onClick={()=>{setReportIssueStatus("");setShowReportIssue(true);}} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:6,color:"var(--text-3)",fontSize:11,padding:"2px 6px",cursor:"pointer"}}>🐞</button>
                 <button title="Show setup guide" onClick={()=>{setOnboardStep(0);setShowOnboarding(true);}} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:6,color:"var(--text-3)",fontSize:11,padding:"2px 6px",cursor:"pointer"}}>?</button>
                 <span style={{fontSize:9,color:"var(--text-3)",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Beta</span>
               </div>
@@ -1302,8 +1341,27 @@ export default function ResinOps() {
               <span style={{width:6,height:6,borderRadius:"50%",background:"rgba(100,100,100,0.3)",display:"inline-block",flexShrink:0}}/>
               V2: Cloud · Multi-user · METRC API
             </div>
+            <div style={{fontSize:9,color:"var(--text-3)",marginTop:4}}>
+              Support: <a href={`mailto:${SUPPORT_EMAIL}`} style={{color:"var(--text-3)"}}>{SUPPORT_EMAIL}</a>
+            </div>
           </div>
         </aside>
+
+        {showReportIssue && (
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setShowReportIssue(false)}>
+            <div style={{background:"var(--surface)",borderRadius:12,padding:24,width:420,maxWidth:"90vw"}} onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:8}}>Report an issue</div>
+              <div style={{fontSize:12,color:"var(--text-3)",marginBottom:12}}>Describe what happened. This goes straight to ResinOps support along with your account and current module ({activeModule}).</div>
+              <textarea value={reportIssueText} onChange={e=>setReportIssueText(e.target.value)} rows={5} maxLength={4000} placeholder="What went wrong?" style={{width:"100%",resize:"vertical",borderRadius:8,border:"1px solid var(--border-2)",background:"var(--surface-2)",color:"var(--text)",padding:10,fontSize:13,marginBottom:12,boxSizing:"border-box"}}/>
+              {reportIssueStatus==="sent" && <div style={{fontSize:12,color:"var(--accent-2)",marginBottom:10}}>Thanks — your report was sent.</div>}
+              {reportIssueStatus==="error" && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>Couldn't send that. Email {SUPPORT_EMAIL} directly instead.</div>}
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button onClick={()=>setShowReportIssue(false)} style={{background:"none",border:"1px solid var(--border-2)",borderRadius:8,color:"var(--text-3)",padding:"8px 16px",cursor:"pointer",fontSize:13}}>Close</button>
+                <button onClick={handleManualReport} disabled={reportIssueStatus==="sending"||!reportIssueText.trim()} style={{background:"var(--accent)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:13,fontWeight:600}}>{reportIssueStatus==="sending"?"Sending…":"Send report"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Main ── */}
         <main className="main">
@@ -1345,7 +1403,7 @@ export default function ResinOps() {
             </div>
           </div>
 
-          <ErrorBoundary key={activeModule}>
+          <ErrorBoundary key={activeModule} moduleName={activeModule} onReport={submitIssueReport}>
             {activeModule === "ai-corrections-review" ? (isPlatformAdmin ? <AiCorrectionsReview /> : null) : null}
             {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
