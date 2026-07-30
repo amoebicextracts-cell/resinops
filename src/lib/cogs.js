@@ -96,7 +96,7 @@ export function calcDirectLaborCost(cogsRecord, laborTypes) {
 // settings and the room it ran in via lib/co2.js, priced off the room's
 // linked CO2 inventory item (item.lastCost, the same unit-cost convention
 // resolveBomMaterialLines uses).
-function resolveCo2Line(cc, spaceId, growSpaces, growRooms, items) {
+export function resolveCo2Line(cc, spaceId, growSpaces, growRooms, items) {
   if (cc.co2Override !== undefined && cc.co2Override !== null && cc.co2Override !== '') {
     return { co2Cost: parseFloat(cc.co2Override) || 0, co2Lbs: 0 };
   }

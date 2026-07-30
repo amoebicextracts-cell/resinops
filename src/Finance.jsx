@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { deductForBatch } from "./lib/inventory";
-import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder } from "./lib/cogs";
+import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder, resolveCo2Line } from "./lib/cogs";
 import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 import jsPDF from "jspdf";
@@ -101,6 +101,7 @@ export default function Finance() {
   const [cultCosts, setCultCosts] = useState([]);
   const [batches, setBatches] = useState([]);
   const [spaces, setSpaces] = useState([]);
+  const [growRooms, setGrowRooms] = useState([]);
   const [items, setItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -110,7 +111,7 @@ export default function Finance() {
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq, oe]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq, oe, gr]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -124,12 +125,14 @@ export default function Finance() {
           db.cost_pools.list(),
           db.equipment.list(),
           db.operating_expenses.list(),
+          db.grow_rooms.list(),
         ]);
         setBoms(b);
         setSkus(sk);
         setBatches(pb);
         setSpaces(sp);
         setItems(inv);
+        setGrowRooms(gr);
         setLaborTypes(lt);
         setCogsRecs(cr);
         setCultCosts(cc);
@@ -285,7 +288,7 @@ export default function Finance() {
   // Thin wrapper over the shared lib/cogs.js engine — Finance.jsx and
   // BatchDashboard.jsx both call the exact same calculator now instead of
   // each keeping their own (previously divergent) COGS logic.
-  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, allBatches: mainBatches, skus, salesOrders, equipment };
+  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, growRooms, allBatches: mainBatches, skus, salesOrders, equipment };
   function batchPnL(batch) { return batchPnLCalc(batch, cogsCtx); }
 
   // ── Summary totals ────────────────────────────────────────────────────────
@@ -1004,12 +1007,13 @@ export default function Finance() {
             ) : (
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="fin-tbl">
-                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>Total Cult. Cost</th><th>Allocate By</th><th></th></tr></thead>
+                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>CO2 (est.)</th><th>Total Cult. Cost</th><th>Allocate By</th><th></th></tr></thead>
                   <tbody>
                     {spaces.map(sp => {
                       const cc = cultCosts.find(c=>c.spaceId===sp.id)||{};
                       const isEditing = editCult===sp.id;
-                      const total = (parseFloat(cc.media)||0)+(parseFloat(cc.nutrients)||0)+(parseFloat(cc.ipm)||0)+(parseFloat(cc.other)||0);
+                      const { co2Cost } = resolveCo2Line(cc, sp.id, spaces, growRooms, items);
+                      const total = (parseFloat(cc.media)||0)+(parseFloat(cc.nutrients)||0)+(parseFloat(cc.ipm)||0)+(parseFloat(cc.other)||0)+co2Cost;
                       return (
                         <tr key={sp.id}>
                           <td style={{fontWeight:500,color:"var(--text)"}}>{sp.name}</td>
@@ -1023,6 +1027,11 @@ export default function Finance() {
                           </td>
                           <td>
                             {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.ipm||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{ipm:e.target.value})} /> : fmtC(cc.ipm||0)}
+                          </td>
+                          <td>
+                            {isEditing
+                              ? <input type="number" step="0.01" className="fin-inp" value={cc.co2Override||""} placeholder={fmtC(co2Cost)+" auto"} style={{width:100}} onChange={e=>setCultCost(sp.id,{co2Override:e.target.value})} />
+                              : fmtC(co2Cost)}
                           </td>
                           <td style={{fontWeight:500,color:"var(--accent-2)"}}>{fmtC(total)}</td>
                           <td>
