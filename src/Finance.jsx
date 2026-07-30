@@ -50,6 +50,64 @@ const DEFAULT_BOMS = [
       {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
       {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
     ], testFee:500 },
+  { id:"bom_co2", name:"CO2 Extract", catSub:"extract|co2",
+    items:[
+      {itemId:"i29",qty:8,  qtyType:"per_lb_input",   note:"Supercritical CO2: ~8 lbs per lb biomass (recirculated, modeled as consumed per run)"},
+    ], testFee:500 },
+  { id:"bom_r134a_20l", name:"R-134a Extraction — 20L", catSub:"extract|r134a_20l",
+    items:[
+      {itemId:"i30",qty:4,  qtyType:"per_lb_input",   note:"R-134a: 4 lbs per lb biomass"},
+    ], testFee:450 },
+  { id:"bom_r134a_50l", name:"R-134a Extraction — 50L", catSub:"extract|r134a_50l",
+    items:[
+      {itemId:"i30",qty:4,  qtyType:"per_lb_input",   note:"R-134a: 4 lbs per lb biomass"},
+    ], testFee:450 },
+  { id:"bom_badder", name:"BHO — Badder / Budder", catSub:"extract|badder",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_live_resin", name:"BHO — Live Resin", catSub:"extract|live_resin",
+    items:[
+      {itemId:"i7", qty:1.6,qtyType:"per_lb_input",   note:"Butane: 1.6 lbs per lb fresh-frozen biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_sugar", name:"BHO — Sugar", catSub:"extract|sugar",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_diamonds", name:"BHO — Diamonds & Sauce", catSub:"extract|diamonds",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:500 },
+  { id:"bom_rosin_fl", name:"Rosin — Flower Press", catSub:"extract|rosin_fl",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:400 },
+  { id:"bom_rosin_hash", name:"Rosin — Hash Press", catSub:"extract|rosin_hash",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:400 },
+  { id:"bom_hash", name:"Ice Water Hash", catSub:"extract|hash",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:350 },
+  { id:"bom_thca_ff", name:"THCa Isolate — Fresh Frozen Input", catSub:"extract|thca_ff",
+    items:[
+      {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
+      {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+    ], testFee:500 },
+  { id:"bom_thca_trim", name:"THCa Isolate — Dry Trim Input", catSub:"extract|thca_trim",
+    items:[
+      {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
+      {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+    ], testFee:500 },
 ];
 
 const DEDUCT_OPTS = [
