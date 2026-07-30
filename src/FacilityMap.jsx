@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
+import { withdrawFifo } from "./lib/inventory";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 const FACILITY_ROOM_TYPES = [
@@ -54,26 +55,29 @@ const EMPTY_ROOM = {
 
 const EMPTY_CLEAN = {
   date: todayLocalISO(),
-  type:"Full Sanitation", by:"", notes:"", batchId:"",
+  type:"Full Sanitation", by:"", notes:"", batchId:"", productsUsed:[],
 };
 
 export default function FacilityMap(){
   const [prodBatches, setProdBatches] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [rm, pb, emp] = await Promise.all([
+        const [rm, pb, emp, inv] = await Promise.all([
           db.facility_map_spaces.list(),
           db.production_batches.list(),
           db.employees.list(),
+          db.inventory_items.list(),
         ]);
         setRooms(rm);
         setProdBatches(pb.filter(b=>!b.isLinked));
         setEmployees(emp);
+        setItems(inv);
       }catch(e){ console.error("FacilityMap load error:",e); }
       setLoading(false);
     }
@@ -110,14 +114,45 @@ export default function FacilityMap(){
     }catch(e){ console.error("Facility space save failed:",e); setErr("Save failed: "+e.message); }
   }
 
+  function addProductLine(){ setCleanForm(f=>({...f,productsUsed:[...(f.productsUsed||[]),{itemId:"",qty:""}]})); }
+  function setProductLine(i,k,v){ setCleanForm(f=>({...f,productsUsed:f.productsUsed.map((l,idx)=>idx===i?{...l,[k]:v}:l)})); }
+  function removeProductLine(i){ setCleanForm(f=>({...f,productsUsed:f.productsUsed.filter((_,idx)=>idx!==i)})); }
+
   async function logClean(){
     if(!cleanForm.by.trim()){ setErr("Enter who performed the cleaning."); return; }
     const entry = {...cleanForm, id:"cl_"+Date.now()};
     const updated = {...selected, cleanLog:[...(selected.cleanLog||[]),entry]};
     try{
+      // Deduct any products logged against this cleaning event — same
+      // withdrawFifo() primitive BOM deduction and InventoryERP's own
+      // manual stock adjustments use, just called directly per line since
+      // a cleaning entry has no batch cat/sub for deductForBatch to
+      // resolve a BOM against.
+      const lines = (cleanForm.productsUsed||[]).filter(l=>l.itemId&&parseFloat(l.qty)>0);
+      let shortfallMsg = "";
+      if(lines.length){
+        const updatedItems = [];
+        let working = items;
+        const shortfalls = [];
+        for(const line of lines){
+          const item = working.find(x=>x.id===line.itemId);
+          if(!item) continue;
+          const { item: withdrawn, shortfall } = withdrawFifo(item, parseFloat(line.qty));
+          working = working.map(x=>x.id===withdrawn.id?withdrawn:x);
+          const idx = updatedItems.findIndex(x=>x.id===withdrawn.id);
+          if(idx>=0) updatedItems[idx]=withdrawn; else updatedItems.push(withdrawn);
+          if(shortfall>0) shortfalls.push(item.n+" ("+shortfall.toFixed(1)+" short)");
+        }
+        if(updatedItems.length){
+          const saved = await Promise.all(updatedItems.map(it=>db.inventory_items.upsert(it)));
+          setItems(p=>p.map(it=>{ const u=saved.find(s=>s.id===it.id); return u||it; }));
+        }
+        if(shortfalls.length) shortfallMsg = "⚠ Logged, but ran short on: "+shortfalls.join(", ");
+      }
       const saved = await db.facility_map_spaces.upsert(updated);
       setRooms(p=>p.map(r=>r.id===selectedId?saved:r));
-      setCleanForm(null); setErr("");
+      setCleanForm(null);
+      setErr(shortfallMsg);
     }catch(e){ console.error("Cleaning log save failed:",e); setErr("Save failed: "+e.message); }
   }
 
@@ -350,6 +385,20 @@ export default function FacilityMap(){
                             <div style={{marginBottom:8}}><label className="fm-lbl">Notes</label>
                               <input className="fm-inp" value={cleanForm.notes} onChange={e=>setCleanForm(f=>({...f,notes:e.target.value}))} placeholder="Chemicals used, observations..." />
                             </div>
+                            <div style={{marginBottom:8}}>
+                              <label className="fm-lbl">Products used (optional — deducts from inventory)</label>
+                              {(cleanForm.productsUsed||[]).map((line,i)=>(
+                                <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:6,marginBottom:4}}>
+                                  <select className="fm-sel" value={line.itemId} onChange={e=>setProductLine(i,"itemId",e.target.value)}>
+                                    <option value="">— Select item —</option>
+                                    {items.filter(it=>it.cat==="Cleaning & Sanitation").map(it=><option key={it.id} value={it.id}>{it.n}</option>)}
+                                  </select>
+                                  <input type="number" step="0.01" className="fm-inp" placeholder="Qty" value={line.qty} onChange={e=>setProductLine(i,"qty",e.target.value)} />
+                                  <button className="fm-btn fm-sm fm-del" onClick={()=>removeProductLine(i)}>✕</button>
+                                </div>
+                              ))}
+                              <button className="fm-btn fm-secondary" style={{fontSize:11,padding:"4px 10px",marginTop:2}} onClick={addProductLine}>+ Add product</button>
+                            </div>
                             {err&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6}}>{err}</div>}
                             <div style={{display:"flex",gap:6}}>
                               <button className="fm-btn fm-primary" style={{fontSize:11,padding:"5px 12px"}} onClick={logClean}>Log cleaning</button>
@@ -372,6 +421,14 @@ export default function FacilityMap(){
                               <div>
                                 <div style={{fontWeight:500,color:"var(--text)"}}>{fmtD(c.date)} — {c.type}</div>
                                 <div style={{fontSize:10,color:"var(--text-3)"}}>{c.by}{c.notes?` · ${c.notes}`:""}</div>
+                                {(c.productsUsed||[]).filter(l=>l.itemId).length>0&&(
+                                  <div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>
+                                    {(c.productsUsed||[]).filter(l=>l.itemId).map(l=>{
+                                      const it=items.find(x=>x.id===l.itemId);
+                                      return (it?.n||l.itemId)+" ("+l.qty+(it?.uom?" "+it.uom:"")+")";
+                                    }).join(", ")}
+                                  </div>
+                                )}
                               </div>
                               <span style={{fontSize:10,color:"var(--accent-2)",fontWeight:600}}>✓</span>
                             </div>
