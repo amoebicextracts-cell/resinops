@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { deductForBatch } from "./lib/inventory";
-import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder } from "./lib/cogs";
+import { calcBatchCOGS, batchPnL as batchPnLCalc, calcEquipmentDepreciationPool, calcNonDeductibleCostPoolRemainder, resolveCo2Line } from "./lib/cogs";
 import { exportQuickBooksCsv } from "./lib/quickbooksExport";
 import { CATS, SUBS } from "./ProductionScheduler.jsx";
 import jsPDF from "jspdf";
@@ -46,6 +46,64 @@ const DEFAULT_BOMS = [
       {itemId:"i5", qty:1, qtyType:"per_unit_output", note:"Label per unit"},
     ], testFee:400 },
   { id:"bom_dist",name:"Distillate",catSub:"extract|distillate",
+    items:[
+      {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
+      {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+    ], testFee:500 },
+  { id:"bom_co2", name:"CO2 Extract", catSub:"extract|co2",
+    items:[
+      {itemId:"i29",qty:8,  qtyType:"per_lb_input",   note:"Supercritical CO2: ~8 lbs per lb biomass (recirculated, modeled as consumed per run)"},
+    ], testFee:500 },
+  { id:"bom_r134a_20l", name:"R-134a Extraction — 20L", catSub:"extract|r134a_20l",
+    items:[
+      {itemId:"i30",qty:4,  qtyType:"per_lb_input",   note:"R-134a: 4 lbs per lb biomass"},
+    ], testFee:450 },
+  { id:"bom_r134a_50l", name:"R-134a Extraction — 50L", catSub:"extract|r134a_50l",
+    items:[
+      {itemId:"i30",qty:4,  qtyType:"per_lb_input",   note:"R-134a: 4 lbs per lb biomass"},
+    ], testFee:450 },
+  { id:"bom_badder", name:"BHO — Badder / Budder", catSub:"extract|badder",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_live_resin", name:"BHO — Live Resin", catSub:"extract|live_resin",
+    items:[
+      {itemId:"i7", qty:1.6,qtyType:"per_lb_input",   note:"Butane: 1.6 lbs per lb fresh-frozen biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_sugar", name:"BHO — Sugar", catSub:"extract|sugar",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:450 },
+  { id:"bom_diamonds", name:"BHO — Diamonds & Sauce", catSub:"extract|diamonds",
+    items:[
+      {itemId:"i7", qty:1.5,qtyType:"per_lb_input",   note:"Butane: 1.5 lbs per lb biomass"},
+      {itemId:"i11",qty:2,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Jar per unit"},
+    ], testFee:500 },
+  { id:"bom_rosin_fl", name:"Rosin — Flower Press", catSub:"extract|rosin_fl",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:400 },
+  { id:"bom_rosin_hash", name:"Rosin — Hash Press", catSub:"extract|rosin_hash",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:400 },
+  { id:"bom_hash", name:"Ice Water Hash", catSub:"extract|hash",
+    items:[
+      {itemId:"i2", qty:1,  qtyType:"per_unit_output", note:"Solventless — jar per unit only, no gas/solvent line"},
+    ], testFee:350 },
+  { id:"bom_thca_ff", name:"THCa Isolate — Fresh Frozen Input", catSub:"extract|thca_ff",
+    items:[
+      {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
+      {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
+    ], testFee:500 },
+  { id:"bom_thca_trim", name:"THCa Isolate — Dry Trim Input", catSub:"extract|thca_trim",
     items:[
       {itemId:"i9", qty:0.5,qtyType:"per_lb_input",   note:"Ethanol: 0.5 gal per lb biomass"},
       {itemId:"i11",qty:3,  qtyType:"per_lb_input",   note:"Filter papers per lb"},
@@ -101,6 +159,7 @@ export default function Finance() {
   const [cultCosts, setCultCosts] = useState([]);
   const [batches, setBatches] = useState([]);
   const [spaces, setSpaces] = useState([]);
+  const [growRooms, setGrowRooms] = useState([]);
   const [items, setItems] = useState([]);
   const [salesOrders, setSalesOrders] = useState([]);
   const [equipment, setEquipment] = useState([]);
@@ -110,7 +169,7 @@ export default function Finance() {
   useEffect(()=>{
     async function load(){
       try{
-        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq, oe]=await Promise.all([
+        const [b, sk, pb, sp, inv, lt, cr, cc, so, hb, cp, eq, oe, gr]=await Promise.all([
           db.boms.list(),
           db.skus.list(),
           db.production_batches.list(),
@@ -124,12 +183,14 @@ export default function Finance() {
           db.cost_pools.list(),
           db.equipment.list(),
           db.operating_expenses.list(),
+          db.grow_rooms.list(),
         ]);
         setBoms(b);
         setSkus(sk);
         setBatches(pb);
         setSpaces(sp);
         setItems(inv);
+        setGrowRooms(gr);
         setLaborTypes(lt);
         setCogsRecs(cr);
         setCultCosts(cc);
@@ -182,6 +243,23 @@ export default function Finance() {
     catch(e){ console.error("BOM delete failed:",e); }
   }
 
+  // allBoms falls back to DEFAULT_BOMS only while boms is empty (line ~284)
+  // — the instant a facility saves ONE real BOM via the form above, that
+  // fallback stops applying and every other starter recipe silently
+  // disappears. This upserts the whole starter set as real persisted rows
+  // (fixed ids, so it's idempotent — safe to click again later to pick up
+  // newly-added starter recipes without touching any custom BOMs).
+  async function seedDefaultBoms(){
+    try{
+      const saved = await Promise.all(DEFAULT_BOMS.map(b=>db.boms.upsert({...b})));
+      setBoms(p=>{
+        const byId = Object.fromEntries(p.map(x=>[x.id,x]));
+        for(const s of saved) byId[s.id]=s;
+        return Object.values(byId);
+      });
+    }catch(e){ console.error("Seed default BOMs failed:",e); }
+  }
+
   // Debounced persistence: keep UI updates instant (every keystroke updates
   // local state so COGS/P&L figures recalculate live) while collapsing the
   // actual db.upsert() calls to one per ~600ms pause in typing.
@@ -196,7 +274,7 @@ export default function Finance() {
 
   const [deductMsg, setDeductMsg] = useState({});
   async function deductNow(batch){
-    const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(batch, allBoms, items);
+    const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(batch, allBoms, items, getRecord(batch.id));
     if (!bom) { setDeductMsg(p=>({...p,[batch.id]:"No BOM matches this batch's category/subcategory — nothing to deduct."})); return; }
     try{
       if (updatedItems.length) {
@@ -285,7 +363,7 @@ export default function Finance() {
   // Thin wrapper over the shared lib/cogs.js engine — Finance.jsx and
   // BatchDashboard.jsx both call the exact same calculator now instead of
   // each keeping their own (previously divergent) COGS logic.
-  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, allBatches: mainBatches, skus, salesOrders, equipment };
+  const cogsCtx = { boms: allBoms, cogsRecords: cogsRecs, items, laborTypes, costPools, cultivationCosts: cultCosts, harvestBatches, growSpaces: spaces, growRooms, allBatches: mainBatches, skus, salesOrders, equipment };
   function batchPnL(batch) { return batchPnLCalc(batch, cogsCtx); }
 
   // ── Summary totals ────────────────────────────────────────────────────────
@@ -679,6 +757,48 @@ export default function Finance() {
                           )}
                         </div>
                       )}
+
+                      {/* Actual materials used — variance display only, entered
+                          at close-out; doesn't feed cost math (materials cost
+                          still comes from the BOM/manual-override path above). */}
+                      {cogs.materialLines.length > 0 && (
+                        <div style={{marginTop:14}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"var(--text-3)",marginBottom:6}}>Actual Materials Used (close-out — variance only, doesn't change cost)</div>
+                          <div style={{border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
+                            <table className="fin-tbl">
+                              <thead><tr><th>Item</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr></thead>
+                              <tbody>
+                                {cogs.materialLines.map((ml,i)=>{
+                                  const usage = (rec.actualMaterialUsage||[]).find(a=>a.itemId===ml.itemId)||{};
+                                  const hasActual = usage.actualQty!==undefined && usage.actualQty!==null && usage.actualQty!=="";
+                                  const actualQty = hasActual ? parseFloat(usage.actualQty) : null;
+                                  const variance = actualQty!==null ? actualQty-ml.qty : null;
+                                  return (
+                                    <tr key={i}>
+                                      <td>{ml.name}</td>
+                                      <td>{ml.qty} {ml.uom}</td>
+                                      <td>
+                                        <input type="number" step="0.01" className="fin-inp" style={{width:90}} value={usage.actualQty??""} placeholder={String(ml.qty)}
+                                          onChange={e=>{
+                                            const list = rec.actualMaterialUsage||[];
+                                            const idx = list.findIndex(a=>a.itemId===ml.itemId);
+                                            const merged = idx>=0
+                                              ? list.map((a,ix)=>ix===idx?{...a,actualQty:e.target.value}:a)
+                                              : [...list,{itemId:ml.itemId,actualQty:e.target.value}];
+                                            setRecord(batch.id,{actualMaterialUsage:merged});
+                                          }} />
+                                      </td>
+                                      <td style={{color: variance===null?"var(--text-3)":variance>0?"var(--danger)":variance<0?"var(--accent-2)":"var(--text-3)"}}>
+                                        {variance===null?"—":(variance>0?"+":"")+variance.toFixed(2)+" "+ml.uom}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -905,7 +1025,10 @@ export default function Finance() {
                 Bill of Materials defines what inventory is actually consumed per batch — real recipes referencing real inventory items, used both for COGS estimation here and for real stock deduction when a batch is created/completed. Quantities can be per batch, per lb of input, or per unit of output.
                 {!boms.length && <div style={{marginTop:6,color:"var(--amber)"}}>⚠ No saved BOMs yet — showing built-in starter defaults below. Save one to start tracking your real recipes.</div>}
               </div>
-              {!bomForm && <button className="fin-btn fin-primary" onClick={openAddBom}>+ Add BOM</button>}
+              {!bomForm && <div style={{display:"flex",gap:8}}>
+                <button className="fin-btn fin-secondary" onClick={seedDefaultBoms}>↻ Seed default BOMs</button>
+                <button className="fin-btn fin-primary" onClick={openAddBom}>+ Add BOM</button>
+              </div>}
             </div>
 
             {bomForm && (
@@ -1004,12 +1127,13 @@ export default function Finance() {
             ) : (
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="fin-tbl">
-                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>Total Cult. Cost</th><th>Allocate By</th><th></th></tr></thead>
+                  <thead><tr><th>Grow Space</th><th>Strain</th><th>Plants</th><th>Media / Setup</th><th>Nutrients (est.)</th><th>IPM (est.)</th><th>CO2 (est.)</th><th>Total Cult. Cost</th><th>Allocate By</th><th></th></tr></thead>
                   <tbody>
                     {spaces.map(sp => {
                       const cc = cultCosts.find(c=>c.spaceId===sp.id)||{};
                       const isEditing = editCult===sp.id;
-                      const total = (parseFloat(cc.media)||0)+(parseFloat(cc.nutrients)||0)+(parseFloat(cc.ipm)||0)+(parseFloat(cc.other)||0);
+                      const { co2Cost } = resolveCo2Line(cc, sp.id, spaces, growRooms, items);
+                      const total = (parseFloat(cc.media)||0)+(parseFloat(cc.nutrients)||0)+(parseFloat(cc.ipm)||0)+(parseFloat(cc.other)||0)+co2Cost;
                       return (
                         <tr key={sp.id}>
                           <td style={{fontWeight:500,color:"var(--text)"}}>{sp.name}</td>
@@ -1023,6 +1147,11 @@ export default function Finance() {
                           </td>
                           <td>
                             {isEditing ? <input type="number" step="0.01" className="fin-inp" value={cc.ipm||""} placeholder="0.00" style={{width:90}} onChange={e=>setCultCost(sp.id,{ipm:e.target.value})} /> : fmtC(cc.ipm||0)}
+                          </td>
+                          <td>
+                            {isEditing
+                              ? <input type="number" step="0.01" className="fin-inp" value={cc.co2Override||""} placeholder={fmtC(co2Cost)+" auto"} style={{width:100}} onChange={e=>setCultCost(sp.id,{co2Override:e.target.value})} />
+                              : fmtC(co2Cost)}
                           </td>
                           <td style={{fontWeight:500,color:"var(--accent-2)"}}>{fmtC(total)}</td>
                           <td>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { calcCo2Usage, daysEnrichedForCycle } from "./lib/co2.js";
 const LBS_TO_G = 453.592;
 
 
@@ -94,6 +95,8 @@ const CSS = `
 
 export default function HarvestBatches() {
   const [spaces, setSpaces] = useState([]);
+  const [growRooms, setGrowRooms] = useState([]);
+  const [cultivationCosts, setCultivationCosts] = useState([]);
   const [batches, setBatches] = useState([]);
   const [laborTypes, setLaborTypes] = useState([]);
   const [hbSearch, setHbSearch] = useState("");
@@ -162,14 +165,18 @@ export default function HarvestBatches() {
   useEffect(()=>{
     async function load(){
       try{
-        const [hb, sp, lt] = await Promise.all([
+        const [hb, sp, lt, gr, cc] = await Promise.all([
           db.harvest_batches.list(),
           db.grow_spaces.list(),
           db.labor_types.list(),
+          db.grow_rooms.list(),
+          db.cultivation_costs.list(),
         ]);
         setBatches(hb.map(normalizeBatch));
         setSpaces(sp);
         setLaborTypes(lt);
+        setGrowRooms(gr);
+        setCultivationCosts(cc);
       }catch(e){ console.error("HarvestBatches load error:",e); }
       setLoading(false);
     }
@@ -202,6 +209,23 @@ export default function HarvestBatches() {
   // when a grow space is selected, pull strain list as quick-fill options
   const selSpace = spaces.find(s=>s.id===parseInt(form?.spaceId));
   const spaceStrains = selSpace ? (selSpace.strains||[]) : [];
+
+  // CO2 actual-vs-estimate — the real grow->harvest close-out transition
+  // is the natural moment to capture actual CO2 usage and correct the
+  // enrichment window, alongside dry-weight actuals already entered here.
+  const selRoom = selSpace ? growRooms.find(r=>r.id===selSpace.growMapId) : null;
+  const co2EstDays = selSpace ? daysEnrichedForCycle(selSpace) : 0;
+  const co2Est = selSpace?.co2EnrichmentEnabled && selRoom ? calcCo2Usage(selRoom, selSpace, co2EstDays) : null;
+  const [co2Form, setCo2Form] = useState({ actualLbs:"", daysEnriched:"" });
+  useEffect(()=>{
+    if(!selSpace){ setCo2Form({actualLbs:"",daysEnriched:""}); return; }
+    const cc = cultivationCosts.find(c=>c.spaceId===selSpace.id);
+    setCo2Form({
+      actualLbs: cc?.co2ActualLbs!=null ? String(cc.co2ActualLbs) : "",
+      daysEnriched: selSpace.co2DaysEnriched!=null ? String(selSpace.co2DaysEnriched) : "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form?.spaceId]);
 
   function applySpaceStrain(strainObj) {
     setForm(f=>({...f, strainName: strainObj.name, plants: String(strainObj.plants) }));
@@ -274,6 +298,32 @@ export default function HarvestBatches() {
         return next;
       });
       autoPopulateStrains(form.strainName, { source: "Harvest Batches" });
+
+      // CO2 actual-vs-estimate — captured here since this is the real
+      // grow->harvest close-out moment, alongside the dry-weight actuals
+      // already entered above. Writes to cultivation_costs (co2ActualLbs,
+      // variance display only) and grow_spaces (co2DaysEnriched, corrects
+      // the enrichment-window default if the real run differed).
+      if (selSpace?.co2EnrichmentEnabled) {
+        if (co2Form.actualLbs !== "") {
+          const existingCC = cultivationCosts.find(c=>c.spaceId===selSpace.id);
+          const mergedCC = { ...(existingCC||{id:crypto.randomUUID(),spaceId:selSpace.id}), co2ActualLbs: co2Form.actualLbs };
+          try {
+            const savedCC = await db.cultivation_costs.upsert(mergedCC);
+            setCultivationCosts(p=>{
+              const idx = p.findIndex(c=>c.spaceId===selSpace.id);
+              return idx>=0 ? p.map(c=>c.spaceId===selSpace.id?savedCC:c) : [...p, savedCC];
+            });
+          } catch(e) { console.error("CO2 actual-usage save failed:", e); }
+        }
+        if (co2Form.daysEnriched !== "" && String(selSpace.co2DaysEnriched||"") !== co2Form.daysEnriched) {
+          try {
+            const savedSpace = await db.grow_spaces.upsert({ ...selSpace, co2DaysEnriched: co2Form.daysEnriched });
+            setSpaces(p=>p.map(s=>s.id===selSpace.id?savedSpace:s));
+          } catch(e) { console.error("CO2 days-enriched correction save failed:", e); }
+        }
+      }
+
       closeForm();
     } catch(e) { setErr("Save failed: "+e.message); }
   }
@@ -580,6 +630,27 @@ export default function HarvestBatches() {
               ))}
               {totalDryWeight>0 && <div style={{fontSize:13,fontWeight:600,color:"var(--accent-2)",marginTop:6}}>Total dry weight: {totalDryWeight.toFixed(1)}g ({(totalDryWeight/LBS_TO_G).toFixed(2)} lbs)</div>}
             </div>
+
+            {selSpace?.co2EnrichmentEnabled && (
+              <div className="hb-box">
+                <div className="hb-box-t">CO2 Enrichment — Actual Usage</div>
+                <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>
+                  {co2Est ? `Estimated: ${co2Est.lbs.toFixed(1)} lbs over ${co2EstDays} day${co2EstDays!==1?"s":""}.` : "This room has no CO2 delivery method configured — set it up in Grow Map to see an estimate."} Enter actuals for comparison — doesn't change any cost calculation.
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div>
+                    <label className="hb-lbl">CO2 actually used (lbs)</label>
+                    <input type="number" step="0.1" className="hb-inp" placeholder={co2Est?co2Est.lbs.toFixed(1):""}
+                      value={co2Form.actualLbs} onChange={e=>setCo2Form(f=>({...f,actualLbs:e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="hb-lbl">Days actually enriched</label>
+                    <input type="number" className="hb-inp" placeholder={String(co2EstDays)}
+                      value={co2Form.daysEnriched} onChange={e=>setCo2Form(f=>({...f,daysEnriched:e.target.value}))} />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{err}</div>}
             <div style={{display:"flex",gap:8}}>
