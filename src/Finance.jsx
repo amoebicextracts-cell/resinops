@@ -185,6 +185,23 @@ export default function Finance() {
     catch(e){ console.error("BOM delete failed:",e); }
   }
 
+  // allBoms falls back to DEFAULT_BOMS only while boms is empty (line ~284)
+  // — the instant a facility saves ONE real BOM via the form above, that
+  // fallback stops applying and every other starter recipe silently
+  // disappears. This upserts the whole starter set as real persisted rows
+  // (fixed ids, so it's idempotent — safe to click again later to pick up
+  // newly-added starter recipes without touching any custom BOMs).
+  async function seedDefaultBoms(){
+    try{
+      const saved = await Promise.all(DEFAULT_BOMS.map(b=>db.boms.upsert({...b})));
+      setBoms(p=>{
+        const byId = Object.fromEntries(p.map(x=>[x.id,x]));
+        for(const s of saved) byId[s.id]=s;
+        return Object.values(byId);
+      });
+    }catch(e){ console.error("Seed default BOMs failed:",e); }
+  }
+
   // Debounced persistence: keep UI updates instant (every keystroke updates
   // local state so COGS/P&L figures recalculate live) while collapsing the
   // actual db.upsert() calls to one per ~600ms pause in typing.
@@ -908,7 +925,10 @@ export default function Finance() {
                 Bill of Materials defines what inventory is actually consumed per batch — real recipes referencing real inventory items, used both for COGS estimation here and for real stock deduction when a batch is created/completed. Quantities can be per batch, per lb of input, or per unit of output.
                 {!boms.length && <div style={{marginTop:6,color:"var(--amber)"}}>⚠ No saved BOMs yet — showing built-in starter defaults below. Save one to start tracking your real recipes.</div>}
               </div>
-              {!bomForm && <button className="fin-btn fin-primary" onClick={openAddBom}>+ Add BOM</button>}
+              {!bomForm && <div style={{display:"flex",gap:8}}>
+                <button className="fin-btn fin-secondary" onClick={seedDefaultBoms}>↻ Seed default BOMs</button>
+                <button className="fin-btn fin-primary" onClick={openAddBom}>+ Add BOM</button>
+              </div>}
             </div>
 
             {bomForm && (
