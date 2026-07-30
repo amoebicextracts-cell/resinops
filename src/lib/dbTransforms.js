@@ -45,7 +45,7 @@ const SCHEMAS = {
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose'],
   gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes','worker_id','worker_at','supervisor_id','supervisor_at','manager_id','manager_at','qc_head_id','qc_head_at'],
   cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override','materials_locked_at'],
-  cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis'],
+  cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis','co2_override','co2_actual_lbs'],
   cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes','linked_to_equipment'],
   operating_expenses: ['id','created_at','updated_at','facility_id','created_by','name','category','amount','date','notes'],
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
@@ -628,6 +628,8 @@ const FIELD_OVERRIDES = {
   cultivation_costs: {
     spaceId: 'grow_space_id',
     allocationBasis: 'allocation_basis',
+    co2Override: 'co2_override',
+    co2ActualLbs: 'co2_actual_lbs',
   },
   cost_pools: {
     periodAmount: 'period_amount',
