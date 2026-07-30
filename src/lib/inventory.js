@@ -89,7 +89,7 @@ export function resolveBomMaterialLines(batch, bom, items, cogsRecord) {
     const unitCost = item.lastCost || 0;
     const cost = qty * unitCost;
     materialCost += cost;
-    materialLines.push({ name: item.n, qty: round2(qty), uom: item.uom, unitCost, cost: round2(cost) });
+    materialLines.push({ itemId: item.id, name: item.n, qty: round2(qty), uom: item.uom, unitCost, cost: round2(cost) });
   }
   return { materialCost, materialLines };
 }

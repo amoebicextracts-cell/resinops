@@ -757,6 +757,48 @@ export default function Finance() {
                           )}
                         </div>
                       )}
+
+                      {/* Actual materials used — variance display only, entered
+                          at close-out; doesn't feed cost math (materials cost
+                          still comes from the BOM/manual-override path above). */}
+                      {cogs.materialLines.length > 0 && (
+                        <div style={{marginTop:14}}>
+                          <div style={{fontSize:11,fontWeight:700,color:"var(--text-3)",marginBottom:6}}>Actual Materials Used (close-out — variance only, doesn't change cost)</div>
+                          <div style={{border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"}}>
+                            <table className="fin-tbl">
+                              <thead><tr><th>Item</th><th>Estimated</th><th>Actual</th><th>Variance</th></tr></thead>
+                              <tbody>
+                                {cogs.materialLines.map((ml,i)=>{
+                                  const usage = (rec.actualMaterialUsage||[]).find(a=>a.itemId===ml.itemId)||{};
+                                  const hasActual = usage.actualQty!==undefined && usage.actualQty!==null && usage.actualQty!=="";
+                                  const actualQty = hasActual ? parseFloat(usage.actualQty) : null;
+                                  const variance = actualQty!==null ? actualQty-ml.qty : null;
+                                  return (
+                                    <tr key={i}>
+                                      <td>{ml.name}</td>
+                                      <td>{ml.qty} {ml.uom}</td>
+                                      <td>
+                                        <input type="number" step="0.01" className="fin-inp" style={{width:90}} value={usage.actualQty??""} placeholder={String(ml.qty)}
+                                          onChange={e=>{
+                                            const list = rec.actualMaterialUsage||[];
+                                            const idx = list.findIndex(a=>a.itemId===ml.itemId);
+                                            const merged = idx>=0
+                                              ? list.map((a,ix)=>ix===idx?{...a,actualQty:e.target.value}:a)
+                                              : [...list,{itemId:ml.itemId,actualQty:e.target.value}];
+                                            setRecord(batch.id,{actualMaterialUsage:merged});
+                                          }} />
+                                      </td>
+                                      <td style={{color: variance===null?"var(--text-3)":variance>0?"var(--danger)":variance<0?"var(--accent-2)":"var(--text-3)"}}>
+                                        {variance===null?"—":(variance>0?"+":"")+variance.toFixed(2)+" "+ml.uom}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
