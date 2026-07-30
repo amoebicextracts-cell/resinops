@@ -4,6 +4,11 @@ import { parseDateLocal } from "./lib/dateUtils";
 
 const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Genetics Lab / TC","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
+const CO2_METHODS = [
+  {v:"",l:"— Not enriched —"},
+  {v:"tank",l:"Tank / Regulator"},
+  {v:"burner",l:"Combustion Burner"},
+];
 const STATUSES = [
   {v:"active",l:"Active — plants in room"},
   {v:"cleaning",l:"Cleaning / Reset"},
@@ -50,11 +55,13 @@ const CSS=`
   .gm-stat-v{font-size:12px;color:var(--text-2);font-weight:500;}
 `;
 
-const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED",lightCount:"",lightWatts:"",resetDays:"7",status:"empty",lastHarvestDate:"",sensorId:"",notes:""};
+const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED",lightCount:"",lightWatts:"",resetDays:"7",status:"empty",lastHarvestDate:"",sensorId:"",notes:"",
+  ceilingHeightFt:"",co2Method:"",co2PpmTarget:"1200",co2HoursPerDay:"12",co2InjectionRateAch:"0.75",co2BurnRateCf:"",co2InventoryItemId:""};
 
 export default function GrowMap(){
   const [spaces,setSpaces]=useState([]);
   const [cultSpaces,setCultSpaces]=useState([]);
+  const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
 
   function normalizeRoom(r){
@@ -74,18 +81,27 @@ export default function GrowMap(){
       sensorId: r.sensorId||r.sensor_id||"",
       status: r.status||"active",
       notes: r.notes||"",
+      ceilingHeightFt: r.ceilingHeightFt||r.ceiling_height_ft||"",
+      co2Method: r.co2Method||r.co2_method||"",
+      co2PpmTarget: r.co2PpmTarget||r.co2_ppm_target||"",
+      co2HoursPerDay: r.co2HoursPerDay||r.co2_hours_per_day||"",
+      co2InjectionRateAch: r.co2InjectionRateAch||r.co2_injection_rate_ach||"",
+      co2BurnRateCf: r.co2BurnRateCf||r.co2_burn_rate_cf||"",
+      co2InventoryItemId: r.co2InventoryItemId||r.co2_inventory_item_id||"",
     };
   }
 
   useEffect(()=>{
     async function load(){
       try{
-        const [rooms, cs] = await Promise.all([
+        const [rooms, cs, inv] = await Promise.all([
           db.grow_rooms.list(),
           db.grow_spaces.list(),
+          db.inventory_items.list(),
         ]);
         setSpaces(rooms.map(normalizeRoom));
         setCultSpaces(cs);
+        setItems(inv);
       }catch(e){ console.error("GrowMap load error:",e); }
       setLoading(false);
     }
@@ -103,7 +119,10 @@ export default function GrowMap(){
   function openEdit(s){setForm({...s});setErr("");}
   async function save(){
     if(!form.name.trim()){setErr("Enter a room name.");return;}
-    const sp={...form,id:form.id||crypto.randomUUID()};
+    // co2_method has a not-null-friendly check constraint (tank/burner) —
+    // "" (the form's "not enriched" option) must become null, not the
+    // literal empty string, or the save fails the constraint.
+    const sp={...form,id:form.id||crypto.randomUUID(),co2Method:form.co2Method||null};
     try{
       const saved=await db.grow_rooms.upsert(sp);
       const normalized=normalizeRoom(saved);
@@ -189,6 +208,19 @@ export default function GrowMap(){
               <div><label className="gm-lbl">Last harvest date</label><input type="date" className="gm-inp" value={form.lastHarvestDate} onChange={e=>setF("lastHarvestDate",e.target.value)} /></div>
               <div><label className="gm-lbl">Sensor ID (Growlink / future API)</label><input className="gm-inp" value={form.sensorId} onChange={e=>setF("sensorId",e.target.value)} placeholder="For V2 climate API bridge" /></div>
             </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div><label className="gm-lbl">Ceiling height (ft)</label><input type="number" className="gm-inp" value={form.ceilingHeightFt} onChange={e=>setF("ceilingHeightFt",e.target.value)} placeholder="8" /></div>
+              <div><label className="gm-lbl">CO2 delivery method</label><select className="gm-sel" value={form.co2Method} onChange={e=>setF("co2Method",e.target.value)}>{CO2_METHODS.map(m=><option key={m.v} value={m.v}>{m.l}</option>)}</select></div>
+              <div><label className="gm-lbl">CO2 source (inventory item)</label><select className="gm-sel" value={form.co2InventoryItemId} onChange={e=>setF("co2InventoryItemId",e.target.value)} disabled={!form.co2Method}><option value="">— Select item —</option>{items.filter(i=>i.cat==="Cultivation Supplies"&&/co2/i.test(i.n||"")).map(i=><option key={i.id} value={i.id}>{i.n}</option>)}</select></div>
+            </div>
+            {form.co2Method&&(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="gm-lbl">Default PPM target</label><input type="number" className="gm-inp" value={form.co2PpmTarget} onChange={e=>setF("co2PpmTarget",e.target.value)} /></div>
+                <div><label className="gm-lbl">Default hours enriched/day</label><input type="number" className="gm-inp" value={form.co2HoursPerDay} onChange={e=>setF("co2HoursPerDay",e.target.value)} /></div>
+                {form.co2Method==="tank"&&<div><label className="gm-lbl">Replenishment rate (room-volumes/hr)</label><input type="number" step="0.05" className="gm-inp" value={form.co2InjectionRateAch} onChange={e=>setF("co2InjectionRateAch",e.target.value)} placeholder="0.75" /></div>}
+                {form.co2Method==="burner"&&<div><label className="gm-lbl">Burner output (ft³ CO2/hr, from spec sheet)</label><input type="number" className="gm-inp" value={form.co2BurnRateCf} onChange={e=>setF("co2BurnRateCf",e.target.value)} /></div>}
+              </div>
+            )}
             <div style={{marginBottom:10}}><label className="gm-lbl">Notes</label><input className="gm-inp" value={form.notes} onChange={e=>setF("notes",e.target.value)} /></div>
             {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
             <div style={{display:"flex",gap:8}}>
@@ -235,6 +267,7 @@ export default function GrowMap(){
                       {totalW>0&&<div className="gm-stat"><div className="gm-stat-l">Total watts</div><div className="gm-stat-v">{totalW.toLocaleString()}W</div></div>}
                       {sp.resetDays&&<div className="gm-stat"><div className="gm-stat-l">Reset days</div><div className="gm-stat-v">{sp.resetDays}d</div></div>}
                     </div>
+                    {sp.co2Method&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>CO2: {sp.co2Method==="tank"?"Tank/Regulator":"Burner"} · Target {sp.co2PpmTarget||1200}ppm · {sp.co2HoursPerDay||12}h/day</div>}
                     {ready&&<div style={{fontSize:11,color:ready.diff>=0?"var(--accent-2)":"var(--danger)",marginTop:4,fontWeight:500}}>
                       {ready.diff>=0?`Ready in ${ready.diff}d — ${fmtD(ready.date)}`:`Reset overdue by ${Math.abs(ready.diff)}d`}
                     </div>}
