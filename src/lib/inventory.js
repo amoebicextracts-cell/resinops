@@ -40,6 +40,17 @@ export function resolveBom(batch, boms) {
   return boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + (batch.sub || "") || (b.category === batch.cat && (b.subcategory || "") === (batch.sub || "")))) || null;
 }
 
+// "Actual units produced" is only ever saved on the batch's cogs_records
+// row (record.actualUnits), never on the production_batches row itself —
+// merge it in here so per_unit_output BOM lines scale off the real actual
+// count once known, instead of silently falling back to the pre-run
+// estimate forever. Called at every entry point that resolves BOM
+// quantities against a batch (resolveBomMaterialLines, deductForBatch)
+// so estimate display and real deduction can't disagree on this.
+function withActualUnits(batch, cogsRecord) {
+  return cogsRecord && cogsRecord.actualUnits ? { ...batch, actualUnits: cogsRecord.actualUnits } : batch;
+}
+
 // Pulled out of lineQty() so lib/cogs.js's cost-pool allocation (weight-
 // and unit-based) can share the exact same parsing instead of a second
 // copy that could silently drift from what deduction actually uses.
@@ -67,13 +78,14 @@ function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 // deductForBatch's snapshot below, so a batch's live-estimated materials
 // and its actually-deducted materials always agree on quantities — the
 // two can only diverge on unit cost if items.lastCost changed in between.
-export function resolveBomMaterialLines(batch, bom, items) {
+export function resolveBomMaterialLines(batch, bom, items, cogsRecord) {
+  const effectiveBatch = withActualUnits(batch, cogsRecord);
   let materialCost = 0;
   const materialLines = [];
   for (const line of bom?.items || []) {
     const item = (items || []).find(x => x.id === line.itemId);
     if (!item) continue;
-    const qty = lineQty(line, batch);
+    const qty = lineQty(line, effectiveBatch);
     const unitCost = item.lastCost || 0;
     const cost = qty * unitCost;
     materialCost += cost;
@@ -90,16 +102,17 @@ export function resolveBomMaterialLines(batch, bom, items) {
 // warning instead of going negative, and materialLines is the same-shaped
 // breakdown calcMaterialCost would produce — callers use it to lock in a
 // materials snapshot at the moment of real deduction.
-export function deductForBatch(batch, boms, items) {
+export function deductForBatch(batch, boms, items, cogsRecord) {
   const bom = resolveBom(batch, boms);
   if (!bom) return { updatedItems: [], shortfalls: [], bom: null, materialLines: [] };
+  const effectiveBatch = withActualUnits(batch, cogsRecord);
   const updatedItems = [];
   const shortfalls = [];
   let working = items;
   for (const line of bom.items || []) {
     const item = working.find(x => x.id === line.itemId);
     if (!item) continue;
-    const qty = lineQty(line, batch);
+    const qty = lineQty(line, effectiveBatch);
     if (qty <= 0) continue;
     const { item: updated, shortfall } = withdrawFifo(item, qty);
     working = working.map(x => x.id === updated.id ? updated : x);
@@ -108,6 +121,6 @@ export function deductForBatch(batch, boms, items) {
     else updatedItems.push(updated);
     if (shortfall > 0) shortfalls.push({ itemName: item.n, itemId: item.id, needed: qty, shortfall });
   }
-  const { materialLines } = resolveBomMaterialLines(batch, bom, items);
+  const { materialLines } = resolveBomMaterialLines(effectiveBatch, bom, items);
   return { updatedItems, shortfalls, bom, materialLines };
 }

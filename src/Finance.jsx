@@ -196,7 +196,7 @@ export default function Finance() {
 
   const [deductMsg, setDeductMsg] = useState({});
   async function deductNow(batch){
-    const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(batch, allBoms, items);
+    const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(batch, allBoms, items, getRecord(batch.id));
     if (!bom) { setDeductMsg(p=>({...p,[batch.id]:"No BOM matches this batch's category/subcategory — nothing to deduct."})); return; }
     try{
       if (updatedItems.length) {

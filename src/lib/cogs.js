@@ -45,7 +45,7 @@ export function calcMaterialCost(batch, boms, items, cogsRecord) {
 
   const bom = resolveBom(batch, boms);
   if (bom && !record.overrideMaterials) {
-    const resolved = resolveBomMaterialLines(batch, bom, items);
+    const resolved = resolveBomMaterialLines(batch, bom, items, record);
     materialCost = resolved.materialCost;
     materialLines.push(...resolved.materialLines);
   } else if (record.manualMaterials) {
