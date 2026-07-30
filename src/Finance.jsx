@@ -247,16 +247,29 @@ export default function Finance() {
   // — the instant a facility saves ONE real BOM via the form above, that
   // fallback stops applying and every other starter recipe silently
   // disappears. This upserts the whole starter set as real persisted rows
-  // (fixed ids, so it's idempotent — safe to click again later to pick up
-  // newly-added starter recipes without touching any custom BOMs).
+  // — idempotent by category+subcategory (skips anything the facility
+  // already has a real BOM for, custom or previously-seeded), so it's
+  // safe to click again later to pick up newly-added starter recipes.
   async function seedDefaultBoms(){
     try{
-      const saved = await Promise.all(DEFAULT_BOMS.map(b=>db.boms.upsert({...b})));
-      setBoms(p=>{
-        const byId = Object.fromEntries(p.map(x=>[x.id,x]));
-        for(const s of saved) byId[s.id]=s;
-        return Object.values(byId);
-      });
+      // DEFAULT_BOMS' fixed string ids ("bom_bho" etc.) only ever worked as
+      // an in-memory fallback constant — boms.id is a real uuid column, so
+      // saving one as-is fails outright (invalid input syntax for type uuid).
+      // DEFAULT_BOMS entries also only carry catSub, not the real
+      // category/subcategory columns resolveBom() needs after a reload.
+      // Real uuids + split-out category/subcategory here; idempotency is
+      // now "skip if a BOM already exists for this category+subcategory"
+      // instead of relying on the (unusable) fixed id.
+      const existingKeys = new Set(boms.map(b=>(b.category||"")+"|"+(b.subcategory||"")));
+      const toSeed = DEFAULT_BOMS
+        .map(b=>{
+          const [cat,sub] = (b.catSub||"").split("|");
+          return {...b, category:b.category||cat, subcategory:b.subcategory??(sub||"")};
+        })
+        .filter(b=>!existingKeys.has(b.category+"|"+b.subcategory));
+      if(!toSeed.length) return;
+      const saved = await Promise.all(toSeed.map(b=>db.boms.upsert({...b, id:crypto.randomUUID()})));
+      setBoms(p=>[...p, ...saved]);
     }catch(e){ console.error("Seed default BOMs failed:",e); }
   }
 
