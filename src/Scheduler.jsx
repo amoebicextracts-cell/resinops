@@ -143,7 +143,8 @@ function totalPlants(sp) { return (sp.strains||[]).reduce((a,s)=>a+(parseInt(s.p
 function strainSummary(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name+" ("+s.plants+")").join(", ") || sp.strain || ""; }
 function strainNames(sp) { return (sp.strains||[]).filter(s=>s.name).map(s=>s.name).join(", ") || sp.strain || ""; }
 
-const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }], growMapId: "" };
+const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, name: "", plants: "" }], growMapId: "",
+  co2Enabled: false, co2PpmTargetOverride: "", co2HoursPerDayOverride: "", co2DaysEnriched: "" };
 
 export default function Scheduler() {
   const [spaces, setSpaces] = useState([]);
@@ -217,7 +218,11 @@ export default function Scheduler() {
 
   function openEdit(sp) {
     const strains = (sp.strains&&sp.strains.length) ? sp.strains.map(s=>({id:s.id,name:s.name,plants:String(s.plants)})) : [{ id: Date.now(), name: sp.strain||"", plants: String(sp.plants||"") }];
-    setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains, growMapId: sp.growMapId||"" });
+    setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains, growMapId: sp.growMapId||"",
+      co2Enabled: sp.co2EnrichmentEnabled||false,
+      co2PpmTargetOverride: sp.co2PpmTargetOverride?String(sp.co2PpmTargetOverride):"",
+      co2HoursPerDayOverride: sp.co2HoursPerDayOverride?String(sp.co2HoursPerDayOverride):"",
+      co2DaysEnriched: sp.co2DaysEnriched?String(sp.co2DaysEnriched):"" });
     setEditId(sp.id);
     setFormMode("edit");
     setFormErr("");
@@ -286,7 +291,9 @@ export default function Scheduler() {
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     const record = {
       id: crypto.randomUUID(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
-      d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||""
+      d: form.d, plants: totalP, veg, flw, harvested: false, growMapId: form.growMapId||"",
+      co2EnrichmentEnabled: form.co2Enabled, co2PpmTargetOverride: form.co2PpmTargetOverride||null,
+      co2HoursPerDayOverride: form.co2HoursPerDayOverride||null, co2DaysEnriched: form.co2DaysEnriched||null,
     };
     try {
       const saved = await db.grow_spaces.upsert(record);
@@ -304,7 +311,9 @@ export default function Scheduler() {
     const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     const updated = { name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
-        d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"" };
+        d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"",
+        co2EnrichmentEnabled: form.co2Enabled, co2PpmTargetOverride: form.co2PpmTargetOverride||null,
+        co2HoursPerDayOverride: form.co2HoursPerDayOverride||null, co2DaysEnriched: form.co2DaysEnriched||null };
     try {
       const existing = spaces.find(sp => sp.id === editId);
       const saved = await db.grow_spaces.upsert({ ...existing, ...updated });
@@ -543,6 +552,50 @@ export default function Scheduler() {
             )}
           </div>
         </div>
+
+        {(() => {
+          const room = growMap.find(g => g.id === form.growMapId);
+          return (
+            <div style={{ background: "var(--surface-2)", borderRadius: 8, padding: "12px 14px", margin: "12px 0" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12, color: "var(--text)", fontWeight: 600 }}>
+                <input type="checkbox" checked={form.co2Enabled}
+                  onChange={e => setForm(f => ({ ...f, co2Enabled: e.target.checked }))} />
+                Enable CO2 enrichment for this cycle
+              </label>
+              {form.co2Enabled && (
+                <>
+                  {!room?.co2Method ? (
+                    <div style={{ fontSize: 11, color: "var(--amber)", marginTop: 8 }}>
+                      {room ? "This room has no CO2 delivery method configured — set it up in Grow Map first." : "Select a room above to see its CO2 defaults."}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8 }}>
+                      Room defaults: {room.co2Method === "tank" ? "Tank/Regulator" : "Burner"} · Target {room.co2PpmTarget || 1200}ppm · {room.co2HoursPerDay || 12}h/day. Leave the fields below blank to use these.
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
+                    <div>
+                      <label className="sch-label">PPM target override</label>
+                      <input type="number" className="sch-input" placeholder={String(room?.co2PpmTarget || 1200)}
+                        value={form.co2PpmTargetOverride} onChange={e => setForm(f => ({ ...f, co2PpmTargetOverride: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="sch-label">Hours/day override</label>
+                      <input type="number" className="sch-input" placeholder={String(room?.co2HoursPerDay || 12)}
+                        value={form.co2HoursPerDayOverride} onChange={e => setForm(f => ({ ...f, co2HoursPerDayOverride: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="sch-label">Days enriched</label>
+                      <input type="number" className="sch-input" placeholder={"Defaults to " + (form.flw || 9) + " wk flower × 7"}
+                        value={form.co2DaysEnriched} onChange={e => setForm(f => ({ ...f, co2DaysEnriched: e.target.value }))} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         {formErr && <div style={{ fontSize: "12px", color: "var(--danger)", marginTop: "8px" }}>{formErr}</div>}
         <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
           <button className="sch-btn sch-btn-primary"
