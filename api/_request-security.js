@@ -101,6 +101,26 @@ export function validateErrorReportPayload(body) {
   return null;
 }
 
+const SIGN_DOCUMENT_TYPES = new Set(['batch_record', 'sop', 'deviation']);
+const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/i;
+// Base64 grows ~33% over raw bytes; these are short text-only PDFs, so an
+// 8MB decoded-size budget is generous headroom, not a real ceiling.
+const MAX_PDF_BASE64_LENGTH = 11_000_000;
+
+export function validateSignDocumentPayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request body';
+  const { password, documentType, documentId, documentLabel, facilityId, pdfBase64, sha256 } = body;
+  if (typeof password !== 'string' || !password) return 'password is required';
+  if (typeof documentType !== 'string' || !SIGN_DOCUMENT_TYPES.has(documentType)) return 'Unknown documentType';
+  if (typeof documentId !== 'string' || !documentId.trim() || documentId.length > 200) return 'documentId is required';
+  if (typeof documentLabel !== 'string' || !documentLabel.trim() || documentLabel.length > 500) return 'documentLabel is required';
+  if (typeof facilityId !== 'string' || !facilityId.trim()) return 'facilityId is required';
+  if (typeof sha256 !== 'string' || !SHA256_HEX_PATTERN.test(sha256)) return 'sha256 must be a 64-character hex digest';
+  if (typeof pdfBase64 !== 'string' || !pdfBase64) return 'pdfBase64 is required';
+  if (pdfBase64.length > MAX_PDF_BASE64_LENGTH) return 'pdfBase64 is too large';
+  return null;
+}
+
 export function checkRateLimit(key, { limit, windowMs }, now = Date.now()) {
   const existing = rateBuckets.get(key);
   if (!existing || now - existing.startedAt >= windowMs) {

@@ -71,6 +71,7 @@ const LS_KEYS = {
   cost_pools:         'resinops_cost_pools',
   operating_expenses: 'resinops_operating_expenses',
   strain_descriptions:'resinops_strain_descriptions',
+  signature_records:  'resinops_signature_records',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
