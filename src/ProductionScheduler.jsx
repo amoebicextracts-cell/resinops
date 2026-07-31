@@ -4,6 +4,8 @@ import { supabase, getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { toISODate } from "./lib/dailyActions";
+import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
 
 // Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS/getRequiredTiers —
 // duplicated rather than shared so each screen's sign-off UI stays simple
@@ -1193,6 +1195,12 @@ export default function ProductionScheduler({onNavigate}){
     document.addEventListener("keydown",onKey);
     return ()=>document.removeEventListener("keydown",onKey);
   },[ganttExpanded]);
+  const[viewMode,setViewMode]=useState(()=>{
+    try{ const v = localStorage.getItem("resinops_ps_view"); return ["gantt","agenda","month"].includes(v) ? v : "gantt"; }
+    catch{ return "gantt"; }
+  });
+  useEffect(()=>{ try{ localStorage.setItem("resinops_ps_view", viewMode); }catch{} },[viewMode]);
+  const[monthCursor,setMonthCursor]=useState(()=>{ const d=new Date(); return {year:d.getFullYear(), month:d.getMonth()}; });
 
   useEffect(()=>{
     async function load(){
@@ -1457,6 +1465,33 @@ export default function ProductionScheduler({onNavigate}){
   const visibleBatches=visibleIdx.map(i=>batches[i]);
   const visibleTimelines=visibleIdx.map(i=>timelines[i]);
   const hasBatches=visibleBatches.length>0;
+
+  const dailyActions = visibleBatches.flatMap((b, idx) => {
+    if (b.isLinked) return [];
+    const tl = visibleTimelines[idx];
+    if (!tl.length) return [];
+    const stepActions = tl.map((step, si) => ({
+      id: b.id + "-" + si,
+      date: toISODate(step.start),
+      label: step.name + " begins",
+      sublabel: b.name,
+      colorBg: SBG[step.name] || "#333",
+      colorText: SFG[step.name] || "#fff",
+      onClick: () => openEdit(b),
+    }));
+    const last = tl[tl.length - 1];
+    stepActions.push({
+      id: b.id + "-complete",
+      date: toISODate(last.end),
+      label: "Batch complete",
+      sublabel: b.name,
+      colorBg: SBG["Inventory"] || "#0e3030",
+      colorText: SFG["Inventory"] || "#70d0d0",
+      onClick: () => openEdit(b),
+    });
+    return stepActions;
+  });
+
   let gStart,total,twPx,todayOff,months,weeks;
   if(hasBatches){
     const allS=visibleTimelines.map(tl=>tl[0]?.start).filter(Boolean);
@@ -1621,6 +1656,11 @@ export default function ProductionScheduler({onNavigate}){
             <div style={{fontSize:12,color:"var(--text-3)"}}>Track every batch from intake to live inventory</div>
           </div>
           <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:4}}>
+              <button className={"ps-btn ps-sm " + (viewMode==="gantt"?"ps-edit":"ps-secondary")} onClick={()=>setViewMode("gantt")}>Gantt</button>
+              <button className={"ps-btn ps-sm " + (viewMode==="agenda"?"ps-edit":"ps-secondary")} onClick={()=>setViewMode("agenda")}>Agenda</button>
+              <button className={"ps-btn ps-sm " + (viewMode==="month"?"ps-edit":"ps-secondary")} onClick={()=>setViewMode("month")}>Month</button>
+            </div>
             {hasBatches&&<button className="ps-exp" onClick={exportProd}>↓ Export</button>}
             {!formMode&&<button className="ps-btn ps-primary" onClick={openAdd}>+ Add Batch</button>}
           </div>
@@ -2907,7 +2947,7 @@ export default function ProductionScheduler({onNavigate}){
           </div>
         )}
 
-        {!hasBatches&&!formMode&&(
+        {!hasBatches&&!formMode&&viewMode==="gantt"&&(
           <div style={{border:"1px dashed var(--border-2)",borderRadius:10,padding:"48px 24px",textAlign:"center"}}>
             <div style={{fontSize:32,marginBottom:10}}>🏭</div>
             <div style={{fontSize:14,fontWeight:500,color:"var(--text-2)",marginBottom:4}}>No production batches yet</div>
@@ -2915,7 +2955,28 @@ export default function ProductionScheduler({onNavigate}){
           </div>
         )}
 
-        {hasBatches&&gStart&&(<>
+        {viewMode==="agenda"&&(
+          <div className={ganttExpanded?"ps-gantt-full":undefined}>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+              <button className="ps-btn ps-sm ps-secondary" onClick={()=>setGanttExpanded(x=>!x)}>{ganttExpanded?"✕ Collapse":"⛶ Expand"}</button>
+            </div>
+            <div className="ps-outer">
+              <AgendaView actions={dailyActions} emptyLabel="No production steps to show" />
+            </div>
+          </div>
+        )}
+
+        {viewMode==="month"&&(
+          <div className={ganttExpanded?"ps-gantt-full":undefined}>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+              <button className="ps-btn ps-sm ps-secondary" onClick={()=>setGanttExpanded(x=>!x)}>{ganttExpanded?"✕ Collapse":"⛶ Expand"}</button>
+            </div>
+            <MonthView actions={dailyActions} cursor={monthCursor} onCursorChange={setMonthCursor}
+              emptyLabel="No production steps to show" buttonClassName="ps-btn ps-sm ps-secondary" />
+          </div>
+        )}
+
+        {hasBatches&&gStart&&viewMode==="gantt"&&(<>
           <div className={ganttExpanded?"ps-gantt-full":undefined}>
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
             <button className="ps-btn ps-sm ps-secondary" onClick={()=>setGanttExpanded(x=>!x)}>{ganttExpanded?"✕ Collapse":"⛶ Expand"}</button>
