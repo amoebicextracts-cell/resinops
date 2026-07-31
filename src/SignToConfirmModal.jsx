@@ -61,20 +61,24 @@ export default function SignToConfirmModal({ title, description, documentType, d
       <div className="gh-card" style={{ width: 420, maxWidth: "90vw", margin: 0 }} onClick={e => e.stopPropagation()}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>{title}</div>
         <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 14 }}>{description}</div>
-        <label className="gh-lbl">Your password</label>
-        <input
-          className="gh-inp"
-          type="password"
-          autoFocus
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !signing) handleSign(); }}
-        />
-        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 8 }}>{err}</div>}
-        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <button className="gh-btn gh-primary" disabled={signing || !password} onClick={handleSign}>{signing ? "Signing…" : "Sign"}</button>
-          <button className="gh-btn gh-secondary" disabled={signing} onClick={onCancel}>Cancel</button>
-        </div>
+        <form onSubmit={e => { e.preventDefault(); if (!signing) handleSign(); }}>
+          <label className="gh-lbl" htmlFor="sign-to-confirm-password">Your password</label>
+          <input
+            id="sign-to-confirm-password"
+            name="password"
+            className="gh-inp"
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+          />
+          {err && <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 8 }}>{err}</div>}
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button type="submit" className="gh-btn gh-primary" disabled={signing || !password}>{signing ? "Signing…" : "Sign"}</button>
+            <button type="button" className="gh-btn gh-secondary" disabled={signing} onClick={onCancel}>Cancel</button>
+          </div>
+        </form>
       </div>
     </div>
   );

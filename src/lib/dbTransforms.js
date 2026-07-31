@@ -615,8 +615,8 @@ const FIELD_OVERRIDES = {
     supervisorAt: 'supervisor_at',
     managerId: 'manager_id',
     managerAt: 'manager_at',
-    qcHeadId: 'qc_head_id',
-    qcHeadAt: 'qc_head_at',
+    qc_headId: 'qc_head_id',
+    qc_headAt: 'qc_head_at',
   },
   cogs_records: {
     batchId: 'production_batch_id',
