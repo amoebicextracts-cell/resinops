@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./lib/db";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { toISODate } from "./lib/dailyActions";
+import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
 
 const ROOTING   = 14;
 const DRYING    = 12;
@@ -162,6 +164,12 @@ export default function Scheduler() {
     document.addEventListener("keydown",onKey);
     return ()=>document.removeEventListener("keydown",onKey);
   },[ganttExpanded]);
+  const [viewMode, setViewMode] = useState(()=>{
+    try{ const v = localStorage.getItem("resinops_sch_view"); return ["gantt","agenda","month"].includes(v) ? v : "gantt"; }
+    catch{ return "gantt"; }
+  });
+  useEffect(()=>{ try{ localStorage.setItem("resinops_sch_view", viewMode); }catch{} },[viewMode]);
+  const [monthCursor, setMonthCursor] = useState(()=>{ const d=new Date(); return {year:d.getFullYear(), month:d.getMonth()}; });
   const [toppingForm, setToppingForm]       = useState(null);
   const [toppingErr, setToppingErr]         = useState("");
 
@@ -412,6 +420,20 @@ export default function Scheduler() {
   const spaces_v   = visibleIdx.map(i=>spaces[i]);
   const scheds     = visibleIdx.map(i=>allScheds[i]);
   const hasSpaces  = spaces_v.length > 0;
+
+  const dailyActions = spaces_v.flatMap((sp, idx) => {
+    const sc = scheds[idx];
+    return MS.filter(m => sc.ms[m.k]).map(m => ({
+      id: sp.id + "-" + m.k,
+      date: toISODate(sc.ms[m.k]),
+      label: m.la,
+      sublabel: sp.name,
+      colorBg: m.co,
+      colorText: "#fff",
+      onClick: () => openEdit(sp),
+    }));
+  });
+
   let gStart, total, twPx, todayOff, months, weeks;
 
   if (hasSpaces) {
@@ -453,6 +475,11 @@ export default function Scheduler() {
             <div style={{ fontSize: "12px", color: "var(--text-3)" }}>Clone cut to live inventory — every milestone tracked</div>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button className={"sch-btn sch-btn-sm " + (viewMode==="gantt"?"sch-btn-edit":"sch-btn-secondary")} onClick={()=>setViewMode("gantt")}>Gantt</button>
+              <button className={"sch-btn sch-btn-sm " + (viewMode==="agenda"?"sch-btn-edit":"sch-btn-secondary")} onClick={()=>setViewMode("agenda")}>Agenda</button>
+              <button className={"sch-btn sch-btn-sm " + (viewMode==="month"?"sch-btn-edit":"sch-btn-secondary")} onClick={()=>setViewMode("month")}>Month</button>
+            </div>
             {hasSpaces && (
               <button className="sch-export-btn" onClick={exportScheduler}>
                 ↓ Export schedule
@@ -673,7 +700,7 @@ export default function Scheduler() {
         })()}
 
         {/* Empty state */}
-        {!hasSpaces && !formMode && (
+        {!hasSpaces && !formMode && viewMode==="gantt" && (
           <div style={{ border: "1px dashed var(--border-2)", borderRadius: "10px", padding: "48px 24px", textAlign: "center" }}>
             <div style={{ fontSize: "32px", marginBottom: "10px" }}>📅</div>
             <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--text-2)", marginBottom: "4px" }}>No grow spaces yet</div>
@@ -681,8 +708,31 @@ export default function Scheduler() {
           </div>
         )}
 
+        {/* Agenda view */}
+        {viewMode==="agenda" && (
+          <div className={ganttExpanded ? "sch-gantt-full" : undefined}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="sch-btn sch-btn-sm sch-btn-edit" onClick={() => setGanttExpanded(x => !x)}>{ganttExpanded ? "✕ Collapse" : "⛶ Expand"}</button>
+            </div>
+            <div className="sch-outer">
+              <AgendaView actions={dailyActions} emptyLabel="No milestones to show" />
+            </div>
+          </div>
+        )}
+
+        {/* Month view */}
+        {viewMode==="month" && (
+          <div className={ganttExpanded ? "sch-gantt-full" : undefined}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+              <button className="sch-btn sch-btn-sm sch-btn-edit" onClick={() => setGanttExpanded(x => !x)}>{ganttExpanded ? "✕ Collapse" : "⛶ Expand"}</button>
+            </div>
+            <MonthView actions={dailyActions} cursor={monthCursor} onCursorChange={setMonthCursor}
+              emptyLabel="No milestones to show" buttonClassName="sch-btn sch-btn-sm sch-btn-secondary" />
+          </div>
+        )}
+
         {/* Gantt chart */}
-        {hasSpaces && (
+        {hasSpaces && viewMode==="gantt" && (
           <>
             <div className={ganttExpanded ? "sch-gantt-full" : undefined}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>

@@ -982,8 +982,15 @@ export default function ResinOps() {
     if (!reportIssueText.trim()) return;
     setReportIssueStatus("sending");
     const ok = await submitIssueReport(reportIssueText.trim(), activeModule);
-    setReportIssueStatus(ok ? "sent" : "error");
-    if (ok) setReportIssueText("");
+    if (ok) {
+      setReportIssueStatus("sent");
+      setReportIssueText("");
+      // Brief "sent" confirmation, then auto-close so the closing itself
+      // signals success rather than requiring a manual "Close" click.
+      setTimeout(() => { setShowReportIssue(false); setReportIssueStatus(""); }, 1200);
+    } else {
+      setReportIssueStatus("error");
+    }
   }
 
   async function handleUpdateEmail() {
