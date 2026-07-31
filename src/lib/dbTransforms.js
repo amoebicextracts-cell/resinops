@@ -51,7 +51,7 @@ const SCHEMAS = {
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
   metrc_transfer_manifests: ['id','created_at','updated_at','facility_id','created_by','sales_order_id','destination_facility_name','destination_license_number','transfer_type','planned_route','estimated_departure','estimated_arrival','driver_name','driver_license_number','vehicle_make','vehicle_model','vehicle_license_plate','phone_for_questions','packages','metrc_transfer_id','status','notes'],
   ipm_log: ['id','created_at','updated_at','facility_id','created_by','entry_type','room_name','grow_space_id','batch_ids','scheduled_date','performed_date','status','target_pest','species','release_rate','release_unit','pest_count','threshold_exceeded','action_taken','performed_by','notes'],
-  customers: ['id','created_at','updated_at','facility_id','created_by','name','license_number','contact_name','phone','email','address','account_type','pipeline_stage','notes'],
+  customers: ['id','created_at','updated_at','facility_id','created_by','name','license_number','contact_name','phone','email','address','account_type','pipeline_stage','notes','activity_log','follow_up_date','follow_up_note','deal_value'],
   sales_goals: ['id','created_at','updated_at','facility_id','created_by','period_start','period_end','goal_amount','notes'],
   strain_descriptions: ['id','created_at','updated_at','facility_id','created_by','strain_id','product_type','description','sources','notes'],
 };
@@ -681,6 +681,10 @@ const FIELD_OVERRIDES = {
     contactName: 'contact_name',
     accountType: 'account_type',
     pipelineStage: 'pipeline_stage',
+    activityLog: 'activity_log',
+    followUpDate: 'follow_up_date',
+    followUpNote: 'follow_up_note',
+    dealValue: 'deal_value',
   },
   sales_goals: {
     periodStart: 'period_start',

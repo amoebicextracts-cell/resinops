@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { bookedRevenueForBatch } from "./lib/revenue";
-import { parseDateLocal } from "./lib/dateUtils";
+import { parseDateLocal, todayLocalISO, daysUntil } from "./lib/dateUtils";
 
 const ACCOUNT_TYPES = ["dispensary","processor","wholesale","other"];
 const PIPELINE_STAGES = ["lead","prospect","active","inactive"];
+const STAGE_LABELS = {lead:"Lead",prospect:"Prospect",active:"Active",inactive:"Inactive"};
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});}
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
@@ -31,9 +32,18 @@ const CSS=`
   .stage-prospect{background:rgba(200,150,58,0.15);color:var(--amber);}
   .stage-active{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .stage-inactive{background:rgba(100,100,100,0.15);color:var(--text-3);}
+  .cu-box{background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:12px;margin-bottom:10px;}
+  .cu-activity-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);}
+  .cu-activity-row:last-child{border-bottom:none;}
+  .cu-kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:start;}
+  .cu-kanban-col{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px;min-height:120px;}
+  .cu-kanban-col.over{border-color:var(--accent);background:rgba(74,124,89,0.08);}
+  .cu-kanban-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px;padding:0 2px;}
+  .cu-kanban-card{background:var(--surface);border:1px solid var(--border-2);border-radius:8px;padding:10px;margin-bottom:8px;cursor:grab;}
+  .cu-kanban-card:active{cursor:grabbing;}
 `;
 
-const EMPTY = {name:"",licenseNumber:"",contactName:"",phone:"",email:"",address:"",accountType:"dispensary",pipelineStage:"active",notes:""};
+const EMPTY = {name:"",licenseNumber:"",contactName:"",phone:"",email:"",address:"",accountType:"dispensary",pipelineStage:"active",notes:"",dealValue:""};
 
 export default function Customers(){
   const [customers,setCustomers]=useState([]);
@@ -43,6 +53,14 @@ export default function Customers(){
   const [detailId,setDetailId]=useState(null);
   const [stageFilter,setStageFilter]=useState("");
   const [err,setErr]=useState("");
+  const [activityForm,setActivityForm]=useState(null);
+  const [followUpForm,setFollowUpForm]=useState(null);
+  const [dragOverStage,setDragOverStage]=useState(null);
+  const [viewMode,setViewMode]=useState(()=>{
+    try{ const v = localStorage.getItem("resinops_customers_view"); return ["list","kanban"].includes(v) ? v : "list"; }
+    catch{ return "list"; }
+  });
+  useEffect(()=>{ try{ localStorage.setItem("resinops_customers_view", viewMode); }catch{} },[viewMode]);
 
   useEffect(()=>{
     async function load(){
@@ -87,6 +105,35 @@ export default function Customers(){
     catch(e){ setErr("Delete failed: "+e.message); }
   }
 
+  async function logActivity(customer){
+    if(!activityForm.note.trim()){ setErr("Enter what happened before logging it."); return; }
+    const entry = {...activityForm, id:"act_"+Date.now(), date: todayLocalISO()};
+    const updated = {...customer, activityLog:[...(customer.activityLog||[]),entry]};
+    try{
+      const saved = await db.customers.upsert(updated);
+      setCustomers(p=>p.map(x=>x.id===saved.id?saved:x));
+      setActivityForm(null); setErr("");
+    }catch(e){ setErr("Logging activity failed: "+e.message); }
+  }
+
+  async function saveFollowUp(customer){
+    const updated = {...customer, followUpDate: followUpForm.date||null, followUpNote: followUpForm.note};
+    try{
+      const saved = await db.customers.upsert(updated);
+      setCustomers(p=>p.map(x=>x.id===saved.id?saved:x));
+      setFollowUpForm(null); setErr("");
+    }catch(e){ setErr("Saving follow-up failed: "+e.message); }
+  }
+
+  async function moveStage(customerId, pipelineStage){
+    const customer = customers.find(c=>c.id===customerId);
+    if(!customer || customer.pipelineStage===pipelineStage) return;
+    try{
+      const saved = await db.customers.upsert({...customer, pipelineStage});
+      setCustomers(p=>p.map(x=>x.id===saved.id?saved:x));
+    }catch(e){ setErr("Moving stage failed: "+e.message); }
+  }
+
   const filtered = stageFilter ? customers.filter(c=>c.pipelineStage===stageFilter) : customers;
   const detail = customers.find(c=>c.id===detailId);
   const detailHistory = detail ? historyFor(detail) : null;
@@ -104,6 +151,12 @@ export default function Customers(){
             <div style={{fontSize:12,color:"var(--text-3)"}}>Dispensary and wholesale accounts, contact info, pipeline stage, and order history</div>
           </div>
           <div style={{display:"flex",gap:8}}>
+            {!form&&!detailId&&(
+              <div style={{display:"flex",gap:4}}>
+                <button className={"cu-sm "+(viewMode==="list"?"cu-edit":"cu-secondary")} onClick={()=>setViewMode("list")}>List</button>
+                <button className={"cu-sm "+(viewMode==="kanban"?"cu-edit":"cu-secondary")} onClick={()=>setViewMode("kanban")}>Kanban</button>
+              </div>
+            )}
             {detailId&&<button className="cu-btn cu-secondary" onClick={()=>setDetailId(null)}>← All accounts</button>}
             {!form&&!detailId&&<button className="cu-btn cu-primary" onClick={()=>setForm({...EMPTY})}>+ Add customer</button>}
           </div>
@@ -112,10 +165,11 @@ export default function Customers(){
         {form&&(
           <div className="cu-card" style={{border:"1px solid var(--accent)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>{form.id?"Edit Customer":"New Customer"}</div>
-            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:10,marginBottom:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div><label className="cu-lbl">Account / dispensary name</label><input className="cu-inp" value={form.name} onChange={e=>setF("name",e.target.value)} /></div>
               <div><label className="cu-lbl">License number</label><input className="cu-inp" value={form.licenseNumber} onChange={e=>setF("licenseNumber",e.target.value)} placeholder="OCM-..." /></div>
               <div><label className="cu-lbl">Account type</label><select className="cu-sel" value={form.accountType} onChange={e=>setF("accountType",e.target.value)}>{ACCOUNT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+              <div><label className="cu-lbl">Deal value ($, optional)</label><input type="number" className="cu-inp" value={form.dealValue} onChange={e=>setF("dealValue",e.target.value)} placeholder="Shown on kanban card" /></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
               <div><label className="cu-lbl">Contact name</label><input className="cu-inp" value={form.contactName} onChange={e=>setF("contactName",e.target.value)} /></div>
@@ -147,6 +201,62 @@ export default function Customers(){
               <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Lifetime revenue</div><div style={{fontSize:18,fontWeight:700,color:"var(--accent-2)"}}>{fmtC(detailHistory.revenue)}</div></div>
               <div style={{background:"var(--surface-2)",borderRadius:8,padding:"10px 12px"}}><div style={{fontSize:10,color:"var(--text-3)",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Last order</div><div style={{fontSize:18,fontWeight:700,color:"var(--accent-2)"}}>{fmtD(detailHistory.lastOrderDate)}</div></div>
             </div>
+
+            {/* Follow-up */}
+            <div className="cu-box">
+              <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:8}}>Follow-up</div>
+              {followUpForm?(
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8,marginBottom:8}}>
+                    <div><label className="cu-lbl">Date</label><input type="date" className="cu-inp" value={followUpForm.date} onChange={e=>setFollowUpForm(f=>({...f,date:e.target.value}))} /></div>
+                    <div><label className="cu-lbl">Note</label><input className="cu-inp" value={followUpForm.note} onChange={e=>setFollowUpForm(f=>({...f,note:e.target.value}))} placeholder="What to follow up about" /></div>
+                  </div>
+                  {err&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6}}>{err}</div>}
+                  <div style={{display:"flex",gap:6}}>
+                    <button className="cu-btn cu-primary" style={{fontSize:11,padding:"5px 12px"}} onClick={()=>saveFollowUp(detail)}>Save follow-up</button>
+                    <button className="cu-btn cu-secondary" style={{fontSize:11,padding:"5px 12px"}} onClick={()=>{setFollowUpForm(null);setErr("");}}>Cancel</button>
+                  </div>
+                </>
+              ):detail.followUpDate?(
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <span style={{fontWeight:600,color:daysUntil(detail.followUpDate)<=0?"var(--danger)":"var(--text)"}}>{fmtD(detail.followUpDate)}</span>
+                    {daysUntil(detail.followUpDate)<=0&&<span style={{fontSize:10,color:"var(--danger)",marginLeft:6}}>OVERDUE</span>}
+                    {detail.followUpNote&&<div style={{fontSize:11,color:"var(--text-3)"}}>{detail.followUpNote}</div>}
+                  </div>
+                  <button className="cu-sm cu-edit" onClick={()=>setFollowUpForm({date:detail.followUpDate,note:detail.followUpNote||""})}>Edit</button>
+                </div>
+              ):(
+                <button className="cu-btn cu-secondary" onClick={()=>setFollowUpForm({date:todayLocalISO(),note:""})}>+ Set follow-up date</button>
+              )}
+            </div>
+
+            {/* Activity log */}
+            <div className="cu-box">
+              <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:8}}>Activity Log</div>
+              {activityForm?(
+                <>
+                  <div style={{marginBottom:8}}><label className="cu-lbl">What happened</label><input className="cu-inp" value={activityForm.note} onChange={e=>setActivityForm(f=>({...f,note:e.target.value}))} placeholder="Called about reorder, sent pricing sheet..." /></div>
+                  <div style={{marginBottom:8}}><label className="cu-lbl">Logged by</label><input className="cu-inp" value={activityForm.by} onChange={e=>setActivityForm(f=>({...f,by:e.target.value}))} placeholder="Your name" /></div>
+                  {err&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6}}>{err}</div>}
+                  <div style={{display:"flex",gap:6}}>
+                    <button className="cu-btn cu-primary" style={{fontSize:11,padding:"5px 12px"}} onClick={()=>logActivity(detail)}>Log activity</button>
+                    <button className="cu-btn cu-secondary" style={{fontSize:11,padding:"5px 12px"}} onClick={()=>{setActivityForm(null);setErr("");}}>Cancel</button>
+                  </div>
+                </>
+              ):(
+                <button className="cu-btn cu-secondary" style={{marginBottom:(detail.activityLog||[]).length?10:0}} onClick={()=>setActivityForm({note:"",by:""})}>+ Log activity</button>
+              )}
+              {(detail.activityLog||[]).length>0&&[...detail.activityLog].reverse().slice(0,10).map((a,i)=>(
+                <div key={a.id||i} className="cu-activity-row">
+                  <div>
+                    <div style={{fontWeight:500,color:"var(--text)"}}>{a.note}</div>
+                    <div style={{fontSize:10,color:"var(--text-3)"}}>{fmtD(a.date)}{a.by?" · "+a.by:""}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {detailOrders.length>0&&(
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden",marginBottom:14}}>
                 <table className="cu-tbl">
@@ -171,6 +281,32 @@ export default function Customers(){
               <div style={{fontSize:32,marginBottom:10}}>🏢</div>
               <div style={{fontSize:14,fontWeight:500,color:"var(--text-2)",marginBottom:4}}>No customer accounts yet</div>
               <div style={{fontSize:12,color:"var(--text-3)"}}>Add dispensary/wholesale accounts here — link them to orders in Sales & Pre-Orders</div>
+            </div>
+          ):viewMode==="kanban"?(
+            <div className="cu-kanban">
+              {PIPELINE_STAGES.map(stage=>(
+                <div key={stage}
+                  className={"cu-kanban-col"+(dragOverStage===stage?" over":"")}
+                  onDragOver={e=>{e.preventDefault();setDragOverStage(stage);}}
+                  onDragLeave={()=>setDragOverStage(s=>s===stage?null:s)}
+                  onDrop={e=>{e.preventDefault();setDragOverStage(null);const id=e.dataTransfer.getData("text/plain");moveStage(id,stage);}}
+                >
+                  <div className="cu-kanban-head">{STAGE_LABELS[stage]} · {customers.filter(c=>c.pipelineStage===stage).length}</div>
+                  {customers.filter(c=>c.pipelineStage===stage).map(c=>{
+                    const h=historyFor(c);
+                    return (
+                      <div key={c.id} className="cu-kanban-card" draggable
+                        onDragStart={e=>{e.dataTransfer.setData("text/plain",c.id);}}
+                        onClick={()=>setDetailId(c.id)}>
+                        <div style={{fontWeight:600,color:"var(--text)",fontSize:12,marginBottom:4}}>{c.name}</div>
+                        {c.dealValue&&<div style={{fontSize:12,color:"var(--accent-2)",fontWeight:600,marginBottom:2}}>{fmtC(c.dealValue)}</div>}
+                        <div style={{fontSize:10,color:"var(--text-3)"}}>{h.orderCount} order{h.orderCount!==1?"s":""} · {fmtC(h.revenue)} lifetime</div>
+                        {c.followUpDate&&<div style={{fontSize:10,marginTop:4,color:daysUntil(c.followUpDate)<=0?"var(--danger)":"var(--text-3)"}}>Follow-up {fmtD(c.followUpDate)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           ):(
             <div className="cu-card">
