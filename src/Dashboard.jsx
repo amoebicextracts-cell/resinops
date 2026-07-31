@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import SalesGoalDial from "./SalesGoalDial.jsx";
-import { parseDateLocal } from "./lib/dateUtils";
+import { parseDateLocal, daysUntil } from "./lib/dateUtils";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -52,11 +52,12 @@ export default function Dashboard({ onNavigate }){
   const [strains,setStrains]=useState([]);
   const [workOrders,setWorkOrders]=useState([]);
   const [loto,setLoto]=useState([]);
+  const [customers,setCustomers]=useState([]);
 
   useEffect(()=>{
     async function load(){
       try{
-        const [sp,gm,hb,pb,emp,eq,dv,inv,cs,sh,so,sk,qc,st,wo,lt]=await Promise.all([
+        const [sp,gm,hb,pb,emp,eq,dv,inv,cs,sh,so,sk,qc,st,wo,lt,cu]=await Promise.all([
           db.grow_spaces.list(),
           db.grow_rooms.list(),
           db.harvest_batches.list(),
@@ -73,13 +74,14 @@ export default function Dashboard({ onNavigate }){
           db.strains.list(),
           db.work_orders.list(),
           db.loto_log.list(),
+          db.customers.list(),
         ]);
         setSpaces(sp); setGrowMap(gm); setHarvestBatches(hb);
         setProdBatches(pb.filter(b=>!b.isLinked)); setEmployees(emp);
         setEquipment(eq); setDeviations(dv); setInventory(inv);
         setCloneSched(cs); setShifts(sh); setSalesOrders(so);
         setSkus(sk); setQcTests(qc); setStrains(st);
-        setWorkOrders(wo); setLoto(lt);
+        setWorkOrders(wo); setLoto(lt); setCustomers(cu);
         const fid = getCurrentFacility();
         if(fid && supabase){
           const { data } = await supabase.from('facilities').select('facility_name,license_number,state').eq('id', fid).single();
@@ -194,6 +196,7 @@ export default function Dashboard({ onNavigate }){
   const totalPipeline=confirmedRevenue+pendingRevenue;
   const getDispensaryName=(o)=>o.customerName||o.dispensaryName||o.dispensary_name||o["Dispensary Name"]||o["Account"]||"";
   const uniqueAccounts=new Set(salesOrders.map(getDispensaryName).filter(Boolean)).size;
+  const followUpsDue=customers.filter(c=>c.followUpDate&&daysUntil(c.followUpDate)<=0).length;
 
   const totalAlerts=cuts.filter(c=>c.d<=3).length+qcHolds.length+openLoto.length+openDevs.filter(d=>d.status==="open").length+licenses.filter(l=>l.d<=14).length;
 
@@ -295,6 +298,7 @@ export default function Dashboard({ onNavigate }){
             {icon:"⛔",label:"QC holds",value:qcHolds.length,sub:"blocked from sales",nav:"qc-testing",alert:qcHolds.length>0},
             {icon:"🛠️",label:"Open work orders",value:openWOs.length,sub:openWOs.filter(w=>w.severity==="critical"||w.severity==="high").length+" critical/high",nav:"maintenance",alert:openWOs.some(w=>w.severity==="critical")},
             {icon:"⚠",label:"Open deviations",value:openDevs.length,sub:"awaiting CAPA",nav:"gmp-hub",alert:openDevs.length>0},
+            {icon:"⏰",label:"Follow-ups due",value:followUpsDue,sub:"overdue or due today",nav:"customers",alert:followUpsDue>0},
           ].map((s,i)=>(
             <div key={i} className="db-card" style={{cursor:onNavigate?"pointer":"default",borderColor:s.alert?"rgba(200,74,74,0.4)":"var(--border-2)"}} onClick={()=>onNavigate&&onNavigate(s.nav)}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>

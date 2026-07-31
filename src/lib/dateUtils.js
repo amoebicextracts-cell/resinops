@@ -26,3 +26,12 @@ export function todayLocalISO() {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+// Whole calendar days from `today` to `dateStr` (negative if in the past,
+// 0 if today, positive if upcoming). Used to flag overdue/due-today
+// follow-ups without caring about time-of-day.
+export function daysUntil(dateStr, today = todayLocalISO()) {
+  const a = parseDateLocal(today);
+  const b = parseDateLocal(dateStr);
+  return Math.round((b - a) / 86400000);
+}
