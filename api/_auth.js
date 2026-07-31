@@ -41,6 +41,19 @@ export async function requireFacilityAdmin(auth, facilityId) {
   return { role: membership.role };
 }
 
+export async function requireFacilityMember(auth, facilityId) {
+  const { data: membership, error } = await auth.supabase
+    .from('facility_members')
+    .select('role')
+    .eq('facility_id', facilityId)
+    .eq('user_id', auth.user.id)
+    .not('accepted_at', 'is', null)
+    .maybeSingle();
+  if (error) return { error: 'Unable to verify facility access', status: 503 };
+  if (!membership) return { error: 'Facility access denied', status: 403 };
+  return { role: membership.role };
+}
+
 export async function authorizeFacility(auth, facilityId, licenseNumber) {
   const { data: membership, error: membershipError } = await auth.supabase
     .from('facility_members')

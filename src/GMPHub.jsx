@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import SignToConfirmModal from "./SignToConfirmModal.jsx";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtDT(dt){return dt?parseDateLocal(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
@@ -30,7 +33,7 @@ function getRequiredTiers(stepName,facility){
 // a confirm button, used both in the outstanding-sign-offs dashboard and
 // the batch record. Module-level (not a nested function) so it doesn't
 // remount and lose its own pending-selection state on every parent render.
-function TierSignoffPicker({tier,employees,onSign}){
+function TierSignoffPicker({tier,employees,onSign,buttonLabel="Sign"}){
   const [empId,setEmpId]=useState("");
   const pool=employees.filter(e=>e.tier===tier);
   if(!pool.length) return (
@@ -44,7 +47,7 @@ function TierSignoffPicker({tier,employees,onSign}){
         <option value="">— {TIER_LABELS[tier]} —</option>
         {pool.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
       </select>
-      <button className="gh-sm gh-edit" disabled={!empId} onClick={()=>{onSign(empId);setEmpId("");}}>Sign</button>
+      <button className="gh-sm gh-edit" disabled={!empId} onClick={()=>{onSign(empId);setEmpId("");}}>{buttonLabel}</button>
     </div>
   );
 }
@@ -83,8 +86,15 @@ const CSS=`
   .batch-section-t{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;}
 `;
 
-const EMPTY_SOP={title:"",version:"1.0",department:"Cultivation",effectiveDate:"",approvedBy:"",status:"draft",linkedStepTypes:"",content:""};
-const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:todayLocalISO(),type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:""};
+const EMPTY_SOP={title:"",version:"1.0",department:"Cultivation",effectiveDate:"",approvedBy:"",status:"draft",linkedStepTypes:"",content:"",lockedAt:null};
+// Best-effort "X.Y" -> "X.(Y+1)" bump; falls back to appending ".1" for
+// anything that isn't a plain two-part version string. Not a strict
+// semver parser -- the user can always edit the suggestion.
+function bumpSopVersion(v){
+  const m=/^(\d+)\.(\d+)$/.exec((v||"").trim());
+  return m?`${m[1]}.${parseInt(m[2],10)+1}`:(v||"1.0")+".1";
+}
+const EMPTY_DEV={batchType:"harvest",batchId:"",batchName:"",stepName:"",date:todayLocalISO(),type:"Process Deviation",title:"",severity:"minor",description:"",rootCause:"",correctiveAction:"",preventiveAction:"",reportedById:"",closedById:"",status:"open",sopId:"",resolvedAt:null};
 const EMPTY_SHIFT={date:todayLocalISO(),department:"Cultivation",supervisorId:"",notes:""};
 
 export default function GMPHub(){
@@ -147,12 +157,26 @@ export default function GMPHub(){
   const [shiftEntries,setShiftEntries]=useState([]);
   const [batchRecordId,setBatchRecordId]=useState({type:"harvest",id:""});
   const [err,setErr]=useState("");
+  const [signingModal,setSigningModal]=useState(null);
 
   function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
 
   // ── SOPs ──
   async function saveSop(){
     if(!sopForm.title.trim()){setErr("Enter SOP title.");return;}
+    // A signed (locked) SOP must not be silently editable -- the signature
+    // would no longer mean anything. Any edit to a locked SOP clones into a
+    // brand-new, unsigned row instead of overwriting the signed original.
+    const original=sopForm.id?sops.find(x=>x.id===sopForm.id):null;
+    if(original?.lockedAt){
+      const cloned={...sopForm,id:crypto.randomUUID(),version:bumpSopVersion(sopForm.version),lockedAt:null};
+      try{
+        const saved=await db.gmp_sops.upsert(cloned);
+        setSops(p=>[...p,saved]);
+        setSopForm(null);setErr("");
+      }catch(e){ setErr("Save failed: "+e.message); }
+      return;
+    }
     const s={...sopForm,id:sopForm.id||crypto.randomUUID()};
     try{
       const saved=await db.gmp_sops.upsert(s);
@@ -160,6 +184,50 @@ export default function GMPHub(){
       else setSops(p=>[...p,saved]);
       setSopForm(null);setErr("");
     }catch(e){ setErr("Save failed: "+e.message); }
+  }
+
+  // ── Sign & Activate an SOP ── locks the version by stamping lockedAt;
+  // editing a locked SOP afterward always clones (see saveSop above).
+  function buildSopPdf(sop){
+    const doc=new jsPDF();
+    let y=16;
+    doc.setFontSize(15); doc.setFont(undefined,"bold");
+    doc.text("Standard Operating Procedure",14,y);
+    y+=8;
+    doc.setFont(undefined,"bold"); doc.text(sop.title||"Untitled SOP",14,y); doc.setFont(undefined,"normal");
+    y+=6;
+    doc.setFontSize(10);
+    doc.text(`Version ${sop.version||"1.0"} · ${sop.department||""} · Effective ${sop.effectiveDate?fmtD(sop.effectiveDate):"—"}`,14,y);
+    y+=8;
+    if(sop.linkedStepTypes){ doc.text(`Governs: ${sop.linkedStepTypes}`,14,y); y+=8; }
+    doc.setFontSize(9);
+    doc.text(doc.splitTextToSize(sop.content||"(no content entered)",180),14,y);
+    return doc;
+  }
+  function openSopActivation(){
+    if(!sopForm.title.trim()){setErr("Enter SOP title.");return;}
+    const original=sopForm.id?sops.find(x=>x.id===sopForm.id):null;
+    const isLockedEdit=!!original?.lockedAt;
+    const sopId=isLockedEdit?crypto.randomUUID():(sopForm.id||crypto.randomUUID());
+    const version=isLockedEdit?bumpSopVersion(sopForm.version):sopForm.version;
+    setSigningModal({
+      title:"Sign & Activate SOP",
+      description:`Signing locks "${sopForm.title}" v${version} as the active procedure. Future edits will create a new version rather than changing this signed record.`,
+      documentType:"sop",
+      documentId:sopId,
+      documentLabel:`${sopForm.title} v${version}`,
+      buildPdf:()=>buildSopPdf({...sopForm,version}),
+      onSigned:async()=>{
+        const lockedAt=new Date().toISOString();
+        const s={...sopForm,id:sopId,version,status:"active",lockedAt};
+        try{
+          const saved=await db.gmp_sops.upsert(s);
+          if(isLockedEdit||!sopForm.id) setSops(p=>[...p,saved]);
+          else setSops(p=>p.map(x=>x.id===saved.id?saved:x));
+          setSopForm(null);setErr("");
+        }catch(e){ setErr("Save failed: "+e.message); }
+      },
+    });
   }
 
   // ── Deviations ──
@@ -172,6 +240,51 @@ export default function GMPHub(){
       else setDeviations(p=>[...p,saved]);
       setDevForm(null);setErr("");
     }catch(e){ setErr("Save failed: "+e.message); }
+  }
+
+  // ── Sign & Close a deviation ──
+  function buildDeviationPdf(dev){
+    const doc=new jsPDF();
+    let y=16;
+    doc.setFontSize(15); doc.setFont(undefined,"bold");
+    doc.text("GMP Deviation Report",14,y);
+    y+=8;
+    doc.setFont(undefined,"bold"); doc.text(dev.title||dev.type||"Deviation",14,y); doc.setFont(undefined,"normal");
+    y+=6;
+    doc.setFontSize(10);
+    doc.text(`${dev.type||""} · ${(dev.severity||"").toUpperCase()} · ${fmtD(dev.date)}`,14,y);
+    y+=8;
+    doc.setFontSize(9);
+    [["Description",dev.description],["Root Cause",dev.rootCause],["Corrective Action",dev.correctiveAction],["Preventive Action",dev.preventiveAction]].forEach(([label,text])=>{
+      doc.setFont(undefined,"bold"); doc.text(label,14,y); doc.setFont(undefined,"normal");
+      y+=5;
+      const lines=doc.splitTextToSize(text||"—",180);
+      doc.text(lines,14,y);
+      y+=lines.length*4.5+5;
+    });
+    return doc;
+  }
+  function openDeviationClosure(){
+    if(!devForm.rootCause?.trim()||!devForm.correctiveAction?.trim()) return;
+    const devId=devForm.id||crypto.randomUUID();
+    setSigningModal({
+      title:"Sign & Close Deviation",
+      description:`Signing closes "${devForm.title||devForm.type}" as resolved, with the root cause and corrective action on record.`,
+      documentType:"deviation",
+      documentId:devId,
+      documentLabel:devForm.title||devForm.type||"Deviation",
+      buildPdf:()=>buildDeviationPdf(devForm),
+      onSigned:async()=>{
+        const resolvedAt=new Date().toISOString();
+        const d={...devForm,id:devId,status:"closed",resolvedAt};
+        try{
+          const saved=await db.gmp_deviations.upsert(d);
+          if(devForm.id) setDeviations(p=>p.map(x=>x.id===saved.id?saved:x));
+          else setDeviations(p=>[...p,saved]);
+          setDevForm(null);setErr("");
+        }catch(e){ setErr("Save failed: "+e.message); }
+      },
+    });
   }
 
   // ── Shifts ──
@@ -215,6 +328,82 @@ export default function GMPHub(){
       const saved=await db.gmp_signoffs.upsert(updated);
       setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
     }catch(e){ setErr("Could not undo: "+e.message); }
+  }
+
+  // ── Signed Batch Record PDF ── built for the QC Head "Sign & Release"
+  // flow. Sources the sign-off table from TIER_ORDER/TIER_LABELS reading
+  // so[tier+"Id"]/so[tier+"At"] -- unlike the older "🖨 Print Batch
+  // Record" HTML export below, which reads a legacy performed_by_id/
+  // verified_by_id/timestamp triad that signOffTier() never writes.
+  function buildBatchRecordPdf(batch,type,batchSignoffs,batchDevs,batchQcTests,batchShiftEntries,batchCultInputs){
+    const doc=new jsPDF();
+    let y=16;
+
+    doc.setFontSize(15); doc.setFont(undefined,"bold");
+    doc.text("GMP Batch Record",14,y);
+    doc.setFontSize(10); doc.setFont(undefined,"normal");
+    y+=7;
+    doc.text(type==="harvest"?(batch.strainName||"Unknown strain"):(batch.name||"Unnamed batch"),14,y);
+    y+=6;
+    doc.setFontSize(9); doc.setTextColor(90);
+    doc.text(`${facility.facility_name||""} ${facility.license_number?"— "+facility.license_number:""} · Batch ID ${batch.id} · Generated ${todayLocalISO()}`,14,y);
+    doc.setTextColor(0);
+    y+=10;
+
+    autoTable(doc,{
+      startY:y,
+      head:[["Step","Tier","Signed By","Signed At"]],
+      body:batchSignoffs.flatMap(so=>TIER_ORDER.filter(t=>so[t+"Id"]).map(t=>[so.stepName||"",TIER_LABELS[t],empName(so[t+"Id"]),fmtDT(so[t+"At"])])),
+      theme:"striped",
+      headStyles:{fillColor:[74,124,89]},
+    });
+    y=(batchSignoffs.some(so=>TIER_ORDER.some(t=>so[t+"Id"]))?doc.lastAutoTable.finalY:y)+4;
+    if(!batchSignoffs.some(so=>TIER_ORDER.some(t=>so[t+"Id"]))){ doc.setFontSize(9); doc.text("No sign-offs recorded for this batch.",14,y); y+=8; }
+
+    if(batchQcTests.length){
+      autoTable(doc,{
+        startY:y+4,
+        head:[["Lab","Sample ID","THCa %","Total Terps %","Result"]],
+        body:batchQcTests.map(t=>[t.labName||"",t.sampleId||"",t.thca||"—",t.totalTerpenes||"—",t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"]),
+        theme:"striped",
+        headStyles:{fillColor:[74,124,89]},
+      });
+      y=doc.lastAutoTable.finalY+4;
+    }
+
+    if(batchDevs.length){
+      autoTable(doc,{
+        startY:y+4,
+        head:[["Type","Severity","Title","Status","Corrective Action"]],
+        body:batchDevs.map(d=>[d.type||"",d.severity||"",d.title||"",d.status||"",d.correctiveAction||"—"]),
+        theme:"striped",
+        headStyles:{fillColor:[180,74,74]},
+      });
+      y=doc.lastAutoTable.finalY+4;
+    }
+
+    if(batchShiftEntries.length){
+      autoTable(doc,{
+        startY:y+4,
+        head:[["Date","Employee","Time In","Time Out","Hours","Task"]],
+        body:batchShiftEntries.map(e=>[fmtD(e.shiftDate),empName(e.employeeId),e.timeIn||"—",e.timeOut||"—",e.hoursWorked||"—",e.taskNotes||"—"]),
+        theme:"striped",
+        headStyles:{fillColor:[74,124,89]},
+      });
+      y=doc.lastAutoTable.finalY+4;
+    }
+
+    if(batchCultInputs.length){
+      autoTable(doc,{
+        startY:y+4,
+        head:[["Date","Type","Product","Rate","Applicator"]],
+        body:batchCultInputs.map(ci=>[fmtD(ci.date),ci.type||"",ci.product||ci.species||"",`${ci.rate||""} ${ci.rateUnit||""}`,ci.applicatorName||"In-house"]),
+        theme:"striped",
+        headStyles:{fillColor:[74,124,89]},
+      });
+    }
+
+    return doc;
   }
 
   // ── Batch Record ──
@@ -279,7 +468,20 @@ export default function GMPHub(){
                           <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>unsignTier(type,id,step.n,tier)}>✕</button>
                         </div>
                       ):(
-                        <TierSignoffPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffTier(type,id,step.n,tier,empId)} />
+                        <TierSignoffPicker key={tier} tier={tier} employees={employees}
+                          buttonLabel={tier==="qc_head"?"Sign & Release":"Sign"}
+                          onSign={empId=>{
+                            if(tier!=="qc_head"){ signOffTier(type,id,step.n,tier,empId); return; }
+                            setSigningModal({
+                              title:"Sign & Release Batch",
+                              description:`Signing releases "${step.n}" on ${type==="harvest"?batch.strainName:batch.name} as QC Head. This freezes the current batch record as a signed PDF.`,
+                              documentType:"batch_record",
+                              documentId:String(batch.id),
+                              documentLabel:`${type==="harvest"?batch.strainName:batch.name} — ${step.n} QC Head release`,
+                              buildPdf:()=>buildBatchRecordPdf(batch,type,batchSignoffs,batchDevs,batchQcTests,batchShiftEntries,batchCultInputs),
+                              onSigned:()=>signOffTier(type,id,step.n,"qc_head",empId),
+                            });
+                          }} />
                       );
                     })}
                   </div>
@@ -456,6 +658,10 @@ export default function GMPHub(){
                             const signedId=r.so?.[tier+"Id"];
                             return signedId?(
                               <span key={tier} style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.15)",borderRadius:6,padding:"3px 8px"}}>✓ {TIER_LABELS[tier]}: {empName(signedId)}</span>
+                            ):tier==="qc_head"?(
+                              <button key={tier} className="gh-sm gh-edit" onClick={()=>{setTab("record");setBatchRecordId({type:r.type,id:String(r.batch.id)});}}>
+                                → Sign in Batch Record
+                              </button>
                             ):(
                               <TierSignoffPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffTier(r.type,r.batch.id,r.stepName,tier,empId)} />
                             );
@@ -628,7 +834,13 @@ export default function GMPHub(){
                   <div><label className="gh-lbl">Deviation type</label><select className="gh-sel" value={devForm.type} onChange={e=>setDevForm(f=>({...f,type:e.target.value}))}>{DEV_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
                   <div><label className="gh-lbl">Severity</label><select className="gh-sel" value={devForm.severity} onChange={e=>setDevForm(f=>({...f,severity:e.target.value}))}>{DEV_SEVERITIES.map(s=><option key={s} value={s}>{s[0].toUpperCase()+s.slice(1)}</option>)}</select></div>
                   <div><label className="gh-lbl">Date</label><input type="date" className="gh-inp" value={devForm.date} onChange={e=>setDevForm(f=>({...f,date:e.target.value}))} /></div>
-                  <div><label className="gh-lbl">Status</label><select className="gh-sel" value={devForm.status} onChange={e=>setDevForm(f=>({...f,status:e.target.value}))}><option value="open">Open</option><option value="closed">Closed / CAPA complete</option></select></div>
+                  <div><label className="gh-lbl">Status</label>
+                    {devForm.status==="closed"?(
+                      <div style={{padding:"7px 0"}}><span className="gh-pill dev-closed">Closed / CAPA complete</span></div>
+                    ):(
+                      <select className="gh-sel" value={devForm.status} onChange={e=>setDevForm(f=>({...f,status:e.target.value}))}><option value="open">Open</option></select>
+                    )}
+                  </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:10}}>
                   <div><label className="gh-lbl">Batch type</label><select className="gh-sel" value={devForm.batchType} onChange={e=>setDevForm(f=>({...f,batchType:e.target.value,batchId:""}))}><option value="harvest">Harvest</option><option value="production">Production</option><option value="cultivation">Cultivation</option></select></div>
@@ -646,6 +858,9 @@ export default function GMPHub(){
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button className="gh-btn gh-primary" onClick={saveDev}>{devForm.id?"Save changes":"Log deviation"}</button>
+                  {devForm.status!=="closed"&&(
+                    <button className="gh-btn gh-edit" disabled={!devForm.rootCause?.trim()||!devForm.correctiveAction?.trim()} onClick={openDeviationClosure}>Sign &amp; Close</button>
+                  )}
                   <button className="gh-btn gh-secondary" onClick={()=>{setDevForm(null);setErr("");}}>Cancel</button>
                 </div>
               </div>
@@ -728,7 +943,11 @@ export default function GMPHub(){
                 <div style={{marginBottom:10}}><label className="gh-lbl">SOP content / procedure summary</label><textarea className="gh-inp" rows={6} style={{resize:"vertical"}} value={sopForm.content} onChange={e=>setSopForm(f=>({...f,content:e.target.value}))} placeholder="Describe the procedure, required PPE, critical control points, and acceptance criteria…" /></div>
                 {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
                 <div style={{display:"flex",gap:8}}>
-                  <button className="gh-btn gh-primary" onClick={saveSop}>{sopForm.id?"Save changes":"Add SOP"}</button>
+                  {sopForm.status==="active"?(
+                    <button className="gh-btn gh-primary" onClick={openSopActivation}>Sign &amp; Activate</button>
+                  ):(
+                    <button className="gh-btn gh-primary" onClick={saveSop}>{sopForm.id?"Save changes":"Add SOP"}</button>
+                  )}
                   <button className="gh-btn gh-secondary" onClick={()=>{setSopForm(null);setErr("");}}>Cancel</button>
                 </div>
               </div>
@@ -739,12 +958,12 @@ export default function GMPHub(){
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                   <div>
                     <div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{s.title} <span style={{fontSize:10,color:"var(--text-3)",fontWeight:400}}>v{s.version}</span></div>
-                    <div style={{fontSize:11,color:"var(--text-3)",marginTop:2}}>{s.department} · Effective {fmtD(s.effectiveDate)} · Approved by {s.approvedBy||"—"}</div>
+                    <div style={{fontSize:11,color:"var(--text-3)",marginTop:2}}>{s.department} · Effective {fmtD(s.effectiveDate)} · Approved by {s.approvedBy||"—"}{s.lockedAt&&<> · 🔒 Signed {fmtD(s.lockedAt)}</>}</div>
                     {s.linkedStepTypes&&<div style={{fontSize:10,color:"var(--accent-2)",marginTop:3}}>Governs: {s.linkedStepTypes}</div>}
                   </div>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
                     <span className={"gh-pill sop-"+s.status}>{s.status}</span>
-                    <button className="gh-sm gh-edit" onClick={()=>setSopForm({...s})}>Edit</button>
+                    <button className="gh-sm gh-edit" onClick={()=>setSopForm({...s})}>{s.lockedAt?"Edit → New Version":"Edit"}</button>
                     <button className="gh-sm gh-del" onClick={async()=>{try{await db.gmp_sops.delete(s.id);setSops(p=>p.filter(x=>x.id!==s.id));}catch(e){console.error(e);}}}>✕</button>
                   </div>
                 </div>
@@ -754,6 +973,19 @@ export default function GMPHub(){
           </div>
         )}
       </div>
+      {signingModal&&(
+        <SignToConfirmModal
+          title={signingModal.title}
+          description={signingModal.description}
+          documentType={signingModal.documentType}
+          documentId={signingModal.documentId}
+          documentLabel={signingModal.documentLabel}
+          facilityId={getCurrentFacility()}
+          buildPdf={signingModal.buildPdf}
+          onSigned={async(record)=>{ await signingModal.onSigned(record); setSigningModal(null); }}
+          onCancel={()=>setSigningModal(null)}
+        />
+      )}
     </>
   );
 }
