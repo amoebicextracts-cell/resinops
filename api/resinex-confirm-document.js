@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   try {
     const { data: existing, error: lookupError } = await admin
       .from('resinex_project_documents')
-      .select('id, facility_id, status')
+      .select('id, facility_id, status, storage_path')
       .eq('id', documentId)
       .maybeSingle();
     if (lookupError) {
@@ -80,6 +80,25 @@ export default async function handler(req, res) {
     }
     if (existing.status !== 'pending') {
       return sendApiError(res, 409, 'Document is not pending confirmation', requestId);
+    }
+
+    // Don't just trust the client's claim that the upload succeeded --
+    // verify the object actually landed in Storage before promoting this
+    // row to a visible "confirmed" document. Without this, a failed or
+    // abandoned-then-retried upload could get confirmed as pointing at
+    // nothing.
+    const lastSlash = existing.storage_path.lastIndexOf('/');
+    const folder = existing.storage_path.slice(0, lastSlash);
+    const basename = existing.storage_path.slice(lastSlash + 1);
+    const { data: listing, error: listError } = await admin.storage
+      .from('resinex-documents')
+      .list(folder, { search: basename });
+    if (listError) {
+      logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, listError);
+      return sendApiError(res, 502, 'Unable to verify the upload', requestId);
+    }
+    if (!listing?.some(item => item.name === basename)) {
+      return sendApiError(res, 409, 'Upload not found in storage — try uploading again', requestId);
     }
 
     const { data: record, error: updateError } = await admin

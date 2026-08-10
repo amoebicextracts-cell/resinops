@@ -29,7 +29,7 @@ export default function ProjectActuals({ project }) {
       db.resinex_project_documents.list(),
     ]).then(([a, d]) => {
       setActuals(a.filter(x => x.project_id === project.id));
-      setDocuments(d.filter(x => x.project_id === project.id));
+      setDocuments(d.filter(x => x.project_id === project.id && x.status === "confirmed"));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [project.id]);
