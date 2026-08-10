@@ -6,6 +6,8 @@ import autoTable from "jspdf-autotable";
 const ShellViewer3D = lazy(() => import("./ShellViewer3D.jsx"));
 
 import ShellEditor2D from "./ShellEditor2D.jsx";
+import ProjectDocuments from "./ProjectDocuments.jsx";
+import ProjectActuals from "./ProjectActuals.jsx";
 
 const IN_PER_FT = 12;
 const PDF_ROOM_FILL = { grow: [224, 237, 228], production: [222, 229, 239], business: [241, 231, 212], other: [227, 227, 227] };
@@ -196,6 +198,7 @@ export default function ResinExApp() {
   const [projectForm, setProjectForm] = useState(null);
   const [shellForm, setShellForm] = useState(null);
   const [show3D, setShow3D] = useState(false);
+  const [activeTab, setActiveTab] = useState("layout");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -367,27 +370,42 @@ export default function ResinExApp() {
             </div>
           ) : (
             <div className="rx-card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedProject.name} — {selectedShell.width_ft}ft × {selectedShell.depth_ft}ft shell</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="rx-btn rx-secondary" onClick={() => buildSchematicPdf(selectedProject, selectedShell, shellRooms, projectRoomEquipment, equipment)}>Export PDF</button>
-                  <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
-                </div>
+                {activeTab === "layout" && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="rx-btn rx-secondary" onClick={() => buildSchematicPdf(selectedProject, selectedShell, shellRooms, projectRoomEquipment, equipment)}>Export PDF</button>
+                    <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
+                  </div>
+                )}
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
-                <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>Sum of purchase price for {projectRoomEquipment.length} placed item{projectRoomEquipment.length === 1 ? "" : "s"} — planning estimate, not a full capex budget.</div>
+
+              <div style={{ display: "flex", gap: 8, marginBottom: 14, borderBottom: "1px solid var(--border-2)", paddingBottom: 10 }}>
+                <button className={activeTab === "layout" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("layout")}>Layout</button>
+                <button className={activeTab === "documents" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("documents")}>Documents</button>
+                <button className={activeTab === "actuals" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("actuals")}>Actuals</button>
               </div>
-              {show3D ? (
-                <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading 3D viewer…</div>}>
-                  <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
-                </Suspense>
-              ) : (
-                <ShellEditor2D
-                  shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
-                  roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
-                />
+
+              {activeTab === "layout" && (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
+                    <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>Sum of purchase price for {projectRoomEquipment.length} placed item{projectRoomEquipment.length === 1 ? "" : "s"} — planning estimate, not a full capex budget.</div>
+                  </div>
+                  {show3D ? (
+                    <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading 3D viewer…</div>}>
+                      <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
+                    </Suspense>
+                  ) : (
+                    <ShellEditor2D
+                      shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
+                      roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
+                    />
+                  )}
+                </>
               )}
+              {activeTab === "documents" && <ProjectDocuments project={selectedProject} />}
+              {activeTab === "actuals" && <ProjectActuals project={selectedProject} />}
             </div>
           )}
         </div>
