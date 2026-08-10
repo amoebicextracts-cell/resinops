@@ -40,13 +40,20 @@ create table if not exists public.resinex_project_documents (
     check (category in ('quote', 'blueprint', 'schematic', 'invoice', 'other')),
   -- Row is written as 'pending' the moment an upload URL is minted --
   -- before the browser has even started the direct-to-Storage upload --
-  -- and flipped to 'confirmed' once resinex-confirm-document.js verifies
-  -- it. This means an upload that never gets confirmed (browser closed,
-  -- connectivity lost) leaves a queryable, discoverable 'pending' row
-  -- instead of a completely untracked Storage object -- a real gap
-  -- flagged by Greptile review on PR #46, still needs a periodic cleanup
-  -- job to actually free storage for stale 'pending' rows (not built in
-  -- this phase), but is no longer silently invisible.
+  -- and flipped to 'confirmed' only after resinex-confirm-document.js
+  -- verifies the object actually exists in Storage. An upload that never
+  -- gets confirmed (browser closed, connectivity lost) leaves a
+  -- queryable, discoverable 'pending' row instead of a completely
+  -- untracked Storage object. Deleting a document (resinex-delete-
+  -- document.js) removes the metadata row before the Storage object, so
+  -- a failure on the Storage side after that point similarly leaves an
+  -- orphaned object with no row, not a broken confirmed document. Both
+  -- failure modes were flagged across several rounds of Greptile review
+  -- on PR #46 and are accepted as the same residual risk class:
+  -- harmless, invisible orphaned Storage objects that still need a
+  -- periodic reconciliation job to actually free storage (not built in
+  -- this phase) -- but neither can leave a user-visible document pointing
+  -- at nothing.
   status text not null default 'pending'
     check (status in ('pending', 'confirmed')),
   storage_path text not null,

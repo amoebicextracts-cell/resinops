@@ -2,13 +2,18 @@
 // ResinEx — Delete a project document (Storage object + metadata row)
 // api/resinex-delete-document.js — Vercel serverless function
 //
-// Removes the Storage object and the resinex_project_documents row in
-// one request, both via the service-role client -- avoids the
-// inconsistency window a two-call (server removes file, client separately
-// deletes the row) flow leaves if the second call fails (network blip,
-// session expiry, concurrent role change): metadata pointing at a file
-// that's already gone. Requires facility-admin, matching the metadata
-// table's own can_admin_facility delete RLS tier.
+// Removes the resinex_project_documents row BEFORE the Storage object,
+// deliberately -- if the Storage removal step fails, the result is an
+// orphaned, untracked Storage object (the same residual-risk class the
+// upload side already accepts for an unconfirmed 'pending' row: harmless,
+// invisible, needs a future reconciliation job to fully clean up). The
+// reverse order (tried first, then corrected) left a worse failure mode:
+// a *visible* confirmed document, and any actuals line item linked to it,
+// pointing at a file that no longer exists. Metadata-first also means
+// deleting the row cleans up any resinex_project_actuals.linked_document_id
+// referencing it for free, via that column's `on delete set null`.
+// Requires facility-admin, matching the metadata table's own
+// can_admin_facility delete RLS tier.
 //
 // Request format:
 // POST /api/resinex-delete-document
@@ -79,21 +84,10 @@ export default async function handler(req, res) {
       return sendApiError(res, 404, 'Document not found', requestId);
     }
 
-    // Remove the Storage object first; if it's already gone (e.g. a retry
-    // after a prior partial failure) Supabase Storage treats that as a
-    // no-op success, not an error, so this stays idempotent.
-    const { error: removeError } = await admin.storage.from('resinex-documents').remove([record.storage_path]);
-    if (removeError) {
-      logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, removeError);
-      return sendApiError(res, 502, 'Unable to delete the document file', requestId);
-    }
-
-    // The Storage object is already gone at this point -- a transient
-    // failure here would otherwise leave metadata pointing at a missing
-    // file. One short retry covers the common case (momentary DB blip);
-    // the object-removal step above is itself idempotent, so a client
-    // retry of this whole request after an eventual failure still
-    // converges correctly.
+    // Delete the metadata row first. One short retry covers the common
+    // transient-failure case; if it still fails, bail out entirely --
+    // don't touch Storage yet, so a retry of this whole request finds the
+    // row still present and safely re-attempts the same thing.
     let deleteError = (await admin.from('resinex_project_documents').delete().eq('id', documentId)).error;
     if (deleteError) {
       await new Promise(r => setTimeout(r, 400));
@@ -101,7 +95,17 @@ export default async function handler(req, res) {
     }
     if (deleteError) {
       logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, deleteError);
-      return sendApiError(res, 502, 'File was deleted but the document record could not be removed — retry to finish cleanup', requestId);
+      return sendApiError(res, 502, 'Unable to delete the document record', requestId);
+    }
+
+    // Metadata is gone -- from the user's perspective the document is
+    // deleted. Best-effort Storage cleanup from here: if it fails, the
+    // result is an orphaned object with no metadata row (harmless, same
+    // accepted residual class as an unconfirmed pending upload), not a
+    // user-visible failure, so this doesn't change the response.
+    const { error: removeError } = await admin.storage.from('resinex-documents').remove([record.storage_path]);
+    if (removeError) {
+      logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, removeError);
     }
 
     return res.status(200).json({ data: { deleted: true } });
