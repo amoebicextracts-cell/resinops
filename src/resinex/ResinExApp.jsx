@@ -130,6 +130,14 @@ function buildSchematicPdf(project, shell, rooms, roomEquipment, equipmentList) 
 
   const total = roomEquipment.reduce((sum, re) => sum + (Number(equipmentById.get(re.equipment_id)?.purchasePrice) || 0), 0);
   let y3 = doc.lastAutoTable.finalY + 10;
+  // A long equipment table can push finalY near the bottom of the page --
+  // without this check the cost total and required disclaimer could be
+  // clipped off the exported PDF entirely (caught by Greptile review on
+  // PR #44, merged before this was read/fixed).
+  if (y3 + 15 > pageH - margin) {
+    doc.addPage();
+    y3 = margin;
+  }
   doc.setFontSize(11); doc.setFont(undefined, "bold"); doc.setTextColor(0);
   doc.text(`Estimated equipment cost: $${total.toLocaleString()}`, margin, y3);
   y3 += 8;
