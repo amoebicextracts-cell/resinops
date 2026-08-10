@@ -138,7 +138,8 @@ create trigger validate_actual_refs
 before insert or update on public.resinex_project_actuals
 for each row execute function private.resinex_validate_actual_refs();
 
-grant select, insert, update, delete on public.resinex_project_documents to authenticated;
+-- insert/update deliberately excluded -- see the policy block below.
+grant select, delete on public.resinex_project_documents to authenticated;
 grant select, insert, update, delete on public.resinex_project_actuals to authenticated;
 
 create index if not exists resinex_project_documents_facility_id_idx on public.resinex_project_documents (facility_id);
@@ -159,12 +160,23 @@ for each row execute function public.handle_updated_at();
 alter table public.resinex_project_documents enable row level security;
 alter table public.resinex_project_actuals enable row level security;
 
+-- No insert or update policy, deliberately -- matching signature_records'
+-- "insert-only via service role" precedent. Every real write to this
+-- table (creating the pending row, flipping it to confirmed) already
+-- goes exclusively through service-role Vercel functions
+-- (resinex-create-upload-url.js, resinex-confirm-document.js), which
+-- bypass RLS entirely, so there's no legitimate reason to let an
+-- authenticated client write directly. Flagged by Greptile review on
+-- PR #46: without this, a facility editor could bypass
+-- resinex-confirm-document.js's Storage-existence check by inserting or
+-- updating a row directly through PostgREST with status='confirmed' and
+-- an arbitrary storage_path -- since resinex-get-document-url.js only
+-- verifies the row's facility_id (which the forging editor's own,
+-- legitimate facility_id would satisfy), it would sign a URL for
+-- whatever storage_path they chose, including a guessed/known path
+-- belonging to a different facility's real file.
 create policy facility_isolation_select on public.resinex_project_documents
   for select to authenticated using (private.is_facility_member(facility_id));
-create policy facility_isolation_insert on public.resinex_project_documents
-  for insert to authenticated with check (private.can_edit_facility(facility_id));
-create policy facility_isolation_update on public.resinex_project_documents
-  for update to authenticated using (private.can_edit_facility(facility_id)) with check (private.can_edit_facility(facility_id));
 create policy facility_isolation_delete on public.resinex_project_documents
   for delete to authenticated using (private.can_admin_facility(facility_id));
 
