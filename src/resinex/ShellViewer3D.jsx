@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Edges } from "@react-three/drei";
 
 const ROOM_COLORS = { grow: "#4a7c59", production: "#3d5a7a", business: "#a07a3d", other: "#6a6a6a" };
+const IN_PER_FT = 12;
 
 function RoomBox({ room, shellW, shellD, defaultHeight }) {
   const h = Number(room.height_ft) || defaultHeight;
@@ -21,11 +22,30 @@ function RoomBox({ room, shellW, shellD, defaultHeight }) {
   );
 }
 
-export default function ShellViewer3D({ shell, rooms }) {
+// Equipment dims are in inches (phase 1); room/placement coords are feet.
+function EquipmentBox({ placement, eq, room, shellW, shellD, roomHeight }) {
+  const rotated = Number(placement.rotation_deg) === 90 || Number(placement.rotation_deg) === 270;
+  const wIn = Number(eq?.width_in) || 24, dIn = Number(eq?.depth_in) || 24, hIn = Number(eq?.height_in) || 36;
+  const w = (rotated ? dIn : wIn) / IN_PER_FT;
+  const d = (rotated ? wIn : dIn) / IN_PER_FT;
+  const h = Math.min(hIn / IN_PER_FT, roomHeight); // never render taller than its own room
+  const cx = Number(room.x_ft) + Number(placement.x_ft) + w / 2 - shellW / 2;
+  const cz = Number(room.y_ft) + Number(placement.y_ft) + d / 2 - shellD / 2;
+  return (
+    <mesh position={[cx, h / 2, cz]}>
+      <boxGeometry args={[w, h, d]} />
+      <meshStandardMaterial color="#d0d0d0" />
+      <Edges color="#000" />
+    </mesh>
+  );
+}
+
+export default function ShellViewer3D({ shell, rooms, roomEquipment, equipment }) {
   const shellW = Number(shell.width_ft) || 1;
   const shellD = Number(shell.depth_ft) || 1;
   const defaultHeight = Number(shell.ceiling_height_ft) || 10;
   const camDist = Math.max(shellW, shellD, 20);
+  const equipmentById = new Map((equipment || []).map(e => [e.id, e]));
 
   return (
     <div style={{ width: "100%", height: 520, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border-2)" }}>
@@ -37,7 +57,22 @@ export default function ShellViewer3D({ shell, rooms }) {
           <boxGeometry args={[shellW, 0.1, shellD]} />
           <meshStandardMaterial color="#2a2a2a" transparent opacity={0.4} />
         </mesh>
-        {rooms.map(room => <RoomBox key={room.id} room={room} shellW={shellW} shellD={shellD} defaultHeight={defaultHeight} />)}
+        {rooms.map(room => (
+          <group key={room.id}>
+            <RoomBox room={room} shellW={shellW} shellD={shellD} defaultHeight={defaultHeight} />
+            {(roomEquipment || []).filter(re => re.room_id === room.id).map(pe => (
+              <EquipmentBox
+                key={pe.id}
+                placement={pe}
+                eq={equipmentById.get(pe.equipment_id)}
+                room={room}
+                shellW={shellW}
+                shellD={shellD}
+                roomHeight={Number(room.height_ft) || defaultHeight}
+              />
+            ))}
+          </group>
+        ))}
         <OrbitControls target={[0, 0, 0]} makeDefault />
       </Canvas>
     </div>
