@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../lib/db";
 import { AgendaView, MonthView } from "../SchedulerCalendarViews.jsx";
-import { todayLocalISO } from "../lib/dateUtils";
+import { parseDateLocal, todayLocalISO } from "../lib/dateUtils";
 
 const PX = 12; // px per day
 // Left label column width is 220px, set in ResinExApp.jsx's .rx-gantt-left
@@ -27,9 +27,14 @@ const STATUS_COLOR = { not_started: "#6a6a6a", in_progress: "#c8922a", complete:
 
 const EMPTY_TASK = { name: "", category: "other", start_date: todayLocalISO(), duration_days: "7", status: "not_started", depends_on_task_id: "", notes: "" };
 
-function dAdd(dt, n) { const r = new Date(dt); r.setDate(r.getDate() + n); return r; }
-function dDiff(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
-function fmtShort(dt) { return new Date(dt + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+// parseDateLocal (not new Date()) throughout -- a bare "YYYY-MM-DD" string
+// parses as UTC midnight, which displays as the day before in any
+// timezone behind UTC (all of the US). It also safely passes through an
+// already-constructed Date object unchanged, so these work whether called
+// with a stored date string or a previously-computed Date.
+function dAdd(dt, n) { const r = parseDateLocal(dt); r.setDate(r.getDate() + n); return r; }
+function dDiff(a, b) { return Math.round((parseDateLocal(b) - parseDateLocal(a)) / 86400000); }
+function fmtShort(dt) { return parseDateLocal(dt).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
 
 export default function ProjectTimeline({ project }) {
   const [tasks, setTasks] = useState([]);
@@ -41,10 +46,18 @@ export default function ProjectTimeline({ project }) {
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
 
   useEffect(() => {
+    // Guard against a stale response landing after the user has already
+    // switched to a different project -- without this, a slow response
+    // for the previously-selected project can overwrite the current
+    // project's task list with the wrong data.
+    let active = true;
+    setLoading(true);
     db.resinex_expansion_tasks.list().then(all => {
+      if (!active) return;
       setTasks(all.filter(t => t.project_id === project.id));
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [project.id]);
 
   function openAdd() { setForm({ ...EMPTY_TASK }); setErr(""); }
@@ -80,7 +93,7 @@ export default function ProjectTimeline({ project }) {
   // ProductionScheduler.jsx, simplified to one bar per task row.
   let gStart, total, twPx, todayOff, months, weeks;
   if (tasks.length) {
-    gStart = new Date(Math.min(...tasks.map(t => new Date(t.start_date))));
+    gStart = new Date(Math.min(...tasks.map(t => parseDateLocal(t.start_date))));
     const gEnd = new Date(Math.max(...tasks.map(t => dAdd(t.start_date, Number(t.duration_days) || 1))));
     total = dDiff(gStart, gEnd) + 7;
     twPx = total * PX;

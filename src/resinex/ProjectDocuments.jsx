@@ -28,12 +28,19 @@ export default function ProjectDocuments({ project }) {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    // Guard against a stale response landing after the user has already
+    // switched to a different project (same fix as ProjectTimeline.jsx,
+    // flagged by Greptile review there and applied here too).
+    let active = true;
+    setLoading(true);
     db.resinex_project_documents.list().then(all => {
+      if (!active) return;
       // "pending" rows are uploads still in flight (or abandoned before
       // confirmation) -- not real documents yet, so keep them out of the list.
       setDocuments(all.filter(d => d.project_id === project.id && d.status === "confirmed"));
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [project.id]);
 
   async function handleFileChosen(e) {
