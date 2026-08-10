@@ -415,7 +415,13 @@ export default function ResinExApp() {
                         <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
                       </Suspense>
                     ) : (
+                      // key={selectedShell.id} forces a full remount on shell
+                      // change, resetting all of ShellEditor2D's internal
+                      // state (selected room, open room form, drag state) --
+                      // without it, switching projects could leave a stale
+                      // room-edit form pointed at the previous shell's room.
                       <ShellEditor2D
+                        key={selectedShell.id}
                         shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
                         roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
                       />
@@ -423,9 +429,21 @@ export default function ResinExApp() {
                   </>
                 )
               )}
-              {activeTab === "documents" && <ProjectDocuments project={selectedProject} />}
-              {activeTab === "actuals" && <ProjectActuals project={selectedProject} />}
-              {activeTab === "timeline" && <ProjectTimeline project={selectedProject} />}
+              {/* key={selectedProject.id} on each tab component forces a full
+                  remount on project change, resetting all local state (open
+                  edit forms included) -- without it, switching projects
+                  while a form is open lets a stale save/delete mutate a
+                  record that belongs to the PREVIOUS project (flagged by
+                  Greptile review on PR #47 for ProjectTimeline; the same
+                  save()-always-stamps-the-current-project.id pattern exists
+                  in ProjectActuals too). The data-loading useEffect's
+                  `active` guard in each component is still needed
+                  independently -- it protects against a stale response
+                  arriving mid-flight even when a remount hasn't fully
+                  discarded the previous fetch's promise closure. */}
+              {activeTab === "documents" && <ProjectDocuments key={selectedProject.id} project={selectedProject} />}
+              {activeTab === "actuals" && <ProjectActuals key={selectedProject.id} project={selectedProject} />}
+              {activeTab === "timeline" && <ProjectTimeline key={selectedProject.id} project={selectedProject} />}
             </div>
           )}
         </div>
