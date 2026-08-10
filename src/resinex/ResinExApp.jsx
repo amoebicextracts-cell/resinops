@@ -47,6 +47,8 @@ export default function ResinExApp() {
   const [loading, setLoading] = useState(true);
   const [shells, setShells] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [roomEquipment, setRoomEquipment] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [projectForm, setProjectForm] = useState(null);
   const [shellForm, setShellForm] = useState(null);
@@ -56,14 +58,18 @@ export default function ResinExApp() {
   useEffect(() => {
     async function load() {
       try {
-        const [p, s, r] = await Promise.all([
+        const [p, s, r, eq, re] = await Promise.all([
           db.resinex_projects.list(),
           db.resinex_facility_shells.list(),
           db.resinex_rooms.list(),
+          db.equipment.list(),
+          db.resinex_room_equipment.list(),
         ]);
         setProjects(p);
         setShells(s);
         setRooms(r);
+        setEquipment(eq);
+        setRoomEquipment(re);
       } catch (e) { console.error("ResinEx load error:", e); }
       setLoading(false);
     }
@@ -73,6 +79,12 @@ export default function ResinExApp() {
   const selectedProject = projects.find(p => p.id === selectedId) || null;
   const selectedShell = shells.find(s => s.project_id === selectedId) || null;
   const shellRooms = selectedShell ? rooms.filter(r => r.shell_id === selectedShell.id) : [];
+  const shellRoomIds = new Set(shellRooms.map(r => r.id));
+  const projectRoomEquipment = roomEquipment.filter(re => shellRoomIds.has(re.room_id));
+  const estCost = projectRoomEquipment.reduce((sum, re) => {
+    const eq = equipment.find(e => e.id === re.equipment_id);
+    return sum + (Number(eq?.purchasePrice) || 0);
+  }, 0);
 
   function openAddProject() { setProjectForm({ ...EMPTY_PROJECT }); setErr(""); }
   function openEditProject(p) { setProjectForm({ ...p }); setErr(""); }
@@ -126,6 +138,18 @@ export default function ResinExApp() {
   async function deleteRoom(id) {
     await db.resinex_rooms.delete(id);
     setRooms(r => r.filter(x => x.id !== id));
+  }
+
+  async function saveRoomEquipment(placement) {
+    const rec = { ...placement, id: placement.id || crypto.randomUUID() };
+    const saved = await db.resinex_room_equipment.upsert(rec);
+    setRoomEquipment(re => placement.id ? re.map(x => x.id === saved.id ? saved : x) : [...re, saved]);
+    return saved;
+  }
+
+  async function deleteRoomEquipment(id) {
+    await db.resinex_room_equipment.delete(id);
+    setRoomEquipment(re => re.filter(x => x.id !== id));
   }
 
   if (loading) return <div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading ResinEx…</div>;
@@ -200,16 +224,23 @@ export default function ResinExApp() {
             </div>
           ) : (
             <div className="rx-card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedProject.name} — {selectedShell.width_ft}ft × {selectedShell.depth_ft}ft shell</div>
                 <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
               </div>
+              <div style={{ marginBottom: 12 }}>
+                <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
+                <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>Sum of purchase price for {projectRoomEquipment.length} placed item{projectRoomEquipment.length === 1 ? "" : "s"} — planning estimate, not a full capex budget.</div>
+              </div>
               {show3D ? (
                 <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading 3D viewer…</div>}>
-                  <ShellViewer3D shell={selectedShell} rooms={shellRooms} />
+                  <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
                 </Suspense>
               ) : (
-                <ShellEditor2D shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom} />
+                <ShellEditor2D
+                  shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
+                  roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
+                />
               )}
             </div>
           )}

@@ -3,6 +3,7 @@ import { db } from "../lib/db";
 
 const SCALE = 16; // px per ft
 const MIN_FT = 2;
+const IN_PER_FT = 12;
 const ROOM_TYPES = [
   { v: "grow", l: "Grow space" },
   { v: "production", l: "Production space" },
@@ -15,19 +16,35 @@ const EMPTY_ROOM = { name: "New Room", room_type: "other", x_ft: 0, y_ft: 0, wid
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
-export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom }) {
+// Equipment dims are in inches (phase 1); rooms/placements are in feet.
+// Nullable dims fall back to a placeholder footprint so undimensioned
+// equipment doesn't render as a zero-size, undraggable rect.
+function eqFootprintFt(eq) {
+  const wFt = (Number(eq?.width_in) || 24) / IN_PER_FT;
+  const dFt = (Number(eq?.depth_in) || 24) / IN_PER_FT;
+  return { wFt, dFt };
+}
+
+export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, roomEquipment, onSaveRoomEquipment, onDeleteRoomEquipment }) {
   const [selectedId, setSelectedId] = useState(null);
   const [roomForm, setRoomForm] = useState(null);
   const [growRooms, setGrowRooms] = useState([]);
   const [mapSpaces, setMapSpaces] = useState([]);
+  const [equipmentList, setEquipmentList] = useState([]);
   const [err, setErr] = useState("");
   const [dragPreview, setDragPreview] = useState(null); // {roomId, x_ft?, y_ft?, width_ft?, depth_ft?}
   const dragRef = useRef(null); // {mode:'move'|'resize', roomId, startX, startY, orig}
+  const [eqDragPreview, setEqDragPreview] = useState(null); // {placementId, x_ft, y_ft}
+  const eqDragRef = useRef(null); // {placementId, roomId, startX, startY, orig}
 
   useEffect(() => {
     db.grow_rooms.list().then(setGrowRooms).catch(() => {});
     db.facility_map_spaces.list().then(setMapSpaces).catch(() => {});
+    db.equipment.list().then(setEquipmentList).catch(() => {});
   }, []);
+
+  const equipmentById = new Map(equipmentList.map(eq => [eq.id, eq]));
+  const placedEquipmentIds = new Set(roomEquipment.map(re => re.equipment_id));
 
   useEffect(() => {
     const room = rooms.find(r => r.id === selectedId);
@@ -60,29 +77,70 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom }
 
   function onPointerMove(e) {
     const drag = dragRef.current;
-    if (!drag) return;
-    const room = rooms.find(r => r.id === drag.roomId);
-    if (!room) return;
-    const dxFt = Math.round((e.clientX - drag.startX) / SCALE);
-    const dyFt = Math.round((e.clientY - drag.startY) / SCALE);
-    if (drag.mode === "move") {
-      const x_ft = clamp(drag.orig.x_ft + dxFt, 0, shellW - Number(room.width_ft));
-      const y_ft = clamp(drag.orig.y_ft + dyFt, 0, shellD - Number(room.depth_ft));
-      setDragPreview({ roomId: room.id, x_ft, y_ft });
-    } else {
-      const width_ft = clamp(drag.orig.width_ft + dxFt, MIN_FT, shellW - Number(room.x_ft));
-      const depth_ft = clamp(drag.orig.depth_ft + dyFt, MIN_FT, shellD - Number(room.y_ft));
-      setDragPreview({ roomId: room.id, width_ft, depth_ft });
+    if (drag) {
+      const room = rooms.find(r => r.id === drag.roomId);
+      if (room) {
+        const dxFt = Math.round((e.clientX - drag.startX) / SCALE);
+        const dyFt = Math.round((e.clientY - drag.startY) / SCALE);
+        if (drag.mode === "move") {
+          const x_ft = clamp(drag.orig.x_ft + dxFt, 0, shellW - Number(room.width_ft));
+          const y_ft = clamp(drag.orig.y_ft + dyFt, 0, shellD - Number(room.depth_ft));
+          setDragPreview({ roomId: room.id, x_ft, y_ft });
+        } else {
+          const width_ft = clamp(drag.orig.width_ft + dxFt, MIN_FT, shellW - Number(room.x_ft));
+          const depth_ft = clamp(drag.orig.depth_ft + dyFt, MIN_FT, shellD - Number(room.y_ft));
+          setDragPreview({ roomId: room.id, width_ft, depth_ft });
+        }
+      }
+    }
+    const eqDrag = eqDragRef.current;
+    if (eqDrag) {
+      const room = rooms.find(r => r.id === eqDrag.roomId);
+      const placement = roomEquipment.find(re => re.id === eqDrag.placementId);
+      if (room && placement) {
+        const { wFt, dFt } = eqFootprintFt(equipmentById.get(placement.equipment_id));
+        const rotated = Number(placement.rotation_deg) === 90 || Number(placement.rotation_deg) === 270;
+        const boxW = rotated ? dFt : wFt, boxD = rotated ? wFt : dFt;
+        const dxFt = Math.round((e.clientX - eqDrag.startX) / SCALE);
+        const dyFt = Math.round((e.clientY - eqDrag.startY) / SCALE);
+        const x_ft = clamp(eqDrag.orig.x_ft + dxFt, 0, Number(room.width_ft) - boxW);
+        const y_ft = clamp(eqDrag.orig.y_ft + dyFt, 0, Number(room.depth_ft) - boxD);
+        setEqDragPreview({ placementId: placement.id, x_ft, y_ft });
+      }
     }
   }
 
   function onPointerUp() {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (!drag || !dragPreview) { setDragPreview(null); return; }
-    const room = rooms.find(r => r.id === drag.roomId);
-    if (room) onSaveRoom({ ...room, ...dragPreview });
+    if (drag && dragPreview) {
+      const room = rooms.find(r => r.id === drag.roomId);
+      if (room) onSaveRoom({ ...room, ...dragPreview });
+    }
     setDragPreview(null);
+
+    const eqDrag = eqDragRef.current;
+    eqDragRef.current = null;
+    if (eqDrag && eqDragPreview) {
+      const placement = roomEquipment.find(re => re.id === eqDrag.placementId);
+      if (placement) onSaveRoomEquipment({ ...placement, ...eqDragPreview });
+    }
+    setEqDragPreview(null);
+  }
+
+  function onPointerDownEquipment(e, room, placement) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    eqDragRef.current = { placementId: placement.id, roomId: room.id, startX: e.clientX, startY: e.clientY, orig: { x_ft: Number(placement.x_ft), y_ft: Number(placement.y_ft) } };
+  }
+
+  function placeEquipment(roomId, equipmentId) {
+    if (!equipmentId) return;
+    onSaveRoomEquipment({ room_id: roomId, equipment_id: equipmentId, x_ft: 0, y_ft: 0, rotation_deg: 0 });
+  }
+
+  function rotateEquipment(placement) {
+    onSaveRoomEquipment({ ...placement, rotation_deg: (Number(placement.rotation_deg) + 90) % 360 });
   }
 
   const setRF = (k, v) => setRoomForm(f => ({ ...f, [k]: v }));
@@ -145,6 +203,27 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom }
                   onPointerDown={e => onPointerDownHandle(e, room)}
                   onClick={e => e.stopPropagation()}
                 />
+                {roomEquipment.filter(re => re.room_id === room.id).map(pe => {
+                  const eq = equipmentById.get(pe.equipment_id);
+                  const eqPreview = eqDragPreview && eqDragPreview.placementId === pe.id ? eqDragPreview : {};
+                  const p = { ...pe, ...eqPreview };
+                  const { wFt, dFt } = eqFootprintFt(eq);
+                  const rotated = Number(p.rotation_deg) === 90 || Number(p.rotation_deg) === 270;
+                  const boxW = (rotated ? dFt : wFt) * SCALE, boxD = (rotated ? wFt : dFt) * SCALE;
+                  const ex = x + Number(p.x_ft) * SCALE, ey = y + Number(p.y_ft) * SCALE;
+                  return (
+                    <g key={pe.id}>
+                      <rect
+                        x={ex} y={ey} width={boxW} height={boxD}
+                        fill="#1a1a1a" fillOpacity={0.7} stroke="#fff" strokeWidth={1}
+                        style={{ cursor: "move" }}
+                        onPointerDown={e => onPointerDownEquipment(e, room, pe)}
+                        onClick={e => e.stopPropagation()}
+                      />
+                      <text x={ex + 4} y={ey + 12} fontSize={9} fill="#fff" style={{ pointerEvents: "none", fontFamily: "Inter, sans-serif" }}>{eq?.name || "Equipment"}</text>
+                    </g>
+                  );
+                })}
               </g>
             );
           })}
@@ -169,9 +248,35 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom }
             <div style={{ marginBottom: 8 }}><label className="rx-lbl">Link to facility space (optional)</label><select className="rx-sel" value={roomForm.linked_facility_map_space_id || ""} onChange={e => setRF("linked_facility_map_space_id", e.target.value)}><option value="">— None —</option>{mapSpaces.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
             <div style={{ marginBottom: 10 }}><label className="rx-lbl">Notes</label><input className="rx-inp" value={roomForm.notes || ""} onChange={e => setRF("notes", e.target.value)} /></div>
             {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               <button className="rx-btn rx-primary" onClick={saveRoomForm}>Save</button>
               <button className="rx-btn rx-del" onClick={removeSelected}>Delete</button>
+            </div>
+
+            <div style={{ borderTop: "1px solid var(--border-2)", paddingTop: 10 }}>
+              <div className="rx-lbl" style={{ marginBottom: 6 }}>Equipment in this room</div>
+              {roomEquipment.filter(re => re.room_id === selectedId).length === 0 ? (
+                <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>None placed yet.</div>
+              ) : (
+                <div style={{ marginBottom: 8 }}>
+                  {roomEquipment.filter(re => re.room_id === selectedId).map(re => {
+                    const eq = equipmentById.get(re.equipment_id);
+                    return (
+                      <div key={re.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "4px 0" }}>
+                        <span>{eq?.name || "Equipment"}</span>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          <button className="rx-sm rx-edit" onClick={() => rotateEquipment(re)}>⟳</button>
+                          <button className="rx-sm rx-del" onClick={() => onDeleteRoomEquipment(re.id)}>✕</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <select className="rx-sel" value="" onChange={e => { placeEquipment(selectedId, e.target.value); e.target.value = ""; }}>
+                <option value="">+ Place equipment</option>
+                {equipmentList.filter(eq => !placedEquipmentIds.has(eq.id)).map(eq => <option key={eq.id} value={eq.id}>{eq.name}</option>)}
+              </select>
             </div>
           </div>
         )}
