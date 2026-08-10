@@ -1,15 +1,17 @@
 // ============================================================
-// ResinEx — Remove a project document's underlying Storage object
-// api/resinex-delete-document-file.js — Vercel serverless function
+// ResinEx — Delete a project document (Storage object + metadata row)
+// api/resinex-delete-document.js — Vercel serverless function
 //
-// Only removes the file from the private "resinex-documents" bucket.
-// The client deletes the resinex_project_documents metadata row itself
-// afterward via the normal db.js path (already RLS-protected at
-// can_admin_facility) -- this endpoint requires the same admin tier so
-// both halves of the delete share one permission level.
+// Removes the Storage object and the resinex_project_documents row in
+// one request, both via the service-role client -- avoids the
+// inconsistency window a two-call (server removes file, client separately
+// deletes the row) flow leaves if the second call fails (network blip,
+// session expiry, concurrent role change): metadata pointing at a file
+// that's already gone. Requires facility-admin, matching the metadata
+// table's own can_admin_facility delete RLS tier.
 //
 // Request format:
-// POST /api/resinex-delete-document-file
+// POST /api/resinex-delete-document
 // { documentId, facilityId }
 // ============================================================
 
@@ -25,7 +27,7 @@ function getServiceRoleClient() {
   return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-function validateDeleteDocumentFilePayload(body) {
+function validateDeleteDocumentPayload(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request body';
   const { documentId, facilityId } = body;
   if (typeof documentId !== 'string' || !documentId.trim()) return 'documentId is required';
@@ -46,13 +48,13 @@ export default async function handler(req, res) {
   const auth = await authenticateRequest(req);
   if (auth.error) return sendApiError(res, auth.status, auth.error, requestId);
 
-  const limited = checkRateLimit(`resinex-delete-document-file:${auth.user.id}`, { limit: 60, windowMs: 60 * 60_000 });
+  const limited = checkRateLimit(`resinex-delete-document:${auth.user.id}`, { limit: 60, windowMs: 60 * 60_000 });
   if (!limited.allowed) {
     res.setHeader('Retry-After', String(limited.retryAfterSeconds));
     return sendApiError(res, 429, 'Too many requests. Try again later.', requestId);
   }
 
-  const validationError = validateDeleteDocumentFilePayload(req.body);
+  const validationError = validateDeleteDocumentPayload(req.body);
   if (validationError) return sendApiError(res, 400, validationError, requestId);
 
   const { documentId, facilityId } = req.body;
@@ -70,22 +72,31 @@ export default async function handler(req, res) {
       .eq('id', documentId)
       .maybeSingle();
     if (recordError) {
-      logApiError({ requestId, route: 'resinex-delete-document-file', userId: auth.user.id, facilityId }, recordError);
+      logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, recordError);
       return sendApiError(res, 502, 'Unable to look up the document', requestId);
     }
     if (!record || record.facility_id !== facilityId) {
       return sendApiError(res, 404, 'Document not found', requestId);
     }
 
+    // Remove the Storage object first; if it's already gone (e.g. a retry
+    // after a prior partial failure) Supabase Storage treats that as a
+    // no-op success, not an error, so this stays idempotent.
     const { error: removeError } = await admin.storage.from('resinex-documents').remove([record.storage_path]);
     if (removeError) {
-      logApiError({ requestId, route: 'resinex-delete-document-file', userId: auth.user.id, facilityId }, removeError);
+      logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, removeError);
       return sendApiError(res, 502, 'Unable to delete the document file', requestId);
+    }
+
+    const { error: deleteError } = await admin.from('resinex_project_documents').delete().eq('id', documentId);
+    if (deleteError) {
+      logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, deleteError);
+      return sendApiError(res, 502, 'File was deleted but the document record could not be removed — retry to finish cleanup', requestId);
     }
 
     return res.status(200).json({ data: { deleted: true } });
   } catch (error) {
-    logApiError({ requestId, route: 'resinex-delete-document-file', userId: auth.user.id, facilityId }, error);
-    return sendApiError(res, 500, 'Unable to delete document file', requestId);
+    logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, error);
+    return sendApiError(res, 500, 'Unable to delete document', requestId);
   }
 }

@@ -57,17 +57,21 @@ export default function ProjectDocuments({ project }) {
       const { error: uploadError } = await supabase.storage.from("resinex-documents").uploadToSignedUrl(path, token, file);
       if (uploadError) throw new Error("Upload failed: " + uploadError.message);
 
-      const saved = await db.resinex_project_documents.upsert({
-        id: crypto.randomUUID(),
-        project_id: project.id,
-        file_name: file.name,
-        mime_type: file.type,
-        file_size: file.size,
-        category,
-        storage_path: path,
-        notes,
+      // Confirming server-side (not a direct client db.js insert) means a
+      // failed insert can roll back the just-uploaded Storage object in
+      // the same request instead of leaving an orphaned file.
+      const confirmRes = await authenticatedApiFetch("/api/resinex-confirm-document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          facilityId, projectId: project.id, storagePath: path,
+          fileName: file.name, mimeType: file.type, fileSize: file.size, category, notes,
+        }),
       });
-      setDocuments(d => [saved, ...d]);
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok) throw new Error(formatApiError(confirmRes, confirmData, "Could not save the document record"));
+
+      setDocuments(d => [confirmData.data, ...d]);
       setNotes("");
     } catch (e) {
       setErr(e.message || "Upload failed.");
@@ -98,14 +102,15 @@ export default function ProjectDocuments({ project }) {
     setErr("");
     try {
       const facilityId = getCurrentFacility();
-      const res = await authenticatedApiFetch("/api/resinex-delete-document-file", {
+      // Removes the Storage object AND the metadata row in one request --
+      // no window where one succeeds and the other doesn't.
+      const res = await authenticatedApiFetch("/api/resinex-delete-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ documentId: doc.id, facilityId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(formatApiError(res, data, "Could not delete document"));
-      await db.resinex_project_documents.delete(doc.id);
       setDocuments(d => d.filter(x => x.id !== doc.id));
     } catch (e) {
       setErr(e.message || "Could not delete document.");

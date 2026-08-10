@@ -8,9 +8,20 @@
 -- scanned blueprints/vendor quotes). No storage.objects RLS policy here
 -- either, matching signed-documents' precedent: every Storage read/write/
 -- delete goes through a dedicated Vercel function
--- (api/resinex-create-upload-url.js, api/resinex-get-document-url.js,
--- api/resinex-delete-document-file.js) that independently re-verifies
--- facility membership first.
+-- (api/resinex-create-upload-url.js, api/resinex-confirm-document.js,
+-- api/resinex-get-document-url.js, api/resinex-delete-document.js) that
+-- independently re-verifies facility membership first.
+--
+-- RLS on both tables only checks the row's own submitted facility_id --
+-- it doesn't verify that project_id (or, for actuals, linked_document_id)
+-- actually belongs to that same facility. An editor authorized for their
+-- own facility could otherwise submit a project_id/document_id borrowed
+-- from another facility, creating a cross-facility relationship (and,
+-- since project_id cascades on delete, one facility's project deletion
+-- could cascade into another facility's document/actuals rows). The two
+-- trigger functions below close that gap at the database layer, so it
+-- holds regardless of whether the write comes through client RLS or a
+-- service-role API function.
 --
 -- Not applied automatically; review and run it through the disposable
 -- database job (or `supabase test db`) first.
@@ -49,6 +60,58 @@ create table if not exists public.resinex_project_actuals (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create or replace function private.resinex_validate_document_project()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from public.resinex_projects
+    where id = new.project_id and facility_id = new.facility_id
+  ) then
+    raise exception 'project % does not belong to facility %', new.project_id, new.facility_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_document_project on public.resinex_project_documents;
+create trigger validate_document_project
+before insert or update on public.resinex_project_documents
+for each row execute function private.resinex_validate_document_project();
+
+create or replace function private.resinex_validate_actual_refs()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (
+    select 1 from public.resinex_projects
+    where id = new.project_id and facility_id = new.facility_id
+  ) then
+    raise exception 'project % does not belong to facility %', new.project_id, new.facility_id;
+  end if;
+  if new.linked_document_id is not null and not exists (
+    select 1 from public.resinex_project_documents
+    where id = new.linked_document_id
+      and facility_id = new.facility_id
+      and project_id = new.project_id
+  ) then
+    raise exception 'linked document % does not belong to project %/facility %', new.linked_document_id, new.project_id, new.facility_id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists validate_actual_refs on public.resinex_project_actuals;
+create trigger validate_actual_refs
+before insert or update on public.resinex_project_actuals
+for each row execute function private.resinex_validate_actual_refs();
 
 grant select, insert, update, delete on public.resinex_project_documents to authenticated;
 grant select, insert, update, delete on public.resinex_project_actuals to authenticated;

@@ -16,7 +16,7 @@
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
-import { authenticateRequest, requireFacilityMember } from './_auth.js';
+import { authenticateRequest, requireFacilityEditor } from './_auth.js';
 import { applyCors, checkRateLimit, isOriginAllowed } from './_request-security.js';
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 
@@ -64,8 +64,24 @@ export default async function handler(req, res) {
 
   const { facilityId, projectId, fileName } = req.body;
 
-  const authz = await requireFacilityMember(auth, facilityId);
+  // create-upload-url must gate at the same tier as the metadata insert it
+  // precedes (facility_isolation_insert requires can_edit_facility) --
+  // otherwise a viewer-role member could write untracked objects into the
+  // bucket that can never be confirmed into a real document row.
+  const authz = await requireFacilityEditor(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
+
+  // Confirm the project is actually this member's own -- runs under the
+  // caller's own RLS-scoped client, so it only finds a match if both the
+  // project exists and belongs to a facility the caller can view.
+  const { data: project, error: projectError } = await auth.supabase
+    .from('resinex_projects')
+    .select('id')
+    .eq('id', projectId)
+    .eq('facility_id', facilityId)
+    .maybeSingle();
+  if (projectError) return sendApiError(res, 503, 'Unable to verify project access', requestId);
+  if (!project) return sendApiError(res, 404, 'Project not found for this facility', requestId);
 
   const admin = getServiceRoleClient();
   if (!admin) return sendApiError(res, 503, 'Document upload is not configured', requestId);
