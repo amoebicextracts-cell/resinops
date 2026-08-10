@@ -1,9 +1,144 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { db } from "../lib/db";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const ShellViewer3D = lazy(() => import("./ShellViewer3D.jsx"));
 
 import ShellEditor2D from "./ShellEditor2D.jsx";
+
+const IN_PER_FT = 12;
+const PDF_ROOM_FILL = { grow: [224, 237, 228], production: [222, 229, 239], business: [241, 231, 212], other: [227, 227, 227] };
+const PDF_ROOM_BORDER = { grow: [74, 124, 89], production: [61, 90, 122], business: [160, 122, 61], other: [106, 106, 106] };
+const DISCLAIMER = "Estimator tool — verify all dimensions, specifications, and pricing before requesting bids.";
+
+// Facility-shell/room/equipment schematic export -- a dimensioned floor
+// plan for GC-bidding reference. Deliberately a planning-reference
+// document, not a stamped construction document (that needs a licensed
+// architect/engineer) -- the disclaimer is repeated on both pages so it
+// can't be mistaken for one.
+function buildSchematicPdf(project, shell, rooms, roomEquipment, equipmentList) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const equipmentById = new Map(equipmentList.map(e => [e.id, e]));
+
+  let y = margin;
+  doc.setFontSize(15); doc.setFont(undefined, "bold"); doc.setTextColor(0);
+  doc.text(project.name || "ResinEx Facility Plan", margin, y);
+  y += 6;
+  doc.setFontSize(9); doc.setFont(undefined, "normal"); doc.setTextColor(90);
+  doc.text(`${shell.width_ft}ft × ${shell.depth_ft}ft shell · Generated ${new Date().toLocaleDateString()}`, margin, y);
+  y += 6;
+  doc.setFontSize(11); doc.setFont(undefined, "bold"); doc.setTextColor(180, 60, 40);
+  doc.text("PLANNING REFERENCE — NOT FOR CONSTRUCTION", margin, y);
+  y += 5;
+  doc.setFontSize(8); doc.setFont(undefined, "normal"); doc.setTextColor(90);
+  doc.text(DISCLAIMER, margin, y);
+  doc.setTextColor(0);
+  y += 8;
+
+  // Scale-to-fit the shell into the remaining page area, centered.
+  const planTop = y;
+  const planAreaW = pageW - margin * 2;
+  const planAreaH = pageH - planTop - margin;
+  const shellW = Number(shell.width_ft) || 1;
+  const shellD = Number(shell.depth_ft) || 1;
+  const scale = Math.min(planAreaW / shellW, planAreaH / shellD); // mm per ft
+  const drawW = shellW * scale, drawH = shellD * scale;
+  const originX = margin + (planAreaW - drawW) / 2;
+  const originY = planTop + (planAreaH - drawH) / 2;
+
+  doc.setDrawColor(120); doc.setLineWidth(0.6); doc.setFillColor(255, 255, 255);
+  doc.rect(originX, originY, drawW, drawH);
+  doc.setFontSize(8); doc.setTextColor(90);
+  doc.text(`${shellW} ft`, originX + drawW / 2, originY - 2, { align: "center" });
+  doc.text(`${shellD} ft`, originX - 2, originY + drawH / 2, { align: "right" });
+  doc.setTextColor(0);
+
+  rooms.forEach(room => {
+    const rx = originX + Number(room.x_ft) * scale;
+    const ry = originY + Number(room.y_ft) * scale;
+    const rw = Number(room.width_ft) * scale;
+    const rd = Number(room.depth_ft) * scale;
+    const fill = PDF_ROOM_FILL[room.room_type] || PDF_ROOM_FILL.other;
+    const border = PDF_ROOM_BORDER[room.room_type] || PDF_ROOM_BORDER.other;
+    doc.setFillColor(...fill); doc.setDrawColor(...border); doc.setLineWidth(0.4);
+    doc.rect(rx, ry, rw, rd, "FD");
+    if (rw > 15 && rd > 6) {
+      doc.setFontSize(7); doc.setTextColor(30);
+      doc.text(room.name, rx + 1.5, ry + 4);
+      if (rd > 10) doc.text(`${room.width_ft}×${room.depth_ft}ft`, rx + 1.5, ry + 8);
+    }
+
+    roomEquipment.filter(re => re.room_id === room.id).forEach(pe => {
+      const eq = equipmentById.get(pe.equipment_id);
+      const rotated = Number(pe.rotation_deg) === 90 || Number(pe.rotation_deg) === 270;
+      const wIn = Number(eq?.width_in) || 24, dIn = Number(eq?.depth_in) || 24;
+      const wFt = (rotated ? dIn : wIn) / IN_PER_FT, dFt = (rotated ? wIn : dIn) / IN_PER_FT;
+      const ex = rx + Number(pe.x_ft) * scale, ey = ry + Number(pe.y_ft) * scale;
+      const ew = wFt * scale, ed = dFt * scale;
+      doc.setFillColor(70, 70, 70); doc.setDrawColor(255, 255, 255); doc.setLineWidth(0.2);
+      doc.rect(ex, ey, ew, ed, "FD");
+      if (ew > 12 && ed > 4) {
+        doc.setFontSize(5); doc.setTextColor(255, 255, 255);
+        doc.text(eq?.name || "Equipment", ex + 1, ey + 3);
+      }
+    });
+  });
+  doc.setTextColor(0);
+
+  doc.addPage();
+  let y2 = margin;
+  doc.setFontSize(13); doc.setFont(undefined, "bold"); doc.setTextColor(0);
+  doc.text("Room & Equipment Summary", margin, y2);
+  y2 += 8;
+
+  autoTable(doc, {
+    startY: y2,
+    head: [["Room", "Type", "Dimensions (ft)", "Height (ft)", "Sqft"]],
+    body: rooms.length ? rooms.map(r => [
+      r.name, r.room_type,
+      `${r.width_ft} × ${r.depth_ft}`,
+      r.height_ft || `(${shell.ceiling_height_ft})`,
+      (Number(r.width_ft) * Number(r.depth_ft)).toFixed(0),
+    ]) : [["No rooms defined yet.", "", "", "", ""]],
+    theme: "striped",
+    headStyles: { fillColor: [74, 124, 89] },
+  });
+
+  const eqRows = roomEquipment.map(re => {
+    const eq = equipmentById.get(re.equipment_id);
+    const room = rooms.find(r => r.id === re.room_id);
+    const dims = eq?.width_in && eq?.depth_in ? `${eq.width_in}×${eq.depth_in}×${eq.height_in || "—"}in` : "—";
+    return [
+      eq?.name || "—", eq?.cat || "—",
+      [eq?.make, eq?.model].filter(Boolean).join(" ") || "—",
+      dims, room?.name || "—",
+      eq?.purchasePrice ? `$${Number(eq.purchasePrice).toLocaleString()}` : "—",
+    ];
+  });
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [["Equipment", "Category", "Make/Model", "Dimensions", "Room", "Purchase Price"]],
+    body: eqRows.length ? eqRows : [["No equipment placed yet.", "", "", "", "", ""]],
+    theme: "striped",
+    headStyles: { fillColor: [61, 90, 122] },
+  });
+
+  const total = roomEquipment.reduce((sum, re) => sum + (Number(equipmentById.get(re.equipment_id)?.purchasePrice) || 0), 0);
+  let y3 = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(11); doc.setFont(undefined, "bold"); doc.setTextColor(0);
+  doc.text(`Estimated equipment cost: $${total.toLocaleString()}`, margin, y3);
+  y3 += 8;
+  doc.setFontSize(8); doc.setFont(undefined, "normal"); doc.setTextColor(90);
+  doc.text(doc.splitTextToSize("Planning reference only — not for construction. " + DISCLAIMER, pageW - margin * 2), margin, y3);
+
+  const fileSafeName = (project.name || "resinex-plan").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  doc.save(`${fileSafeName}-floorplan.pdf`);
+}
 
 const PROJECT_TYPES = [
   { v: "expansion", l: "Expansion of existing facility" },
@@ -226,7 +361,10 @@ export default function ResinExApp() {
             <div className="rx-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedProject.name} — {selectedShell.width_ft}ft × {selectedShell.depth_ft}ft shell</div>
-                <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="rx-btn rx-secondary" onClick={() => buildSchematicPdf(selectedProject, selectedShell, shellRooms, projectRoomEquipment, equipment)}>Export PDF</button>
+                  <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
+                </div>
               </div>
               <div style={{ marginBottom: 12 }}>
                 <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
