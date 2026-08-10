@@ -114,13 +114,20 @@ begin
   ) then
     raise exception 'project % does not belong to facility %', new.project_id, new.facility_id;
   end if;
+  -- status = 'confirmed' matters here, not just facility/project match --
+  -- otherwise a pending (possibly abandoned) upload could be linked as an
+  -- actual's attachment even though the app's UI only ever offers
+  -- confirmed documents in that dropdown. The UI filter alone isn't a
+  -- real boundary; a direct insert/update could still submit a pending
+  -- document_id without this check.
   if new.linked_document_id is not null and not exists (
     select 1 from public.resinex_project_documents
     where id = new.linked_document_id
       and facility_id = new.facility_id
       and project_id = new.project_id
+      and status = 'confirmed'
   ) then
-    raise exception 'linked document % does not belong to project %/facility %', new.linked_document_id, new.project_id, new.facility_id;
+    raise exception 'linked document % is not a confirmed document in project %/facility %', new.linked_document_id, new.project_id, new.facility_id;
   end if;
   return new;
 end;
