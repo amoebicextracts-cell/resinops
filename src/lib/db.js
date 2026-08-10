@@ -78,6 +78,7 @@ const LS_KEYS = {
   resinex_room_equipment: 'resinops_resinex_room_equipment',
   resinex_project_documents: 'resinops_resinex_project_documents',
   resinex_project_actuals: 'resinops_resinex_project_actuals',
+  resinex_expansion_tasks: 'resinops_resinex_expansion_tasks',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

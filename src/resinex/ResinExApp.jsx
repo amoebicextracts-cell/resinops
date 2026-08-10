@@ -8,6 +8,7 @@ const ShellViewer3D = lazy(() => import("./ShellViewer3D.jsx"));
 import ShellEditor2D from "./ShellEditor2D.jsx";
 import ProjectDocuments from "./ProjectDocuments.jsx";
 import ProjectActuals from "./ProjectActuals.jsx";
+import ProjectTimeline from "./ProjectTimeline.jsx";
 
 const IN_PER_FT = 12;
 const PDF_ROOM_FILL = { grow: [224, 237, 228], production: [222, 229, 239], business: [241, 231, 212], other: [227, 227, 227] };
@@ -185,6 +186,13 @@ const CSS = `
   .rx-tbl tr{cursor:pointer;}
   .rx-tbl tr.active{background:var(--surface-2);}
   .rx-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .rx-gantt-outer{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .rx-gantt-full{position:fixed;inset:0;z-index:1000;background:var(--bg);padding:24px;overflow-y:auto;}
+  .rx-gantt-full .rx-gantt-outer{max-height:calc(100vh - 190px);}
+  .rx-gantt-row{display:flex;border-bottom:1px solid var(--border);}
+  .rx-gantt-row:last-child{border-bottom:none;}
+  .rx-gantt-left{position:sticky;left:0;z-index:4;width:220px;min-width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:8px 12px;display:flex;flex-direction:column;justify-content:center;gap:2px;box-sizing:border-box;}
+  .rx-gantt-tl{position:relative;flex:1;}
 `;
 
 export default function ResinExApp() {
@@ -384,6 +392,7 @@ export default function ResinExApp() {
                 <button className={activeTab === "layout" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("layout")}>Layout</button>
                 <button className={activeTab === "documents" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("documents")}>Documents</button>
                 <button className={activeTab === "actuals" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("actuals")}>Actuals</button>
+                <button className={activeTab === "timeline" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("timeline")}>Timeline</button>
               </div>
 
               {activeTab === "layout" && (
@@ -406,6 +415,7 @@ export default function ResinExApp() {
               )}
               {activeTab === "documents" && <ProjectDocuments project={selectedProject} />}
               {activeTab === "actuals" && <ProjectActuals project={selectedProject} />}
+              {activeTab === "timeline" && <ProjectTimeline project={selectedProject} />}
             </div>
           )}
         </div>
