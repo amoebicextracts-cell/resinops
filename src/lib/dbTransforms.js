@@ -30,7 +30,7 @@ const SCHEMAS = {
   resinex_facility_shells: ['id','created_at','updated_at','project_id','facility_id','width_ft','depth_ft','ceiling_height_ft','notes'],
   resinex_rooms: ['id','created_at','updated_at','shell_id','facility_id','name','room_type','x_ft','y_ft','width_ft','depth_ft','height_ft','color','linked_grow_room_id','linked_facility_map_space_id','notes'],
   resinex_room_equipment: ['id','created_at','updated_at','facility_id','room_id','equipment_id','x_ft','y_ft','rotation_deg','notes'],
-  resinex_project_documents: ['id','created_at','updated_at','facility_id','project_id','uploaded_by','file_name','mime_type','file_size','category','storage_path','notes'],
+  resinex_project_documents: ['id','created_at','updated_at','facility_id','project_id','uploaded_by','file_name','mime_type','file_size','category','status','storage_path','notes'],
   resinex_project_actuals: ['id','created_at','updated_at','facility_id','project_id','description','category','estimated_amount','actual_amount','status','linked_document_id','notes'],
   gmp_shifts: ['id','created_at','facility_id','shift_date','department','supervisor','notes','entries'],
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],

@@ -29,7 +29,9 @@ export default function ProjectDocuments({ project }) {
 
   useEffect(() => {
     db.resinex_project_documents.list().then(all => {
-      setDocuments(all.filter(d => d.project_id === project.id));
+      // "pending" rows are uploads still in flight (or abandoned before
+      // confirmation) -- not real documents yet, so keep them out of the list.
+      setDocuments(all.filter(d => d.project_id === project.id && d.status === "confirmed"));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [project.id]);
@@ -45,31 +47,29 @@ export default function ProjectDocuments({ project }) {
     setUploading(true); setErr("");
     try {
       const facilityId = getCurrentFacility();
+      // Writes a "pending" document row before the upload even starts, so
+      // an upload that never gets confirmed (tab closed, connectivity
+      // lost) leaves a discoverable pending row instead of a completely
+      // untracked Storage object.
       const res = await authenticatedApiFetch("/api/resinex-create-upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facilityId, projectId: project.id, fileName: file.name, mimeType: file.type }),
+        body: JSON.stringify({ facilityId, projectId: project.id, fileName: file.name, mimeType: file.type, category, notes }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(formatApiError(res, data, "Could not start upload"));
 
-      const { path, token } = data.data;
+      const { path, token, documentId } = data.data;
       const { error: uploadError } = await supabase.storage.from("resinex-documents").uploadToSignedUrl(path, token, file);
       if (uploadError) throw new Error("Upload failed: " + uploadError.message);
 
-      // Confirming server-side (not a direct client db.js insert) means a
-      // failed insert can roll back the just-uploaded Storage object in
-      // the same request instead of leaving an orphaned file.
       const confirmRes = await authenticatedApiFetch("/api/resinex-confirm-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          facilityId, projectId: project.id, storagePath: path,
-          fileName: file.name, mimeType: file.type, fileSize: file.size, category, notes,
-        }),
+        body: JSON.stringify({ facilityId, documentId, fileSize: file.size }),
       });
       const confirmData = await confirmRes.json();
-      if (!confirmRes.ok) throw new Error(formatApiError(confirmRes, confirmData, "Could not save the document record"));
+      if (!confirmRes.ok) throw new Error(formatApiError(confirmRes, confirmData, "Could not confirm the document"));
 
       setDocuments(d => [confirmData.data, ...d]);
       setNotes("");

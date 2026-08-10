@@ -1,26 +1,24 @@
 // ============================================================
-// ResinEx — Confirm a document upload (write the metadata row)
+// ResinEx — Confirm a document upload (flip pending -> confirmed)
 // api/resinex-confirm-document.js — Vercel serverless function
 //
-// Called after the browser has already uploaded a file directly to
-// Storage via a signed URL from api/resinex-create-upload-url.js. Doing
-// the metadata insert server-side (service role), instead of a separate
-// client-side db.js call, means a failed insert can immediately roll back
-// the just-uploaded Storage object in the same request -- the same
-// atomic-ish upload-then-insert-then-cleanup-on-failure shape
-// api/sign-document.js uses, adapted for a two-step (signed-URL) upload.
+// The resinex_project_documents row already exists (status: 'pending',
+// written by api/resinex-create-upload-url.js before the upload even
+// started) -- this just verifies the row and flips it to 'confirmed'
+// once the browser's direct-to-Storage upload has actually completed.
+// If this request never arrives, the row stays 'pending' -- a known,
+// documented residual gap (no automatic cleanup job yet), but a
+// queryable one rather than a completely untracked Storage object.
 //
 // Request format:
 // POST /api/resinex-confirm-document
-// { facilityId, projectId, storagePath, fileName, mimeType, fileSize, category, notes }
+// { facilityId, documentId, fileSize }
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
 import { authenticateRequest, requireFacilityEditor } from './_auth.js';
 import { applyCors, checkRateLimit, isOriginAllowed } from './_request-security.js';
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
-
-const CATEGORIES = new Set(['quote', 'blueprint', 'schematic', 'invoice', 'other']);
 
 function getServiceRoleClient() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -31,12 +29,9 @@ function getServiceRoleClient() {
 
 function validateConfirmDocumentPayload(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Invalid request body';
-  const { facilityId, projectId, storagePath, fileName, category } = body;
+  const { facilityId, documentId } = body;
   if (typeof facilityId !== 'string' || !facilityId.trim()) return 'facilityId is required';
-  if (typeof projectId !== 'string' || !projectId.trim()) return 'projectId is required';
-  if (typeof storagePath !== 'string' || !storagePath.trim()) return 'storagePath is required';
-  if (typeof fileName !== 'string' || !fileName.trim()) return 'fileName is required';
-  if (category !== undefined && !CATEGORIES.has(category)) return 'Invalid category';
+  if (typeof documentId !== 'string' || !documentId.trim()) return 'documentId is required';
   return null;
 }
 
@@ -62,58 +57,44 @@ export default async function handler(req, res) {
   const validationError = validateConfirmDocumentPayload(req.body);
   if (validationError) return sendApiError(res, 400, validationError, requestId);
 
-  const { facilityId, projectId, storagePath, fileName, mimeType, fileSize, category, notes } = req.body;
+  const { facilityId, documentId, fileSize } = req.body;
 
   const authz = await requireFacilityEditor(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
-
-  // storagePath must be the one this facility/project was actually issued
-  // -- refuse to confirm an arbitrary path (e.g. copied from another
-  // facility's document) as this member's own document.
-  if (!storagePath.startsWith(`${facilityId}/${projectId}/`)) {
-    return sendApiError(res, 400, 'storagePath does not match this facility/project', requestId);
-  }
-
-  const { data: project, error: projectError } = await auth.supabase
-    .from('resinex_projects')
-    .select('id')
-    .eq('id', projectId)
-    .eq('facility_id', facilityId)
-    .maybeSingle();
-  if (projectError) return sendApiError(res, 503, 'Unable to verify project access', requestId);
-  if (!project) return sendApiError(res, 404, 'Project not found for this facility', requestId);
 
   const admin = getServiceRoleClient();
   if (!admin) return sendApiError(res, 503, 'Document confirmation is not configured', requestId);
 
   try {
-    const { data: record, error: insertError } = await admin
+    const { data: existing, error: lookupError } = await admin
       .from('resinex_project_documents')
-      .insert({
-        project_id: projectId,
-        facility_id: facilityId,
-        uploaded_by: auth.user.id,
-        file_name: fileName,
-        mime_type: mimeType || null,
-        file_size: fileSize || null,
-        category: category || 'other',
-        storage_path: storagePath,
-        notes: notes || null,
-      })
+      .select('id, facility_id, status')
+      .eq('id', documentId)
+      .maybeSingle();
+    if (lookupError) {
+      logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, lookupError);
+      return sendApiError(res, 502, 'Unable to look up the document', requestId);
+    }
+    if (!existing || existing.facility_id !== facilityId) {
+      return sendApiError(res, 404, 'Document not found', requestId);
+    }
+    if (existing.status !== 'pending') {
+      return sendApiError(res, 409, 'Document is not pending confirmation', requestId);
+    }
+
+    const { data: record, error: updateError } = await admin
+      .from('resinex_project_documents')
+      .update({ status: 'confirmed', file_size: fileSize || null })
+      .eq('id', documentId)
       .select()
       .single();
-
-    if (insertError) {
-      // Roll back the orphaned Storage object -- mirrors sign-document.js's
-      // upload-then-insert-then-cleanup-on-failure shape.
-      await admin.storage.from('resinex-documents').remove([storagePath]);
-      logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, insertError);
-      return sendApiError(res, 502, 'Unable to save the document record', requestId);
+    if (updateError) {
+      logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, updateError);
+      return sendApiError(res, 502, 'Unable to confirm the document', requestId);
     }
 
     return res.status(200).json({ data: record });
   } catch (error) {
-    await admin.storage.from('resinex-documents').remove([storagePath]).catch(() => {});
     logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, error);
     return sendApiError(res, 500, 'Unable to confirm document upload', requestId);
   }

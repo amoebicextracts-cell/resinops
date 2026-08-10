@@ -88,7 +88,17 @@ export default async function handler(req, res) {
       return sendApiError(res, 502, 'Unable to delete the document file', requestId);
     }
 
-    const { error: deleteError } = await admin.from('resinex_project_documents').delete().eq('id', documentId);
+    // The Storage object is already gone at this point -- a transient
+    // failure here would otherwise leave metadata pointing at a missing
+    // file. One short retry covers the common case (momentary DB blip);
+    // the object-removal step above is itself idempotent, so a client
+    // retry of this whole request after an eventual failure still
+    // converges correctly.
+    let deleteError = (await admin.from('resinex_project_documents').delete().eq('id', documentId)).error;
+    if (deleteError) {
+      await new Promise(r => setTimeout(r, 400));
+      deleteError = (await admin.from('resinex_project_documents').delete().eq('id', documentId)).error;
+    }
     if (deleteError) {
       logApiError({ requestId, route: 'resinex-delete-document', userId: auth.user.id, facilityId }, deleteError);
       return sendApiError(res, 502, 'File was deleted but the document record could not be removed — retry to finish cleanup', requestId);

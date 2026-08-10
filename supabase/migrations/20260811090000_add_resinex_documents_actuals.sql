@@ -38,6 +38,17 @@ create table if not exists public.resinex_project_documents (
   file_size bigint,
   category text not null default 'other'
     check (category in ('quote', 'blueprint', 'schematic', 'invoice', 'other')),
+  -- Row is written as 'pending' the moment an upload URL is minted --
+  -- before the browser has even started the direct-to-Storage upload --
+  -- and flipped to 'confirmed' once resinex-confirm-document.js verifies
+  -- it. This means an upload that never gets confirmed (browser closed,
+  -- connectivity lost) leaves a queryable, discoverable 'pending' row
+  -- instead of a completely untracked Storage object -- a real gap
+  -- flagged by Greptile review on PR #46, still needs a periodic cleanup
+  -- job to actually free storage for stale 'pending' rows (not built in
+  -- this phase), but is no longer silently invisible.
+  status text not null default 'pending'
+    check (status in ('pending', 'confirmed')),
   storage_path text not null,
   notes text,
   created_at timestamptz not null default now(),
