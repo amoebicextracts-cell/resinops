@@ -292,6 +292,15 @@ export const MODULES = [
     tier: "commercial",
   },
   {
+    id: "resinex",
+    label: "ResinEx — Capex Planning",
+    icon: "🏗️",
+    available: true,
+    description: "Plan facility expansions: 3D layout, equipment placement, and capex estimates",
+    isScheduler: true,
+    tier: "commercial",
+  },
+  {
     id: "facility-map",
     label: "Facility Map",
     icon: "🏭",

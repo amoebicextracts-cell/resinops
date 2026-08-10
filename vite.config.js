@@ -47,6 +47,11 @@ export default defineConfig({
         ],
         // Don't precache anything huge; keep it to build output
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // ResinEx (src/resinex/*) is lazy-loaded and carries three.js — most
+        // facilities never open it, so don't force the service worker to
+        // precache it on every install. Still built normally and fetched
+        // on demand; just excluded from the precache manifest.
+        globIgnores: ['**/ResinExApp*.js', '**/ShellViewer3D*.js'],
       },
       devOptions: {
         enabled: false, // keep PWA/service worker off during `vite dev` to avoid caching headaches while iterating

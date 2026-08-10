@@ -11,12 +11,15 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
     "@supabase/supabase-js": "^2.110.2",
     "@vercel/functions": "^1.6.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
