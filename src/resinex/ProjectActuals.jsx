@@ -24,14 +24,21 @@ export default function ProjectActuals({ project }) {
   const [err, setErr] = useState("");
 
   useEffect(() => {
+    // Guard against a stale response landing after the user has already
+    // switched to a different project (same fix as ProjectTimeline.jsx,
+    // flagged by Greptile review there and applied here too).
+    let active = true;
+    setLoading(true);
     Promise.all([
       db.resinex_project_actuals.list(),
       db.resinex_project_documents.list(),
     ]).then(([a, d]) => {
+      if (!active) return;
       setActuals(a.filter(x => x.project_id === project.id));
       setDocuments(d.filter(x => x.project_id === project.id && x.status === "confirmed"));
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [project.id]);
 
   function openAdd() { setForm({ ...EMPTY_ACTUAL }); setErr(""); }

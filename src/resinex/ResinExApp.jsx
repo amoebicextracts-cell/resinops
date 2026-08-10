@@ -8,6 +8,7 @@ const ShellViewer3D = lazy(() => import("./ShellViewer3D.jsx"));
 import ShellEditor2D from "./ShellEditor2D.jsx";
 import ProjectDocuments from "./ProjectDocuments.jsx";
 import ProjectActuals from "./ProjectActuals.jsx";
+import ProjectTimeline from "./ProjectTimeline.jsx";
 
 const IN_PER_FT = 12;
 const PDF_ROOM_FILL = { grow: [224, 237, 228], production: [222, 229, 239], business: [241, 231, 212], other: [227, 227, 227] };
@@ -185,6 +186,13 @@ const CSS = `
   .rx-tbl tr{cursor:pointer;}
   .rx-tbl tr.active{background:var(--surface-2);}
   .rx-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(74,124,89,0.2);color:var(--accent-2);}
+  .rx-gantt-outer{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;}
+  .rx-gantt-full{position:fixed;inset:0;z-index:1000;background:var(--bg);padding:24px;overflow-y:auto;}
+  .rx-gantt-full .rx-gantt-outer{max-height:calc(100vh - 190px);}
+  .rx-gantt-row{display:flex;border-bottom:1px solid var(--border);}
+  .rx-gantt-row:last-child{border-bottom:none;}
+  .rx-gantt-left{position:sticky;left:0;z-index:4;width:220px;min-width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:8px 12px;display:flex;flex-direction:column;justify-content:center;gap:2px;box-sizing:border-box;}
+  .rx-gantt-tl{position:relative;flex:1;}
 `;
 
 export default function ResinExApp() {
@@ -347,32 +355,14 @@ export default function ResinExApp() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {!selectedProject ? (
             <div className="rx-card" style={{ textAlign: "center", padding: 48, color: "var(--text-3)" }}>Select or create a project to plan its facility layout.</div>
-          ) : !selectedShell ? (
-            <div className="rx-card">
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Set up the facility shell for "{selectedProject.name}"</div>
-              {!shellForm ? (
-                <button className="rx-btn rx-primary" onClick={openAddShell}>+ Define facility shell</button>
-              ) : (
-                <div style={{ maxWidth: 420 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-                    <div><label className="rx-lbl">Width (ft)</label><input type="number" step="1" className="rx-inp" value={shellForm.width_ft} onChange={e => setSF("width_ft", e.target.value)} /></div>
-                    <div><label className="rx-lbl">Depth (ft)</label><input type="number" step="1" className="rx-inp" value={shellForm.depth_ft} onChange={e => setSF("depth_ft", e.target.value)} /></div>
-                    <div><label className="rx-lbl">Ceiling height (ft)</label><input type="number" step="0.5" className="rx-inp" value={shellForm.ceiling_height_ft} onChange={e => setSF("ceiling_height_ft", e.target.value)} /></div>
-                  </div>
-                  <div style={{ marginBottom: 10 }}><label className="rx-lbl">Notes</label><input className="rx-inp" value={shellForm.notes || ""} onChange={e => setSF("notes", e.target.value)} /></div>
-                  {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button className="rx-btn rx-primary" onClick={saveShell}>Create shell</button>
-                    <button className="rx-btn rx-secondary" onClick={() => setShellForm(null)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
           ) : (
             <div className="rx-card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedProject.name} — {selectedShell.width_ft}ft × {selectedShell.depth_ft}ft shell</div>
-                {activeTab === "layout" && (
+                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                  {selectedProject.name}
+                  {selectedShell && ` — ${selectedShell.width_ft}ft × ${selectedShell.depth_ft}ft shell`}
+                </div>
+                {activeTab === "layout" && selectedShell && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="rx-btn rx-secondary" onClick={() => buildSchematicPdf(selectedProject, selectedShell, shellRooms, projectRoomEquipment, equipment)}>Export PDF</button>
                     <button className="rx-btn rx-secondary" onClick={() => setShow3D(v => !v)}>{show3D ? "← Back to 2D editor" : "View in 3D"}</button>
@@ -380,32 +370,80 @@ export default function ResinExApp() {
                 )}
               </div>
 
+              {/* Layout is the only tab that depends on a facility shell --
+                  Documents/Actuals/Timeline are project-scoped, not shell-
+                  scoped, so they shouldn't be gated behind shell setup
+                  (flagged by Greptile review on PR #47: the Timeline tab
+                  was unreachable for a valid project with no shell yet). */}
               <div style={{ display: "flex", gap: 8, marginBottom: 14, borderBottom: "1px solid var(--border-2)", paddingBottom: 10 }}>
                 <button className={activeTab === "layout" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("layout")}>Layout</button>
                 <button className={activeTab === "documents" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("documents")}>Documents</button>
                 <button className={activeTab === "actuals" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("actuals")}>Actuals</button>
+                <button className={activeTab === "timeline" ? "rx-btn rx-primary" : "rx-btn rx-secondary"} onClick={() => setActiveTab("timeline")}>Timeline</button>
               </div>
 
               {activeTab === "layout" && (
-                <>
-                  <div style={{ marginBottom: 12 }}>
-                    <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
-                    <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>Sum of purchase price for {projectRoomEquipment.length} placed item{projectRoomEquipment.length === 1 ? "" : "s"} — planning estimate, not a full capex budget.</div>
+                !selectedShell ? (
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Set up the facility shell for "{selectedProject.name}"</div>
+                    {!shellForm ? (
+                      <button className="rx-btn rx-primary" onClick={openAddShell}>+ Define facility shell</button>
+                    ) : (
+                      <div style={{ maxWidth: 420 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+                          <div><label className="rx-lbl">Width (ft)</label><input type="number" step="1" className="rx-inp" value={shellForm.width_ft} onChange={e => setSF("width_ft", e.target.value)} /></div>
+                          <div><label className="rx-lbl">Depth (ft)</label><input type="number" step="1" className="rx-inp" value={shellForm.depth_ft} onChange={e => setSF("depth_ft", e.target.value)} /></div>
+                          <div><label className="rx-lbl">Ceiling height (ft)</label><input type="number" step="0.5" className="rx-inp" value={shellForm.ceiling_height_ft} onChange={e => setSF("ceiling_height_ft", e.target.value)} /></div>
+                        </div>
+                        <div style={{ marginBottom: 10 }}><label className="rx-lbl">Notes</label><input className="rx-inp" value={shellForm.notes || ""} onChange={e => setSF("notes", e.target.value)} /></div>
+                        {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="rx-btn rx-primary" onClick={saveShell}>Create shell</button>
+                          <button className="rx-btn rx-secondary" onClick={() => setShellForm(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {show3D ? (
-                    <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading 3D viewer…</div>}>
-                      <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
-                    </Suspense>
-                  ) : (
-                    <ShellEditor2D
-                      shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
-                      roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
-                    />
-                  )}
-                </>
+                ) : (
+                  <>
+                    <div style={{ marginBottom: 12 }}>
+                      <span className="rx-pill">Est. equipment cost: ${estCost.toLocaleString()}</span>
+                      <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>Sum of purchase price for {projectRoomEquipment.length} placed item{projectRoomEquipment.length === 1 ? "" : "s"} — planning estimate, not a full capex budget.</div>
+                    </div>
+                    {show3D ? (
+                      <Suspense fallback={<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading 3D viewer…</div>}>
+                        <ShellViewer3D shell={selectedShell} rooms={shellRooms} roomEquipment={projectRoomEquipment} equipment={equipment} />
+                      </Suspense>
+                    ) : (
+                      // key={selectedShell.id} forces a full remount on shell
+                      // change, resetting all of ShellEditor2D's internal
+                      // state (selected room, open room form, drag state) --
+                      // without it, switching projects could leave a stale
+                      // room-edit form pointed at the previous shell's room.
+                      <ShellEditor2D
+                        key={selectedShell.id}
+                        shell={selectedShell} rooms={shellRooms} onSaveRoom={saveRoom} onDeleteRoom={deleteRoom}
+                        roomEquipment={projectRoomEquipment} onSaveRoomEquipment={saveRoomEquipment} onDeleteRoomEquipment={deleteRoomEquipment}
+                      />
+                    )}
+                  </>
+                )
               )}
-              {activeTab === "documents" && <ProjectDocuments project={selectedProject} />}
-              {activeTab === "actuals" && <ProjectActuals project={selectedProject} />}
+              {/* key={selectedProject.id} on each tab component forces a full
+                  remount on project change, resetting all local state (open
+                  edit forms included) -- without it, switching projects
+                  while a form is open lets a stale save/delete mutate a
+                  record that belongs to the PREVIOUS project (flagged by
+                  Greptile review on PR #47 for ProjectTimeline; the same
+                  save()-always-stamps-the-current-project.id pattern exists
+                  in ProjectActuals too). The data-loading useEffect's
+                  `active` guard in each component is still needed
+                  independently -- it protects against a stale response
+                  arriving mid-flight even when a remount hasn't fully
+                  discarded the previous fetch's promise closure. */}
+              {activeTab === "documents" && <ProjectDocuments key={selectedProject.id} project={selectedProject} />}
+              {activeTab === "actuals" && <ProjectActuals key={selectedProject.id} project={selectedProject} />}
+              {activeTab === "timeline" && <ProjectTimeline key={selectedProject.id} project={selectedProject} />}
             </div>
           )}
         </div>

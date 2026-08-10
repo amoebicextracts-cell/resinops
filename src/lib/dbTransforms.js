@@ -32,6 +32,7 @@ const SCHEMAS = {
   resinex_room_equipment: ['id','created_at','updated_at','facility_id','room_id','equipment_id','x_ft','y_ft','rotation_deg','notes'],
   resinex_project_documents: ['id','created_at','updated_at','facility_id','project_id','uploaded_by','file_name','mime_type','file_size','category','status','storage_path','notes'],
   resinex_project_actuals: ['id','created_at','updated_at','facility_id','project_id','description','category','estimated_amount','actual_amount','status','linked_document_id','notes'],
+  resinex_expansion_tasks: ['id','created_at','updated_at','facility_id','project_id','name','category','start_date','duration_days','status','depends_on_task_id','notes'],
   gmp_shifts: ['id','created_at','facility_id','shift_date','department','supervisor','notes','entries'],
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],
   skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active','channel'],
@@ -496,6 +497,12 @@ const FIELD_OVERRIDES = {
     estimatedAmount: 'estimated_amount',
     actualAmount: 'actual_amount',
     linkedDocumentId: 'linked_document_id',
+  },
+  resinex_expansion_tasks: {
+    projectId: 'project_id',
+    startDate: 'start_date',
+    durationDays: 'duration_days',
+    dependsOnTaskId: 'depends_on_task_id',
   },
   gmp_shifts: {
     date: 'shift_date',
