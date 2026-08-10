@@ -25,6 +25,10 @@ export async function authenticateRequest(req) {
 }
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+// Mirrors private.can_edit_facility(facility uuid)'s role set exactly
+// (supabase/migrations/20260715051427_harden_facility_access.sql) -- every
+// role except 'viewer'.
+const EDITOR_ROLES = new Set(['owner', 'admin', 'manager', 'member']);
 
 export async function requireFacilityAdmin(auth, facilityId) {
   const { data: membership, error } = await auth.supabase
@@ -37,6 +41,21 @@ export async function requireFacilityAdmin(auth, facilityId) {
   if (error) return { error: 'Unable to verify facility access', status: 503 };
   if (!membership || !ADMIN_ROLES.has(membership.role)) {
     return { error: 'Facility admin access required', status: 403 };
+  }
+  return { role: membership.role };
+}
+
+export async function requireFacilityEditor(auth, facilityId) {
+  const { data: membership, error } = await auth.supabase
+    .from('facility_members')
+    .select('role')
+    .eq('facility_id', facilityId)
+    .eq('user_id', auth.user.id)
+    .not('accepted_at', 'is', null)
+    .maybeSingle();
+  if (error) return { error: 'Unable to verify facility access', status: 503 };
+  if (!membership || !EDITOR_ROLES.has(membership.role)) {
+    return { error: 'Facility edit access required', status: 403 };
   }
   return { role: membership.role };
 }
