@@ -72,6 +72,9 @@ const LS_KEYS = {
   operating_expenses: 'resinops_operating_expenses',
   strain_descriptions:'resinops_strain_descriptions',
   signature_records:  'resinops_signature_records',
+  resinex_projects:   'resinops_resinex_projects',
+  resinex_facility_shells: 'resinops_resinex_facility_shells',
+  resinex_rooms:      'resinops_resinex_rooms',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

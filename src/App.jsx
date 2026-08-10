@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component } from "react";
+import { useState, useRef, useEffect, Component, lazy, Suspense } from "react";
 import { auth } from "./lib/db";
 import { supabase, isSupabaseEnabled } from "./lib/supabase";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
@@ -68,6 +68,7 @@ import LaborDashboard from "./LaborDashboard.jsx";
 import InventoryERP from "./InventoryERP.jsx";
 import Finance from "./Finance.jsx";
 import Equipment from "./Equipment.jsx";
+const ResinExApp = lazy(() => import("./resinex/ResinExApp.jsx"));
 import Maintenance from "./Maintenance.jsx";
 import SalesOrders from "./SalesOrders.jsx";
 import IPMTracker from "./IPMTracker.jsx";
@@ -1447,6 +1448,11 @@ export default function ResinOps() {
             {activeModule === "inventory" ? <InventoryERP /> : null}
             {activeModule === "finance" ? <Finance /> : null}
             {activeModule === "equipment" ? <Equipment /> : null}
+            {activeModule === "resinex" ? (
+              <Suspense fallback={<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading ResinEx…</div>}>
+                <ResinExApp />
+              </Suspense>
+            ) : null}
             {activeModule === "facility-map" ? <FacilityMap /> : null}
             {activeModule === "maintenance" ? <Maintenance /> : null}
             {activeModule === "ipm-tracker" ? <IPMTracker /> : null}

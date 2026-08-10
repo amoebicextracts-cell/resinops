@@ -1,0 +1,181 @@
+import { useState, useEffect, useRef } from "react";
+import { db } from "../lib/db";
+
+const SCALE = 16; // px per ft
+const MIN_FT = 2;
+const ROOM_TYPES = [
+  { v: "grow", l: "Grow space" },
+  { v: "production", l: "Production space" },
+  { v: "business", l: "Business space" },
+  { v: "other", l: "Other" },
+];
+const ROOM_COLORS = { grow: "#4a7c59", production: "#3d5a7a", business: "#a07a3d", other: "#6a6a6a" };
+
+const EMPTY_ROOM = { name: "New Room", room_type: "other", x_ft: 0, y_ft: 0, width_ft: 10, depth_ft: 10, height_ft: "", color: "", linked_grow_room_id: "", linked_facility_map_space_id: "", notes: "" };
+
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [roomForm, setRoomForm] = useState(null);
+  const [growRooms, setGrowRooms] = useState([]);
+  const [mapSpaces, setMapSpaces] = useState([]);
+  const [err, setErr] = useState("");
+  const [dragPreview, setDragPreview] = useState(null); // {roomId, x_ft?, y_ft?, width_ft?, depth_ft?}
+  const dragRef = useRef(null); // {mode:'move'|'resize', roomId, startX, startY, orig}
+
+  useEffect(() => {
+    db.grow_rooms.list().then(setGrowRooms).catch(() => {});
+    db.facility_map_spaces.list().then(setMapSpaces).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const room = rooms.find(r => r.id === selectedId);
+    setRoomForm(room ? { ...room } : null);
+  }, [selectedId, rooms]);
+
+  const shellW = Number(shell.width_ft) || 1;
+  const shellD = Number(shell.depth_ft) || 1;
+  const svgW = shellW * SCALE;
+  const svgH = shellD * SCALE;
+
+  async function addRoom() {
+    const saved = await onSaveRoom({ ...EMPTY_ROOM });
+    setSelectedId(saved.id);
+  }
+
+  function onPointerDownRoom(e, room) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setSelectedId(room.id);
+    dragRef.current = { mode: "move", roomId: room.id, startX: e.clientX, startY: e.clientY, orig: { x_ft: Number(room.x_ft), y_ft: Number(room.y_ft) } };
+  }
+
+  function onPointerDownHandle(e, room) {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setSelectedId(room.id);
+    dragRef.current = { mode: "resize", roomId: room.id, startX: e.clientX, startY: e.clientY, orig: { width_ft: Number(room.width_ft), depth_ft: Number(room.depth_ft) } };
+  }
+
+  function onPointerMove(e) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const room = rooms.find(r => r.id === drag.roomId);
+    if (!room) return;
+    const dxFt = Math.round((e.clientX - drag.startX) / SCALE);
+    const dyFt = Math.round((e.clientY - drag.startY) / SCALE);
+    if (drag.mode === "move") {
+      const x_ft = clamp(drag.orig.x_ft + dxFt, 0, shellW - Number(room.width_ft));
+      const y_ft = clamp(drag.orig.y_ft + dyFt, 0, shellD - Number(room.depth_ft));
+      setDragPreview({ roomId: room.id, x_ft, y_ft });
+    } else {
+      const width_ft = clamp(drag.orig.width_ft + dxFt, MIN_FT, shellW - Number(room.x_ft));
+      const depth_ft = clamp(drag.orig.depth_ft + dyFt, MIN_FT, shellD - Number(room.y_ft));
+      setDragPreview({ roomId: room.id, width_ft, depth_ft });
+    }
+  }
+
+  function onPointerUp() {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag || !dragPreview) { setDragPreview(null); return; }
+    const room = rooms.find(r => r.id === drag.roomId);
+    if (room) onSaveRoom({ ...room, ...dragPreview });
+    setDragPreview(null);
+  }
+
+  const setRF = (k, v) => setRoomForm(f => ({ ...f, [k]: v }));
+
+  async function saveRoomForm() {
+    if (!roomForm.name.trim()) { setErr("Enter a room name."); return; }
+    try {
+      const saved = await onSaveRoom({
+        ...roomForm,
+        x_ft: clamp(Number(roomForm.x_ft) || 0, 0, shellW),
+        y_ft: clamp(Number(roomForm.y_ft) || 0, 0, shellD),
+        width_ft: Math.max(MIN_FT, Number(roomForm.width_ft) || MIN_FT),
+        depth_ft: Math.max(MIN_FT, Number(roomForm.depth_ft) || MIN_FT),
+        height_ft: roomForm.height_ft === "" ? null : Number(roomForm.height_ft),
+        linked_grow_room_id: roomForm.linked_grow_room_id || null,
+        linked_facility_map_space_id: roomForm.linked_facility_map_space_id || null,
+      });
+      setSelectedId(saved.id);
+      setErr("");
+    } catch (e) { setErr("Could not save: " + (e.message || e)); }
+  }
+
+  async function removeSelected() {
+    if (!selectedId) return;
+    await onDeleteRoom(selectedId);
+    setSelectedId(null);
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 16 }}>
+      <div style={{ border: "1px solid var(--border-2)", borderRadius: 8, overflow: "auto", flex: 1 }}>
+        <svg
+          width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}
+          style={{ display: "block", background: "var(--surface-2)" }}
+          onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+          onClick={() => setSelectedId(null)}
+        >
+          <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="var(--border-2)" strokeWidth={2} />
+          {rooms.map(room => {
+            const preview = dragPreview && dragPreview.roomId === room.id ? dragPreview : {};
+            const r = { ...room, ...preview };
+            const x = Number(r.x_ft) * SCALE, y = Number(r.y_ft) * SCALE;
+            const w = Number(r.width_ft) * SCALE, h = Number(r.depth_ft) * SCALE;
+            const fill = room.color || ROOM_COLORS[room.room_type] || ROOM_COLORS.other;
+            const selected = room.id === selectedId;
+            return (
+              <g key={room.id}>
+                <rect
+                  x={x} y={y} width={w} height={h}
+                  fill={fill} fillOpacity={selected ? 0.55 : 0.35}
+                  stroke={selected ? "var(--accent)" : fill} strokeWidth={selected ? 2 : 1}
+                  style={{ cursor: "move" }}
+                  onPointerDown={e => onPointerDownRoom(e, room)}
+                  onClick={e => e.stopPropagation()}
+                />
+                <text x={x + 6} y={y + 16} fontSize={12} fill="var(--text)" style={{ pointerEvents: "none", fontFamily: "Inter, sans-serif" }}>{room.name}</text>
+                <rect
+                  x={x + w - 10} y={y + h - 10} width={10} height={10}
+                  fill="var(--accent)" style={{ cursor: "nwse-resize" }}
+                  onPointerDown={e => onPointerDownHandle(e, room)}
+                  onClick={e => e.stopPropagation()}
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div style={{ width: 280, flexShrink: 0 }}>
+        <button className="rx-btn rx-primary" style={{ width: "100%", marginBottom: 10 }} onClick={addRoom}>+ Add room</button>
+        {!roomForm ? (
+          <div style={{ fontSize: 12, color: "var(--text-3)" }}>Click a room to edit it, or drag rooms directly on the plan to move/resize them.</div>
+        ) : (
+          <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-2)", borderRadius: 8, padding: 12 }}>
+            <div style={{ marginBottom: 8 }}><label className="rx-lbl">Name</label><input className="rx-inp" value={roomForm.name} onChange={e => setRF("name", e.target.value)} /></div>
+            <div style={{ marginBottom: 8 }}><label className="rx-lbl">Type</label><select className="rx-sel" value={roomForm.room_type} onChange={e => setRF("room_type", e.target.value)}>{ROOM_TYPES.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}</select></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <div><label className="rx-lbl">Width (ft)</label><input type="number" className="rx-inp" value={roomForm.width_ft} onChange={e => setRF("width_ft", e.target.value)} /></div>
+              <div><label className="rx-lbl">Depth (ft)</label><input type="number" className="rx-inp" value={roomForm.depth_ft} onChange={e => setRF("depth_ft", e.target.value)} /></div>
+              <div><label className="rx-lbl">Height (ft)</label><input type="number" className="rx-inp" placeholder={String(shell.ceiling_height_ft)} value={roomForm.height_ft ?? ""} onChange={e => setRF("height_ft", e.target.value)} /></div>
+            </div>
+            <div style={{ marginBottom: 8 }}><label className="rx-lbl">Color (optional)</label><input type="color" className="rx-inp" style={{ padding: 2, height: 32 }} value={roomForm.color || ROOM_COLORS[roomForm.room_type] || "#6a6a6a"} onChange={e => setRF("color", e.target.value)} /></div>
+            <div style={{ marginBottom: 8 }}><label className="rx-lbl">Link to grow room (optional)</label><select className="rx-sel" value={roomForm.linked_grow_room_id || ""} onChange={e => setRF("linked_grow_room_id", e.target.value)}><option value="">— None —</option>{growRooms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+            <div style={{ marginBottom: 8 }}><label className="rx-lbl">Link to facility space (optional)</label><select className="rx-sel" value={roomForm.linked_facility_map_space_id || ""} onChange={e => setRF("linked_facility_map_space_id", e.target.value)}><option value="">— None —</option>{mapSpaces.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+            <div style={{ marginBottom: 10 }}><label className="rx-lbl">Notes</label><input className="rx-inp" value={roomForm.notes || ""} onChange={e => setRF("notes", e.target.value)} /></div>
+            {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>{err}</div>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="rx-btn rx-primary" onClick={saveRoomForm}>Save</button>
+              <button className="rx-btn rx-del" onClick={removeSelected}>Delete</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

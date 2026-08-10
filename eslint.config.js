@@ -43,6 +43,18 @@ export default [
     settings: { react: { version: '18.2.0' } },
   },
   {
+    // react-three-fiber renders three.js objects as JSX host elements
+    // (<mesh>, <boxGeometry>, ...) with props like `args`/`position` that
+    // aren't real DOM attributes -- react/no-unknown-property doesn't know
+    // about r3f's reconciler and flags every one of them as a false
+    // positive. Scoped to this directory since it's the only place r3f is
+    // used.
+    files: ['src/resinex/**/*.jsx'],
+    rules: {
+      'react/no-unknown-property': 'off',
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**', 'supabase/**', '*.config.js'],
   },
 ];
