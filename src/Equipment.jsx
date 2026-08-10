@@ -58,6 +58,7 @@ const EMPTY = {
   warrantyExpires:"", pmFreqDays:"90", lastServiceDate:"",
   status:"active", notes:"",
   usefulLifeMonths:"", salvageValue:"0", depreciationMethod:"straight_line",
+  widthIn:"", depthIn:"", heightIn:"", weightLbs:"",
 };
 
 const CAT_MAP = {
@@ -208,6 +209,13 @@ export default function Equipment() {
                 <div><label className="eq-lbl">Depreciation method</label><input className="eq-inp" value="Straight-line" disabled style={{opacity:0.6,cursor:"not-allowed"}} /></div>
               </div>
               <div style={{fontSize:11,color:"var(--text-3)",marginTop:-4,marginBottom:10}}>Leave useful life blank to exclude this asset from the Equipment Depreciation cost pool.</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="eq-lbl">Width (in)</label><input type="number" step="0.1" className="eq-inp" value={form.widthIn} onChange={e=>setF("widthIn",e.target.value)} /></div>
+                <div><label className="eq-lbl">Depth (in)</label><input type="number" step="0.1" className="eq-inp" value={form.depthIn} onChange={e=>setF("depthIn",e.target.value)} /></div>
+                <div><label className="eq-lbl">Height (in)</label><input type="number" step="0.1" className="eq-inp" value={form.heightIn} onChange={e=>setF("heightIn",e.target.value)} /></div>
+                <div><label className="eq-lbl">Weight (lbs)</label><input type="number" step="0.1" className="eq-inp" value={form.weightLbs} onChange={e=>setF("weightLbs",e.target.value)} /></div>
+              </div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginTop:-4,marginBottom:10}}>Footprint (sqft) is calculated automatically from width × depth once saved — used by the future ResinEx 3D facility layout view.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="eq-lbl">PM / calibration frequency</label><select className="eq-sel" value={form.pmFreqDays} onChange={e=>setF("pmFreqDays",e.target.value)}>{PM_FREQ.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}</select></div>
                 <div><label className="eq-lbl">Last service date</label><input type="date" className="eq-inp" value={form.lastServiceDate} onChange={e=>setF("lastServiceDate",e.target.value)} /></div>
@@ -238,7 +246,7 @@ export default function Equipment() {
                         const warrantyActive = eq.warrantyExpires && new Date(eq.warrantyExpires) > today;
                         return (
                           <tr key={eq.id}>
-                            <td style={{fontWeight:500,color:"var(--text)"}}>{eq.name}{eq.assetTag&&<span style={{fontSize:10,color:"var(--text-3)",marginLeft:6,fontFamily:"monospace"}}>{eq.assetTag}</span>}<div style={{fontSize:10,color:"var(--text-3)"}}>{eq.make} {eq.model}</div></td>
+                            <td style={{fontWeight:500,color:"var(--text)"}}>{eq.name}{eq.assetTag&&<span style={{fontSize:10,color:"var(--text-3)",marginLeft:6,fontFamily:"monospace"}}>{eq.assetTag}</span>}<div style={{fontSize:10,color:"var(--text-3)"}}>{eq.make} {eq.model}{eq.footprint_sqft?` · ${eq.footprint_sqft} sqft`:""}</div></td>
                             <td style={{fontSize:11}}>{eq.cat}</td>
                             <td>{eq.location||"—"}</td>
                             <td><span className={"eq-pill status-"+(eq.status==="active"?"active":eq.status==="down"?"down":eq.status==="planned"?"planned":"service")}>{eq.status}</span></td>
