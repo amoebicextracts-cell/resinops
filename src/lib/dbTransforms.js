@@ -806,14 +806,6 @@ export function transformForDb(tableName, record) {
     // Check if there's an explicit rename
     const mappedKey = overrides[key] || key;
 
-    // transformFromDb() attaches a camelCase alias (e.g. roomType) next to
-    // every snake_case column it reads (e.g. room_type) so callers can use
-    // either name. If a record carries both -- which any record round-tripped
-    // through transformFromDb and then locally edited under its snake_case
-    // name will -- the alias is a stale leftover copy, never the edit. Let
-    // the canonical snake_case key win regardless of object key order.
-    if (key !== mappedKey && mappedKey in record) continue;
-
     // Only include if it's a valid column
     if (validCols.has(mappedKey)) {
       result[mappedKey] = (value === "" || value === undefined) ? null : value;

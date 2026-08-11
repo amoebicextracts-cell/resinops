@@ -14,6 +14,15 @@ const ROOM_COLORS = { grow: "#4a7c59", production: "#3d5a7a", business: "#a07a3d
 
 const EMPTY_ROOM = { name: "New Room", room_type: "other", x_ft: 0, y_ft: 0, width_ft: 10, depth_ft: 10, height_ft: "", color: "", linked_grow_room_id: "", linked_facility_map_space_id: "", notes: "" };
 
+// transformFromDb() attaches a camelCase alias (shellId, roomType, ...) next
+// to every snake_case column it reads, for callers that prefer camelCase.
+// This form only ever reads/writes the snake_case names below, so a fetched
+// room's alias copies are dead weight that never gets updated as the user
+// edits -- if left on roomForm, they'd ride along back through onSaveRoom
+// and can win over the real edit depending on object key order (see PR #49).
+// Stripped on load so roomForm only ever carries the fields this form owns.
+const ROOM_ALIAS_KEYS = ["shellId", "roomType", "xFt", "yFt", "widthFt", "depthFt", "heightFt", "linkedGrowRoomId", "linkedFacilityMapSpaceId"];
+
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
 // Equipment dims are in inches (phase 1); rooms/placements are in feet.
@@ -48,7 +57,10 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
 
   useEffect(() => {
     const room = rooms.find(r => r.id === selectedId);
-    setRoomForm(room ? { ...room } : null);
+    if (!room) { setRoomForm(null); return; }
+    const clean = { ...room };
+    for (const k of ROOM_ALIAS_KEYS) delete clean[k];
+    setRoomForm(clean);
   }, [selectedId, rooms]);
 
   const shellW = Number(shell.width_ft) || 1;
