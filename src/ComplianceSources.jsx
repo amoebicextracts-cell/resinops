@@ -83,6 +83,8 @@ export default function ComplianceSources() {
         <div style={{ color: "var(--text-3)" }}>Loading…</div>
       ) : loadErr ? (
         <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 12 }}>{loadErr}</div>
+      ) : sorted.length === 0 ? (
+        <div style={{ fontSize: 13, color: "var(--text-3)" }}>No compliance sources found.</div>
       ) : (
         <>
           <div style={{
