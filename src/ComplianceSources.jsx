@@ -36,15 +36,17 @@ export default function ComplianceSources() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [err, setErr] = useState("");
+  const [loadErr, setLoadErr] = useState("");
+  const [actionErr, setActionErr] = useState("");
 
   async function load() {
     setLoading(true);
+    setLoadErr("");
     try {
       const all = await db.compliance_sources.list();
       setSources(all);
     } catch (e) {
-      setErr("Could not load: " + (e.message || e));
+      setLoadErr("Could not load: " + (e.message || e));
     }
     setLoading(false);
   }
@@ -53,12 +55,12 @@ export default function ComplianceSources() {
 
   async function markVerified(row) {
     setBusyId(row.id);
-    setErr("");
+    setActionErr("");
     try {
       const saved = await db.compliance_sources.upsert({ ...row, last_verified_at: new Date().toISOString() });
       setSources(prev => prev.map(s => s.id === row.id ? saved : s));
     } catch (e) {
-      setErr("Could not update: " + (e.message || e));
+      setActionErr("Could not update: " + (e.message || e));
     }
     setBusyId(null);
   }
@@ -79,6 +81,8 @@ export default function ComplianceSources() {
 
       {loading ? (
         <div style={{ color: "var(--text-3)" }}>Loading…</div>
+      ) : loadErr ? (
+        <div style={{ fontSize: 13, color: "var(--danger)", marginBottom: 12 }}>{loadErr}</div>
       ) : (
         <>
           <div style={{
@@ -91,7 +95,7 @@ export default function ComplianceSources() {
               : <>✓ All {sorted.length} sources verified within the last {STALE_DAYS} days.</>}
           </div>
 
-          {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 12 }}>{err}</div>}
+          {actionErr && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 12 }}>{actionErr}</div>}
 
           {states.map(state => (
             <div key={state} style={{ marginBottom: 22 }}>
