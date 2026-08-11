@@ -7,3 +7,4 @@ backups/
 PROJECT_STATUS.md
 
 .vercel
+.env*

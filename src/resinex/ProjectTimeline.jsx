@@ -164,7 +164,7 @@ export default function ProjectTimeline({ project }) {
         </div>
       )}
 
-      {tasks.length === 0 && !form ? (
+      {tasks.length === 0 ? (
         <div style={{ textAlign: "center", padding: 24, color: "var(--text-3)", fontSize: 13 }}>No expansion tasks yet.</div>
       ) : viewMode === "agenda" ? (
         <AgendaView actions={actions} emptyLabel="No expansion tasks yet." />
