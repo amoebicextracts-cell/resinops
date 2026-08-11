@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "../lib/db";
 
 const SCALE = 16; // px per ft
@@ -16,12 +16,23 @@ const EMPTY_ROOM = { name: "New Room", room_type: "other", x_ft: 0, y_ft: 0, wid
 
 // transformFromDb() attaches a camelCase alias (shellId, roomType, ...) next
 // to every snake_case column it reads, for callers that prefer camelCase.
-// This form only ever reads/writes the snake_case names below, so a fetched
-// room's alias copies are dead weight that never gets updated as the user
-// edits -- if left on roomForm, they'd ride along back through onSaveRoom
-// and can win over the real edit depending on object key order (see PR #49).
-// Stripped on load so roomForm only ever carries the fields this form owns.
+// This whole component only ever reads/writes the snake_case names, so a
+// fetched room/placement's alias copies are dead weight it never updates --
+// if a room or placement object from the rooms/roomEquipment props gets
+// spread as-is into a save call (drag/resize, rotate, or the side-panel
+// form), those stale aliases ride along and can win over the real edit in
+// transformForDb, depending on object key order (see PR #49). Every place
+// that reads a room or placement out of props must go through the cleaned
+// arrays below -- never `rooms`/`roomEquipment` directly -- so nothing
+// alias-bearing ever reaches onSaveRoom/onSaveRoomEquipment.
 const ROOM_ALIAS_KEYS = ["shellId", "roomType", "xFt", "yFt", "widthFt", "depthFt", "heightFt", "linkedGrowRoomId", "linkedFacilityMapSpaceId"];
+const EQUIPMENT_ALIAS_KEYS = ["roomId", "equipmentId", "xFt", "yFt", "rotationDeg"];
+
+function stripKeys(obj, keys) {
+  const clean = { ...obj };
+  for (const k of keys) delete clean[k];
+  return clean;
+}
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
@@ -52,16 +63,16 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
     db.equipment.list().then(setEquipmentList).catch(() => {});
   }, []);
 
+  const cleanRooms = useMemo(() => rooms.map(r => stripKeys(r, ROOM_ALIAS_KEYS)), [rooms]);
+  const cleanRoomEquipment = useMemo(() => roomEquipment.map(re => stripKeys(re, EQUIPMENT_ALIAS_KEYS)), [roomEquipment]);
+
   const equipmentById = new Map(equipmentList.map(eq => [eq.id, eq]));
-  const placedEquipmentIds = new Set(roomEquipment.map(re => re.equipment_id));
+  const placedEquipmentIds = new Set(cleanRoomEquipment.map(re => re.equipment_id));
 
   useEffect(() => {
-    const room = rooms.find(r => r.id === selectedId);
-    if (!room) { setRoomForm(null); return; }
-    const clean = { ...room };
-    for (const k of ROOM_ALIAS_KEYS) delete clean[k];
-    setRoomForm(clean);
-  }, [selectedId, rooms]);
+    const room = cleanRooms.find(r => r.id === selectedId);
+    setRoomForm(room || null);
+  }, [selectedId, cleanRooms]);
 
   const shellW = Number(shell.width_ft) || 1;
   const shellD = Number(shell.depth_ft) || 1;
@@ -90,7 +101,7 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
   function onPointerMove(e) {
     const drag = dragRef.current;
     if (drag) {
-      const room = rooms.find(r => r.id === drag.roomId);
+      const room = cleanRooms.find(r => r.id === drag.roomId);
       if (room) {
         const dxFt = Math.round((e.clientX - drag.startX) / SCALE);
         const dyFt = Math.round((e.clientY - drag.startY) / SCALE);
@@ -107,8 +118,8 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
     }
     const eqDrag = eqDragRef.current;
     if (eqDrag) {
-      const room = rooms.find(r => r.id === eqDrag.roomId);
-      const placement = roomEquipment.find(re => re.id === eqDrag.placementId);
+      const room = cleanRooms.find(r => r.id === eqDrag.roomId);
+      const placement = cleanRoomEquipment.find(re => re.id === eqDrag.placementId);
       if (room && placement) {
         const { wFt, dFt } = eqFootprintFt(equipmentById.get(placement.equipment_id));
         const rotated = Number(placement.rotation_deg) === 90 || Number(placement.rotation_deg) === 270;
@@ -126,7 +137,7 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
     const drag = dragRef.current;
     dragRef.current = null;
     if (drag && dragPreview) {
-      const room = rooms.find(r => r.id === drag.roomId);
+      const room = cleanRooms.find(r => r.id === drag.roomId);
       if (room) onSaveRoom({ ...room, ...dragPreview });
     }
     setDragPreview(null);
@@ -134,7 +145,7 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
     const eqDrag = eqDragRef.current;
     eqDragRef.current = null;
     if (eqDrag && eqDragPreview) {
-      const placement = roomEquipment.find(re => re.id === eqDrag.placementId);
+      const placement = cleanRoomEquipment.find(re => re.id === eqDrag.placementId);
       if (placement) onSaveRoomEquipment({ ...placement, ...eqDragPreview });
     }
     setEqDragPreview(null);
@@ -191,7 +202,7 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
           onClick={() => setSelectedId(null)}
         >
           <rect x={0} y={0} width={svgW} height={svgH} fill="none" stroke="var(--border-2)" strokeWidth={2} />
-          {rooms.map(room => {
+          {cleanRooms.map(room => {
             const preview = dragPreview && dragPreview.roomId === room.id ? dragPreview : {};
             const r = { ...room, ...preview };
             const x = Number(r.x_ft) * SCALE, y = Number(r.y_ft) * SCALE;
@@ -215,7 +226,7 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
                   onPointerDown={e => onPointerDownHandle(e, room)}
                   onClick={e => e.stopPropagation()}
                 />
-                {roomEquipment.filter(re => re.room_id === room.id).map(pe => {
+                {cleanRoomEquipment.filter(re => re.room_id === room.id).map(pe => {
                   const eq = equipmentById.get(pe.equipment_id);
                   const eqPreview = eqDragPreview && eqDragPreview.placementId === pe.id ? eqDragPreview : {};
                   const p = { ...pe, ...eqPreview };
@@ -267,11 +278,11 @@ export default function ShellEditor2D({ shell, rooms, onSaveRoom, onDeleteRoom, 
 
             <div style={{ borderTop: "1px solid var(--border-2)", paddingTop: 10 }}>
               <div className="rx-lbl" style={{ marginBottom: 6 }}>Equipment in this room</div>
-              {roomEquipment.filter(re => re.room_id === selectedId).length === 0 ? (
+              {cleanRoomEquipment.filter(re => re.room_id === selectedId).length === 0 ? (
                 <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>None placed yet.</div>
               ) : (
                 <div style={{ marginBottom: 8 }}>
-                  {roomEquipment.filter(re => re.room_id === selectedId).map(re => {
+                  {cleanRoomEquipment.filter(re => re.room_id === selectedId).map(re => {
                     const eq = equipmentById.get(re.equipment_id);
                     return (
                       <div key={re.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "4px 0" }}>
