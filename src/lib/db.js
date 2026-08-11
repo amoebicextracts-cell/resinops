@@ -20,7 +20,7 @@ import { transformForDb, transformFromDb } from './dbTransforms';
 // facility on list/upsert. ai_corrections is intentionally global (the
 // shared cross-client corrections knowledge base); facilities/profiles
 // predate the per-facility model entirely.
-export const UNSCOPED_TABLES = new Set(['facilities', 'profiles', 'ai_corrections']);
+export const UNSCOPED_TABLES = new Set(['facilities', 'profiles', 'ai_corrections', 'compliance_sources']);
 
 // ── localStorage key mapping ──────────────────────────────────
 const LS_KEYS = {
@@ -79,6 +79,7 @@ const LS_KEYS = {
   resinex_project_documents: 'resinops_resinex_project_documents',
   resinex_project_actuals: 'resinops_resinex_project_actuals',
   resinex_expansion_tasks: 'resinops_resinex_expansion_tasks',
+  compliance_sources: 'resinops_compliance_sources',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
