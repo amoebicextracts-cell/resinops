@@ -54,6 +54,7 @@ import TCTracker from "./TCTracker.jsx";
 import FacilityMap from "./FacilityMap.jsx";
 import OpsAnalyst from "./OpsAnalyst.jsx";
 import AiCorrectionsReview from "./AiCorrectionsReview.jsx";
+import ComplianceSources from "./ComplianceSources.jsx";
 import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
@@ -1022,7 +1023,7 @@ export default function ResinOps() {
 
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
-    if (id !== "ai-corrections-review" && id !== "help-center" && !mod?.available) return;
+    if (id !== "ai-corrections-review" && id !== "compliance-sources" && id !== "help-center" && !mod?.available) return;
     if(window.__resinopsUnsaved && activeModule !== id) {
       if(!window.confirm("You have unsaved changes. Leave anyway?")) return;
       window.__resinopsUnsaved = false;
@@ -1320,6 +1321,20 @@ export default function ResinOps() {
             </button>
           )}
 
+          {/* ── Platform-admin-only: compliance source freshness review ── */}
+          {isPlatformAdmin && (
+            <button
+              className={`module-btn ${activeModule === "compliance-sources" ? "active" : ""}`}
+              onClick={() => switchModule("compliance-sources")}
+            >
+              <span className="module-icon">📜</span>
+              <span className="module-info">
+                <span className="module-name">Compliance Sources</span>
+                <span className="module-desc">Review freshness of state regulatory citations</span>
+              </span>
+            </button>
+          )}
+
           {/* ── Settings at bottom (always visible — core modules) ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
           <div className="sidebar-section-label">Settings</div>
@@ -1421,6 +1436,7 @@ export default function ResinOps() {
 
           <ErrorBoundary key={activeModule} moduleName={activeModule} onReport={submitIssueReport}>
             {activeModule === "ai-corrections-review" ? (isPlatformAdmin ? <AiCorrectionsReview /> : null) : null}
+            {activeModule === "compliance-sources" ? (isPlatformAdmin ? <ComplianceSources /> : null) : null}
             {activeModule === "ops-analyst" ? <OpsAnalyst /> : null}
             {activeModule === "scheduler" ? <Scheduler /> : null}
             {activeModule === "production" ? <ProductionScheduler onNavigate={switchModule} /> : null}
