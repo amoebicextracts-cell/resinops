@@ -73,7 +73,7 @@ export default function ProjectDocuments({ project }) {
       const confirmRes = await authenticatedApiFetch("/api/resinex-confirm-document", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facilityId, documentId, fileSize: file.size }),
+        body: JSON.stringify({ facilityId, documentId }),
       });
       const confirmData = await confirmRes.json();
       if (!confirmRes.ok) throw new Error(formatApiError(confirmRes, confirmData, "Could not confirm the document"));
