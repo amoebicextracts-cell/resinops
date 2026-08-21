@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { parseDateLocal } from "./lib/dateUtils";
+import { supabase, getCurrentFacility } from "./lib/supabase";
+import { authenticatedApiFetch, formatApiError } from "./lib/api";
 
 const ROOM_TYPES = ["Indoor","Mixed-Light Greenhouse","Outdoor Greenhouse","Hoop House","Outdoor","Mother Room","Propagation","Veg","Nursery","Genetics Lab / TC","Other"];
 const LIGHT_TYPES = ["HPS","LED","CMH/LEC","DE HPS","Hybrid LED+HPS","Natural Light","Supplemental LED","None"];
@@ -53,6 +55,7 @@ const CSS=`
   .gm-stat{display:flex;flex-direction:column;gap:1px;}
   .gm-stat-l{font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;}
   .gm-stat-v{font-size:12px;color:var(--text-2);font-weight:500;}
+  .gm-sensor-readout{display:flex;gap:10px;font-size:11px;color:var(--accent-2);margin-top:4px;font-weight:600;}
 `;
 
 const EMPTY={name:"",type:"Indoor",sqft:"",canopy:"",maxPlants:"",lightType:"LED",lightCount:"",lightWatts:"",resetDays:"7",status:"empty",lastHarvestDate:"",sensorId:"",notes:"",
@@ -63,6 +66,8 @@ export default function GrowMap(){
   const [cultSpaces,setCultSpaces]=useState([]);
   const [items,setItems]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [links,setLinks]=useState([]);
+  const [readings,setReadings]=useState({});
 
   function normalizeRoom(r){
     return {
@@ -102,11 +107,45 @@ export default function GrowMap(){
         setSpaces(rooms.map(normalizeRoom));
         setCultSpaces(cs);
         setItems(inv);
+        // Fetched separately, on its own try/catch: sensor_device_links is a
+        // new table that may not exist yet in an environment that hasn't run
+        // the sensor-ingestion migration. A failure here must never take
+        // down the core room/space view above -- it should just mean the
+        // sensor-link UI/readouts stay empty until the migration runs.
+        await refreshLinks();
+        await loadReadings(rooms.map(r=>r.id));
       }catch(e){ console.error("GrowMap load error:",e); }
       setLoading(false);
     }
     load();
   },[]);
+
+  // Live readout on room cards -- last 30 minutes of readings, latest value
+  // per room+metric. Empty/no-op in local mode (no `supabase` client) or for
+  // rooms with no linked/reporting sensor.
+  async function loadReadings(roomIds){
+    if(!supabase || roomIds.length===0) return;
+    try{
+      const cutoff=new Date(Date.now()-30*60000).toISOString();
+      const {data,error}=await supabase.from("sensor_readings")
+        .select("grow_room_id,metric,value,recorded_at")
+        .in("grow_room_id",roomIds).gte("recorded_at",cutoff)
+        .order("recorded_at",{ascending:false});
+      if(error) throw error;
+      const byRoom={};
+      for(const row of (data||[])){
+        if(!byRoom[row.grow_room_id]) byRoom[row.grow_room_id]={};
+        if(!(row.metric in byRoom[row.grow_room_id])){
+          byRoom[row.grow_room_id][row.metric]={value:row.value,recordedAt:row.recorded_at};
+        }
+      }
+      setReadings(byRoom);
+    }catch(e){ console.error("Sensor readings load error:",e); }
+  }
+
+  async function refreshLinks(){
+    try{ setLinks(await db.sensor_device_links.list()); }catch(e){ console.error(e); }
+  }
 
   function getActiveBatch(roomName, roomId) {
     return cultSpaces.find(s => s.name === roomName || s.growMapId === roomId);
@@ -222,6 +261,9 @@ export default function GrowMap(){
               </div>
             )}
             <div style={{marginBottom:10}}><label className="gm-lbl">Notes</label><input className="gm-inp" value={form.notes} onChange={e=>setF("notes",e.target.value)} /></div>
+            {form.id
+              ? <SensorLinksPanel roomId={form.id} links={links.filter(l=>l.grow_room_id===form.id)} onChange={refreshLinks} />
+              : <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>Save the room first, then AC Infinity sensors can be linked to it here.</div>}
             {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
             <div style={{display:"flex",gap:8}}>
               <button className="gm-btn gm-primary" onClick={save}>{form.id?"Save changes":"Add to Grow Map"}</button>
@@ -271,6 +313,13 @@ export default function GrowMap(){
                     {ready&&<div style={{fontSize:11,color:ready.diff>=0?"var(--accent-2)":"var(--danger)",marginTop:4,fontWeight:500}}>
                       {ready.diff>=0?`Ready in ${ready.diff}d — ${fmtD(ready.date)}`:`Reset overdue by ${Math.abs(ready.diff)}d`}
                     </div>}
+                    {readings[sp.id]&&(
+                      <div className="gm-sensor-readout">
+                        {readings[sp.id].temp_f&&<span>🌡 {readings[sp.id].temp_f.value.toFixed(1)}°F</span>}
+                        {readings[sp.id].humidity_pct&&<span>💧 {readings[sp.id].humidity_pct.value.toFixed(0)}%</span>}
+                        {readings[sp.id].vpd_kpa&&<span>VPD {readings[sp.id].vpd_kpa.value.toFixed(2)}</span>}
+                      </div>
+                    )}
                     {sp.sensorId&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>Sensor: {sp.sensorId}</div>}
                     {(()=>{const ab=getActiveBatch(sp.name,sp.id);return ab?(<div style={{fontSize:11,color:"var(--accent-2)",fontWeight:500,marginTop:4,background:"rgba(74,124,89,0.1)",borderRadius:5,padding:"3px 7px",display:"inline-block"}}>🌱 Active batch: {(ab.strains||[]).map(s=>s.name).join(", ")||ab.strain||"—"}</div>):null;})()}
                     {sp.notes&&<div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>{sp.notes}</div>}
@@ -289,5 +338,97 @@ export default function GrowMap(){
         )}
       </div>
     </>
+  );
+}
+
+// AC Infinity is the only sensor platform Alex currently has account access
+// to without a client involved (Growlink/Argus require a client's real
+// account) -- see supabase/migrations/20260820090000_add_sensor_ingestion.sql
+// and api/ac-infinity.js. "Discover" shows AC Infinity's raw device-list JSON
+// rather than a parsed dropdown, since the exact device/port response shape
+// isn't documented anywhere verifiable -- the device ID / port gets read off
+// the raw output once, the first time a real account is linked.
+function SensorLinksPanel({roomId,links,onChange}){
+  const [discovering,setDiscovering]=useState(false);
+  const [discovered,setDiscovered]=useState("");
+  const [discoverErr,setDiscoverErr]=useState("");
+  const [newDeviceId,setNewDeviceId]=useState("");
+  const [newPort,setNewPort]=useState("");
+  const [newLabel,setNewLabel]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");
+
+  async function discover(){
+    setDiscovering(true);setDiscoverErr("");
+    try{
+      const res=await authenticatedApiFetch("/api/ac-infinity",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"devices.list"}),
+      },{includeFacility:true});
+      const json=await res.json();
+      if(!res.ok||json.error) throw new Error(formatApiError(res,json,"AC Infinity request failed"));
+      setDiscovered(JSON.stringify(json.data,null,2));
+    }catch(e){ setDiscoverErr(e.message); }
+    setDiscovering(false);
+  }
+
+  async function addLink(){
+    if(!newDeviceId.trim()){setErr("Enter a device ID — read it off the discovered JSON above.");return;}
+    setBusy(true);setErr("");
+    try{
+      await db.sensor_device_links.upsert({
+        grow_room_id:roomId,source:"ac_infinity",
+        external_device_id:newDeviceId.trim(),external_port_id:newPort.trim()||null,
+        label:newLabel.trim()||null,active:true,
+      });
+      setNewDeviceId("");setNewPort("");setNewLabel("");
+      onChange();
+    }catch(e){ setErr("Link failed: "+e.message); }
+    setBusy(false);
+  }
+
+  async function toggleActive(link){
+    try{ await db.sensor_device_links.upsert({...link,active:!link.active}); onChange(); }
+    catch(e){ console.error("Sensor link toggle failed:",e); }
+  }
+
+  async function removeLink(id){
+    try{ await db.sensor_device_links.delete(id); onChange(); }
+    catch(e){ console.error("Sensor link delete failed:",e); }
+  }
+
+  return(
+    <div style={{marginTop:2,marginBottom:14,padding:12,background:"var(--surface-2)",borderRadius:8,border:"1px solid var(--border-2)"}}>
+      <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:8}}>AC Infinity sensor links</div>
+      {links.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          {links.map(l=>(
+            <div key={l.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,color:"var(--text-2)"}}>
+              <span>{l.label||`Device ${l.external_device_id}`}{l.external_port_id?` · port ${l.external_port_id}`:""}{!l.active&&" (paused)"}</span>
+              <span style={{display:"flex",gap:6}}>
+                <button className="gm-sm gm-secondary" onClick={()=>toggleActive(l)}>{l.active?"Pause":"Resume"}</button>
+                <button className="gm-sm gm-del" onClick={()=>removeLink(l.id)}>✕</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:8,marginBottom:8}}>
+        <input className="gm-inp" placeholder="Device ID" value={newDeviceId} onChange={e=>setNewDeviceId(e.target.value)} />
+        <input className="gm-inp" placeholder="Port (if any)" value={newPort} onChange={e=>setNewPort(e.target.value)} />
+        <input className="gm-inp" placeholder="Label (optional)" value={newLabel} onChange={e=>setNewLabel(e.target.value)} />
+        <button className="gm-btn gm-secondary" disabled={busy} onClick={addLink}>+ Link</button>
+      </div>
+      {err&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:8}}>{err}</div>}
+      <button className="gm-btn gm-secondary" style={{fontSize:11}} disabled={discovering} onClick={discover}>
+        {discovering?"Discovering…":"Discover AC Infinity devices"}
+      </button>
+      <div style={{fontSize:10,color:"var(--text-3)",marginTop:4}}>
+        Not an officially documented API — this shows AC Infinity's raw device list so the device ID / port can be read off it and linked above.
+      </div>
+      {discoverErr&&<div style={{fontSize:11,color:"var(--danger)",marginTop:6}}>{discoverErr}</div>}
+      {discovered&&<pre style={{fontSize:10,color:"var(--text-2)",background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:6,padding:8,marginTop:8,maxHeight:200,overflow:"auto",whiteSpace:"pre-wrap"}}>{discovered}</pre>}
+    </div>
   );
 }
