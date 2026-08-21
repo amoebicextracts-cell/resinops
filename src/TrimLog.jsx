@@ -124,7 +124,11 @@ export default function TrimLog(){
 
     setSaving(true); setErr("");
     try{
-      const employee = employeeById[form.employeeId];
+      // piece_rate is deliberately NOT resolved here -- it's snapshotted at
+      // approval time instead (see approveEntry), so an entry submitted
+      // before a role has a piece rate configured still gets paid
+      // correctly once approved, rather than being permanently stuck at
+      // whatever rate (or lack of one) existed the moment it was typed in.
       const entry = {
         id: crypto.randomUUID(),
         employeeId: form.employeeId,
@@ -132,7 +136,6 @@ export default function TrimLog(){
         entryDate: form.entryDate || todayLocalISO(),
         gramsTrimmed: grams,
         grade: form.grade || null,
-        pieceRate: pieceRateFor(employee),
         notes: form.notes.trim() || null,
         status: "pending",
       };
@@ -146,8 +149,13 @@ export default function TrimLog(){
   async function approveEntry(entry){
     if(!approverId){ setErr("Pick who's approving before signing off."); return; }
     try{
+      // Resolved fresh, right now -- not whatever was (or wasn't) set when
+      // the trimmer originally submitted. Once this save lands the row is
+      // approved, and the DB trigger locks piece_rate (and every other
+      // payroll-relevant field) from changing again while it stays approved.
+      const rate = pieceRateFor(employeeById[entry.employeeId]);
       const saved = await db.trim_entries.upsert({
-        ...entry, status:"approved", approvedByEmployeeId: approverId, approvedAt: new Date().toISOString(), rejectionReason: null,
+        ...entry, status:"approved", pieceRate: rate, approvedByEmployeeId: approverId, approvedAt: new Date().toISOString(), rejectionReason: null,
       });
       setEntries(p=>p.map(e=>e.id===saved.id?saved:e));
     }catch(e){ setErr("Approval failed: "+e.message); }
@@ -219,7 +227,7 @@ export default function TrimLog(){
                 </select>
                 {form.employeeId && pieceRateFor(employeeById[form.employeeId])==null && (
                   <div style={{fontSize:11,color:"var(--amber)",marginTop:5}}>
-                    No piece rate set for {employeeById[form.employeeId]?.role||"this role"} — entry will still be logged, but won't count toward payroll $ until a piece rate is added in Labor Setup.
+                    No piece rate set for {employeeById[form.employeeId]?.role||"this role"} yet — entry will still be logged. The rate is looked up when this gets approved, not now, so adding one in Labor Setup before approval still pays this entry correctly.
                   </div>
                 )}
               </div>
@@ -293,6 +301,10 @@ export default function TrimLog(){
             ) : pending.map(e=>{
               const emp = employeeById[e.employeeId];
               const batch = batchById[e.harvestBatchId];
+              // Live preview of the rate that would actually be applied if
+              // approved right now -- e.pieceRate itself is still null at
+              // this stage (only resolved and frozen at approval time).
+              const previewRate = pieceRateFor(emp);
               return (
                 <div key={e.id} style={{padding:"12px 0",borderBottom:"1px solid var(--border)"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
@@ -300,7 +312,7 @@ export default function TrimLog(){
                       <div style={{fontWeight:500,color:"var(--text)",fontSize:13}}>{emp?.name||"(unknown)"} — {fmtG(e.gramsTrimmed)}</div>
                       <div style={{fontSize:11,color:"var(--text-3)",marginTop:2}}>
                         {batch?.strainName||"—"} · {fmtD(e.entryDate)}{e.grade?` · Grade ${e.grade.toUpperCase()}`:""}
-                        {e.pieceRate!=null?` · ${fmtM(e.pieceRate)}/g → ${fmtM(e.gramsTrimmed*e.pieceRate)}`:""}
+                        {previewRate!=null?` · will pay ${fmtM(previewRate)}/g → ${fmtM(e.gramsTrimmed*previewRate)}`:" · no piece rate set yet — will approve at $0"}
                       </div>
                       {e.notes && <div style={{fontSize:11,color:"var(--text-2)",marginTop:4}}>{e.notes}</div>}
                     </div>

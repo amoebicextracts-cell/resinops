@@ -31,7 +31,7 @@ create table if not exists public.trim_entries (
   entry_date date not null default current_date,
   grams_trimmed numeric not null check (grams_trimmed > 0),
   grade text, -- optional grade tier this trimmer worked (aa/a/b/c), free text to match harvest_batches' own grade labels
-  piece_rate numeric, -- snapshot of labor_types.piece_rate at submission time -- a later rate change must never rewrite past payroll
+  piece_rate numeric, -- snapshot of labor_types.piece_rate at APPROVAL time (not submission) -- see lock_approved_trim_entry() below for why, and for why it's then frozen
   notes text,
   status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   approved_by_employee_id uuid references public.employees(id) on delete set null,
@@ -75,5 +75,42 @@ drop trigger if exists audit_facility_change on public.trim_entries;
 create trigger audit_facility_change
 after insert or update or delete on public.trim_entries
 for each row execute function private.audit_facility_change();
+
+-- Caught in review before merge: the plain can_edit_facility update policy
+-- above (matching every other table's convention) doesn't distinguish
+-- "approved" from "pending" -- without this, any editor-role member could
+-- silently rewrite grams/employee/batch/rate/date on an already-approved
+-- (i.e. already payroll-real) entry, with nothing stopping it beyond the
+-- audit log. This blocks changing any payroll-relevant field while the row
+-- STAYS approved; correcting a real mistake means explicitly un-approving
+-- it first (status -> pending), editing, then re-approving -- a visible
+-- two-step correction, not a silent one.
+create or replace function private.lock_approved_trim_entry()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+begin
+  if old.status = 'approved' and new.status = 'approved' then
+    if new.grams_trimmed is distinct from old.grams_trimmed
+      or new.employee_id is distinct from old.employee_id
+      or new.harvest_batch_id is distinct from old.harvest_batch_id
+      or new.piece_rate is distinct from old.piece_rate
+      or new.entry_date is distinct from old.entry_date
+    then
+      raise exception 'Cannot edit grams/employee/batch/rate/date on an approved trim entry -- unapprove it first';
+    end if;
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function private.lock_approved_trim_entry() from public, anon, authenticated;
+
+drop trigger if exists lock_approved_trim_entry on public.trim_entries;
+create trigger lock_approved_trim_entry
+before update on public.trim_entries
+for each row execute function private.lock_approved_trim_entry();
 
 commit;
