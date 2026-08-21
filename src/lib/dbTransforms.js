@@ -26,6 +26,8 @@ const SCHEMAS = {
   facility_map_spaces: ['id','created_at','updated_at','facility_id','name','space_type','sqft','current_batch_id','cleaning_interval_days','last_cleaned_date','status','notes','clean_log','assigned_batch_ids'],
   gmp_sops: ['id','created_at','updated_at','facility_id','title','category','version','effective_date','content','status','approved_by','linked_step_types','locked_at'],
   signature_records: ['id','created_at','facility_id','signed_by','document_type','document_id','document_label','sha256','storage_path','signed_at'],
+  sensor_device_links: ['id','created_at','updated_at','facility_id','created_by','grow_room_id','source','external_device_id','external_port_id','label','active','notes'],
+  sensor_readings: ['id','created_at','facility_id','device_link_id','grow_room_id','metric','value','recorded_at'],
   resinex_projects: ['id','created_at','updated_at','facility_id','created_by','name','project_type','status','notes'],
   resinex_facility_shells: ['id','created_at','updated_at','project_id','facility_id','width_ft','depth_ft','ceiling_height_ft','notes'],
   resinex_rooms: ['id','created_at','updated_at','shell_id','facility_id','name','room_type','x_ft','y_ft','width_ft','depth_ft','height_ft','color','linked_grow_room_id','linked_facility_map_space_id','notes'],

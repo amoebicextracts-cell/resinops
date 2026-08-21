@@ -80,6 +80,8 @@ const LS_KEYS = {
   resinex_project_actuals: 'resinops_resinex_project_actuals',
   resinex_expansion_tasks: 'resinops_resinex_expansion_tasks',
   compliance_sources: 'resinops_compliance_sources',
+  sensor_device_links: 'resinops_sensor_device_links',
+  sensor_readings: 'resinops_sensor_readings',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
