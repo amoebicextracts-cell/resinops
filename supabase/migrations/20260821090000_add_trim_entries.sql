@@ -64,8 +64,12 @@ alter table public.trim_entries enable row level security;
 
 create policy facility_isolation_select on public.trim_entries
   for select to authenticated using (private.is_facility_member(facility_id));
+-- status = 'pending' is required at insert time -- every entry starts
+-- unapproved, no exceptions. Without this, a direct insert could create an
+-- already-"approved" row that never actually went through the approval
+-- queue at all.
 create policy facility_isolation_insert on public.trim_entries
-  for insert to authenticated with check (private.can_edit_facility(facility_id));
+  for insert to authenticated with check (private.can_edit_facility(facility_id) and status = 'pending');
 create policy facility_isolation_update on public.trim_entries
   for update to authenticated using (private.can_edit_facility(facility_id)) with check (private.can_edit_facility(facility_id));
 create policy facility_isolation_delete on public.trim_entries
@@ -81,10 +85,15 @@ for each row execute function private.audit_facility_change();
 -- "approved" from "pending" -- without this, any editor-role member could
 -- silently rewrite grams/employee/batch/rate/date on an already-approved
 -- (i.e. already payroll-real) entry, with nothing stopping it beyond the
--- audit log. This blocks changing any payroll-relevant field while the row
--- STAYS approved; correcting a real mistake means explicitly un-approving
--- it first (status -> pending), editing, then re-approving -- a visible
--- two-step correction, not a silent one.
+-- audit log. This blocks changing any payroll-relevant field on a row that
+-- WAS approved, in the same statement that's editing it -- deliberately
+-- checked against old.status alone (not "old and new both still
+-- approved"), a first draft of this trigger got caught doing exactly that
+-- and it meant a single UPDATE flipping status to 'pending' while also
+-- changing grams in the same statement slipped right through. Correcting a
+-- real mistake now genuinely requires two separate statements: unapprove
+-- (status only, nothing else) first, then edit while pending, then
+-- re-approve -- each one audit-logged on its own.
 create or replace function private.lock_approved_trim_entry()
 returns trigger
 language plpgsql
@@ -92,14 +101,14 @@ security definer
 set search_path = ''
 as $function$
 begin
-  if old.status = 'approved' and new.status = 'approved' then
+  if old.status = 'approved' then
     if new.grams_trimmed is distinct from old.grams_trimmed
       or new.employee_id is distinct from old.employee_id
       or new.harvest_batch_id is distinct from old.harvest_batch_id
       or new.piece_rate is distinct from old.piece_rate
       or new.entry_date is distinct from old.entry_date
     then
-      raise exception 'Cannot edit grams/employee/batch/rate/date on an approved trim entry -- unapprove it first';
+      raise exception 'Cannot edit grams/employee/batch/rate/date on an approved trim entry in the same update that changes its status -- unapprove it first, then edit, then re-approve';
     end if;
   end if;
   return new;
