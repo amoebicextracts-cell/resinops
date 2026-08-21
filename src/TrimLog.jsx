@@ -162,8 +162,8 @@ export default function TrimLog(){
       // approved, and the DB trigger locks piece_rate (and every other
       // payroll-relevant field) from changing again while it stays approved.
       const rate = pieceRateFor(employeeById[entry.employeeId]);
-      const saved = await db.trim_entries.upsert({
-        ...entry, status:"approved", pieceRate: rate, approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(), rejectionReason: null,
+      const saved = await db.trim_entries.update(entry.id, {
+        status:"approved", pieceRate: rate, approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(), rejectionReason: null,
       });
       setEntries(p=>p.map(e=>e.id===saved.id?saved:e));
     }catch(e){ setErr("Approval failed: "+e.message); }
@@ -172,8 +172,8 @@ export default function TrimLog(){
   async function rejectEntry(entry){
     if(!myEmployee){ setErr("Your login isn't linked to an employee record — ask an account owner to link you under Employees → Login Access before you can reject entries."); return; }
     try{
-      const saved = await db.trim_entries.upsert({
-        ...entry, status:"rejected", approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(),
+      const saved = await db.trim_entries.update(entry.id, {
+        status:"rejected", approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(),
         rejectionReason: rejectReason.trim() || null,
       });
       setEntries(p=>p.map(e=>e.id===saved.id?saved:e));

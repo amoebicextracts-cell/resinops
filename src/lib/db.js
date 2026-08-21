@@ -151,6 +151,25 @@ async function sbUpsert(table, record) {
   return transformFromDb(table, data);
 }
 
+// A real UPDATE, not upsert() — for tables whose INSERT policy restricts
+// values (e.g. trim_entries requiring status='pending' at insert time):
+// Postgres evaluates a table's INSERT policy against the proposed row for
+// ANY upsert(), even one that resolves via ON CONFLICT DO UPDATE against an
+// existing row, so upsert()-ing a status transition away from that INSERT-
+// only value gets rejected by RLS despite the row already existing. Use
+// this for edits to a row you already know exists.
+async function sbUpdate(table, id, patch) {
+  const transformed = transformForDb(table, patch);
+  const { data, error } = await supabase
+    .from(table)
+    .update(transformed)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return transformFromDb(table, data);
+}
+
 async function sbDelete(table, id) {
   // .select() makes Postgres return the deleted row(s) so we can tell a real
   // delete apart from one silently blocked by RLS (e.g. wrong role) — a
@@ -176,6 +195,13 @@ function makeTable(tableName) {
     upsert: (record)       => isSupabaseEnabled
       ? sbUpsert(tableName, record)
       : Promise.resolve(lsUpsert(tableName, record)),
+
+    // A real UPDATE — use for status transitions on tables whose INSERT
+    // policy restricts values (see sbUpdate above for why upsert() can't
+    // be used for those). record is a partial patch, not a full row.
+    update: (id, patch)    => isSupabaseEnabled
+      ? sbUpdate(tableName, id, patch)
+      : Promise.resolve(lsUpsert(tableName, { ...lsGet(tableName).find(r => String(r.id) === String(id)), ...patch, id })),
 
     delete: (id)           => isSupabaseEnabled
       ? sbDelete(tableName, id)
