@@ -99,16 +99,20 @@ export default function GrowMap(){
   useEffect(()=>{
     async function load(){
       try{
-        const [rooms, cs, inv, deviceLinks] = await Promise.all([
+        const [rooms, cs, inv] = await Promise.all([
           db.grow_rooms.list(),
           db.grow_spaces.list(),
           db.inventory_items.list(),
-          db.sensor_device_links.list(),
         ]);
         setSpaces(rooms.map(normalizeRoom));
         setCultSpaces(cs);
         setItems(inv);
-        setLinks(deviceLinks);
+        // Fetched separately, on its own try/catch: sensor_device_links is a
+        // new table that may not exist yet in an environment that hasn't run
+        // the sensor-ingestion migration. A failure here must never take
+        // down the core room/space view above -- it should just mean the
+        // sensor-link UI/readouts stay empty until the migration runs.
+        await refreshLinks();
         await loadReadings(rooms.map(r=>r.id));
       }catch(e){ console.error("GrowMap load error:",e); }
       setLoading(false);
