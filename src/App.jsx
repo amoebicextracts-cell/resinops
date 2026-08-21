@@ -66,6 +66,7 @@ import TwoFactorSettings from "./TwoFactorSettings.jsx";
 import FacilitySettings from "./FacilitySettings.jsx";
 import LaborManager from "./LaborManager.jsx";
 import LaborDashboard from "./LaborDashboard.jsx";
+import TrimLog from "./TrimLog.jsx";
 import InventoryERP from "./InventoryERP.jsx";
 import Finance from "./Finance.jsx";
 import Equipment from "./Equipment.jsx";
@@ -1188,7 +1189,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center","resinex"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","trim-log","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center","resinex"].includes(activeModule);
   const isAIChat = activeModule === "ai-assistant";
 
   const showWelcome = messages.length === 0;
@@ -1461,6 +1462,7 @@ export default function ResinOps() {
             {activeModule === "facility-settings" ? <FacilitySettings /> : null}
             {activeModule === "labor-setup" ? <LaborManager /> : null}
             {activeModule === "labor-dash" ? <LaborDashboard /> : null}
+            {activeModule === "trim-log" ? <TrimLog /> : null}
             {activeModule === "inventory" ? <InventoryERP /> : null}
             {activeModule === "finance" ? <Finance /> : null}
             {activeModule === "equipment" ? <Equipment /> : null}

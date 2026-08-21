@@ -59,6 +59,7 @@ const LS_KEYS = {
   ai_corrections:     'resinops_ai_corrections',
   work_orders:        'resinops_work_orders',
   pheno_hunts:        'resinops_pheno_hunts',
+  trim_entries:       'resinops_trim_entries',
   metrc_transfer_manifests: 'resinops_metrc_transfer_manifests',
   loto_log:           'resinops_loto_log',
   remediation:        'resinops_remediation',

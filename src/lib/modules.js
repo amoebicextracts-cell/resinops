@@ -224,6 +224,15 @@ export const MODULES = [
     isScheduler: true,
     tier: "commercial",
   },
+  {
+    id: "trim-log",
+    label: "Trim Log",
+    icon: "✂️",
+    available: true,
+    description: "Individual trimmer weigh-ins, approval workflow, piece-rate payroll, and per-trimmer leaderboards",
+    isScheduler: true,
+    tier: "commercial",
+  },
   // ── Business ────────────────────────────────────────────────────────────────
   {
     id: "inventory",
