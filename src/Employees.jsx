@@ -401,7 +401,7 @@ export default function Employees(){
                               <div>
                                 <label className="em-lbl">Access role</label>
                                 <select className="em-sel" value={linkedMember.role} onChange={e=>changeMemberRole(linkedMember,e.target.value)}>
-                                  {LOGIN_ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                                  {LOGIN_ROLE_OPTIONS.concat(linkedMember.role==="owner"?["owner"]:[]).map(r=><option key={r} value={r} disabled={r==="owner"}>{r}</option>)}
                                 </select>
                               </div>
                               <button className="em-btn em-secondary" disabled={linkBusy} onClick={unlinkMember}>Unlink</button>
