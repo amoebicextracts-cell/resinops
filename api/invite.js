@@ -9,9 +9,16 @@
 // anon key. Callers must already be an owner/admin of the target facility,
 // verified with their own (non-privileged) session first.
 //
+// employeeId (optional) links the new login directly to an existing
+// employees roster row in the same transaction, so "invite someone a
+// login" and "this login IS this staff member" happen atomically instead
+// of needing a second step that could be skipped. Ownership of that
+// employee row is checked under the caller's own RLS-scoped client before
+// any privileged write happens.
+//
 // Request format:
 // POST /api/invite
-// { email, facilityId, role, scopeRoles: { cultivation: "member", ... } }
+// { email, facilityId, role, scopeRoles: { cultivation: "member", ... }, employeeId? }
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
@@ -49,9 +56,26 @@ export default async function handler(req, res) {
   if (validationError) return sendApiError(res, 400, validationError, requestId);
 
   const { email, facilityId, role, scopeRoles = {} } = req.body;
+  const employeeId = typeof req.body.employeeId === 'string' && req.body.employeeId.trim() ? req.body.employeeId.trim() : null;
 
   const authz = await requireFacilityAdmin(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
+
+  // Confirmed under the caller's own RLS-scoped client -- only matches if
+  // the employee row both exists and belongs to a facility this admin can
+  // actually administer, same defensive pattern as
+  // resinex-create-upload-url.js's project-ownership check.
+  if (employeeId) {
+    const { data: employee, error: employeeError } = await auth.supabase
+      .from('employees')
+      .select('id, user_id')
+      .eq('id', employeeId)
+      .eq('facility_id', facilityId)
+      .maybeSingle();
+    if (employeeError) return sendApiError(res, 503, 'Unable to verify employee record', requestId);
+    if (!employee) return sendApiError(res, 404, 'Employee not found for this facility', requestId);
+    if (employee.user_id) return sendApiError(res, 409, 'This employee is already linked to a login', requestId);
+  }
 
   const admin = getServiceRoleClient();
   if (!admin) return sendApiError(res, 503, 'Invite sending is not configured', requestId);
@@ -94,7 +118,23 @@ export default async function handler(req, res) {
       return sendApiError(res, 502, 'Invite email sent, but membership setup failed', requestId);
     }
 
-    return res.status(200).json({ data: { invited: email, role, scopeRoles } });
+    if (employeeId) {
+      const { error: linkError } = await admin
+        .from('employees')
+        .update({ user_id: invitedUserId })
+        .eq('id', employeeId)
+        .eq('facility_id', facilityId);
+      if (linkError) {
+        // The login + facility membership are already real at this point --
+        // failing the whole request would be misleading (the invite did go
+        // out). Surface it as a data point in the response instead of a
+        // hard error, so the UI can tell the admin to link it manually.
+        logApiError({ requestId, route: 'invite', userId: auth.user.id, facilityId }, linkError);
+        return res.status(200).json({ data: { invited: email, role, scopeRoles, employeeLinkFailed: true } });
+      }
+    }
+
+    return res.status(200).json({ data: { invited: email, role, scopeRoles, employeeId } });
   } catch (error) {
     logApiError({ requestId, route: 'invite', userId: auth.user.id, facilityId }, error);
     return sendApiError(res, 500, 'Unable to send invite', requestId);

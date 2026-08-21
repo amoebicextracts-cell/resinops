@@ -44,7 +44,7 @@ const SCHEMAS = {
   inventory_items: ['id','created_at','updated_at','facility_id','name','category','uom','valuation_method','reorder_at','reorder_qty','requires_coc','notes','cocs','lots','last_cost'],
   labor_types: ['id','created_at','facility_id','name','category','headcount','hourly_rate','piece_rate','notes'],
   trim_entries: ['id','created_at','updated_at','facility_id','created_by','harvest_batch_id','employee_id','entry_date','grams_trimmed','grade','piece_rate','notes','status','approved_by_employee_id','approved_at','rejection_reason'],
-  employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes','metrc_license_number','metrc_license_expiry','tier'],
+  employees: ['id','created_at','updated_at','facility_id','name','role','department','status','hire_date','phone','email','pest_license_num','pest_license_category','pest_license_state','pest_license_expiry','certs','trainings','notes','metrc_license_number','metrc_license_expiry','tier','user_id'],
   import_history: ['id','created_at','facility_id','imported_by','data_type','file_name','record_count','status','error_message','raw_preview','table_name','record_ids','rolled_back','rolled_back_at'],
   vendors: ['id','created_at','updated_at','facility_id','name','vendor_type','contact','phone','email','lead_days','notes','sales_contact_name','sales_contact_title','sales_contact_phone','sales_contact_email'],
   purchase_orders: ['id','created_at','updated_at','facility_id','po_num','vendor_id','order_date','expected_delivery','status','items','notes'],

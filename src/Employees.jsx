@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { parseDateLocal } from "./lib/dateUtils";
+import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
+import { authenticatedApiFetch, formatApiError } from "./lib/api";
+import { canAdministerFacility, FACILITY_ROLES } from "./lib/roles";
 
 const DEPARTMENTS = ["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","Management","Security","Other"];
 const ROLES = ["Cultivation Tech","Lead Grower","Master Grower","Trim Tech","Post-Harvest Lead","Extraction Tech","Extraction Lead","Processing Tech","Production Manager","QC Tech","QC Manager","Maintenance Tech","Shift Supervisor","Department Manager","Director of Operations","VP of Processing","CEO / Owner","Other"];
@@ -58,6 +61,14 @@ const SIGNOFF_TIERS=[
   {v:"qc_head",l:"Head of QC / Production"},
 ];
 
+// Global app-permission roles a linked login can hold — matches
+// FacilitySettings.jsx's Team card exactly (owner is never assignable here,
+// same as there). Kept separate from SIGNOFF_TIERS above (GMP sign-off
+// authority) and from `role` (free-text job title) — three different,
+// deliberately independent concepts this app tracks per person.
+const LOGIN_ROLE_OPTIONS=[FACILITY_ROLES.VIEWER, FACILITY_ROLES.MEMBER, FACILITY_ROLES.MANAGER, FACILITY_ROLES.ADMIN];
+const EMPTY_INVITE={email:"",role:FACILITY_ROLES.MEMBER};
+
 export default function Employees(){
   const [employees,setEmployees]=useState([]);
   const [laborTypes,setLaborTypes]=useState([]);
@@ -66,6 +77,15 @@ export default function Employees(){
   const [detailId,setDetailId]=useState(null);
   const [formTab,setFormTab]=useState("basic");
   const [err,setErr]=useState("");
+
+  // Login Access tab state
+  const isAccountOwner=canAdministerFacility(getCurrentFacilityRole());
+  const [members,setMembers]=useState([]);
+  const [membersLoading,setMembersLoading]=useState(false);
+  const [linkExistingId,setLinkExistingId]=useState("");
+  const [inviteForm,setInviteForm]=useState({...EMPTY_INVITE});
+  const [linkBusy,setLinkBusy]=useState(false);
+  const [linkMsg,setLinkMsg]=useState("");
   const [newCert,setNewCert]=useState({cert:"GMP Fundamentals",issuedBy:"",date:"",expiryDate:""});
   const [newTraining,setNewTraining]=useState({title:"",date:"",trainer:"",notes:""});
 
@@ -100,6 +120,31 @@ export default function Employees(){
     load();
   },[]);
 
+  // Facility login accounts, for the Login Access tab -- only account
+  // owners/admins can see or touch this (mirrors FacilitySettings.jsx's
+  // Team card gate exactly), and only loaded for them since it's an extra
+  // pair of queries nobody else needs.
+  async function loadMembers(){
+    const fid=getCurrentFacility();
+    if(!fid||!supabase||!isAccountOwner) return;
+    setMembersLoading(true);
+    try{
+      const {data:rows,error}=await supabase.from('facility_members')
+        .select('id,user_id,role,accepted_at').eq('facility_id',fid).order('created_at');
+      if(error) throw error;
+      const userIds=[...new Set((rows||[]).map(r=>r.user_id))];
+      let profileById={};
+      if(userIds.length){
+        const {data:profiles,error:profileErr}=await supabase.from('profiles').select('id,email,full_name').in('id',userIds);
+        if(profileErr) throw profileErr;
+        profileById=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));
+      }
+      setMembers((rows||[]).map(r=>({...r,profile:profileById[r.user_id]||null})));
+    }catch(e){ console.error("Load team members error:",e); }
+    setMembersLoading(false);
+  }
+  useEffect(()=>{ loadMembers(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Role dropdown pulls live from Labor Setup's roster (labor_types.name)
   // so the two stay linked — falls back to the static list only when no
   // labor types have been defined yet (e.g. a brand-new facility).
@@ -125,6 +170,74 @@ export default function Employees(){
   async function remove(id){
     try{ await db.employees.delete(id); setEmployees(p=>p.filter(x=>x.id!==id)); if(detailId===id)setDetailId(null); }
     catch(e){ setErr("Delete failed: "+e.message); }
+  }
+
+  // Employees already linked to some login -- used to filter the "link
+  // existing" picker down to members not already claimed by someone else's
+  // roster row (a member can only ever be linked to one employee here).
+  const linkedUserIds=new Set(employees.filter(e=>e.user_id).map(e=>e.user_id));
+
+  async function linkExistingMember(){
+    if(!linkExistingId||!form?.id) return;
+    setLinkBusy(true); setLinkMsg("");
+    try{
+      const {error}=await supabase.from('employees').update({user_id:linkExistingId}).eq('id',form.id);
+      if(error) throw error;
+      setForm(f=>({...f,user_id:linkExistingId}));
+      setEmployees(p=>p.map(x=>x.id===form.id?{...x,user_id:linkExistingId}:x));
+      setLinkExistingId("");
+      setLinkMsg("Linked.");
+    }catch(e){ setLinkMsg("Link failed: "+e.message); }
+    setLinkBusy(false);
+  }
+
+  async function unlinkMember(){
+    if(!form?.id) return;
+    if(!window.confirm("Unlink this employee from their login? They'll keep their account, just won't be tied to this roster row (or able to approve trim entries as this employee) anymore.")) return;
+    setLinkBusy(true); setLinkMsg("");
+    try{
+      const {error}=await supabase.from('employees').update({user_id:null}).eq('id',form.id);
+      if(error) throw error;
+      setForm(f=>({...f,user_id:null}));
+      setEmployees(p=>p.map(x=>x.id===form.id?{...x,user_id:null}:x));
+      setLinkMsg("Unlinked.");
+    }catch(e){ setLinkMsg("Unlink failed: "+e.message); }
+    setLinkBusy(false);
+  }
+
+  async function inviteForEmployee(){
+    if(!inviteForm.email.trim()||!form?.id) return;
+    setLinkBusy(true); setLinkMsg("");
+    try{
+      const res=await authenticatedApiFetch('/api/invite',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:inviteForm.email.trim(),role:inviteForm.role,scopeRoles:{},employeeId:form.id}),
+      },{includeFacility:true});
+      const json=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(json.error||`Invite failed (${res.status})`);
+      if(json.data?.employeeLinkFailed){
+        setLinkMsg(`Invited ${inviteForm.email.trim()}, but linking it to this employee failed automatically — use "Link an existing team member" below once they show up in that list.`);
+      }else{
+        setLinkMsg(`Invited ${inviteForm.email.trim()} and linked.`);
+      }
+      setInviteForm({...EMPTY_INVITE});
+      await loadMembers();
+      // The employees row itself was updated server-side; re-read it so the
+      // form/list reflect the new link without a full page reload.
+      const fresh=await db.employees.list();
+      setEmployees(fresh.map(normalizeEmployee));
+      const updated=fresh.map(normalizeEmployee).find(x=>x.id===form.id);
+      if(updated) setForm(f=>({...f,user_id:updated.user_id}));
+    }catch(e){ setLinkMsg(formatApiError?formatApiError(e):e.message); }
+    setLinkBusy(false);
+  }
+
+  async function changeMemberRole(member,role){
+    try{
+      const {error}=await supabase.from('facility_members').update({role}).eq('id',member.id);
+      if(error) throw error;
+      setMembers(p=>p.map(m=>m.id===member.id?{...m,role}:m));
+    }catch(e){ setLinkMsg("Role update failed: "+e.message); }
   }
   function addCert(){if(!newCert.cert)return;setForm(f=>({...f,certs:[...(f.certs||[]),{...newCert,id:"c"+Date.now()}]}));setNewCert({cert:"GMP Fundamentals",issuedBy:"",date:"",expiryDate:""});}
   function removeCert(id){setForm(f=>({...f,certs:f.certs.filter(c=>c.id!==id)}));}
@@ -164,7 +277,7 @@ export default function Employees(){
           <div className="em-card" style={{border:"1px solid var(--accent)"}}>
             <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:12}}>{form.id?"Edit Employee":"New Employee"}</div>
             <div className="em-tabs">
-              {[["basic","👤 Basic Info"],["pest","🌿 Pest. License"],["certs","🏅 GMP Certs"],["training","📋 Training"]].map(([v,l])=>(
+              {[["basic","👤 Basic Info"],["pest","🌿 Pest. License"],["certs","🏅 GMP Certs"],["training","📋 Training"],...(isAccountOwner?[["login","🔑 Login Access"]]:[])].map(([v,l])=>(
                 <button key={v} className={"em-tab"+(formTab===v?" active":"")} onClick={()=>setFormTab(v)}>{l}</button>
               ))}
             </div>
@@ -260,6 +373,82 @@ export default function Employees(){
                   </div>
                 </div>
               </>
+            )}
+
+            {formTab==="login"&&isAccountOwner&&(
+              !form.id?(
+                <div style={{fontSize:12,color:"var(--text-3)",padding:"12px 0"}}>Save this employee first — a login can only be linked or invited once the roster row exists.</div>
+              ):(()=>{
+                const linkedMember=form.user_id?members.find(m=>m.user_id===form.user_id):null;
+                const linkable=members.filter(m=>!linkedUserIds.has(m.user_id));
+                return(
+                  <>
+                    <div style={{fontSize:11,color:"var(--text-3)",marginBottom:12}}>
+                      Ties this roster row to a real ResinOps login, so approvals (like Trim Log sign-offs) can be checked against who's actually signed in — not just a name picked from a dropdown. Only an account owner/admin can change this link.
+                    </div>
+                    {form.user_id?(
+                      <div className="em-box">
+                        <div className="em-box-t">Linked account</div>
+                        {membersLoading?(
+                          <div style={{fontSize:12,color:"var(--text-3)"}}>Loading…</div>
+                        ):linkedMember?(
+                          <>
+                            <div style={{fontSize:13,color:"var(--text)",marginBottom:8}}>
+                              {linkedMember.profile?.email||linkedMember.profile?.full_name||"(unknown email)"}
+                              {!linkedMember.accepted_at&&<span style={{marginLeft:8,fontSize:10,color:"var(--text-3)"}}>(invite pending)</span>}
+                            </div>
+                            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"flex-end"}}>
+                              <div>
+                                <label className="em-lbl">Access role</label>
+                                <select className="em-sel" value={linkedMember.role} onChange={e=>changeMemberRole(linkedMember,e.target.value)}>
+                                  {LOGIN_ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                                </select>
+                              </div>
+                              <button className="em-btn em-secondary" disabled={linkBusy} onClick={unlinkMember}>Unlink</button>
+                            </div>
+                          </>
+                        ):(
+                          <div style={{fontSize:12,color:"var(--text-3)"}}>
+                            Linked to a login not visible in the current Team list.
+                            <button className="em-btn em-secondary" style={{marginLeft:8}} disabled={linkBusy} onClick={unlinkMember}>Unlink</button>
+                          </div>
+                        )}
+                      </div>
+                    ):(
+                      <>
+                        <div className="em-box">
+                          <div className="em-box-t">Link an existing team member</div>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,alignItems:"flex-end"}}>
+                            <div>
+                              <label className="em-lbl">Team member</label>
+                              <select className="em-sel" value={linkExistingId} onChange={e=>setLinkExistingId(e.target.value)}>
+                                <option value="">— Select —</option>
+                                {linkable.map(m=><option key={m.id} value={m.user_id}>{m.profile?.email||m.profile?.full_name||m.user_id}{!m.accepted_at?" (pending)":""}</option>)}
+                              </select>
+                            </div>
+                            <button className="em-btn em-primary" disabled={!linkExistingId||linkBusy} onClick={linkExistingMember}>Link</button>
+                          </div>
+                          {linkable.length===0&&!membersLoading&&<div style={{fontSize:11,color:"var(--text-3)",marginTop:6}}>No unlinked team members available.</div>}
+                        </div>
+                        <div className="em-box">
+                          <div className="em-box-t">Invite a new login for this person</div>
+                          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr auto",gap:8,alignItems:"flex-end"}}>
+                            <div><label className="em-lbl">Email</label><input className="em-inp" value={inviteForm.email} onChange={e=>setInviteForm(f=>({...f,email:e.target.value}))} placeholder="name@example.com" /></div>
+                            <div>
+                              <label className="em-lbl">Access role</label>
+                              <select className="em-sel" value={inviteForm.role} onChange={e=>setInviteForm(f=>({...f,role:e.target.value}))}>
+                                {LOGIN_ROLE_OPTIONS.map(r=><option key={r} value={r}>{r}</option>)}
+                              </select>
+                            </div>
+                            <button className="em-btn em-primary" disabled={!inviteForm.email.trim()||linkBusy} onClick={inviteForEmployee}>Send invite</button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {linkMsg&&<div style={{fontSize:12,color:"var(--text-2)",marginTop:4}}>{linkMsg}</div>}
+                  </>
+                );
+              })()
             )}
 
             {err&&<div style={{fontSize:12,color:"var(--danger)",margin:"8px 0"}}>{err}</div>}

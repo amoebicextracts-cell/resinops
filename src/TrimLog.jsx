@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { db } from "./lib/db";
+import { db, auth } from "./lib/db";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
 // Matches harvest_batches' own grade keys (aa/a/b/c) so a trim entry's grade
@@ -52,6 +52,7 @@ const CSS = `
   .tl-primary{background:var(--accent);color:#fff;width:100%;}
   .tl-secondary{background:var(--surface-2);border:1px solid var(--border-2)!important;color:var(--text-2);}
   .tl-sm{font-size:11px;padding:5px 10px;border-radius:6px;border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;}
+  .tl-sm:disabled{opacity:0.5;cursor:not-allowed;}
   .tl-approve{background:rgba(74,124,89,0.15);color:var(--accent-2);border:1px solid var(--accent)!important;}
   .tl-reject{background:rgba(200,74,74,0.1);color:var(--danger);border:1px solid rgba(200,74,74,0.3)!important;}
   .tl-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:12px;}
@@ -79,11 +80,17 @@ export default function TrimLog(){
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [approverId, setApproverId] = useState("");
   const [rejecting, setRejecting] = useState(null); // entry id currently showing a rejection-reason input
   const [rejectReason, setRejectReason] = useState("");
 
   const [leaderboardRange, setLeaderboardRange] = useState("30");
+
+  // Who's actually logged in -- the database now enforces that only this
+  // person's own linked employee row can approve/reject (see
+  // enforce_trim_entry_approver_identity), so "approving as" is resolved
+  // from the login itself rather than a free-text dropdown of any employee.
+  const [currentUserId, setCurrentUserId] = useState(null);
+  useEffect(()=>{ auth.getUser().then(u=>setCurrentUserId(u?.id||null)); },[]);
 
   useEffect(()=>{
     async function load(){
@@ -106,6 +113,7 @@ export default function TrimLog(){
 
   const employeeById = useMemo(()=>Object.fromEntries(employees.map(e=>[e.id,e])), [employees]);
   const batchById = useMemo(()=>Object.fromEntries(batches.map(b=>[b.id,b])), [batches]);
+  const myEmployee = useMemo(()=>employees.find(e=>e.user_id&&e.user_id===currentUserId)||null, [employees, currentUserId]);
 
   function pieceRateFor(employee){
     if(!employee) return null;
@@ -147,7 +155,7 @@ export default function TrimLog(){
   }
 
   async function approveEntry(entry){
-    if(!approverId){ setErr("Pick who's approving before signing off."); return; }
+    if(!myEmployee){ setErr("Your login isn't linked to an employee record — ask an account owner to link you under Employees → Login Access before you can approve entries."); return; }
     try{
       // Resolved fresh, right now -- not whatever was (or wasn't) set when
       // the trimmer originally submitted. Once this save lands the row is
@@ -155,17 +163,17 @@ export default function TrimLog(){
       // payroll-relevant field) from changing again while it stays approved.
       const rate = pieceRateFor(employeeById[entry.employeeId]);
       const saved = await db.trim_entries.upsert({
-        ...entry, status:"approved", pieceRate: rate, approvedByEmployeeId: approverId, approvedAt: new Date().toISOString(), rejectionReason: null,
+        ...entry, status:"approved", pieceRate: rate, approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(), rejectionReason: null,
       });
       setEntries(p=>p.map(e=>e.id===saved.id?saved:e));
     }catch(e){ setErr("Approval failed: "+e.message); }
   }
 
   async function rejectEntry(entry){
-    if(!approverId){ setErr("Pick who's approving before rejecting."); return; }
+    if(!myEmployee){ setErr("Your login isn't linked to an employee record — ask an account owner to link you under Employees → Login Access before you can reject entries."); return; }
     try{
       const saved = await db.trim_entries.upsert({
-        ...entry, status:"rejected", approvedByEmployeeId: approverId, approvedAt: new Date().toISOString(),
+        ...entry, status:"rejected", approvedByEmployeeId: myEmployee.id, approvedAt: new Date().toISOString(),
         rejectionReason: rejectReason.trim() || null,
       });
       setEntries(p=>p.map(e=>e.id===saved.id?saved:e));
@@ -288,12 +296,8 @@ export default function TrimLog(){
           <div className="tl-card">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
               <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>Pending entries ({pending.length})</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <label className="tl-lbl" style={{marginBottom:0}}>Approving as</label>
-                <select className="tl-sel" style={{width:"auto"}} value={approverId} onChange={e=>setApproverId(e.target.value)}>
-                  <option value="">— Select —</option>
-                  {employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
+              <div style={{fontSize:12,color:myEmployee?"var(--text-2)":"var(--amber)"}}>
+                {myEmployee?`Approving as ${myEmployee.name}`:"Your login isn't linked to an employee — see Employees → Login Access"}
               </div>
             </div>
             {pending.length===0 ? (
@@ -317,8 +321,8 @@ export default function TrimLog(){
                       {e.notes && <div style={{fontSize:11,color:"var(--text-2)",marginTop:4}}>{e.notes}</div>}
                     </div>
                     <div style={{display:"flex",gap:6,flexShrink:0}}>
-                      <button className="tl-sm tl-approve" onClick={()=>approveEntry(e)}>Approve</button>
-                      <button className="tl-sm tl-reject" onClick={()=>setRejecting(rejecting===e.id?null:e.id)}>Reject</button>
+                      <button className="tl-sm tl-approve" disabled={!myEmployee} onClick={()=>approveEntry(e)}>Approve</button>
+                      <button className="tl-sm tl-reject" disabled={!myEmployee} onClick={()=>setRejecting(rejecting===e.id?null:e.id)}>Reject</button>
                     </div>
                   </div>
                   {rejecting===e.id && (
