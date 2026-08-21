@@ -3,12 +3,17 @@
 // api/ac-infinity.js — Vercel serverless function
 //
 // AC Infinity has no official public API. Everything below is built against
-// the community's reverse-engineered documentation of their app's own cloud
-// API (e.g. github.com/keithah/homebridge-acinfinity), current as of
-// December 2025 — AC Infinity could change endpoints/fields without notice,
-// and this should be re-verified against a live account if requests start
-// failing. Credentials (AC_INFINITY_EMAIL / AC_INFINITY_PASSWORD) live only
-// in Vercel env vars, same as METRC's keys — never sent to the browser.
+// the community's reverse-engineered understanding of their app's own cloud
+// API, cross-checked against github.com/dalinicus/homeassistant-acinfinity
+// (an actively-maintained Home Assistant integration) after an initial build
+// against a staler community doc 404'd on the device-list call — the fix was
+// sending `User-Agent: okhttp/4.12.0` on every request, which their server
+// apparently gates on, and dropping the extra phoneType/appVersion headers
+// that reference didn't use. AC Infinity could still change endpoints/fields
+// without notice; re-verify against that reference (or a live account) if
+// requests start failing again. Credentials (AC_INFINITY_EMAIL /
+// AC_INFINITY_PASSWORD) live only in Vercel env vars, same as METRC's keys —
+// never sent to the browser.
 //
 // Two request shapes:
 //   POST /api/ac-infinity  { action: "devices.list", facilityId }
@@ -33,7 +38,6 @@ import { applyCors, checkRateLimit, isOriginAllowed } from './_request-security.
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 
 const AC_BASE = 'http://www.acinfinityserver.com';
-const AC_APP_VERSION = '1.9.7';
 
 // Per-cold-start cache. Community docs report tokens as not visibly
 // expiring, but acRequest() re-logs-in once on any non-200 `code` anyway,
@@ -48,7 +52,13 @@ async function acLogin() {
   }
   const res = await fetch(`${AC_BASE}/api/user/appUserLogin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    // AC Infinity's server 404s requests whose User-Agent doesn't look like
+    // their own Android app's OkHttp client -- confirmed against a proven,
+    // actively-maintained reference (dalinicus/homeassistant-acinfinity),
+    // which sends only User-Agent (+ token, + minversion where needed) and
+    // nothing else -- no phoneType/appVersion headers at all, unlike the
+    // now-stale doc this was originally built against.
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'okhttp/4.12.0' },
     // appPasswordl (sic) — the community-documented field name really does
     // carry that typo; AC Infinity's own app only sends the first 25 chars.
     body: new URLSearchParams({ appEmail: email, appPasswordl: password.slice(0, 25) }),
@@ -68,9 +78,8 @@ async function acRequest(path, formFields, { retry = true } = {}) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': 'okhttp/4.12.0',
       token: appId,
-      phoneType: '1',
-      appVersion: AC_APP_VERSION,
       minversion: '3.5',
     },
     body: new URLSearchParams(formFields),
