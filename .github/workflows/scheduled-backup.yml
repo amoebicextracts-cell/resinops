@@ -45,9 +45,37 @@ jobs:
       - name: Run production backup
         run: node scripts/backup-production.mjs
 
-      - name: Upload backup artifact
+      - name: Upload backup + manifest artifact
         uses: actions/upload-artifact@v4
         with:
           name: resinops-production-backup-${{ github.run_id }}
-          path: backups/*.sql.gz
+          path: |
+            backups/*.dump
+            backups/*.json
           retention-days: 30
+
+  restore-verify:
+    needs: backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: resinops-production-backup-${{ github.run_id }}
+          path: backups
+
+      # Docker and pwsh are both preinstalled on GitHub-hosted ubuntu-latest
+      # runners — restores the day's backup into a disposable Postgres 17
+      # container and cross-checks its SHA-256, byte count, and row counts
+      # against the manifest the backup job just wrote. A backup that can't
+      # actually be restored is a documentation exercise, not a
+      # disaster-recovery capability, so this runs on the same schedule as
+      # the backup itself rather than as a separate manual drill.
+      - name: Verify the day's backup actually restores
+        shell: pwsh
+        run: |
+          $dump = Get-ChildItem -Path backups -Filter *.dump | Select-Object -First 1
+          if (-not $dump) { throw "No .dump artifact found to verify." }
+          ./scripts/verify-backup-restore.ps1 -BackupPath $dump.FullName
