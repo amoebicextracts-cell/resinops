@@ -72,6 +72,13 @@ const EMPTY_INVITE={email:"",role:FACILITY_ROLES.MEMBER};
 export default function Employees(){
   const [employees,setEmployees]=useState([]);
   const [laborTypes,setLaborTypes]=useState([]);
+  const [trimEntries,setTrimEntries]=useState([]);
+  // Trim Log has no per-entry hours-worked field — grams/hour is derived
+  // from the facility's own shift-length setting (Labor Setup, defaults to
+  // 8h), same value LaborManager.jsx uses for its labor-cost math, rather
+  // than inventing a second "hours" concept trim entries don't actually
+  // record.
+  const [shiftHours,setShiftHours]=useState(8);
   const [loading,setLoading]=useState(true);
   const [form,setForm]=useState(null);
   const [detailId,setDetailId]=useState(null);
@@ -111,14 +118,38 @@ export default function Employees(){
   useEffect(()=>{
     async function load(){
       try{
-        const [raw,lt]=await Promise.all([db.employees.list(),db.labor_types.list()]);
+        const [raw,lt,te]=await Promise.all([db.employees.list(),db.labor_types.list(),db.trim_entries.list()]);
         setEmployees(raw.map(normalizeEmployee));
         setLaborTypes(lt);
+        setTrimEntries(te);
+        const fid=getCurrentFacility();
+        if(fid&&supabase){
+          const {data}=await supabase.from('facilities').select('shift_hours').eq('id',fid).single();
+          if(data?.shift_hours) setShiftHours(Number(data.shift_hours));
+        }
       }catch(e){ console.error("Employees load error:",e); }
       setLoading(false);
     }
     load();
   },[]);
+
+  // Trim Log performance, per employee -- approved entries only (pending/
+  // rejected aren't real payroll-confirmed weigh-ins). One entry = one
+  // shift's weigh-in (matches how Trim Log's "Log a trim weigh-in" form is
+  // actually used), so grams/shift is a plain average across entries and
+  // grams/hour divides that by the facility's configured shift length.
+  function trimStatsFor(employeeId){
+    const rows=trimEntries.filter(t=>t.employeeId===employeeId&&t.status==="approved");
+    if(!rows.length) return null;
+    const totalGrams=rows.reduce((s,t)=>s+Number(t.gramsTrimmed||0),0);
+    const gramsPerShift=totalGrams/rows.length;
+    return {
+      entryCount: rows.length,
+      totalGrams,
+      gramsPerShift,
+      gramsPerHour: shiftHours>0 ? gramsPerShift/shiftHours : null,
+    };
+  }
 
   // Facility login accounts, for the Login Access tab -- only account
   // owners/admins can see or touch this (mirrors FacilitySettings.jsx's
@@ -281,6 +312,22 @@ export default function Employees(){
                 <button key={v} className={"em-tab"+(formTab===v?" active":"")} onClick={()=>setFormTab(v)}>{l}</button>
               ))}
             </div>
+
+            {form.id&&(()=>{
+              const stats=trimStatsFor(form.id);
+              if(!stats) return null;
+              return (
+                <div className="em-box" style={{display:"flex",gap:24,alignItems:"center"}}>
+                  <div className="em-box-t" style={{marginBottom:0,flexShrink:0}}>✂️ Trim Log Performance</div>
+                  <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+                    <div><div style={{fontSize:16,fontWeight:700,color:"var(--accent-2)"}}>{stats.gramsPerHour.toFixed(1)}g</div><div style={{fontSize:10,color:"var(--text-3)"}}>avg per hour</div></div>
+                    <div><div style={{fontSize:16,fontWeight:700,color:"var(--accent-2)"}}>{stats.gramsPerShift.toFixed(1)}g</div><div style={{fontSize:10,color:"var(--text-3)"}}>avg per shift</div></div>
+                    <div><div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>{stats.entryCount}</div><div style={{fontSize:10,color:"var(--text-3)"}}>approved {stats.entryCount===1?"entry":"entries"}</div></div>
+                  </div>
+                  <div style={{fontSize:10,color:"var(--text-3)",marginLeft:"auto"}}>Based on a {shiftHours}h shift (Labor Setup)</div>
+                </div>
+              );
+            })()}
 
             {formTab==="basic"&&(
               <>
