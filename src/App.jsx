@@ -338,15 +338,6 @@ const css = `
     margin-top: 2px;
   }
 
-  .sidebar-section-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-3);
-    padding: 0 20px 8px;
-  }
-
   .sidebar-section-toggle {
     display: flex;
     align-items: center;
@@ -1336,22 +1327,35 @@ export default function ResinOps() {
             </button>
           )}
 
-          {/* ── Settings at bottom (always visible — core modules) ── */}
+          {/* ── Settings at bottom (core modules — the section itself
+              collapses like any other, but membership isn't gated by tier
+              or scope the way the main accordion's modules are) ── */}
           <div style={{margin:"6px 0",borderTop:"1px solid var(--border)"}}/>
-          <div className="sidebar-section-label">Settings</div>
-          {["data-manager","facility-settings","metrc"].filter(id => isModuleVisible(MODULES.find(m=>m.id===id), productTier, moduleOverrides, getCurrentFacilityScopeRoles(), getCurrentFacilityRole())).map(id => {
-            const mod = MODULES.find(m => m.id === id);
-            if (!mod) return null;
+          {(() => {
+            const settingsIds = ["data-manager","facility-settings","metrc"];
+            const isSettingsCollapsed = collapsedSections.has("Settings") && !settingsIds.includes(activeModule);
             return (
-              <button key={id} className={`module-btn ${activeModule === id ? "active" : ""}`} onClick={() => switchModule(id)}>
-                <span className="module-icon">{mod.icon}</span>
-                <span className="module-info">
-                  <span className="module-name">{mod.label}</span>
-                  <span className="module-desc">{mod.description}</span>
-                </span>
-              </button>
+              <>
+                <button className="sidebar-section-toggle" onClick={() => toggleSection("Settings")}>
+                  <span className={`sidebar-section-chevron${isSettingsCollapsed ? "" : " expanded"}`}>▶</span>
+                  Settings
+                </button>
+                {!isSettingsCollapsed && settingsIds.filter(id => isModuleVisible(MODULES.find(m=>m.id===id), productTier, moduleOverrides, getCurrentFacilityScopeRoles(), getCurrentFacilityRole())).map(id => {
+                  const mod = MODULES.find(m => m.id === id);
+                  if (!mod) return null;
+                  return (
+                    <button key={id} className={`module-btn ${activeModule === id ? "active" : ""}`} onClick={() => switchModule(id)}>
+                      <span className="module-icon">{mod.icon}</span>
+                      <span className="module-info">
+                        <span className="module-name">{mod.label}</span>
+                        <span className="module-desc">{mod.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
 
           <div className="sidebar-footer">
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
