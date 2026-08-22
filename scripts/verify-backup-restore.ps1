@@ -28,6 +28,28 @@ function Invoke-Docker {
     }
 }
 
+# For `docker exec` calls that connect to the disposable container's own
+# postgres server over its default unix socket. Observed on GitHub
+# Actions' shared runners: the socket can transiently disappear more
+# than once early in the container's life (not just during the initial
+# bootstrap-server handoff), so any live-connection call here -- not
+# just the first one -- can hit "No such file or directory" even after
+# an earlier query on the same connection already succeeded. Retrying
+# treats a genuine successful query as the only readiness signal for
+# each call, rather than assuming the whole container stays reachable
+# once anything has worked once.
+function Invoke-DockerExecWithRetry {
+    param([string[]] $Arguments, [int] $MaxAttempts = 30, [int] $DelaySeconds = 1)
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        $output = & docker @Arguments 2>$null
+        if ($LASTEXITCODE -eq 0) { return $output }
+        if ($attempt -eq $MaxAttempts) {
+            throw "Docker command failed after $MaxAttempts attempts: docker $($Arguments -join ' ')"
+        }
+        Start-Sleep -Seconds $DelaySeconds
+    }
+}
+
 try {
     & docker version --format '{{.Server.Version}}' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Docker Desktop is not running.' }
@@ -90,15 +112,12 @@ begin
 end
 $roles$;
 '@
-    $ready = $false
-    for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        & docker exec $containerName psql -U postgres -d postgres --set ON_ERROR_STOP=1 --command $rolesSql 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
-        Start-Sleep -Seconds 1
-    }
-    if (-not $ready) { throw 'The disposable restore database did not become ready.' }
+    Invoke-DockerExecWithRetry -Arguments @(
+        'exec', $containerName, 'psql', '-U', 'postgres', '-d', 'postgres',
+        '--set', 'ON_ERROR_STOP=1', '--command', $rolesSql
+    ) -MaxAttempts 60 | Out-Null
 
-    Invoke-Docker -Arguments @(
+    Invoke-DockerExecWithRetry -Arguments @(
         'exec', $containerName,
         'pg_restore', '-U', 'postgres', '-d', 'postgres',
         '--exit-on-error', '--no-owner', '--no-acl',
@@ -116,9 +135,10 @@ select json_build_object(
   'audit_logs', (select count(*) from public.audit_logs)
 )::text;
 '@
-    $rowCountOutput = & docker exec $containerName psql -U postgres -d postgres `
-        --set ON_ERROR_STOP=1 --tuples-only --no-align --command $verificationSql
-    if ($LASTEXITCODE -ne 0) { throw 'Core restored tables could not be queried.' }
+    $rowCountOutput = Invoke-DockerExecWithRetry -Arguments @(
+        'exec', $containerName, 'psql', '-U', 'postgres', '-d', 'postgres',
+        '--set', 'ON_ERROR_STOP=1', '--tuples-only', '--no-align', '--command', $verificationSql
+    )
     $restoredCounts = ($rowCountOutput -join '').Trim() | ConvertFrom-Json
 
     if ($manifest.PSObject.Properties.Name -contains 'rowCounts') {
