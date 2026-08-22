@@ -26,6 +26,14 @@ import { MODULE_SECTION } from "./modules.js";
 
 const SECTION_TO_SCOPE = {
   "Cultivation": "cultivation",
+  // No dedicated "post_harvest" scope exists in the database's table_scopes
+  // design (cultivation/processing/compliance/people_labor/business/facility
+  // are the only real ones) — Post-Harvest's contents (Trim Log, Remediation
+  // Calculator) map onto "processing" for this display-only visibility
+  // check, matching Remediation Calculator's own scope before this section
+  // existed. Real access control is still enforced at the database/table
+  // level regardless of this mapping.
+  "Post-Harvest": "processing",
   "Processing": "processing",
   "Compliance": "compliance",
   "People & Labor": "people_labor",
