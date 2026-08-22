@@ -102,10 +102,28 @@ jobs:
           workload_identity_provider: projects/988248465661/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions
           service_account: resinops-backup-uploader@able-armor-504314-n3.iam.gserviceaccount.com
 
+      # No glob filter: "backups" only ever holds this run's freshly
+      # downloaded .dump + .json pair (nothing else lands there), and the
+      # action's glob input takes a single pattern, not a comma list --
+      # "*.dump,*.json" silently matched zero files the first time this
+      # ran, and the action only warns instead of failing the step, so
+      # the job reported success while uploading nothing.
       - name: Upload verified backup to long-term storage
         uses: google-github-actions/upload-cloud-storage@v3
         with:
           path: backups
-          glob: "*.dump,*.json"
           parent: false
           destination: resinops-production-backups-able-armor/${{ github.run_id }}
+
+      # The upload action only warns (doesn't fail) on zero files matched
+      # -- exactly what happened the first time this ran with a bad glob
+      # pattern, and the job still reported green. Independently confirm
+      # both files actually landed before calling this successful.
+      - name: Confirm both files actually landed in the bucket
+        run: |
+          count=$(gcloud storage ls "gs://resinops-production-backups-able-armor/${{ github.run_id }}/" | wc -l)
+          echo "Found $count object(s) at the destination."
+          if [ "$count" -lt 2 ]; then
+            echo "::error::Expected 2 objects (.dump + .json) in long-term storage, found $count."
+            exit 1
+          fi
