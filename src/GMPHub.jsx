@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { db } from "./lib/db";
+import { db, auth } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import jsPDF from "jspdf";
@@ -29,26 +29,29 @@ function getRequiredTiers(stepName,facility){
   return ["worker"];
 }
 
-// Inline "sign off as [tier]" control — a filtered employee picker plus
-// a confirm button, used both in the outstanding-sign-offs dashboard and
-// the batch record. Module-level (not a nested function) so it doesn't
-// remount and lose its own pending-selection state on every parent render.
-function TierSignoffPicker({tier,employees,onSign,buttonLabel="Sign"}){
-  const [empId,setEmpId]=useState("");
+// Inline "sign off as [tier]" control, used both in the outstanding-
+// sign-offs dashboard and the batch record. Resolves the signer from the
+// caller's OWN linked employee record (Employees → Login Access) rather
+// than a free picker of every employee at that tier — the database now
+// enforces this identity match too (enforce_gmp_signoff_identity), so a
+// picker that could select someone else would just fail on submit.
+// Module-level (not a nested function) so it doesn't remount and lose
+// state on every parent render.
+function TierSignoffPicker({tier,employees,currentUserId,onSign,buttonLabel="Sign"}){
   const pool=employees.filter(e=>e.tier===tier);
+  const myEmployee=pool.find(e=>e.user_id&&e.user_id===currentUserId);
   if(!pool.length) return (
     <div style={{fontSize:11,color:"var(--amber)",background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:6,padding:"4px 8px"}}>
       {TIER_LABELS[tier]} — no employees set to this tier yet
     </div>
   );
-  return (
-    <div style={{display:"flex",gap:4,alignItems:"center"}}>
-      <select className="gh-sel" style={{width:"auto",fontSize:11,padding:"3px 6px"}} value={empId} onChange={e=>setEmpId(e.target.value)}>
-        <option value="">— {TIER_LABELS[tier]} —</option>
-        {pool.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}
-      </select>
-      <button className="gh-sm gh-edit" disabled={!empId} onClick={()=>{onSign(empId);setEmpId("");}}>{buttonLabel}</button>
+  if(!myEmployee) return (
+    <div style={{fontSize:11,color:"var(--amber)",background:"rgba(200,150,58,0.1)",border:"1px solid rgba(200,150,58,0.3)",borderRadius:6,padding:"4px 8px"}}>
+      Your login isn't linked to a {TIER_LABELS[tier]} employee record — see Employees → Login Access
     </div>
+  );
+  return (
+    <button className="gh-sm gh-edit" onClick={()=>onSign(myEmployee.id)}>{buttonLabel} as {myEmployee.name}</button>
   );
 }
 
@@ -113,6 +116,12 @@ export default function GMPHub(){
   const [facilityRooms,setFacilityRooms]=useState([]);
   const [growRooms,setGrowRooms]=useState([]);
   const [loading,setLoading]=useState(true);
+
+  // Who's actually logged in -- tier sign-offs are resolved from this
+  // rather than a free employee picker (see TierSignoffPicker), and the
+  // database enforces the same match via enforce_gmp_signoff_identity.
+  const [currentUserId,setCurrentUserId]=useState(null);
+  useEffect(()=>{ auth.getUser().then(u=>setCurrentUserId(u?.id||null)); },[]);
 
   useEffect(()=>{
     async function load(){
@@ -311,10 +320,16 @@ export default function GMPHub(){
   async function signOffTier(type,batchId,stepName,tier,employeeId){
     if(!employeeId) return;
     const existing=findSignoff(type,batchId,stepName);
-    const base=existing||{id:crypto.randomUUID(),batchType:type,batchId,stepName,notes:""};
-    const updated={...base,[tier+"Id"]:employeeId,[tier+"At"]:new Date().toISOString()};
+    const patch={[tier+"Id"]:employeeId,[tier+"At"]:new Date().toISOString()};
     try{
-      const saved=await db.gmp_signoffs.upsert(updated);
+      // A tier signing onto a row that already exists is a real UPDATE,
+      // not an upsert — see the migration comment on
+      // enforce_gmp_signoff_identity for why upsert()'s INSERT-path
+      // firing would otherwise re-validate an earlier tier's already-
+      // legitimate sign-off against whoever's signing now.
+      const saved=existing
+        ? await db.gmp_signoffs.update(existing.id,patch)
+        : await db.gmp_signoffs.upsert({id:crypto.randomUUID(),batchType:type,batchId,stepName,notes:"",...patch});
       setSignoffs(p=>existing?p.map(x=>x.id===saved.id?saved:x):[...p,saved]);
       setErr("");
     }catch(e){ setErr("Sign-off failed: "+e.message); }
@@ -323,9 +338,8 @@ export default function GMPHub(){
     const existing=findSignoff(type,batchId,stepName);
     if(!existing) return;
     if(!window.confirm(`Remove the ${TIER_LABELS[tier]} sign-off for "${stepName}"?`)) return;
-    const updated={...existing,[tier+"Id"]:null,[tier+"At"]:null};
     try{
-      const saved=await db.gmp_signoffs.upsert(updated);
+      const saved=await db.gmp_signoffs.update(existing.id,{[tier+"Id"]:null,[tier+"At"]:null});
       setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
     }catch(e){ setErr("Could not undo: "+e.message); }
   }
@@ -468,7 +482,7 @@ export default function GMPHub(){
                           <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>unsignTier(type,id,step.n,tier)}>✕</button>
                         </div>
                       ):(
-                        <TierSignoffPicker key={tier} tier={tier} employees={employees}
+                        <TierSignoffPicker key={tier} tier={tier} employees={employees} currentUserId={currentUserId}
                           buttonLabel={tier==="qc_head"?"Sign & Release":"Sign"}
                           onSign={empId=>{
                             if(tier!=="qc_head"){ signOffTier(type,id,step.n,tier,empId); return; }
@@ -663,7 +677,7 @@ export default function GMPHub(){
                                 → Sign in Batch Record
                               </button>
                             ):(
-                              <TierSignoffPicker key={tier} tier={tier} employees={employees} onSign={empId=>signOffTier(r.type,r.batch.id,r.stepName,tier,empId)} />
+                              <TierSignoffPicker key={tier} tier={tier} employees={employees} currentUserId={currentUserId} onSign={empId=>signOffTier(r.type,r.batch.id,r.stepName,tier,empId)} />
                             );
                           })}
                         </div>
