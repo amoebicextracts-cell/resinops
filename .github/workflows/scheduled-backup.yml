@@ -58,6 +58,14 @@ jobs:
     needs: backup
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # id-token: write lets GitHub mint the short-lived OIDC token this job
+    # exchanges for GCP credentials (google-github-actions/auth below) --
+    # no long-lived key stored anywhere. contents: read matches the
+    # top-level default; declaring permissions here overrides it per-job,
+    # so it needs restating.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -79,3 +87,45 @@ jobs:
           $dump = Get-ChildItem -Path backups -Filter *.dump | Select-Object -First 1
           if (-not $dump) { throw "No .dump artifact found to verify." }
           ./scripts/verify-backup-restore.ps1 -BackupPath $dump.FullName
+
+      # Promote to real long-term retention only after the restore above
+      # actually proved the backup good -- a corrupted dump never reaches
+      # the 7-year-retention bucket, only ones already shown restorable.
+      # Workload Identity Federation (github-actions-pool, see
+      # docs/backup-retention.md) means this authenticates with a
+      # short-lived token scoped to this exact repo, not a stored key.
+      - id: gcp-auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: able-armor-504314-n3
+          workload_identity_provider: projects/988248465661/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions
+          service_account: resinops-backup-uploader@able-armor-504314-n3.iam.gserviceaccount.com
+
+      # The upload action only warns (doesn't fail) on zero files matched,
+      # and its own glob input only accepts a single pattern, not a comma
+      # list ("*.dump,*.json" silently matched nothing the first time
+      # this ran, and the job still reported green). Check the
+      # precondition it needs directly, before handing it anything,
+      # rather than checking the postcondition afterward: the uploader
+      # service account is deliberately storage.objectCreator only (no
+      # read/list), so verifying via `gcloud storage ls` after upload
+      # would need weakening that write-only, least-privilege grant just
+      # to satisfy this check.
+      - name: Confirm both files exist locally before uploading
+        run: |
+          count=$(find backups -maxdepth 1 \( -name '*.dump' -o -name '*.json' \) | wc -l)
+          echo "Found $count local file(s) to upload."
+          if [ "$count" -lt 2 ]; then
+            echo "::error::Expected a .dump and a .json in backups/, found $count matching file(s)."
+            exit 1
+          fi
+
+      # No glob filter: "backups" only holds exactly the two files just
+      # confirmed above, so no filter is needed (or worth risking again).
+      - name: Upload verified backup to long-term storage
+        uses: google-github-actions/upload-cloud-storage@v3
+        with:
+          path: backups
+          parent: false
+          destination: resinops-production-backups-able-armor/${{ github.run_id }}
