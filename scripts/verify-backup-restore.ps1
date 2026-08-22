@@ -69,14 +69,18 @@ try {
         $DockerImage
     ) | Out-Null
 
-    $ready = $false
-    for ($attempt = 0; $attempt -lt 30; $attempt++) {
-        & docker exec $containerName pg_isready -U postgres 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
-        Start-Sleep -Seconds 1
-    }
-    if (-not $ready) { throw 'The disposable restore database did not become ready.' }
-
+    # pg_isready alone is not a reliable readiness signal here: the
+    # official postgres image starts a TEMPORARY server on the same
+    # default socket to run init scripts, stops it, then starts the REAL
+    # server -- pg_isready can report "accepting connections" against
+    # that transient server, then the socket disappears for a moment
+    # while the real one starts, and a docker exec landing in that gap
+    # fails with "No such file or directory" even though pg_isready just
+    # said yes. Retrying the ACTUAL first real query instead treats a
+    # genuine successful query as the only readiness signal, so it can't
+    # be fooled by the bootstrap server. Reproduced on GitHub Actions'
+    # shared runners even though local Docker Desktop rarely hits the
+    # window (fast enough to close it before anyone notices).
     $rolesSql = @'
 do $roles$
 begin
@@ -86,11 +90,13 @@ begin
 end
 $roles$;
 '@
-    Invoke-Docker -Arguments @(
-        'exec', $containerName,
-        'psql', '-U', 'postgres', '-d', 'postgres',
-        '--set', 'ON_ERROR_STOP=1', '--command', $rolesSql
-    ) | Out-Null
+    $ready = $false
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+        & docker exec $containerName psql -U postgres -d postgres --set ON_ERROR_STOP=1 --command $rolesSql 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $ready) { throw 'The disposable restore database did not become ready.' }
 
     Invoke-Docker -Arguments @(
         'exec', $containerName,
