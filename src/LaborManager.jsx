@@ -91,7 +91,7 @@ const CSS = `
   .lm-num:focus{outline:none;border-color:var(--accent);}
 `;
 
-const EMPTY_LT = {n:"",cat:"Post-Harvest",count:"1",rate:"20"};
+const EMPTY_LT = {n:"",cat:"Post-Harvest",count:"1",rate:"20",pieceRate:""};
 
 export default function LaborManager() {
   const [facility, setFacility] = useState({shiftHours:"8",shiftsPerDay:"1"});
@@ -147,12 +147,16 @@ export default function LaborManager() {
   const setLF = (k,v) => setForm(f => ({...f,[k]:v}));
 
   function openAdd() { setForm({...EMPTY_LT}); setErr(""); }
-  function openEdit(lt) { setForm({...lt, count:String(lt.count), rate:String(lt.rate)}); setErr(""); }
+  function openEdit(lt) { setForm({...lt, count:String(lt.count), rate:String(lt.rate), pieceRate:lt.pieceRate!=null?String(lt.pieceRate):""}); setErr(""); }
   function closeForm() { setForm(null); setErr(""); }
 
   async function saveType() {
     if (!form.n?.trim()) { setErr("Enter a job title."); return; }
-    const lt = { id: form.id || crypto.randomUUID(), name: form.n.trim(), category: form.cat, headcount: parseInt(form.count)||1, hourly_rate: parseFloat(form.rate)||0 };
+    const lt = {
+      id: form.id || crypto.randomUUID(), name: form.n.trim(), category: form.cat,
+      headcount: parseInt(form.count)||1, hourly_rate: parseFloat(form.rate)||0,
+      piece_rate: form.pieceRate?.trim() ? parseFloat(form.pieceRate) : null,
+    };
     try {
       const saved = await db.labor_types.upsert(lt);
       if (form.id) setTypes(p => p.map(t => t.id===saved.id ? saved : t));
@@ -230,7 +234,7 @@ export default function LaborManager() {
           {/* Add/edit form */}
           {form && (
             <div style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:14,border:"1px solid var(--border-2)"}}>
-              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
+              <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:10,marginBottom:10}}>
                 <div>
                   <label className="lm-lbl">Job title</label>
                   <input className="lm-inp" placeholder="Trim Technician" value={form.n} onChange={e=>setLF("n",e.target.value)} />
@@ -249,6 +253,10 @@ export default function LaborManager() {
                   <label className="lm-lbl">Hourly rate ($)</label>
                   <input type="number" min="0" step="0.5" className="lm-inp" value={form.rate} onChange={e=>setLF("rate",e.target.value)} />
                 </div>
+                <div>
+                  <label className="lm-lbl">Piece rate ($/g, optional)</label>
+                  <input type="number" min="0" step="0.01" className="lm-inp" placeholder="e.g. Trim Log payroll" value={form.pieceRate} onChange={e=>setLF("pieceRate",e.target.value)} />
+                </div>
               </div>
               {err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
               <div style={{display:"flex",gap:8}}>
@@ -265,14 +273,14 @@ export default function LaborManager() {
             <div style={{overflowX:"auto",border:"1px solid var(--border)",borderRadius:8}}>
               <table className="lm-tbl">
                 <thead>
-                  <tr><th>Job Title</th><th>Category</th><th>Headcount</th><th>Hourly Rate</th><th>Daily Cost (1 shift)</th><th></th></tr>
+                  <tr><th>Job Title</th><th>Category</th><th>Headcount</th><th>Hourly Rate</th><th>Piece Rate</th><th>Daily Cost (1 shift)</th><th></th></tr>
                 </thead>
                 <tbody>
                   {CATS.map(cat => {
                     const catTypes = types.filter(t => t.cat === cat);
                     if (!catTypes.length) return null;
                     return [
-                      <tr key={"h-"+cat}><td colSpan={6} style={{background:"var(--surface-2)",fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.08em",textTransform:"uppercase",padding:"5px 10px"}}>{cat}</td></tr>,
+                      <tr key={"h-"+cat}><td colSpan={7} style={{background:"var(--surface-2)",fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.08em",textTransform:"uppercase",padding:"5px 10px"}}>{cat}</td></tr>,
                       ...catTypes.map(lt => (
                         <tr key={lt.id}>
                           <td style={{fontWeight:500,color:"var(--text)"}}>{lt.n}</td>
@@ -282,6 +290,9 @@ export default function LaborManager() {
                               onChange={e=>setTypes(p=>p.map(t=>t.id===lt.id?{...t,count:parseInt(e.target.value)||0}:t))} />
                           </td>
                           <td>${lt.rate.toFixed(2)}/hr</td>
+                          <td style={{color:lt.pieceRate!=null?"var(--text)":"var(--text-3)"}}>
+                            {lt.pieceRate!=null ? `$${Number(lt.pieceRate).toFixed(2)}/g` : "—"}
+                          </td>
                           <td style={{color:"var(--accent-2)",fontWeight:500}}>
                             ${(lt.count * lt.rate * (parseFloat(facility.shiftHours)||8)).toFixed(0)}
                           </td>
