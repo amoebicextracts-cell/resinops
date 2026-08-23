@@ -88,6 +88,20 @@ const EMPTY_INVITE = { email:"", role:FACILITY_ROLES.MEMBER, scopeRoles:{} };
 const ACCESS_REVIEW_INTERVAL_DAYS = 90;
 const ACCESS_REVIEW_DUE_SOON_DAYS = 14;
 
+// Annex 11 §11: "computerised systems should be periodically evaluated
+// to confirm that they remain in a valid state and are compliant with
+// GMP." Annual is the common baseline cadence for this kind of review.
+const SYSTEM_EVAL_INTERVAL_DAYS = 365;
+const SYSTEM_EVAL_DUE_SOON_DAYS = 30;
+const SYSTEM_EVAL_ITEMS = [
+  ["functionality", "Does ResinOps still meet this facility's operational needs, as currently configured?"],
+  ["deviations", "Have this period's deviations/incidents been reviewed for any recurring, system-level root cause?"],
+  ["upgrades", "Are you aware of what's changed in the app over the review period?"],
+  ["performance", "Has performance and reliability (uptime, responsiveness) been acceptable?"],
+  ["security", "Are you unaware of any unresolved security issue affecting this facility's data?"],
+  ["validation", "Is backup/restore verification still passing, and is the access review above still current?"],
+];
+
 // Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS and
 // 20260803090000_add_tiered_signoffs.sql's employees.tier check constraint.
 const SIGNOFF_TIERS = [
@@ -309,6 +323,58 @@ export default function FacilitySettings(){
       await loadAccessReviews();
     }catch(e){ setReviewErr("Could not save review: "+e.message); }
     setReviewBusy(false);
+  }
+
+  const [systemEvals,setSystemEvals] = useState([]);
+  const [evalErr,setEvalErr] = useState("");
+  const [evalSession,setEvalSession] = useState(null); // {responses:{[key]:{answer,notes}}}
+  const [evalBusy,setEvalBusy] = useState(false);
+
+  async function loadSystemEvals(){
+    if(!isAdmin) return;
+    const fid = getCurrentFacility();
+    if(!fid) return;
+    try{
+      const rows = await db.system_evaluations.list();
+      setSystemEvals((rows||[]).filter(r=>r.facilityId===fid));
+    }catch(e){ setEvalErr("Could not load evaluation history: "+e.message); }
+  }
+
+  useEffect(()=>{ loadSystemEvals(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lastEval = systemEvals.length
+    ? systemEvals.reduce((a,b)=> new Date(b.completedAt) > new Date(a.completedAt) ? b : a)
+    : null;
+  const evalDueDate = lastEval ? new Date(new Date(lastEval.completedAt).getTime() + SYSTEM_EVAL_INTERVAL_DAYS*86400000) : null;
+  const evalDaysUntilDue = evalDueDate ? Math.ceil((evalDueDate - Date.now())/86400000) : null;
+  const evalStatus = !lastEval ? "never" : evalDaysUntilDue < 0 ? "overdue" : evalDaysUntilDue <= SYSTEM_EVAL_DUE_SOON_DAYS ? "due_soon" : "ok";
+  const lastEvalFlagged = lastEval ? SYSTEM_EVAL_ITEMS.filter(([k])=>lastEval.responses?.[k]?.answer==="flag") : [];
+
+  function startSystemEval(){
+    setEvalErr("");
+    setEvalSession({ responses: {} });
+  }
+  function setEvalAnswer(key, answer){
+    setEvalSession(s=>({ responses: { ...s.responses, [key]: { answer, notes: s.responses[key]?.notes || "" } } }));
+  }
+  function setEvalNotes(key, notes){
+    setEvalSession(s=>({ responses: { ...s.responses, [key]: { ...(s.responses[key]||{answer:"ok"}), notes } } }));
+  }
+  async function finishSystemEval(){
+    const fid = getCurrentFacility();
+    if(!fid || !evalSession) return;
+    setEvalBusy(true); setEvalErr("");
+    try{
+      await db.system_evaluations.upsert({
+        id: crypto.randomUUID(),
+        facilityId: fid,
+        responses: evalSession.responses,
+        notes: null,
+      });
+      setEvalSession(null);
+      await loadSystemEvals();
+    }catch(e){ setEvalErr("Could not save evaluation: "+e.message); }
+    setEvalBusy(false);
   }
 
   async function save(){
@@ -689,6 +755,95 @@ export default function FacilitySettings(){
                     {reviewBusy ? "Saving…" : "Finish Review"}
                   </button>
                   <button className="fs-btn fs-secondary" disabled={reviewBusy} onClick={()=>setReviewSession(null)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {supabase && isAdmin && (
+          <div className="fs-card">
+            <div className="fs-section" style={{margin:0,marginBottom:4}}>Periodic System Evaluation</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+              Confirm the system itself is still fit for GMP purpose — functionality, incident history, upgrades, performance, security, and validation status. Recorded as evidence for GMP audits.
+            </div>
+
+            {evalErr && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{evalErr}</div>}
+
+            {!evalSession && (
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                  {evalStatus==="never" && <span className="fs-pill fs-pill-overdue">Never evaluated</span>}
+                  {evalStatus==="overdue" && <span className="fs-pill fs-pill-overdue">Overdue</span>}
+                  {evalStatus==="due_soon" && <span className="fs-pill fs-pill-pending">Due soon</span>}
+                  {evalStatus==="ok" && <span className="fs-pill fs-pill-accepted">Up to date</span>}
+                  {lastEval ? (
+                    <div style={{fontSize:12,color:"var(--text-2)"}}>
+                      Last evaluated {new Date(lastEval.completedAt).toLocaleDateString()}
+                      {lastEvalFlagged.length>0 ? ` — ${lastEvalFlagged.length} item(s) flagged.` : " — no items flagged."}
+                      {" "}Next due {evalDueDate.toLocaleDateString()}.
+                    </div>
+                  ) : (
+                    <div style={{fontSize:12,color:"var(--text-2)"}}>No system evaluation has been recorded for this facility yet.</div>
+                  )}
+                </div>
+
+                {lastEvalFlagged.length>0 && (
+                  <div style={{marginBottom:14}}>
+                    <div className="fs-lbl" style={{marginBottom:6}}>Flagged in the last evaluation:</div>
+                    {lastEvalFlagged.map(([key,label])=>(
+                      <div key={key} className="fs-review-row">
+                        <div style={{fontSize:12,color:"var(--text)"}}>{label}</div>
+                        {lastEval.responses[key].notes && <div style={{fontSize:12,color:"var(--text-3)"}}>{lastEval.responses[key].notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button className="fs-btn fs-primary" onClick={startSystemEval}>+ Start Evaluation</button>
+
+                {systemEvals.length>1 && (
+                  <div style={{marginTop:16}}>
+                    <div className="fs-lbl" style={{marginBottom:6}}>History</div>
+                    {systemEvals
+                      .filter(e=>e.id!==lastEval.id)
+                      .sort((a,b)=> new Date(b.completedAt) - new Date(a.completedAt))
+                      .map(e=>{
+                        const flaggedCount = SYSTEM_EVAL_ITEMS.filter(([k])=>e.responses?.[k]?.answer==="flag").length;
+                        return (
+                          <div key={e.id} style={{fontSize:11,color:"var(--text-3)",marginBottom:3}}>
+                            {new Date(e.completedAt).toLocaleDateString()} — {flaggedCount>0 ? `${flaggedCount} item(s) flagged` : "no items flagged"}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {evalSession && (
+              <>
+                <div style={{fontSize:12,color:"var(--text-2)",marginBottom:10}}>Answer each item below, then finish the evaluation.</div>
+                {SYSTEM_EVAL_ITEMS.map(([key,label])=>{
+                  const r = evalSession.responses[key];
+                  const flagged = r?.answer==="flag";
+                  return (
+                    <div key={key} className="fs-review-row">
+                      <div style={{flex:1,minWidth:220,fontSize:13,color:"var(--text)"}}>{label}</div>
+                      <button className={"fs-btn "+(r?.answer==="ok"?"fs-primary":"fs-secondary")} style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setEvalAnswer(key,"ok")}>✓ Yes / OK</button>
+                      <button className={"fs-btn "+(flagged?"fs-danger":"fs-secondary")} style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setEvalAnswer(key,"flag")}>⚠ Flag</button>
+                      {flagged && (
+                        <input className="fs-inp" style={{flex:1,minWidth:180}} placeholder="Why? (optional)" value={r?.notes||""} onChange={e=>setEvalNotes(key,e.target.value)} />
+                      )}
+                      {!r && <span style={{fontSize:11,color:"var(--text-3)"}}>Not yet answered</span>}
+                    </div>
+                  );
+                })}
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button className="fs-btn fs-primary" disabled={evalBusy || SYSTEM_EVAL_ITEMS.some(([k])=>!evalSession.responses[k])} onClick={finishSystemEval}>
+                    {evalBusy ? "Saving…" : "Finish Evaluation"}
+                  </button>
+                  <button className="fs-btn fs-secondary" disabled={evalBusy} onClick={()=>setEvalSession(null)}>Cancel</button>
                 </div>
               </>
             )}
