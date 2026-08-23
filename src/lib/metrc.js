@@ -36,11 +36,14 @@ export const METRC_STATES = {
 };
 
 // ── Core API call ─────────────────────────────────────────────
-export async function metrcCall(action, state, licenseNumber, params = {}, body = null, method = null) {
+// resinopsBatchId is optional -- only meaningful for writes that push a
+// specific batch/package to METRC (see api/metrc.js's release-gate check,
+// which mirrors the same QC-hold/sign-off block that guards sales_orders).
+export async function metrcCall(action, state, licenseNumber, params = {}, body = null, method = null, resinopsBatchId = null) {
   const res = await authenticatedApiFetch('/api/metrc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, state, licenseNumber, params, body }),
+    body: JSON.stringify({ action, state, licenseNumber, params, body, resinopsBatchId }),
   }, { includeFacility: true });
 
   const json = await res.json();
@@ -425,7 +428,7 @@ export async function createMetrcPackage(state, licenseNumber, packageData) {
     IsTradeSample: false,
     ActualDate: packageData.date || new Date().toISOString().split('T')[0],
   }];
-  return metrcCall('packages.create', state, licenseNumber, {}, body, 'POST');
+  return metrcCall('packages.create', state, licenseNumber, {}, body, 'POST', packageData.resinopsBatchId || null);
 }
 
 export async function createMetrcHarvest(state, licenseNumber, harvestData) {

@@ -9,7 +9,7 @@ It replaces permissive tenant policies with facility-scoped roles, removes brows
 1. Keep every schema change in a timestamped migration and run the disposable database job before merging.
 2. Run the production smoke workflow after deployment. With its optional GitHub secrets configured, it verifies anonymous denial, the dedicated smoke user's own-facility access, cross-facility denial, and audit-log readability.
 3. Run Supabase security and performance advisors after every production migration.
-4. Keep `METRC_WRITES_ENABLED` and METRC credentials unset until vendor onboarding is complete.
+4. Keep `METRC_WRITES_ENABLED` and METRC credentials unset until ResinOps holds a real business license with an EIN and has been approved by METRC as a registered software vendor (calling METRC's write APIs makes ResinOps itself the party filing the regulatory record, under its own vendor software key — not something to enable casually). When that day comes, `api/metrc.js` already gates `packages.create` and `transfers.create_outgoing` against the same `check_batch_release_block()` release gate that guards `sales_orders` — confirm that gate is still wired up before flipping the flag, don't just re-add the env vars.
 5. Create and verify an off-site database dump before importing private-beta customer data.
 
 Every pull request that changes `supabase/` now runs an isolated database job. The job starts a disposable local Supabase database, adds the production-shaped fixture from `ci/production_schema.sql`, applies the real adoption migration, and runs the pgTAP tenant-isolation and security-invariant suites. The fixture exists only in the CI runner and is never part of a hosted deployment.

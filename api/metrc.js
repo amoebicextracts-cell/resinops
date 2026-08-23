@@ -24,7 +24,26 @@ import { initializeApiRequest, logApiError, sendApiError } from './_observabilit
 //   params: {} // optional query params
 //   body: {} // optional POST body
 //   method: "GET" | "POST" | "PUT" (default GET)
+//   resinopsBatchId: "uuid" // optional, only for batch/package writes — see gate below
 // }
+//
+// WHY WRITES ARE OFF (deliberately, not by oversight): calling this
+// endpoint's write actions makes ResinOps's OWN server the thing filing a
+// real regulatory record with the state, under ResinOps's own METRC
+// "software key" identity (METRC issues one software key per registered
+// vendor integration; the per-facility METRC_USER_KEY only authorizes
+// that vendor, it doesn't change who's making the call). Doing that as an
+// unregistered software vendor isn't just risky, it's not something METRC
+// grants API access for — becoming an approved integrator requires
+// ResinOps to hold a real business license with an EIN and apply to METRC
+// as a software vendor, which hasn't happened yet (as of 2026-08-23).
+// Until then this integration is a planned future feature, deliberately
+// left in place, gated by the simple absence of METRC_SOFTWARE_KEY /
+// METRC_USER_KEY_* / METRC_WRITES_ENABLED in every environment. Do not
+// add those env vars, and do not remove the isMetrcWriteAction() check
+// below, without first confirming the business/EIN/METRC-vendor-approval
+// prerequisite is actually done — this isn't a flag to flip when it's
+// merely convenient to test something.
 // ============================================================
 
 // State → METRC API subdomain mapping
@@ -227,6 +246,7 @@ export default async function handler(req, res) {
     facilityId,
     params = {},
     body = null,
+    resinopsBatchId = null,
   } = req.body || {};
 
   const validationError = validateMetrcPayload(req.body, METRC_STATES, ENDPOINTS);
@@ -246,6 +266,46 @@ export default async function handler(req, res) {
   const endpoint = ENDPOINTS[action];
   if (isMetrcWriteAction(endpoint) && process.env.METRC_WRITES_ENABLED !== 'true') {
     return res.status(403).json({ error: 'METRC write operations are disabled' });
+  }
+
+  // Mirror the same release gate that blocks selling a QC-failed or
+  // unsigned batch through sales_orders (20260828090000_enforce_batch_release_gating.sql)
+  // -- pushing that same batch's package to METRC, or shipping it out on a
+  // transfer manifest, is the exact same real-world event with a different
+  // paper trail, and previously had no gate at all. check_batch_release_block
+  // is exposed in `public` specifically so both call sites share one
+  // definition instead of drifting apart.
+  //
+  // 'packages.create' checks the ResinOps batch id the client already
+  // knows (the same production_batches.id used to build the push). For
+  // 'transfers.create_outgoing' the manifest form only collects free-typed
+  // METRC package labels with no ResinOps id attached, so instead each
+  // label is resolved server-side against production_batches.metrc_tag
+  // (set by a prior successful package push) -- a label that doesn't match
+  // any known batch (imported/legacy data) is left unchecked rather than
+  // blocked, matching the same "don't block on data we can't map" choice
+  // made in the sales_orders trigger.
+  if (action === 'packages.create' && resinopsBatchId) {
+    const { data: blockReason, error: blockErr } = await auth.supabase.rpc('check_batch_release_block', { p_batch_id: resinopsBatchId });
+    if (!blockErr && blockReason) {
+      return res.status(403).json({ error: `Cannot push to METRC: ${blockReason}` });
+    }
+  }
+  if (action === 'transfers.create_outgoing' && Array.isArray(body) && body[0]?.Packages?.length) {
+    const labels = body[0].Packages.map(p => p?.PackageLabel).filter(Boolean);
+    if (labels.length) {
+      const { data: matchedBatches } = await auth.supabase
+        .from('production_batches')
+        .select('id')
+        .eq('facility_id', facilityId)
+        .in('metrc_tag', labels);
+      for (const b of (matchedBatches || [])) {
+        const { data: blockReason } = await auth.supabase.rpc('check_batch_release_block', { p_batch_id: b.id });
+        if (blockReason) {
+          return res.status(403).json({ error: `Cannot push transfer manifest: ${blockReason}` });
+        }
+      }
+    }
   }
 
   // Get API keys from environment — NEVER from the request

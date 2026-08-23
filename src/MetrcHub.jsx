@@ -299,7 +299,7 @@ export default function MetrcHub() {
         quantity: parseFloat(form.quantity) || 0, unitOfMeasure: form.unitOfMeasure,
         notes: form.notes, isProductionBatch: true,
         batchNumber: prodBatches.find(b => String(b.id) === sourceId)?.name || "",
-        date: form.date,
+        date: form.date, resinopsBatchId: sourceId,
       });
       else if (type === "harvest") result = await createMetrcHarvest(state, licenseNumber, {
         metrcPlantTag: form.metrcPlantTag, wetWeightOz: parseFloat(form.wetWeightOz) || 0,
