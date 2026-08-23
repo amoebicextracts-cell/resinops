@@ -168,6 +168,26 @@ export default function GMPHub(){
   const [err,setErr]=useState("");
   const [signingModal,setSigningModal]=useState(null);
 
+  // Reason-for-change prompt — a lightweight, generic overlay (not a
+  // whole new component like SignToConfirmModal, which is specifically
+  // for the password-reverified e-signature flow) used anywhere
+  // reversing a previously-finalized GMP state needs a documented
+  // justification: un-signing a tier sign-off, reopening a closed
+  // deviation. Written once, immutable, into gmp_change_reasons.
+  const [reasonPrompt,setReasonPrompt]=useState(null); // {title, description, onConfirm(reason)}
+  const [reasonText,setReasonText]=useState("");
+  const [reasonBusy,setReasonBusy]=useState(false);
+  function promptForReason(title,description,onConfirm){ setReasonPrompt({title,description,onConfirm}); setReasonText(""); }
+  async function confirmReasonPrompt(){
+    if(!reasonText.trim()||!reasonPrompt) return;
+    setReasonBusy(true);
+    try{
+      await reasonPrompt.onConfirm(reasonText.trim());
+      setReasonPrompt(null); setReasonText("");
+    }catch(e){ setErr(e.message); }
+    setReasonBusy(false);
+  }
+
   function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
 
   // ── SOPs ──
@@ -296,6 +316,24 @@ export default function GMPHub(){
     });
   }
 
+  // Reopening is deliberately a status-only update, not a whole-record
+  // save: lock_closed_deviation blocks any UPDATE that changes a closed
+  // deviation's substantive fields in the SAME statement that reopens
+  // it, so this can never accidentally slip a content edit through
+  // alongside the reopen. Editing content is a separate step afterward,
+  // its own ordinary save, its own audit_logs entry.
+  async function reopenDeviation(dev,reason){
+    try{
+      await db.gmp_change_reasons.upsert({
+        id:crypto.randomUUID(), facilityId:getCurrentFacility(),
+        tableName:"gmp_deviations", recordId:dev.id, action:"reopen_deviation", reason,
+      });
+      const saved=await db.gmp_deviations.update(dev.id,{status:"open"});
+      setDeviations(p=>p.map(x=>x.id===saved.id?saved:x));
+      if(devForm?.id===dev.id) setDevForm(f=>({...f,status:"open"}));
+    }catch(e){ setErr("Could not reopen: "+e.message); }
+  }
+
   // ── Shifts ──
   async function saveShift(){
     const validEntries=shiftEntries.filter(e=>e.employeeId&&(e.timeIn||e.timeOut));
@@ -334,11 +372,17 @@ export default function GMPHub(){
       setErr("");
     }catch(e){ setErr("Sign-off failed: "+e.message); }
   }
-  async function unsignTier(type,batchId,stepName,tier){
+  async function unsignTier(type,batchId,stepName,tier,reason){
     const existing=findSignoff(type,batchId,stepName);
     if(!existing) return;
-    if(!window.confirm(`Remove the ${TIER_LABELS[tier]} sign-off for "${stepName}"?`)) return;
     try{
+      // Written before the actual undo, not after — if the reason
+      // insert fails (e.g. a blank reason RLS would reject), the
+      // sign-off itself is never touched.
+      await db.gmp_change_reasons.upsert({
+        id:crypto.randomUUID(), facilityId:getCurrentFacility(),
+        tableName:"gmp_signoffs", recordId:existing.id, action:`unsign_${tier}`, reason,
+      });
       const saved=await db.gmp_signoffs.update(existing.id,{[tier+"Id"]:null,[tier+"At"]:null});
       setSignoffs(p=>p.map(x=>x.id===saved.id?saved:x));
     }catch(e){ setErr("Could not undo: "+e.message); }
@@ -479,7 +523,11 @@ export default function GMPHub(){
                           <span style={{color:"var(--text-3)"}}>{TIER_LABELS[tier]}:</span>
                           <span style={{color:"var(--text)"}}>{empName(signedId)}</span>
                           <span style={{color:"var(--text-3)"}}>{fmtDT(signedAt)}</span>
-                          <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>unsignTier(type,id,step.n,tier)}>✕</button>
+                          <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>promptForReason(
+                            `Unsign ${TIER_LABELS[tier]}`,
+                            `Removing ${empName(signedId)}'s ${TIER_LABELS[tier]} sign-off for "${step.n}". This is recorded permanently with your reason.`,
+                            reason=>unsignTier(type,id,step.n,tier,reason)
+                          )}>✕</button>
                         </div>
                       ):(
                         <TierSignoffPicker key={tier} tier={tier} employees={employees} currentUserId={currentUserId}
@@ -870,10 +918,22 @@ export default function GMPHub(){
                   <div><label className="gh-lbl">Reported by</label><select className="gh-sel" value={devForm.reportedById} onChange={e=>setDevForm(f=>({...f,reportedById:e.target.value}))}><option value="">—</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
                   <div><label className="gh-lbl">Closed / verified by</label><select className="gh-sel" value={devForm.closedById} onChange={e=>setDevForm(f=>({...f,closedById:e.target.value}))}><option value="">—</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
                 </div>
+                {devForm.status==="closed"&&(
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>
+                    Closed and signed — fields are locked. Reopen (with a documented reason) before editing.
+                  </div>
+                )}
                 <div style={{display:"flex",gap:8}}>
-                  <button className="gh-btn gh-primary" onClick={saveDev}>{devForm.id?"Save changes":"Log deviation"}</button>
+                  <button className="gh-btn gh-primary" disabled={devForm.status==="closed"} onClick={saveDev}>{devForm.id?"Save changes":"Log deviation"}</button>
                   {devForm.status!=="closed"&&(
                     <button className="gh-btn gh-edit" disabled={!devForm.rootCause?.trim()||!devForm.correctiveAction?.trim()} onClick={openDeviationClosure}>Sign &amp; Close</button>
+                  )}
+                  {devForm.status==="closed"&&(
+                    <button className="gh-btn gh-edit" onClick={()=>promptForReason(
+                      "Reopen Deviation",
+                      `Reopening "${devForm.title||devForm.type}" so it can be edited again. This is recorded permanently with your reason, and it will need to be re-closed (signed) afterward.`,
+                      reason=>reopenDeviation(devForm,reason)
+                    )}>Reopen</button>
                   )}
                   <button className="gh-btn gh-secondary" onClick={()=>{setDevForm(null);setErr("");}}>Cancel</button>
                 </div>
@@ -999,6 +1059,23 @@ export default function GMPHub(){
           onSigned={async(record)=>{ await signingModal.onSigned(record); setSigningModal(null); }}
           onCancel={()=>setSigningModal(null)}
         />
+      )}
+      {reasonPrompt&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>{if(!reasonBusy){setReasonPrompt(null);setReasonText("");}}}>
+          <div className="gh-card" style={{width:420,maxWidth:"90vw",margin:0}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:8}}>{reasonPrompt.title}</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>{reasonPrompt.description}</div>
+            <form onSubmit={e=>{e.preventDefault(); if(!reasonBusy) confirmReasonPrompt();}}>
+              <label className="gh-lbl" htmlFor="reason-prompt-text">Reason</label>
+              <textarea id="reason-prompt-text" className="gh-inp" rows={3} style={{resize:"vertical"}} autoFocus
+                value={reasonText} onChange={e=>setReasonText(e.target.value)} />
+              <div style={{display:"flex",gap:8,marginTop:14}}>
+                <button type="submit" className="gh-btn gh-primary" disabled={reasonBusy||!reasonText.trim()}>{reasonBusy?"Saving…":"Confirm"}</button>
+                <button type="button" className="gh-btn gh-secondary" disabled={reasonBusy} onClick={()=>{setReasonPrompt(null);setReasonText("");}}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </>
   );
