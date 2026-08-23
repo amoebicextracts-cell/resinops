@@ -42,6 +42,7 @@ const LS_KEYS = {
   gmp_shifts:         'resinops_shifts',
   gmp_deviations:     'resinops_deviations',
   gmp_change_reasons: 'resinops_gmp_change_reasons',
+  access_reviews:     'resinops_access_reviews',
   skus:               'resinops_skus',
   boms:               'resinops_boms',
   sales_orders:       'resinops_orders',
