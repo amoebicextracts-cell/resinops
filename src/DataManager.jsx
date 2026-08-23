@@ -497,7 +497,43 @@ export default function DataManager({ isPlatformAdmin }){
   const [exportLoading,setExportLoading]=useState(false);
   const isFacilityAdmin = canAdministerFacility(getCurrentFacilityRole());
 
-  async function loadDemoData(){
+  // Both loadDemoData and clearAllData overwrite/wipe whatever facility is
+  // CURRENTLY active -- there's no per-record undo. The real danger isn't a
+  // customer hitting these (they're isPlatformAdmin-gated) but a platform
+  // admin doing support work in a real customer's facility context and
+  // misclicking a button meant for the demo/test facility. A generic
+  // window.confirm() doesn't stop that, since the admin already believes
+  // they're on the right facility -- typing the actual current facility's
+  // name back is what catches "I thought I was still on the demo facility."
+  const [dangerPrompt,setDangerPrompt]=useState(null); // {action:'clear'|'demo', facilityName, typed}
+  async function fetchCurrentFacilityName(fid){
+    if(!isSupabaseEnabled) return JSON.parse(localStorage.getItem("resinops_facility_settings")||"{}").facilityName || "(unnamed facility)";
+    try{
+      const { data } = await supabase.from("facilities").select("facility_name").eq("id",fid).single();
+      return data?.facility_name || "(unnamed facility)";
+    }catch{ return "(unnamed facility)"; }
+  }
+  async function requestLoadDemoData(){
+    if(demoLoading||!isPlatformAdmin) return;
+    const fid=getCurrentFacility();
+    const facilityName=fid?await fetchCurrentFacilityName(fid):"(no facility selected)";
+    setDangerPrompt({action:"demo",facilityName,typed:""});
+  }
+  async function requestClearAllData(){
+    if(clearLoading||!isPlatformAdmin) return;
+    const fid=getCurrentFacility();
+    const facilityName=fid?await fetchCurrentFacilityName(fid):"(no facility selected)";
+    setDangerPrompt({action:"clear",facilityName,typed:""});
+  }
+  async function confirmDangerPrompt(){
+    if(!dangerPrompt||dangerPrompt.typed!==dangerPrompt.facilityName) return;
+    const action=dangerPrompt.action;
+    setDangerPrompt(null);
+    if(action==="demo") await runLoadDemoData();
+    else await runClearAllData();
+  }
+
+  async function runLoadDemoData(){
     if (demoLoading || !isPlatformAdmin) return;
     setDemoLoading(true);
     setStatusMsg("Loading demo data…");
@@ -1456,9 +1492,8 @@ export default function DataManager({ isPlatformAdmin }){
     });
   }
 
-  async function clearAllData(){
+  async function runClearAllData(){
     if(!isPlatformAdmin) return;
-    if(!window.confirm("This will permanently delete ALL data in ResinOps — every table, for this facility. Are you sure? This cannot be undone.")) return;
     setClearLoading(true);
     setStatusMsg("Clearing all data…");
     try{
@@ -2738,12 +2773,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 {isPlatformAdmin && (
-                  <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={loadDemoData}>
+                  <button className="dm-btn dm-primary" style={{background:"rgba(90,63,160,0.8)"}} disabled={demoLoading} onClick={requestLoadDemoData}>
                     {demoLoading ? "Loading demo data…" : "✨ Load demo facility settings"}
                   </button>
                 )}
                 {isPlatformAdmin && (
-                  <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={clearLoading} onClick={clearAllData}>
+                  <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={clearLoading} onClick={requestClearAllData}>
                     {clearLoading ? "Clearing…" : "🗑 Clear all data"}
                   </button>
                 )}
@@ -2823,6 +2858,36 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           </div>
         )}
       </div>
+      {dangerPrompt&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>setDangerPrompt(null)}>
+          <div className="dm-card" style={{width:460,maxWidth:"90vw",margin:0,border:"1px solid rgba(200,74,74,0.4)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--danger)",marginBottom:8}}>
+              {dangerPrompt.action==="demo"?"⚠ Overwrite facility with demo data?":"⚠ Clear all data for this facility?"}
+            </div>
+            <div style={{fontSize:12,color:"var(--text-2)",marginBottom:14}}>
+              {dangerPrompt.action==="demo"
+                ?"This renames the currently active facility and overwrites its settings/data with the investor-demo dataset."
+                :"This permanently deletes every table's data for the currently active facility. This cannot be undone."}
+              {" "}You are currently on <strong>{dangerPrompt.facilityName}</strong>. To confirm this is the facility you mean to affect, type its name exactly:
+            </div>
+            <label className="dm-lbl" htmlFor="danger-prompt-input">{dangerPrompt.facilityName}</label>
+            <input
+              id="danger-prompt-input"
+              className="dm-inp"
+              autoFocus
+              value={dangerPrompt.typed}
+              onChange={e=>setDangerPrompt(p=>({...p,typed:e.target.value}))}
+              onKeyDown={e=>{if(e.key==="Enter"&&dangerPrompt.typed===dangerPrompt.facilityName) confirmDangerPrompt();}}
+            />
+            <div style={{display:"flex",gap:8,marginTop:14}}>
+              <button className="dm-btn dm-secondary" style={{color:"var(--danger)",borderColor:"rgba(200,74,74,0.4)!important"}} disabled={dangerPrompt.typed!==dangerPrompt.facilityName} onClick={confirmDangerPrompt}>
+                {dangerPrompt.action==="demo"?"Overwrite with demo data":"Clear all data"}
+              </button>
+              <button className="dm-btn dm-secondary" onClick={()=>setDangerPrompt(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
