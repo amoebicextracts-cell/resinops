@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
+import jsPDF from "jspdf";
 import { db } from "./lib/db";
+import { getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import SignToConfirmModal from "./SignToConfirmModal.jsx";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -38,6 +41,19 @@ const CSS=`
   .qc-pending{background:rgba(200,150,58,0.15);color:var(--amber);}
   .pf-radio{display:flex;gap:10px;align-items:center;}
   .pf-radio label{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;}
+
+  /* SignToConfirmModal is styled with these gh- classes, defined in
+     GMPHub.jsx's own scoped <style> tag -- which isn't mounted here
+     since only the active module renders. Duplicated verbatim rather
+     than importing GMPHub.jsx just for its CSS string. */
+  .gh-card{background:var(--surface);border:1px solid var(--border-2);border-radius:10px;padding:18px;margin-bottom:16px;}
+  .gh-inp{width:100%;background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 10px;box-sizing:border-box;}
+  .gh-inp:focus{outline:none;border-color:var(--accent);}
+  .gh-lbl{font-size:11px;color:var(--text-2);display:block;margin-bottom:3px;}
+  .gh-btn{border:none;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;font-size:12px;padding:7px 14px;}
+  .gh-btn:hover{opacity:0.85;}
+  .gh-primary{background:var(--accent);color:#fff;}
+  .gh-secondary{background:var(--surface-2);border:1px solid var(--border-2)!important;color:var(--text-2);}
 `;
 
 function PFField({label,value,onChange}){
@@ -71,6 +87,7 @@ export default function QCTesting(){
   const [form,setForm]=useState(null);
   const [formSection,setFormSection]=useState("meta");
   const [err,setErr]=useState("");
+  const [signingModal,setSigningModal]=useState(null);
 
   useEffect(()=>{
     async function load(){
@@ -199,6 +216,59 @@ export default function QCTesting(){
     catch(e){ setErr("Delete failed: "+e.message); }
   }
 
+  // ── Sign & Finalize a COA ──
+  // Durably archives the result data used to justify a release decision --
+  // the source data, not just the decision -- mirroring GMPHub.jsx's
+  // sop/deviation signing (see SignToConfirmModal.jsx). Once signed,
+  // private.lock_finalized_qc_test blocks further edits to the row.
+  function buildQcTestPdf(t){
+    const doc=new jsPDF();
+    let y=16;
+    doc.setFontSize(15); doc.setFont(undefined,"bold");
+    doc.text("Certificate of Analysis — Result Record",14,y);
+    y+=8;
+    doc.setFont(undefined,"bold"); doc.text(t.strainName||t.batchName||"Untitled sample",14,y); doc.setFont(undefined,"normal");
+    y+=6;
+    doc.setFontSize(10);
+    doc.text(`Sample ${t.sampleId||"—"} · ${t.labName||"lab not recorded"} · Received ${fmtD(t.receivedDate)}`,14,y);
+    y+=8;
+    doc.setFontSize(9);
+    const section=(label,pairs)=>{
+      doc.setFont(undefined,"bold"); doc.text(label,14,y); doc.setFont(undefined,"normal");
+      y+=5;
+      doc.text(pairs.map(([k,v])=>`${k}: ${v}`).join("   "),14,y);
+      y+=8;
+    };
+    section("Cannabinoids",[["THCa",t.thca],["THC",t.thc],["CBDa",t.cbda],["CBD",t.cbd],["Total Cannabinoids",t.totalCannabinoids]].map(([k,v])=>[k,v!=null&&v!==""?v+"%":"—"]));
+    section("Terpenes",[["Total Terpenes",t.totalTerpenes]].map(([k,v])=>[k,v!=null&&v!==""?v+"%":"—"]));
+    section("Microbial panel",[["TYAM",t.tyam],["TAB",t.tab],["Aspergillus",pf(t.aspergillus)],["Salmonella",pf(t.salmonella)],["STEC",pf(t.stec)],["E. coli",pf(t.ecoli)],["Overall microbial",pf(t.microbialPass)]]);
+    section("Other panels",[["Pesticides",pf(t.pesticidesPass)],["Heavy metals",pf(t.heavyMetalsPass)],["Foreign matter",pf(t.foreignMatterPass)],["Water activity",t.waterActivity||"—"],["Moisture %",t.moistureContent||"—"]]);
+    doc.setFont(undefined,"bold"); doc.text("Overall result: "+pf(t.overallPass),14,y); doc.setFont(undefined,"normal");
+    y+=8;
+    if(t.notes){ doc.text("Notes:",14,y); y+=5; doc.text(doc.splitTextToSize(t.notes,180),14,y); }
+    return doc;
+  }
+  function openQcTestFinalization(t){
+    setSigningModal({
+      title:"Sign & Finalize COA",
+      description:`Signing locks the result data for "${t.strainName||t.batchName||t.sampleId||"this sample"}" as final. It can no longer be edited afterward.`,
+      documentType:"qc_test",
+      documentId:t.id,
+      documentLabel:(t.strainName||t.batchName||"Sample")+(t.sampleId?" ("+t.sampleId+")":""),
+      buildPdf:()=>buildQcTestPdf(t),
+      onSigned:async()=>{
+        try{
+          const lockedAt=new Date().toISOString();
+          const saved=await db.qc_tests.update(t.id,{lockedAt});
+          saved.batchId=t.batchId;
+          setTests(p=>p.map(x=>x.id===t.id?{...x,...saved}:x));
+          if(form?.id===t.id) setForm(f=>({...f,lockedAt}));
+          setErr("");
+        }catch(e){ setErr("Finalize failed: "+e.message); }
+      },
+    });
+  }
+
   const failedCount=tests.filter(t=>t.overallPass===false).length;
   // No status column exists on qc_tests — derive directly from the real
   // persisted date fields rather than a value that never survives a save.
@@ -312,9 +382,17 @@ export default function QCTesting(){
               </>
             )}
 
+            {form.lockedAt&&(
+              <div style={{fontSize:11,color:"var(--text-3)",margin:"8px 0"}}>
+                🔒 Signed & finalized {fmtD(form.lockedAt)} — result data is locked and cannot be edited.
+              </div>
+            )}
             {err&&<div style={{fontSize:12,color:"var(--danger)",margin:"8px 0"}}>{err}</div>}
             <div style={{display:"flex",gap:8,marginTop:12}}>
-              <button className="qc-btn qc-primary" onClick={save}>{form.id?"Save changes":"Save test record"}</button>
+              <button className="qc-btn qc-primary" disabled={!!form.lockedAt} onClick={save}>{form.id?"Save changes":"Save test record"}</button>
+              {form.id&&!form.lockedAt&&(
+                <button className="qc-btn qc-edit" disabled={form.overallPass===null||form.overallPass===undefined} onClick={()=>openQcTestFinalization(form)} title={form.overallPass===null||form.overallPass===undefined?"Set an overall result before signing":undefined}>Sign & Finalize COA</button>
+              )}
               <button className="qc-btn qc-secondary" onClick={()=>{setForm(null);setFormSection("meta");setErr("");}}>Cancel</button>
             </div>
           </div>
@@ -344,7 +422,7 @@ export default function QCTesting(){
                         <td>{t.totalTerpenes?t.totalTerpenes+"%":"—"}</td>
                         <td style={{color:pfColor(t.microbialPass)}}>{pf(t.microbialPass)}</td>
                         <td style={{color:pfColor(t.pesticidesPass)}}>{pf(t.pesticidesPass)}</td>
-                        <td><span className={"qc-pill "+(t.overallPass===true?"qc-pass":t.overallPass===false?"qc-fail":"qc-pending")}>{t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</span></td>
+                        <td><span className={"qc-pill "+(t.overallPass===true?"qc-pass":t.overallPass===false?"qc-fail":"qc-pending")}>{t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</span>{t.lockedAt&&<span title={"Signed & finalized "+fmtD(t.lockedAt)} style={{marginLeft:5}}>🔒</span>}</td>
                         <td><div style={{display:"flex",gap:5}}>
                           <button className="qc-sm qc-edit" onClick={()=>{setForm({...t});setFormSection(t.batchId?"meta":"cannabinoids");}}>Edit</button>
                           <button className="qc-sm qc-del" onClick={()=>remove(t.id)}>✕</button>
@@ -358,6 +436,19 @@ export default function QCTesting(){
           </div>
         )}
       </div>
+      {signingModal&&(
+        <SignToConfirmModal
+          title={signingModal.title}
+          description={signingModal.description}
+          documentType={signingModal.documentType}
+          documentId={signingModal.documentId}
+          documentLabel={signingModal.documentLabel}
+          facilityId={getCurrentFacility()}
+          buildPdf={signingModal.buildPdf}
+          onSigned={async(record)=>{ await signingModal.onSigned(record); setSigningModal(null); }}
+          onCancel={()=>setSigningModal(null)}
+        />
+      )}
     </>
   );
 }
