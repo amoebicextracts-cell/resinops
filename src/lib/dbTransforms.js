@@ -39,6 +39,7 @@ const SCHEMAS = {
   gmp_shifts: ['id','created_at','facility_id','shift_date','department','supervisor','notes','entries'],
   gmp_deviations: ['id','created_at','updated_at','facility_id','title','description','severity','status','batch_id','harvest_batch_id','assigned_to','resolved_at','resolution','batch_type','batch_name','step_name','deviation_date','deviation_type','root_cause','corrective_action','preventive_action','reported_by_id','closed_by_id','sop_id'],
   gmp_change_reasons: ['id','created_at','facility_id','table_name','record_id','action','reason','created_by'],
+  access_reviews: ['id','created_at','facility_id','review_batch_id','member_user_id','member_role','member_scope_roles','decision','notes','reviewed_by','reviewed_at'],
   skus: ['id','created_at','updated_at','facility_id','name','sku_code','category','unit_size','unit_price','wholesale_price','active','channel'],
   boms: ['id','created_at','updated_at','facility_id','sku_id','name','lines','category','subcategory'],
   sales_orders: ['id','created_at','updated_at','facility_id','created_by','customer_id','customer_name','customer_license','order_date','status','import_status','lines','notes','distru_order_id','metrc_transfer_id','due_date','amount_paid'],
@@ -518,6 +519,15 @@ const FIELD_OVERRIDES = {
     tableName: 'table_name',
     recordId: 'record_id',
     createdBy: 'created_by',
+  },
+  access_reviews: {
+    facilityId: 'facility_id',
+    reviewBatchId: 'review_batch_id',
+    memberUserId: 'member_user_id',
+    memberRole: 'member_role',
+    memberScopeRoles: 'member_scope_roles',
+    reviewedBy: 'reviewed_by',
+    reviewedAt: 'reviewed_at',
   },
   gmp_deviations: {
     batchId: 'batch_id',

@@ -33,6 +33,8 @@ const CSS = `
   .fs-pill-pending{background:rgba(200,150,58,0.2);color:var(--amber);}
   .fs-pill-accepted{background:rgba(74,124,89,0.2);color:var(--accent-2);}
   .fs-danger{background:rgba(200,74,74,0.1);color:var(--danger);border:1px solid rgba(200,74,74,0.3)!important;}
+  .fs-pill-overdue{background:rgba(200,74,74,0.2);color:var(--danger);}
+  .fs-review-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-2);border-radius:8px;margin-bottom:8px;flex-wrap:wrap;}
 `;
 
 const DEFAULTS = {
@@ -81,6 +83,10 @@ const ROLE_OPTIONS = [FACILITY_ROLES.VIEWER, FACILITY_ROLES.MEMBER, FACILITY_ROL
 // all, unlike the global role above which must always be a real role.
 const SCOPE_ROLE_OPTIONS = ["none", ...ROLE_OPTIONS];
 const EMPTY_INVITE = { email:"", role:FACILITY_ROLES.MEMBER, scopeRoles:{} };
+// Annex 11 §12 doesn't mandate a specific cadence -- 90 days is a common
+// baseline for periodic access recertification in GMP-adjacent programs.
+const ACCESS_REVIEW_INTERVAL_DAYS = 90;
+const ACCESS_REVIEW_DUE_SOON_DAYS = 14;
 
 // Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS and
 // 20260803090000_add_tiered_signoffs.sql's employees.tier check constraint.
@@ -234,6 +240,75 @@ export default function FacilitySettings(){
       if(!data || data.length===0) throw new Error("blocked (no matching row, or you don't have permission)");
       setMembers(prev=>prev.filter(m=>m.id!==member.id));
     }catch(e){ setTeamErr("Remove failed: "+e.message); }
+  }
+
+  const [accessReviews,setAccessReviews] = useState([]);
+  const [reviewErr,setReviewErr] = useState("");
+  const [reviewSession,setReviewSession] = useState(null); // {decisions:{[memberId]:{decision,notes}}}
+  const [reviewBusy,setReviewBusy] = useState(false);
+
+  async function loadAccessReviews(){
+    if(!isAdmin) return;
+    const fid = getCurrentFacility();
+    if(!fid) return;
+    try{
+      const rows = await db.access_reviews.list();
+      setAccessReviews((rows||[]).filter(r=>r.facilityId===fid));
+    }catch(e){ setReviewErr("Could not load access review history: "+e.message); }
+  }
+
+  useEffect(()=>{ loadAccessReviews(); },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Batches share a reviewBatchId; group into one entry per session so the
+  // status banner reflects the most recent full pass over the team, not
+  // just the single most recently-written row.
+  const reviewBatches = (()=>{
+    const byBatch = {};
+    for(const r of accessReviews){
+      if(!byBatch[r.reviewBatchId]) byBatch[r.reviewBatchId] = [];
+      byBatch[r.reviewBatchId].push(r);
+    }
+    return Object.values(byBatch).sort((a,b)=> new Date(b[0].reviewedAt) - new Date(a[0].reviewedAt));
+  })();
+  const lastBatch = reviewBatches[0] || null;
+  const lastReviewedAt = lastBatch ? lastBatch[0].reviewedAt : null;
+  const reviewDueDate = lastReviewedAt ? new Date(new Date(lastReviewedAt).getTime() + ACCESS_REVIEW_INTERVAL_DAYS*86400000) : null;
+  const daysUntilDue = reviewDueDate ? Math.ceil((reviewDueDate - Date.now())/86400000) : null;
+  const reviewStatus = !lastBatch ? "never" : daysUntilDue < 0 ? "overdue" : daysUntilDue <= ACCESS_REVIEW_DUE_SOON_DAYS ? "due_soon" : "ok";
+
+  function startAccessReview(){
+    setReviewErr("");
+    setReviewSession({ decisions: {} });
+  }
+  function setReviewDecision(memberId, decision){
+    setReviewSession(s=>({ decisions: { ...s.decisions, [memberId]: { decision, notes: s.decisions[memberId]?.notes || "" } } }));
+  }
+  function setReviewNotes(memberId, notes){
+    setReviewSession(s=>({ decisions: { ...s.decisions, [memberId]: { ...(s.decisions[memberId]||{decision:"confirmed"}), notes } } }));
+  }
+  async function finishAccessReview(){
+    const fid = getCurrentFacility();
+    if(!fid || !reviewSession) return;
+    setReviewBusy(true); setReviewErr("");
+    try{
+      const batchId = crypto.randomUUID();
+      for(const m of members){
+        const d = reviewSession.decisions[m.id] || { decision:"confirmed", notes:"" };
+        await db.access_reviews.upsert({
+          id: crypto.randomUUID(),
+          facilityId: fid,
+          reviewBatchId: batchId,
+          memberUserId: m.user_id,
+          memberRole: m.role,
+          memberScopeRoles: m.scope_roles || {},
+          decision: d.decision,
+          notes: d.notes || null,
+        });
+      }
+      setReviewSession(null);
+      await loadAccessReviews();
+    }catch(e){ setReviewErr("Could not save review: "+e.message); }
+    setReviewBusy(false);
   }
 
   async function save(){
@@ -522,6 +597,101 @@ export default function FacilitySettings(){
             <button className="fs-btn fs-primary" disabled={inviting||!inviteForm.email.trim()} onClick={sendInvite}>
               {inviting?"Sending invite…":"+ Send Invite"}
             </button>
+          </div>
+        )}
+
+        {supabase && isAdmin && (
+          <div className="fs-card">
+            <div className="fs-section" style={{margin:0,marginBottom:4}}>Access Review</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+              Periodically re-confirm that everyone's role and section access is still appropriate. Each pass is recorded as evidence for GMP audits — it doesn't change anyone's access by itself.
+            </div>
+
+            {reviewErr && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{reviewErr}</div>}
+
+            {!reviewSession && (
+              <>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+                  {reviewStatus==="never" && <span className="fs-pill fs-pill-overdue">Never reviewed</span>}
+                  {reviewStatus==="overdue" && <span className="fs-pill fs-pill-overdue">Overdue</span>}
+                  {reviewStatus==="due_soon" && <span className="fs-pill fs-pill-pending">Due soon</span>}
+                  {reviewStatus==="ok" && <span className="fs-pill fs-pill-accepted">Up to date</span>}
+                  {lastBatch ? (
+                    <div style={{fontSize:12,color:"var(--text-2)"}}>
+                      Last reviewed {new Date(lastReviewedAt).toLocaleDateString()} —{" "}
+                      {lastBatch.filter(r=>r.decision==="confirmed").length} confirmed,{" "}
+                      {lastBatch.filter(r=>r.decision==="revoke_recommended").length} flagged.
+                      {" "}Next due {reviewDueDate.toLocaleDateString()}.
+                    </div>
+                  ) : (
+                    <div style={{fontSize:12,color:"var(--text-2)"}}>No access review has been recorded for this facility yet.</div>
+                  )}
+                </div>
+
+                {lastBatch && lastBatch.some(r=>r.decision==="revoke_recommended") && (
+                  <div style={{marginBottom:14}}>
+                    <div className="fs-lbl" style={{marginBottom:6}}>Flagged for removal in the last review:</div>
+                    {lastBatch.filter(r=>r.decision==="revoke_recommended").map(r=>{
+                      const m = members.find(mm=>mm.user_id===r.memberUserId);
+                      return (
+                        <div key={r.id} className="fs-review-row">
+                          <div style={{minWidth:160,fontSize:13,fontWeight:600,color:"var(--text)"}}>
+                            {m ? (m.profile?.full_name || m.profile?.email || m.user_id) : r.memberUserId+" (no longer a member)"}
+                          </div>
+                          {r.notes && <div style={{fontSize:12,color:"var(--text-3)",flex:1}}>{r.notes}</div>}
+                          {m && m.role!=="owner" && (
+                            <button className="fs-btn fs-danger" style={{fontSize:11,padding:"5px 10px",marginLeft:"auto"}} onClick={()=>removeMember(m)}>Remove access now</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <button className="fs-btn fs-primary" disabled={members.length===0} onClick={startAccessReview}>+ Start Access Review</button>
+
+                {reviewBatches.length>1 && (
+                  <div style={{marginTop:16}}>
+                    <div className="fs-lbl" style={{marginBottom:6}}>History</div>
+                    {reviewBatches.slice(1).map(batch=>(
+                      <div key={batch[0].reviewBatchId} style={{fontSize:11,color:"var(--text-3)",marginBottom:3}}>
+                        {new Date(batch[0].reviewedAt).toLocaleDateString()} — {batch.filter(r=>r.decision==="confirmed").length} confirmed, {batch.filter(r=>r.decision==="revoke_recommended").length} flagged
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {reviewSession && (
+              <>
+                <div style={{fontSize:12,color:"var(--text-2)",marginBottom:10}}>Confirm or flag each team member below, then finish the review.</div>
+                {members.map(m=>{
+                  const d = reviewSession.decisions[m.id];
+                  const flagged = d?.decision==="revoke_recommended";
+                  return (
+                    <div key={m.id} className="fs-review-row">
+                      <div style={{minWidth:160}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{m.profile?.full_name || m.profile?.email || m.user_id}</div>
+                        <div style={{fontSize:11,color:"var(--text-3)"}}>{m.role}</div>
+                      </div>
+                      <button className={"fs-btn "+(d?.decision==="confirmed"?"fs-primary":"fs-secondary")} style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setReviewDecision(m.id,"confirmed")}>✓ Still needed</button>
+                      <button className={"fs-btn "+(flagged?"fs-danger":"fs-secondary")} style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setReviewDecision(m.id,"revoke_recommended")}>⚠ Flag for removal</button>
+                      {flagged && (
+                        <input className="fs-inp" style={{flex:1,minWidth:180}} placeholder="Why? (optional)" value={d?.notes||""} onChange={e=>setReviewNotes(m.id,e.target.value)} />
+                      )}
+                      {!d && <span style={{fontSize:11,color:"var(--text-3)"}}>Not yet reviewed</span>}
+                    </div>
+                  );
+                })}
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button className="fs-btn fs-primary" disabled={reviewBusy || members.some(m=>!reviewSession.decisions[m.id])} onClick={finishAccessReview}>
+                    {reviewBusy ? "Saving…" : "Finish Review"}
+                  </button>
+                  <button className="fs-btn fs-secondary" disabled={reviewBusy} onClick={()=>setReviewSession(null)}>Cancel</button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
