@@ -22,6 +22,18 @@ decision named as open in the first pass (PR-3) has since been made.
 This is the kind of update this document is meant to absorb routinely,
 not a special event.
 
+**Second reassessment (2026-08-24):** two customer-facing features
+shipped (supplier/vendor qualification tracking, and an in-app risk
+register mirroring this document's own shape for a facility's own use)
+— neither changes a rating here directly, since both are new
+capabilities rather than mitigations of a previously-rated risk. DI-6
+is now mitigated: the unsigned "Print Batch Record" export (the one
+unsigned GMP export left in the app — the signed batch record PDF and
+COA PDF were already covered by DI-4's sign-and-lock) now flags any
+included sign-off, deviation, or QC result that was edited after its
+original entry, with a document-level disclosure banner pointing at
+Sign & Release as the tamper-evident alternative.
+
 ## Methodology
 
 Each risk is rated **Likelihood** and **Impact** on a simple three-point
@@ -42,7 +54,7 @@ several risks rated Low likelihood today are rated that way specifically
 | DI-3 | A critical manually-entered value (QC result, batch weight, COGS input) is simply wrong, with no independent check | Medium | Medium | Medium | Ordinary single-entry form validation only — no second-entry or cross-check exists anywhere in the app | **Medium — open gap, no code-level mitigation yet** |
 | DI-4 | A signed GMP record (batch record, SOP, deviation closure, QC/COA result) is tampered with after signing | Low | High | Medium | SHA-256 hash computed at signing, re-verified server-side against a re-verified password; immutable, insert-only `signature_records`; private storage bucket with no client-facing write/delete access | Low |
 | DI-5 | A GMP record without a signing requirement (remediation, a deviation before closure) is edited with only a generic audit-log trail, not a full sign-and-lock | Medium | Medium | Medium | `audit_logs` before/after snapshot on every write; `gmp_change_reasons` requires a documented reason for the two highest-risk reversal actions (unsigning, reopening a closed deviation); a remediation retest now creates a real `qc_tests` row (independently signable via the existing COA sign flow) instead of a bare status dropdown value | Low-Medium — the retest COA itself can now be durably signed; the remediation *dose record* (original failed CFU data, irradiation settings) still has no sign-and-lock of its own, and a single terminal whole-batch-closure event still doesn't exist |
-| DI-6 | A printed or exported record doesn't indicate the underlying data changed since original entry | High | Low-Medium | Medium | None — every export (batch record PDF, COA PDF, CSV exports) is a plain point-in-time snapshot | **Medium — open gap, no mitigation yet; likely the cheapest of the open gaps to close (a "last edited" timestamp on non-signed exports)** |
+| DI-6 | A printed or exported record doesn't indicate the underlying data changed since original entry | Low | Low-Medium | Low | The signed batch record PDF and COA PDF are already covered by DI-4's sign-and-lock; the one remaining unsigned export (GMP Hub's "Print Batch Record") now flags any included sign-off/deviation/QC row edited after its original entry, plus a document-level disclosure banner | Low — CSV exports (inventory, finance, cultivation logs) remain plain snapshots, but those aren't signed GMP release records the way the batch/COA PDFs are |
 
 ## Availability / continuity risks
 
@@ -82,9 +94,11 @@ call about where effort is best spent next:
    consulting conversation), not worth trying to paper over.
 2. **DI-3 — no accuracy verification on critical data entry.** Medium
    likelihood, real impact, genuinely closeable in code.
-3. **DI-6 — exports don't flag post-entry edits.** High likelihood
-   (every export has this gap) but low-to-medium impact and, per the
-   traceability matrix, cheap to close.
+
+~~3. DI-6 — exports don't flag post-entry edits.~~ **Resolved
+2026-08-24**: the one unsigned GMP export (Print Batch Record) now
+flags edited rows and discloses its point-in-time nature. No longer an
+open item on this list — see the DI-6 row above.
 4. **AV-1 — unverified RTO, no PITR.** The business continuity plan
    already names both; the highest-leverage single action here is
    enabling Point-in-Time Recovery before onboarding a real paying
