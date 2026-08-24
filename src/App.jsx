@@ -59,6 +59,7 @@ import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import RiskRegister from "./RiskRegister.jsx";
+import BCPBuilder from "./BCPBuilder.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
 import Dashboard from "./Dashboard.jsx";
 import DataManager from "./DataManager.jsx";
@@ -1461,6 +1462,7 @@ export default function ResinOps() {
             {activeModule === "metrc" ? <MetrcHub /> : null}
             {activeModule === "gmp-hub" ? <GMPHub /> : null}
             {activeModule === "risk-register" ? <RiskRegister /> : null}
+            {activeModule === "bcp-builder" ? <BCPBuilder /> : null}
             {activeModule === "employees" ? <Employees /> : null}
             {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
             {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}

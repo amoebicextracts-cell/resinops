@@ -215,6 +215,15 @@ export const MODULES = [
     isScheduler: true,
     tier: "commercial",
   },
+  {
+    id: "bcp-builder",
+    label: "Business Continuity Plan",
+    icon: "🧯",
+    available: true,
+    description: "What could take this operation down, and how you'd respond — power loss, equipment failure, key personnel, and more",
+    isScheduler: true,
+    tier: "commercial",
+  },
   // ── People & Labor ──────────────────────────────────────────────────────────
   {
     id: "labor-dash",

@@ -87,6 +87,7 @@ const LS_KEYS = {
   sensor_device_links: 'resinops_sensor_device_links',
   sensor_readings: 'resinops_sensor_readings',
   risk_register:      'resinops_risk_register',
+  bcp_scenarios:      'resinops_bcp_scenarios',
 };
 
 // ── localStorage helpers ──────────────────────────────────────
