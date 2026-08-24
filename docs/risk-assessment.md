@@ -8,6 +8,20 @@ ever writing them down as a single assessment. This is that write-down
 revisited whenever a new major feature ships or a rated risk's
 mitigation changes.
 
+**Reassessment, same day (2026-08-23):** three things changed since the
+first pass, all reflected below rather than left stale — (1) the
+METRC write path (`api/metrc.js`) now shares the same release gate as
+`sales_orders`, closing the gap SEC-4 originally flagged as open; (2) a
+real functional bug was found and fixed in that shared gate itself —
+it checked whether a batch had *ever* failed QC, not whether its *most
+recent* test failed, which would have kept a legitimately remediated
+batch blocked forever; and (3) remediation retests now produce a real,
+independently-signable QC record instead of a bare status flag,
+closing part of DI-5. Separately, the self-attestation-vs-audit
+decision named as open in the first pass (PR-3) has since been made.
+This is the kind of update this document is meant to absorb routinely,
+not a special event.
+
 ## Methodology
 
 Each risk is rated **Likelihood** and **Impact** on a simple three-point
@@ -24,10 +38,10 @@ several risks rated Low likelihood today are rated that way specifically
 | # | Risk | Likelihood | Impact | Overall | Existing mitigation | Residual risk |
 |---|---|---|---|---|---|---|
 | DI-1 | Unauthorized or accidental modification of another tenant's data | Low | High | Medium | Row-level security on every tenant table, scoped by `facility_id`; proven daily in CI via a dedicated cross-tenant smoke test (`production-smoke.yml`, the `[SYNTHETIC] ResinOps Smoke Facility A`/`B - Forbidden` fixtures) | Low — this is the most independently-verified control in the system |
-| DI-2 | A QC-failed or unsigned batch reaches sale or shipment | Low | High | Medium | Database-level trigger on `sales_orders` and a matching gate in `api/metrc.js` (`check_batch_release_block()`), both verified against production with throwaway data | Low-Medium — quantity/inventory-availability isn't enforced (no real finished-goods ledger exists), only the hold/sign-off gates |
+| DI-2 | A QC-failed or unsigned batch reaches sale or shipment | Low | High | Medium | Database-level trigger on `sales_orders` and a matching gate in `api/metrc.js`, both calling the shared `check_batch_release_block()`, which keys off each batch's *most recent* QC test (fixed from an initial version that checked whether any test had ever failed — that version would have kept a successfully remediated batch permanently blocked). All verified against production with throwaway data. | Low-Medium — quantity/inventory-availability isn't enforced (no real finished-goods ledger exists), only the hold/sign-off gates |
 | DI-3 | A critical manually-entered value (QC result, batch weight, COGS input) is simply wrong, with no independent check | Medium | Medium | Medium | Ordinary single-entry form validation only — no second-entry or cross-check exists anywhere in the app | **Medium — open gap, no code-level mitigation yet** |
 | DI-4 | A signed GMP record (batch record, SOP, deviation closure, QC/COA result) is tampered with after signing | Low | High | Medium | SHA-256 hash computed at signing, re-verified server-side against a re-verified password; immutable, insert-only `signature_records`; private storage bucket with no client-facing write/delete access | Low |
-| DI-5 | A GMP record without a signing requirement (remediation, a deviation before closure) is edited with only a generic audit-log trail, not a full sign-and-lock | Medium | Medium | Medium | `audit_logs` before/after snapshot on every write; `gmp_change_reasons` requires a documented reason for the two highest-risk reversal actions (unsigning, reopening a closed deviation) | Medium — durable signed archival hasn't been extended to remediation records or a single terminal whole-batch-closure event yet (known, ranked gap from the traceability-matrix research pass) |
+| DI-5 | A GMP record without a signing requirement (remediation, a deviation before closure) is edited with only a generic audit-log trail, not a full sign-and-lock | Medium | Medium | Medium | `audit_logs` before/after snapshot on every write; `gmp_change_reasons` requires a documented reason for the two highest-risk reversal actions (unsigning, reopening a closed deviation); a remediation retest now creates a real `qc_tests` row (independently signable via the existing COA sign flow) instead of a bare status dropdown value | Low-Medium — the retest COA itself can now be durably signed; the remediation *dose record* (original failed CFU data, irradiation settings) still has no sign-and-lock of its own, and a single terminal whole-batch-closure event still doesn't exist |
 | DI-6 | A printed or exported record doesn't indicate the underlying data changed since original entry | High | Low-Medium | Medium | None — every export (batch record PDF, COA PDF, CSV exports) is a plain point-in-time snapshot | **Medium — open gap, no mitigation yet; likely the cheapest of the open gaps to close (a "last edited" timestamp on non-signed exports)** |
 
 ## Availability / continuity risks
@@ -45,7 +59,7 @@ several risks rated Low likelihood today are rated that way specifically
 | SEC-1 | Compromised Supabase service-role key or other static credential | Low | High | Medium | Stored only in Vercel's encrypted environment variables, never in client code or git; the backup pipeline specifically uses Workload Identity Federation instead of a static key, eliminating that credential from the threat model entirely | Medium — the service-role key itself is still a static secret with broad access; no rotation cadence is currently documented |
 | SEC-2 | Stale or excessive facility member access going unnoticed | Medium | Medium | Medium | Periodic access-review workflow (90-day cadence, due/overdue banner, direct path from a flagged member to removal) | Low-Medium — the review is self-initiated by an admin, not enforced; nothing in the system currently blocks continued access if a review goes overdue |
 | SEC-3 | A credential-aware safety check is silently bypassed via a manual-entry escape hatch (confirmed: the pesticide-applicator picker in cultivation-input/spray-log forms) | Low | Low-Medium | Low | The escape hatch exists for legitimate cases (a licensed applicator not yet in the roster) | Low — cosmetic/process risk more than a data-integrity one, since it doesn't affect GMP release decisions |
-| SEC-4 | METRC integration becomes a live, unverified regulatory-submission channel | None currently (integration is fully unconfigured in every environment) | High, if it ever activates without further verification | Low today | Deliberately disabled pending a real ResinOps business license, EIN, and METRC vendor approval; the same `check_batch_release_block()` gate used for `sales_orders` is already wired into the write path so it's correct whenever that day comes | Low today, **re-assess before ever configuring METRC write credentials** — the transfer-manifest payload shape is explicitly marked as unverified against real METRC API documentation |
+| SEC-4 | METRC integration becomes a live, unverified regulatory-submission channel | None currently (integration is fully unconfigured in every environment) | High, if it ever activates without further verification | Low today | Deliberately disabled pending a real ResinOps business license, EIN, and METRC vendor approval; `packages.create` and `transfers.create_outgoing` now both call `check_batch_release_block()` before pushing, confirmed wired up (previously just "planned" in the first pass of this assessment) | Low today, **re-assess before ever configuring METRC write credentials** — the transfer-manifest payload shape is still explicitly marked as unverified against real METRC API documentation, which the release gate doesn't address |
 
 ## Process / regulatory risks
 
@@ -53,7 +67,7 @@ several risks rated Low likelihood today are rated that way specifically
 |---|---|---|---|---|---|---|
 | PR-1 | Demo/investor-facing data is confused with real customer data during a support or admin action | Low | Medium | Low-Medium | The demo-load/clear-all-data tool now requires typing the exact current facility's name back before either action runs | Low |
 | PR-2 | No independent code review — every change is authored and merged by the same person | High | Medium | Medium | Automated CI (build, tests, RLS/security-invariant suite) is the only independent check | **Medium — structural, same root cause as AV-3, named honestly in the change-management SOP rather than hidden** |
-| PR-3 | No third-party validation of any control described in this assessment or the traceability matrix | High (nothing has been externally audited) | Medium, rising if a real client requires it | Medium | None yet — every control here is self-assessed | **Open decision, not yet made: self-attestation vs. seeking third-party audit. Both are legitimate paths; this assessment doesn't resolve which one to take, only names that the choice hasn't been made** |
+| PR-3 | No third-party validation of any control described in this assessment or the traceability matrix | High (nothing has been externally audited) | Medium, rising if a real client requires it | Medium | None — every control here remains self-assessed | **Decided (2026-08-23): self-attestation for now, not third-party audit.** A deliberate choice for an early-stage vendor with no real paying customer yet, not an oversight — revisit if a prospective client (e.g. the Colombia conversation) specifically requires independent verification |
 
 ## Top residual risks, ranked
 
@@ -75,10 +89,10 @@ call about where effort is best spent next:
    already names both; the highest-leverage single action here is
    enabling Point-in-Time Recovery before onboarding a real paying
    facility.
-5. **PR-3 — the audit-approach decision.** Not a risk to close so much
-   as a decision to make; it reframes several "Medium, open" ratings
-   above into either "accepted and disclosed" or "being fixed for
-   audit," which is a business call, not an engineering one.
+
+~~5. PR-3 — the audit-approach decision.~~ **Resolved 2026-08-23**:
+self-attestation, for now. No longer an open item on this list — see
+the PR-3 row above.
 
 ## Known gaps in this assessment itself
 
