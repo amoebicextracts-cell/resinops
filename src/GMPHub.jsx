@@ -8,6 +8,21 @@ import SignToConfirmModal from "./SignToConfirmModal.jsx";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtDT(dt){return dt?parseDateLocal(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
+
+// DI-6 mitigation: the unsigned "Print Batch Record" export below is a
+// plain point-in-time snapshot with no sign-and-lock behind it (unlike
+// buildBatchRecordPdf, which only ever runs inside the Sign & Release
+// flow). A record edited after its original entry would otherwise show
+// up in this export with no indication it isn't what was true when the
+// work was originally performed. 120s tolerance absorbs the same-request
+// created_at/updated_at skew a fresh insert can have, so a never-edited
+// row doesn't get flagged just from clock jitter.
+function wasEditedAfterEntry(rec){
+  const created=rec?.created_at||rec?.createdAt;
+  const updated=rec?.updated_at||rec?.updatedAt;
+  if(!created||!updated) return false;
+  return (new Date(updated).getTime()-new Date(created).getTime())>120000;
+}
 const DEPT=["Cultivation","Post-Harvest","Extraction","Processing","Packaging","QC / Lab","Maintenance","All"];
 const DEV_TYPES=["Process Deviation","Equipment Failure","Contamination / Environmental","Documentation Error","Personnel / Training","Material / Input Issue","Other"];
 const DEV_SEVERITIES=["minor","major","critical"];
@@ -780,9 +795,11 @@ export default function GMPHub(){
                   const batchSignoffs=signoffs.filter(s=>s.batchType===type&&String(s.batchId)===id);
                   const batchDevs=deviations.filter(d=>d.batchType===type&&String(d.batchId)===id);
                   const qcRecs=qcTests.filter(t=>t.batchType===type&&String(t.batchId)===id);
-                  const signoffRows=batchSignoffs.map(s=>`<tr><td>${s.stepName||""}</td><td>${s.performedById||""}</td><td>${s.verifiedById||"—"}</td><td>${s.timestamp?new Date(s.timestamp).toLocaleString():"—"}</td><td>${s.notes||"—"}</td></tr>`).join("");
-                  const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.correctiveAction||"—"}</td></tr>`).join("");
-                  const qcRow=qcRecs.map(t=>`<tr><td>${t.labName||""}</td><td>${t.sampleId||""}</td><td>${t.thca||"—"}%</td><td>${t.totalTerpenes||"—"}%</td><td style="color:${t.overallPass?"#2d5a3d":"#c04040"};font-weight:600;">${t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</td></tr>`).join("");
+                  const editedMark=rec=>wasEditedAfterEntry(rec)?` <span class="edited-mark" title="Edited after original entry">✎</span>`:"";
+                  const editedCount=[...batchSignoffs,...batchDevs,...qcRecs].filter(wasEditedAfterEntry).length;
+                  const signoffRows=batchSignoffs.map(s=>`<tr><td>${s.stepName||""}${editedMark(s)}</td><td>${s.performedById||""}</td><td>${s.verifiedById||"—"}</td><td>${s.timestamp?new Date(s.timestamp).toLocaleString():"—"}</td><td>${s.notes||"—"}</td></tr>`).join("");
+                  const devRows=batchDevs.map(d=>`<tr><td>${d.type||""}${editedMark(d)}</td><td>${d.severity||""}</td><td>${d.title||""}</td><td>${d.status||""}</td><td>${d.correctiveAction||"—"}</td></tr>`).join("");
+                  const qcRow=qcRecs.map(t=>`<tr><td>${t.labName||""}${editedMark(t)}</td><td>${t.sampleId||""}</td><td>${t.thca||"—"}%</td><td>${t.totalTerpenes||"—"}%</td><td style="color:${t.overallPass?"#2d5a3d":"#c04040"};font-weight:600;">${t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"}</td></tr>`).join("");
                   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>GMP Batch Record</title><style>
                     body{font-family:Arial,sans-serif;font-size:10px;margin:24px;color:#222;}
                     h1{font-size:16px;margin:0 0 4px;color:#1a3a28;}h2{font-size:12px;margin:16px 0 6px;color:#2d5a3d;border-bottom:2px solid #2d5a3d;padding-bottom:3px;}
@@ -794,6 +811,10 @@ export default function GMPHub(){
                     td{padding:5px 8px;border-bottom:1px solid #e8e8e8;font-size:10px;vertical-align:top;}tr:nth-child(even){background:#f9f9f9;}
                     .footer{margin-top:24px;border-top:1px solid #ccc;padding-top:8px;font-size:8px;color:#888;display:flex;justify-content:space-between;}
                     .empty{color:#999;font-style:italic;padding:8px 0;}
+                    .disclosure{margin-bottom:16px;padding:8px 12px;border-radius:6px;font-size:9px;}
+                    .disclosure.neutral{background:#f0f0f0;color:#666;border:1px solid #ddd;}
+                    .disclosure.warn{background:#fdf2e3;color:#8a5a00;border:1px solid #e8c27a;font-weight:600;}
+                    .edited-mark{color:#8a5a00;font-weight:700;}
                   </style></head><body>
                   <h1>GMP Batch Record — ${type==="harvest"?batch.strainName:batch.name}</h1>
                   <div class="meta">
@@ -804,6 +825,9 @@ export default function GMPHub(){
                     <div class="meta-item"><div class="meta-label">Space</div><div class="meta-value">${batch.spaceName||batch.strains||"—"}</div></div>
                     <div class="meta-item"><div class="meta-label">Status</div><div class="meta-value">${batch.status||"—"}</div></div>
                   </div>
+                  ${editedCount>0
+                    ?`<div class="disclosure warn">⚠ Unsigned, point-in-time export generated ${new Date().toLocaleString()}. ${editedCount} record${editedCount>1?"s":""} marked ✎ below ${editedCount>1?"were":"was"} edited after their original entry — this export reflects the latest edit, not necessarily what was true when the work was performed. For a tamper-evident record, use Sign &amp; Release instead.</div>`
+                    :`<div class="disclosure neutral">This is an unsigned, point-in-time export generated ${new Date().toLocaleString()}. For a tamper-evident record, use Sign &amp; Release instead.</div>`}
                   <h2>Step Sign-Offs (${batchSignoffs.length})</h2>
                   ${batchSignoffs.length?`<table><thead><tr><th>Step</th><th>Performed By</th><th>Verified By</th><th>Timestamp</th><th>Notes</th></tr></thead><tbody>${signoffRows}</tbody></table>`:`<div class="empty">No sign-offs recorded for this batch.</div>`}
                   <h2>QC / Lab Results (${qcRecs.length})</h2>
