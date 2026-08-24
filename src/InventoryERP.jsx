@@ -158,7 +158,19 @@ const EMPTY_ITEM = {
   requiresCoc:false,
   cocs:[], // array of {id, lotNum, supplier, issueDate, expiryDate, docRef, specs:{thc,cbd,heavyMetals,pesticides,microbials,moisture,custom}, status:"pass"|"fail"|"pending", notes}
 };
-const EMPTY_VENDOR = {n:"",vendorType:"supply",contact:"",phone:"",email:"",leadDays:"7",notes:"",salesContactName:"",salesContactTitle:"",salesContactPhone:"",salesContactEmail:""};
+const EMPTY_VENDOR = {n:"",vendorType:"supply",contact:"",phone:"",email:"",leadDays:"7",notes:"",salesContactName:"",salesContactTitle:"",salesContactPhone:"",salesContactEmail:"",qualificationStatus:"not_started",qualificationReviewedAt:"",qualificationReviewedBy:"",qualificationNextReviewDate:"",qualificationNotes:""};
+const VENDOR_QUAL_STATUSES = [
+  ["not_started","Not started"],["pending","Pending review"],["qualified","Qualified"],["disqualified","Disqualified"],
+];
+function vendorQualPillStyle(status){
+  if(status==="qualified") return {background:"rgba(74,124,89,0.2)",color:"var(--accent-2)"};
+  if(status==="pending") return {background:"rgba(200,150,58,0.15)",color:"var(--amber)"};
+  if(status==="disqualified") return {background:"rgba(200,74,74,0.15)",color:"var(--danger)"};
+  return {background:"var(--surface-2)",color:"var(--text-3)"};
+}
+function vendorQualLabel(status){
+  return VENDOR_QUAL_STATUSES.find(([v])=>v===status)?.[1] || "Not started";
+}
 const EMPTY_PO = {vendorId:"",date:"",items:[],notes:""};
 
 // ── CocTab component — hooks at top level ────────────────────────────────────
@@ -704,6 +716,16 @@ export default function InventoryERP() {
                   <div><label className="erp-lbl">Sales phone</label><input className="erp-inp" value={vendorForm.salesContactPhone||""} onChange={e=>setVF("salesContactPhone",e.target.value)} /></div>
                   <div><label className="erp-lbl">Sales email</label><input className="erp-inp" value={vendorForm.salesContactEmail||""} onChange={e=>setVF("salesContactEmail",e.target.value)} /></div>
                 </div>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--text-3)",textTransform:"uppercase",letterSpacing:"0.05em",margin:"4px 0 8px"}}>Supplier qualification</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label className="erp-lbl">Status</label><select className="erp-sel" value={vendorForm.qualificationStatus||"not_started"} onChange={e=>setVF("qualificationStatus",e.target.value)}>{VENDOR_QUAL_STATUSES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+                  <div><label className="erp-lbl">Reviewed on</label><input type="date" className="erp-inp" value={vendorForm.qualificationReviewedAt||""} onChange={e=>setVF("qualificationReviewedAt",e.target.value)} /></div>
+                  <div><label className="erp-lbl">Reviewed by</label><input className="erp-inp" value={vendorForm.qualificationReviewedBy||""} onChange={e=>setVF("qualificationReviewedBy",e.target.value)} /></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:10,marginBottom:10}}>
+                  <div><label className="erp-lbl">Next review due</label><input type="date" className="erp-inp" value={vendorForm.qualificationNextReviewDate||""} onChange={e=>setVF("qualificationNextReviewDate",e.target.value)} /></div>
+                  <div><label className="erp-lbl">What's on file (COI, W9, license copy, SDS, etc.)</label><input className="erp-inp" value={vendorForm.qualificationNotes||""} onChange={e=>setVF("qualificationNotes",e.target.value)} placeholder="e.g. COI on file through 2027-01, W9 on file" /></div>
+                </div>
                 {err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:8}}>{err}</div>}
                 <div style={{display:"flex",gap:8}}>
                   <button className="erp-btn erp-primary" onClick={saveVendor}>{vendorForm.id?"Save":"Add vendor"}</button>
@@ -716,20 +738,27 @@ export default function InventoryERP() {
             ) : (
               <div style={{border:"1px solid var(--border)",borderRadius:8,overflow:"hidden"}}>
                 <table className="erp-tbl">
-                  <thead><tr><th>Vendor</th><th>Type</th><th>Contact</th><th>Phone</th><th>Email</th><th>Lead Time</th><th></th></tr></thead>
+                  <thead><tr><th>Vendor</th><th>Type</th><th>Contact</th><th>Phone</th><th>Email</th><th>Lead Time</th><th>Qualification</th><th></th></tr></thead>
                   <tbody>
-                    {vendors.map(v=>(
+                    {vendors.map(v=>{
+                      const qualOverdue = v.qualificationNextReviewDate && v.qualificationNextReviewDate < todayLocalISO();
+                      return (
                       <tr key={v.id}>
                         <td style={{fontWeight:500,color:"var(--text)"}}>{v.n}</td>
                         <td><span className="pill" style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,background:v.vendorType==="equipment_service"?"rgba(90,120,200,0.15)":v.vendorType==="both"?"rgba(200,150,58,0.15)":"rgba(74,124,89,0.2)",color:v.vendorType==="equipment_service"?"#7090f0":v.vendorType==="both"?"var(--amber)":"var(--accent-2)"}}>{v.vendorType==="equipment_service"?"Service":v.vendorType==="both"?"Both":"Supply"}</span></td>
                         <td>{v.contact||"—"}{v.salesContactName?<div style={{fontSize:10,color:"var(--text-3)"}}>Sales: {v.salesContactName}</div>:null}</td><td>{v.phone||"—"}</td><td>{v.email||"—"}</td>
                         <td>{v.leadDays||"—"} days</td>
+                        <td>
+                          <span className="pill" style={{fontSize:10,fontWeight:600,padding:"2px 7px",borderRadius:10,...vendorQualPillStyle(v.qualificationStatus)}}>{vendorQualLabel(v.qualificationStatus)}</span>
+                          {qualOverdue && <div style={{fontSize:10,color:"var(--danger)",marginTop:3}}>⚠ Review overdue</div>}
+                        </td>
                         <td><div style={{display:"flex",gap:6}}>
                           <button className="erp-btn erp-secondary" style={{padding:"3px 7px",fontSize:10}} onClick={()=>{setVendorForm(v);setErr("");}}>Edit</button>
                           <button className="erp-danger" onClick={()=>removeVendor(v.id)}>✕</button>
                         </div></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
