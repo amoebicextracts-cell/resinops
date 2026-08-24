@@ -65,7 +65,7 @@ several risks rated Low likelihood today are rated that way specifically
 
 | # | Risk | Likelihood | Impact | Overall | Existing mitigation | Residual risk |
 |---|---|---|---|---|---|---|
-| AV-1 | Supabase project loss or extended outage | Low | High | Medium | Two independent daily backups (Supabase's own built-in physical backup, and ResinOps' own restore-verified pipeline to 7-year GCS retention) — see [business-continuity-plan.md](./business-continuity-plan.md) | Medium — RPO is bounded to ~24h since Point-in-Time Recovery isn't enabled; RTO is an estimate, never rehearsed as a real drill |
+| AV-1 | Supabase project loss or extended outage | Low | High | Medium | Two independent daily backups (Supabase's own built-in physical backup, and ResinOps' own restore-verified pipeline to 7-year GCS retention) — see [business-continuity-plan.md](./business-continuity-plan.md) | Medium — RPO is bounded to ~24h since Point-in-Time Recovery isn't enabled; RTO is an estimate, never rehearsed as a real drill. **Decided (2026-08-24): not enabling PITR yet** — priced at ~$100/mo, deferred until consulting revenue is coming in; revisit then, not a technical blocker in the meantime |
 | AV-2 | Vercel outage or a bad deploy | Low | Low | Low | Immutable, instantly-reversible deploys; database is untouched by a pure frontend/function incident | Low |
 | AV-3 | The one person who can execute any recovery procedure is unavailable | Medium | High | Medium-High | None beyond documentation (this assessment, the BCP, and the change-management SOP make the dependency explicit rather than hidden) | **Medium-High — structural, accepted at current company size, not solved by any document** |
 
@@ -107,9 +107,10 @@ fully closed, but no longer the top actionable item on this list.
 flags edited rows and discloses its point-in-time nature. No longer an
 open item on this list — see the DI-6 row above.
 4. **AV-1 — unverified RTO, no PITR.** The business continuity plan
-   already names both; the highest-leverage single action here is
-   enabling Point-in-Time Recovery before onboarding a real paying
-   facility.
+   already names both. **Decided (2026-08-24): PITR deferred** —
+   ~$100/mo isn't justified pre-revenue; revisit once consulting income
+   is coming in. The RTO-drill half of this item has no cost blocker
+   and remains open.
 
 ~~5. PR-3 — the audit-approach decision.~~ **Resolved 2026-08-23**:
 self-attestation, for now. No longer an open item on this list — see
