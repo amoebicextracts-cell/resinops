@@ -32,7 +32,12 @@ unsigned GMP export left in the app — the signed batch record PDF and
 COA PDF were already covered by DI-4's sign-and-lock) now flags any
 included sign-off, deviation, or QC result that was edited after its
 original entry, with a document-level disclosure banner pointing at
-Sign & Release as the tamper-evident alternative.
+Sign & Release as the tamper-evident alternative. Separately, DI-3 is
+now partially mitigated: QC test submissions route any determinate
+pass/fail result through a confirm-before-save review step, since a
+mis-entered result there directly gates the batch-release logic that
+DI-2 already covers. Batch weight and COGS entry remain the open part
+of DI-3.
 
 ## Methodology
 
@@ -51,7 +56,7 @@ several risks rated Low likelihood today are rated that way specifically
 |---|---|---|---|---|---|---|
 | DI-1 | Unauthorized or accidental modification of another tenant's data | Low | High | Medium | Row-level security on every tenant table, scoped by `facility_id`; proven daily in CI via a dedicated cross-tenant smoke test (`production-smoke.yml`, the `[SYNTHETIC] ResinOps Smoke Facility A`/`B - Forbidden` fixtures) | Low — this is the most independently-verified control in the system |
 | DI-2 | A QC-failed or unsigned batch reaches sale or shipment | Low | High | Medium | Database-level trigger on `sales_orders` and a matching gate in `api/metrc.js`, both calling the shared `check_batch_release_block()`, which keys off each batch's *most recent* QC test (fixed from an initial version that checked whether any test had ever failed — that version would have kept a successfully remediated batch permanently blocked). All verified against production with throwaway data. | Low-Medium — quantity/inventory-availability isn't enforced (no real finished-goods ledger exists), only the hold/sign-off gates |
-| DI-3 | A critical manually-entered value (QC result, batch weight, COGS input) is simply wrong, with no independent check | Medium | Medium | Medium | Ordinary single-entry form validation only — no second-entry or cross-check exists anywhere in the app | **Medium — open gap, no code-level mitigation yet** |
+| DI-3 | A critical manually-entered value (QC result, batch weight, COGS input) is simply wrong, with no independent check | Low | Medium | Low-Medium | QC test submissions (the example named first in this row, and the one that directly gates `check_batch_release_block()`) now route any determinate pass/fail result through a confirm-before-save review step showing the exact panel results entered, before the record commits | Low-Medium — batch weight and COGS inputs remain single-entry with no cross-check |
 | DI-4 | A signed GMP record (batch record, SOP, deviation closure, QC/COA result) is tampered with after signing | Low | High | Medium | SHA-256 hash computed at signing, re-verified server-side against a re-verified password; immutable, insert-only `signature_records`; private storage bucket with no client-facing write/delete access | Low |
 | DI-5 | A GMP record without a signing requirement (remediation, a deviation before closure) is edited with only a generic audit-log trail, not a full sign-and-lock | Medium | Medium | Medium | `audit_logs` before/after snapshot on every write; `gmp_change_reasons` requires a documented reason for the two highest-risk reversal actions (unsigning, reopening a closed deviation); a remediation retest now creates a real `qc_tests` row (independently signable via the existing COA sign flow) instead of a bare status dropdown value | Low-Medium — the retest COA itself can now be durably signed; the remediation *dose record* (original failed CFU data, irradiation settings) still has no sign-and-lock of its own, and a single terminal whole-batch-closure event still doesn't exist |
 | DI-6 | A printed or exported record doesn't indicate the underlying data changed since original entry | Low | Low-Medium | Low | The signed batch record PDF and COA PDF are already covered by DI-4's sign-and-lock; the one remaining unsigned export (GMP Hub's "Print Batch Record") now flags any included sign-off/deviation/QC row edited after its original entry, plus a document-level disclosure banner | Low — CSV exports (inventory, finance, cultivation logs) remain plain snapshots, but those aren't signed GMP release records the way the batch/COA PDFs are |
@@ -92,8 +97,10 @@ call about where effort is best spent next:
    Worth naming as a real constraint in any conversation where ResinOps'
    operational maturity is being evaluated (e.g. the Colombia
    consulting conversation), not worth trying to paper over.
-2. **DI-3 — no accuracy verification on critical data entry.** Medium
-   likelihood, real impact, genuinely closeable in code.
+~~2. DI-3 — no accuracy verification on critical data entry.~~
+**Partially resolved 2026-08-24**: QC test submissions now confirm
+before save. Batch weight and COGS inputs are still single-entry — not
+fully closed, but no longer the top actionable item on this list.
 
 ~~3. DI-6 — exports don't flag post-entry edits.~~ **Resolved
 2026-08-24**: the one unsigned GMP export (Print Batch Record) now
