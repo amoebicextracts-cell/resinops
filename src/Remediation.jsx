@@ -5,6 +5,19 @@ import StrainCombo from "./StrainCombo.jsx";
 import { SUBS } from "./ProductionScheduler.jsx";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 
+function emptyRetest(record) {
+  return {
+    record,
+    microbialResult: null, // "pass" | "fail"
+    labName: "", labReportRef: "", testDate: todayLocalISO(),
+    tyamCfu: "", tabCfu: "", aspergillus: false,
+    profileRetested: null, // true | false — did the terpene/cannabinoid panel get re-tested post-treatment?
+    thca: "", thc: "", cbd: "", totalTerpenes: "",
+    skipReason: "",
+    busy: false, err: "",
+  };
+}
+
 const LBS_TO_G = 453.592;
 
 // ── Core dose math, ported directly from the lab's Aspergillus-adjusted dose calculator ──
@@ -93,6 +106,7 @@ export default function Remediation() {
   },[]);
   const [form, setForm] = useState(null);
   const [err, setErr] = useState("");
+  const [retestModal, setRetestModal] = useState(null);
 
 
   const setF = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -141,6 +155,75 @@ export default function Remediation() {
       await db.remediation.delete(id);
       setRecords(p => p.filter(x => x.id !== id));
     }catch(e){ setErr("Could not delete: "+(e.message||e)); }
+  }
+
+  // ── Record a real retest result ──────────────────────────────────────
+  // Prior to this, "Retested — Passed" was a bare status dropdown value
+  // with no real data behind it — it never touched the original qc_tests
+  // hold, so a successfully-remediated batch stayed permanently blocked
+  // from sale by the DB-level release gate (check_batch_release_block).
+  // This creates a REAL qc_tests row for the retest (so it becomes the
+  // batch's most-recent test and governs release) rather than editing
+  // the original signed-or-unsigned COA in place.
+  //
+  // The profileRetested choice is deliberately forced, not defaulted:
+  // irradiation/e-beam/gamma treatment can measurably shift a terpene
+  // profile, so silently carrying forward the pre-treatment COA's
+  // cannabinoid/terpene numbers into what looks like a fresh post-
+  // treatment result would be exactly the "publish a pre-treatment
+  // profile, release post-treatment product" finding GMP auditors look
+  // for. If the profile wasn't re-tested, that's recorded as a visible,
+  // justified choice — the new record's cannabinoid/terpene fields stay
+  // genuinely blank rather than quietly duplicating stale values.
+  function openRetest(record) { setRetestModal(emptyRetest(record)); }
+  function setRetestField(k, v) { setRetestModal(m => ({ ...m, [k]: v, err: "" })); }
+
+  async function saveRetest() {
+    const m = retestModal;
+    if (!m.microbialResult) { setRetestModal(x => ({ ...x, err: "Choose the retest's overall microbial result." })); return; }
+    if (m.profileRetested === null) { setRetestModal(x => ({ ...x, err: "Choose whether the terpene/cannabinoid profile was re-tested after treatment." })); return; }
+    if (m.profileRetested && !(m.thca || m.thc || m.cbd || m.totalTerpenes)) { setRetestModal(x => ({ ...x, err: "Enter at least one re-tested cannabinoid/terpene value, or choose \"not re-tested\" instead." })); return; }
+    if (!m.profileRetested && !m.skipReason.trim()) { setRetestModal(x => ({ ...x, err: "Explain why the profile wasn't re-tested — this is recorded on the new COA record." })); return; }
+
+    setRetestModal(x => ({ ...x, busy: true, err: "" }));
+    try {
+      const passed = m.microbialResult === "pass";
+      const isHarvest = m.record.sourceType === "harvest";
+      const qcRec = {
+        id: crypto.randomUUID(),
+        batchType: isHarvest ? "harvest" : "production",
+        harvestBatchId: isHarvest ? m.record.sourceId : null,
+        productionBatchId: isHarvest ? null : m.record.sourceId,
+        strainName: m.record.strainName,
+        sampleId: m.labReportRef,
+        labName: m.labName,
+        submittedDate: m.testDate,
+        receivedDate: m.testDate,
+        tyam: m.tyamCfu || null,
+        tab: m.tabCfu || null,
+        aspergillus: m.aspergillus,
+        microbialPass: passed,
+        overallPass: passed,
+        onHold: !passed,
+        thca: m.profileRetested ? (m.thca || null) : null,
+        thc: m.profileRetested ? (m.thc || null) : null,
+        cbd: m.profileRetested ? (m.cbd || null) : null,
+        totalTerpenes: m.profileRetested ? (m.totalTerpenes || null) : null,
+        notes: m.profileRetested
+          ? `Post-remediation retest COA — cannabinoid/terpene profile re-tested after treatment. Linked remediation record: ${m.record.id}.`
+          : `Post-remediation retest COA — microbial panel only. Cannabinoid/terpene profile NOT re-tested after treatment; do not treat the pre-treatment COA's values as representative of this post-treatment material. Reason not re-tested: ${m.skipReason.trim()}. Linked remediation record: ${m.record.id}.`,
+      };
+      const savedQc = await db.qc_tests.upsert(qcRec);
+      const savedRemediation = await db.remediation.update(m.record.id, {
+        status: passed ? "passed" : "failed",
+        retestResult: passed ? "Passed" : "Failed",
+        retestQcTestId: savedQc.id,
+      });
+      setRecords(p => p.map(x => x.id === m.record.id ? savedRemediation : x));
+      setRetestModal(null);
+    } catch (e) {
+      setRetestModal(x => ({ ...x, busy: false, err: "Could not save retest: " + (e.message || e) }));
+    }
   }
 
   const liveDose = form ? calcDose(form.tyamCfu, form.tabCfu, form.aspergillus, form.gyPerHour, form.turnRequired, form.weightG) : null;
@@ -310,8 +393,12 @@ export default function Remediation() {
                       <td>{r.aspergillus ? <span className="rm-pill status-flagged">Yes</span> : "—"}</td>
                       <td>{fmtN(r.dose?.totalDoseGy,0)} Gy</td>
                       <td style={{color:"var(--accent-2)"}}>{fmtN(r.dose?.totalHours,2)} hrs</td>
-                      <td><span className={"rm-pill status-"+r.status}>{r.status}</span></td>
-                      <td><div style={{display:"flex",gap:5}}>
+                      <td>
+                        <span className={"rm-pill status-"+r.status}>{r.status}</span>
+                        {r.retestQcTestId && <div style={{fontSize:10,color:"var(--text-3)",marginTop:3}}>Retest COA recorded</div>}
+                      </td>
+                      <td><div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                        {r.status==="irradiated" && <button className="rm-sm rm-edit" onClick={()=>openRetest(r)}>Record Retest</button>}
                         <button className="rm-sm rm-edit" onClick={()=>openEdit(r)}>Edit</button>
                         <button className="rm-sm rm-del" onClick={()=>remove(r.id)}>✕</button>
                       </div></td>
@@ -323,6 +410,66 @@ export default function Remediation() {
           </div>
         )}
       </div>
+      {retestModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>{if(!retestModal.busy) setRetestModal(null);}}>
+          <div className="rm-card" style={{width:520,maxWidth:"92vw",margin:0,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:4}}>Record Retest Result</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+              {retestModal.record.strainName || "This batch"} — creates a real COA record from this retest, which becomes the batch's current QC status. Original failed result stays on record as history.
+            </div>
+
+            <div className="rm-box">
+              <div className="rm-box-t">Retest Lab Result</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="rm-lbl">Lab name</label><input className="rm-inp" value={retestModal.labName} onChange={e=>setRetestField("labName",e.target.value)} /></div>
+                <div><label className="rm-lbl">Report / sample ref #</label><input className="rm-inp" value={retestModal.labReportRef} onChange={e=>setRetestField("labReportRef",e.target.value)} /></div>
+                <div><label className="rm-lbl">Retest date</label><input type="date" className="rm-inp" value={retestModal.testDate} onChange={e=>setRetestField("testDate",e.target.value)} /></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                <div><label className="rm-lbl">TYAM CFU/g</label><input type="number" min="0" className="rm-inp" value={retestModal.tyamCfu} onChange={e=>setRetestField("tyamCfu",e.target.value)} /></div>
+                <div><label className="rm-lbl">TAB CFU/g</label><input type="number" min="0" className="rm-inp" value={retestModal.tabCfu} onChange={e=>setRetestField("tabCfu",e.target.value)} /></div>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12,color:"var(--text-2)",marginBottom:10}}>
+                <input type="checkbox" checked={retestModal.aspergillus} onChange={e=>setRetestField("aspergillus",e.target.checked)} />
+                Aspergillus still detected
+              </label>
+              <label className="rm-lbl">Overall microbial retest result</label>
+              <div style={{display:"flex",gap:14,marginTop:4}}>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--text-2)",cursor:"pointer"}}><input type="radio" checked={retestModal.microbialResult==="pass"} onChange={()=>setRetestField("microbialResult","pass")} />Pass</label>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--text-2)",cursor:"pointer"}}><input type="radio" checked={retestModal.microbialResult==="fail"} onChange={()=>setRetestField("microbialResult","fail")} />Fail</label>
+              </div>
+            </div>
+
+            <div className="rm-box">
+              <div className="rm-box-t">Cannabinoid / Terpene Profile</div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10}}>
+                Irradiation can shift a batch's terpene profile. Shipping product against a pre-treatment COA's cannabinoid/terpene numbers after treatment is a real audit finding — choose deliberately, don't skip this.
+              </div>
+              <div style={{display:"flex",gap:14,marginBottom:10}}>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--text-2)",cursor:"pointer"}}><input type="radio" checked={retestModal.profileRetested===true} onChange={()=>setRetestField("profileRetested",true)} />Re-tested — enter values</label>
+                <label style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"var(--text-2)",cursor:"pointer"}}><input type="radio" checked={retestModal.profileRetested===false} onChange={()=>setRetestField("profileRetested",false)} />Not re-tested</label>
+              </div>
+              {retestModal.profileRetested===true && (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                  <div><label className="rm-lbl">THCA %</label><input type="number" step="0.01" className="rm-inp" value={retestModal.thca} onChange={e=>setRetestField("thca",e.target.value)} /></div>
+                  <div><label className="rm-lbl">THC %</label><input type="number" step="0.01" className="rm-inp" value={retestModal.thc} onChange={e=>setRetestField("thc",e.target.value)} /></div>
+                  <div><label className="rm-lbl">CBD %</label><input type="number" step="0.01" className="rm-inp" value={retestModal.cbd} onChange={e=>setRetestField("cbd",e.target.value)} /></div>
+                  <div><label className="rm-lbl">Total Terpenes %</label><input type="number" step="0.01" className="rm-inp" value={retestModal.totalTerpenes} onChange={e=>setRetestField("totalTerpenes",e.target.value)} /></div>
+                </div>
+              )}
+              {retestModal.profileRetested===false && (
+                <div><label className="rm-lbl">Why wasn't the profile re-tested?</label><input className="rm-inp" value={retestModal.skipReason} onChange={e=>setRetestField("skipReason",e.target.value)} placeholder="e.g. lab only re-ran the microbial panel; treatment method doesn't affect cannabinoid/terpene content" /></div>
+              )}
+            </div>
+
+            {retestModal.err && <div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{retestModal.err}</div>}
+            <div style={{display:"flex",gap:8}}>
+              <button className="rm-btn rm-primary" disabled={retestModal.busy} onClick={saveRetest}>{retestModal.busy?"Saving…":"Save Retest Result"}</button>
+              <button className="rm-btn rm-secondary" disabled={retestModal.busy} onClick={()=>setRetestModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
