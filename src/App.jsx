@@ -59,6 +59,7 @@ import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
 import RiskRegister from "./RiskRegister.jsx";
+import BCPBuilder from "./BCPBuilder.jsx";
 import BatchDashboard from "./BatchDashboard.jsx";
 import Dashboard from "./Dashboard.jsx";
 import DataManager from "./DataManager.jsx";
@@ -1181,7 +1182,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","metrc","employees","batch-dashboard","labor-setup","labor-dash","trim-log","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center","resinex"].includes(activeModule);
+  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","risk-register","bcp-builder","metrc","employees","batch-dashboard","labor-setup","labor-dash","trim-log","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center","resinex"].includes(activeModule);
   const isAIChat = activeModule === "ai-assistant";
 
   const showWelcome = messages.length === 0;
@@ -1461,6 +1462,7 @@ export default function ResinOps() {
             {activeModule === "metrc" ? <MetrcHub /> : null}
             {activeModule === "gmp-hub" ? <GMPHub /> : null}
             {activeModule === "risk-register" ? <RiskRegister /> : null}
+            {activeModule === "bcp-builder" ? <BCPBuilder /> : null}
             {activeModule === "employees" ? <Employees /> : null}
             {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
             {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}

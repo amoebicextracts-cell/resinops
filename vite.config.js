@@ -86,6 +86,8 @@ export default defineConfig({
             './src/Employees.jsx',
             './src/CultivationInputs.jsx',
             './src/SprayLog.jsx',
+            './src/RiskRegister.jsx',
+            './src/BCPBuilder.jsx',
           ],
           'modules-ops': [
             './src/Equipment.jsx',
