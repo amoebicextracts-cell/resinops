@@ -206,6 +206,15 @@ export const MODULES = [
     isScheduler: true,
     tier: "commercial",
   },
+  {
+    id: "risk-register",
+    label: "Risk Register",
+    icon: "📋",
+    available: true,
+    description: "This facility's own living risk log — likelihood, impact, mitigation, and residual risk, reviewed on a schedule",
+    isScheduler: true,
+    tier: "commercial",
+  },
   // ── People & Labor ──────────────────────────────────────────────────────────
   {
     id: "labor-dash",

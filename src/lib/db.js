@@ -86,6 +86,7 @@ const LS_KEYS = {
   compliance_sources: 'resinops_compliance_sources',
   sensor_device_links: 'resinops_sensor_device_links',
   sensor_readings: 'resinops_sensor_readings',
+  risk_register:      'resinops_risk_register',
 };
 
 // ── localStorage helpers ──────────────────────────────────────

@@ -69,6 +69,7 @@ const SCHEMAS = {
   customers: ['id','created_at','updated_at','facility_id','created_by','name','license_number','contact_name','phone','email','address','account_type','pipeline_stage','notes','activity_log','follow_up_date','follow_up_note','deal_value'],
   sales_goals: ['id','created_at','updated_at','facility_id','created_by','period_start','period_end','goal_amount','notes'],
   strain_descriptions: ['id','created_at','updated_at','facility_id','created_by','strain_id','product_type','description','sources','notes'],
+  risk_register: ['id','created_at','updated_at','facility_id','created_by','title','category','description','likelihood','impact','overall','mitigation','residual_notes','status','owner','identified_date','next_review_date','notes'],
 };
 
 // Explicit field renames: app name → Supabase column
@@ -708,6 +709,11 @@ const FIELD_OVERRIDES = {
     turnRequired: 'turn_required',
     retestResult: 'retest_result',
     retestQcTestId: 'retest_qc_test_id',
+  },
+  risk_register: {
+    residualNotes: 'residual_notes',
+    identifiedDate: 'identified_date',
+    nextReviewDate: 'next_review_date',
   },
   gmp_signoffs: {
     batchType: 'batch_type',
