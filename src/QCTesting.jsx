@@ -88,6 +88,7 @@ export default function QCTesting(){
   const [formSection,setFormSection]=useState("meta");
   const [err,setErr]=useState("");
   const [signingModal,setSigningModal]=useState(null);
+  const [confirmModal,setConfirmModal]=useState(null);
 
   useEffect(()=>{
     async function load(){
@@ -124,92 +125,108 @@ export default function QCTesting(){
     return null; // any panel still untested (N/T) — hold at pending, don't auto-pass
   }
 
-  async function save(){
+  // DI-3 mitigation: a fat-fingered digit or misclicked radio here can
+  // silently release a bad batch (if a fail gets entered as pass) or
+  // silently block a good one (if a pass gets entered as fail) -- and
+  // until now nothing in the app asked the submitter to double-check
+  // the exact values before they took effect. Any save that resolves to
+  // a determinate overall result (true or false, not still-pending)
+  // routes through a review step showing exactly what was entered for
+  // the panels that actually decide it, requiring an explicit second
+  // look before it commits. A still-pending/interim save (overall
+  // stays null because some panel is N/T) skips this -- nothing
+  // release-critical has been decided yet.
+  function save(){
     const hasIdentity = form.batchId || form.batchName || form.strainName || form.sampleId;
     if(!hasIdentity){setErr("Provide at least a strain name or sample ID to save this record.");return;}
     const overall=form.overallPass??calcOverall(form);
-    const isHarvest=form.batchType==="harvest";
-    const rec={...form,id:form.id||crypto.randomUUID(),overallPass:overall,
+    if(overall===null){ commitSave(form,overall); return; }
+    setConfirmModal({form,overall});
+  }
+
+  async function commitSave(f,overall){
+    const isHarvest=f.batchType==="harvest";
+    const rec={...f,id:f.id||crypto.randomUUID(),overallPass:overall,
       onHold:overall===false,
-      harvestBatchId:isHarvest?(form.batchId||null):null,
-      productionBatchId:isHarvest?null:(form.batchId||null)};
+      harvestBatchId:isHarvest?(f.batchId||null):null,
+      productionBatchId:isHarvest?null:(f.batchId||null)};
     try{
       const saved=await db.qc_tests.upsert(rec);
       saved.batchId=isHarvest?saved.harvestBatchId:saved.productionBatchId;
-      if(form.id) setTests(p=>p.map(x=>x.id===saved.id?saved:x));
+      if(f.id) setTests(p=>p.map(x=>x.id===saved.id?saved:x));
       else setTests(p=>[...p,saved]);
 
       // Auto-create harvest batch from passing COA
-      if(overall===true&&!form.batchId){
-        const alreadyExists=harvestBatches.some(b=>b.coaSampleId===form.sampleId||b.coa_sample_id===form.sampleId);
+      if(overall===true&&!f.batchId){
+        const alreadyExists=harvestBatches.some(b=>b.coaSampleId===f.sampleId||b.coa_sample_id===f.sampleId);
         if(!alreadyExists){
           try{
-            const newBatch={id:crypto.randomUUID(),strainName:form.strainName||"Unknown",
-              d:form.receivedDate||form.submittedDate||todayLocalISO(),
-              status:"complete",coaSampleId:form.sampleId,labName:form.labName,
-              thca:form.thca,notes:"Auto-created from passing COA import"};
+            const newBatch={id:crypto.randomUUID(),strainName:f.strainName||"Unknown",
+              d:f.receivedDate||f.submittedDate||todayLocalISO(),
+              status:"complete",coaSampleId:f.sampleId,labName:f.labName,
+              thca:f.thca,notes:"Auto-created from passing COA import"};
             const savedHb=await db.harvest_batches.upsert(newBatch);
             setHarvestBatches(p=>[...p,savedHb]);
           }catch(e){ console.error("Auto harvest batch failed:",e); }
         }
-      } else if(overall===true&&form.batchId&&isHarvest){
+      } else if(overall===true&&f.batchId&&isHarvest){
         // Mark linked harvest batch complete
-        const hb=harvestBatches.find(b=>String(b.id)===String(form.batchId));
+        const hb=harvestBatches.find(b=>String(b.id)===String(f.batchId));
         if(hb){
           try{
-            await db.harvest_batches.upsert({...hb,status:"complete",coaSampleId:form.sampleId,thca:form.thca||hb.thca});
-            setHarvestBatches(p=>p.map(b=>String(b.id)===String(form.batchId)?{...b,status:"complete"}:b));
+            await db.harvest_batches.upsert({...hb,status:"complete",coaSampleId:f.sampleId,thca:f.thca||hb.thca});
+            setHarvestBatches(p=>p.map(b=>String(b.id)===String(f.batchId)?{...b,status:"complete"}:b));
           }catch(e){ console.error("Harvest batch update failed:",e); }
         }
-      } else if(overall===true&&form.batchId&&!isHarvest){
+      } else if(overall===true&&f.batchId&&!isHarvest){
         // Mark linked production batch complete
-        const pb=prodBatches.find(b=>String(b.id)===String(form.batchId));
+        const pb=prodBatches.find(b=>String(b.id)===String(f.batchId));
         if(pb){
           try{
             const savedPb=await db.production_batches.upsert({...pb,status:"complete"});
-            setProdBatches(p=>p.map(b=>String(b.id)===String(form.batchId)?savedPb:b));
+            setProdBatches(p=>p.map(b=>String(b.id)===String(f.batchId)?savedPb:b));
           }catch(e){ console.error("Production batch update failed:",e); }
         }
       }
 
       // Auto-flag a failed microbial panel for remediation
-      if(form.microbialPass===false){
+      if(f.microbialPass===false){
         try{
-          const sourceId=form.batchId||saved.id;
+          const sourceId=f.batchId||saved.id;
           const sourceType=isHarvest?"harvest":"production";
           const already=(await db.remediation.list()).some(r=>String(r.sourceId)===String(sourceId)&&r.sourceType===sourceType);
           if(!already){
             await db.remediation.upsert({
               id:crypto.randomUUID(),
               sourceType, sourceId,
-              strainName:form.strainName||"Unknown",
-              labName:form.labName,
-              labReportRef:form.sampleId,
-              testDate:form.receivedDate||form.submittedDate||todayLocalISO(),
-              tyamCfu:form.tyam,
-              tabCfu:form.tab,
-              aspergillus:form.aspergillus===true,
+              strainName:f.strainName||"Unknown",
+              labName:f.labName,
+              labReportRef:f.sampleId,
+              testDate:f.receivedDate||f.submittedDate||todayLocalISO(),
+              tyamCfu:f.tyam,
+              tabCfu:f.tab,
+              aspergillus:f.aspergillus===true,
               status:"flagged",
-              notes:"Auto-flagged from failed microbial panel on QC test "+(form.sampleId||"(no sample ID)"),
+              notes:"Auto-flagged from failed microbial panel on QC test "+(f.sampleId||"(no sample ID)"),
             });
           }
         }catch(e){ console.error("Auto remediation flag failed:",e); }
       }
 
       // Update strain catalogue with COA averages
-      if(overall===true&&form.strainName){
+      if(overall===true&&f.strainName){
         try{
           const allStrains=await db.strains.list();
-          const existing=allStrains.find(s=>s.name&&s.name.toLowerCase()===form.strainName.toLowerCase());
+          const existing=allStrains.find(s=>s.name&&s.name.toLowerCase()===f.strainName.toLowerCase());
           if(existing){
-            await db.strains.upsert({...existing,thcaAvg:form.thca||existing.thcaAvg,thcAvg:form.thc||existing.thcAvg,cbdAvg:form.cbd||existing.cbdAvg,terpsAvg:form.totalTerpenes||existing.terpsAvg});
+            await db.strains.upsert({...existing,thcaAvg:f.thca||existing.thcaAvg,thcAvg:f.thc||existing.thcAvg,cbdAvg:f.cbd||existing.cbdAvg,terpsAvg:f.totalTerpenes||existing.terpsAvg});
           }
         }catch(e){ console.error("Strain update failed:",e); }
       }
 
-      autoPopulateStrains(form.strainName,{source:"QC Testing"});
-      setForm(null);setFormSection("meta");setErr("");
-    }catch(e){ setErr("Save failed: "+e.message); }
+      autoPopulateStrains(f.strainName,{source:"QC Testing"});
+      setForm(null);setFormSection("meta");setErr("");setConfirmModal(null);
+    }catch(e){ setErr("Save failed: "+e.message); setConfirmModal(m=>m?{...m,busy:false}:null); }
   }
   async function remove(id){
     try{ await db.qc_tests.delete(id); setTests(p=>p.filter(x=>x.id!==id)); }
@@ -449,6 +466,60 @@ export default function QCTesting(){
           onCancel={()=>setSigningModal(null)}
         />
       )}
+      {confirmModal&&(()=>{
+        const f=confirmModal.form;
+        const panelRows=[
+          ["Microbial panel",f.microbialPass],
+          ["Pesticides",f.pesticidesPass],
+          ["Heavy metals",f.heavyMetalsPass],
+          ["Foreign matter",f.foreignMatterPass],
+          ["Aspergillus",f.aspergillus],
+          ["Salmonella",f.salmonella],
+          ["STEC",f.stec],
+          ["E. coli",f.ecoli],
+        ].filter(([,v])=>v!==null&&v!==undefined);
+        return(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>{if(!confirmModal.busy) setConfirmModal(null);}}>
+            <div className="qc-card" style={{width:480,maxWidth:"92vw",margin:0,maxHeight:"85vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:4}}>Confirm before saving</div>
+              <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+                {f.strainName||f.batchName||f.sampleId||"This sample"} — double-check these entered values before they take effect. A wrong result here can release a bad batch or block a good one.
+              </div>
+              <div className="qc-box">
+                <div className="qc-box-t">Overall result</div>
+                <span className="qc-pill" style={{background:confirmModal.overall?"rgba(74,124,89,0.2)":"rgba(200,74,74,0.15)",color:confirmModal.overall?"var(--accent-2)":"var(--danger)",fontSize:13,padding:"5px 12px"}}>
+                  {confirmModal.overall?"PASS":"FAIL"}
+                </span>
+                {confirmModal.overall===false&&<div style={{fontSize:11,color:"var(--danger)",marginTop:8}}>This will place the batch on hold and block it from sale.</div>}
+              </div>
+              {panelRows.length>0&&(
+                <div className="qc-box">
+                  <div className="qc-box-t">Panel results entered</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    {panelRows.map(([label,v])=>(
+                      <div key={label} style={{display:"flex",justifyContent:"space-between",fontSize:12}}>
+                        <span style={{color:"var(--text-2)"}}>{label}</span>
+                        <span style={{color:pfColor(v),fontWeight:600}}>{pf(v)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {(f.tyam||f.tab)&&(
+                    <div style={{display:"flex",gap:16,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)",fontSize:12}}>
+                      {f.tyam&&<span style={{color:"var(--text-2)"}}>TYAM: <strong style={{color:"var(--text)"}}>{f.tyam}</strong></span>}
+                      {f.tab&&<span style={{color:"var(--text-2)"}}>TAB: <strong style={{color:"var(--text)"}}>{f.tab}</strong></span>}
+                    </div>
+                  )}
+                </div>
+              )}
+              {err&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{err}</div>}
+              <div style={{display:"flex",gap:8}}>
+                <button className="qc-btn qc-primary" disabled={confirmModal.busy} onClick={async()=>{setConfirmModal(m=>({...m,busy:true})); await commitSave(f,confirmModal.overall);}}>{confirmModal.busy?"Saving…":"Confirm & save"}</button>
+                <button className="qc-btn qc-secondary" disabled={confirmModal.busy} onClick={()=>setConfirmModal(null)}>Go back and review</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
