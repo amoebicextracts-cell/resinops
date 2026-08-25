@@ -65,6 +65,7 @@ export default function BCPBuilder() {
   const [form, setForm] = useState(null);
   const [err, setErr] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -79,7 +80,24 @@ export default function BCPBuilder() {
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   function openAdd() { setForm(emptyForm()); setErr(""); }
-  function openEdit(r) { setForm({ ...r }); setErr(""); }
+  // Optional fields come back from the DB as null once saved blank, but
+  // these are controlled inputs/textareas -- binding value={null} trips
+  // React's controlled/uncontrolled warning and can desync the field from
+  // state on a later update, so blank optional fields are re-guarded to ""
+  // here the same way the rest of the form already treats them.
+  function openEdit(r) {
+    setForm({
+      ...r,
+      impactDescription: r.impactDescription || "",
+      responsePlan: r.responsePlan || "",
+      recoveryTimeTarget: r.recoveryTimeTarget || "",
+      owner: r.owner || "",
+      lastReviewedDate: r.lastReviewedDate || "",
+      nextReviewDate: r.nextReviewDate || "",
+      notes: r.notes || "",
+    });
+    setErr("");
+  }
   function closeForm() { setForm(null); setErr(""); }
 
   function validate() {
@@ -88,7 +106,8 @@ export default function BCPBuilder() {
   }
 
   async function save() {
-    if (!validate()) return;
+    if (!validate() || saving) return;
+    setSaving(true);
     const rec = { ...form, id: form.id || crypto.randomUUID(), lastReviewedDate: form.lastReviewedDate || null, nextReviewDate: form.nextReviewDate || null };
     try {
       const saved = form.id ? await db.bcp_scenarios.update(form.id, rec) : await db.bcp_scenarios.upsert(rec);
@@ -96,6 +115,7 @@ export default function BCPBuilder() {
       else setRecords(p => [...p, saved]);
       closeForm();
     } catch (e) { setErr("Could not save: " + (e.message || e)); }
+    finally { setSaving(false); }
   }
 
   async function remove(id) {
@@ -106,9 +126,15 @@ export default function BCPBuilder() {
   }
 
   const today = todayLocalISO();
+  const isOverdue = r => !!(r.nextReviewDate && r.nextReviewDate < today);
   const needsReviewCount = records.filter(r => r.status === "needs_review").length;
-  const overdueCount = records.filter(r => r.nextReviewDate && r.nextReviewDate < today).length;
+  const overdueCount = records.filter(isOverdue).length;
   const visible = records.filter(r => statusFilter === "all" || r.status === statusFilter);
+  // Urgency-first ordering, matching RiskRegister's severity sort: an
+  // overdue scenario (regardless of status) surfaces before one merely
+  // flagged needs_review, which surfaces before active, then draft.
+  const urgencyRank = r => isOverdue(r) ? 0 : r.status === "needs_review" ? 1 : r.status === "active" ? 2 : 3;
+  const sortedVisible = [...visible].sort((a, b) => urgencyRank(a) - urgencyRank(b));
 
   if (loading) return (<div style={{ padding: 48, textAlign: "center", color: "var(--text-3)", fontSize: 14 }}>Loading business continuity plan…</div>);
 
@@ -177,8 +203,8 @@ export default function BCPBuilder() {
 
             {err && <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>{err}</div>}
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="bcp-btn bcp-primary" onClick={save}>{form.id ? "Save changes" : "Save scenario"}</button>
-              <button className="bcp-btn bcp-secondary" onClick={closeForm}>Cancel</button>
+              <button className="bcp-btn bcp-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : (form.id ? "Save changes" : "Save scenario")}</button>
+              <button className="bcp-btn bcp-secondary" disabled={saving} onClick={closeForm}>Cancel</button>
             </div>
           </div>
         )}
@@ -204,8 +230,8 @@ export default function BCPBuilder() {
               <table className="bcp-tbl">
                 <thead><tr><th>Title</th><th>Category</th><th>Recovery Target</th><th>Status</th><th>Owner</th><th>Next Review</th><th></th></tr></thead>
                 <tbody>
-                  {visible.map(r => {
-                    const overdue = r.nextReviewDate && r.nextReviewDate < today;
+                  {sortedVisible.map(r => {
+                    const overdue = isOverdue(r);
                     return (
                       <tr key={r.id}>
                         <td style={{ fontWeight: 500, color: "var(--text)" }}>{r.title}</td>

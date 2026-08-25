@@ -10,6 +10,22 @@ import { MODULES, ALL_SECTION_NAMES } from "./lib/modules";
 
 export const SUPPORT_EMAIL = "support@resinops.com";
 
+// Every module is a full page that should hide the global chat-area panel
+// below it, except "ai-assistant" itself (the chat *is* that module's
+// content). Derived from MODULES so a newly-registered module gets this
+// behavior automatically -- a hand-maintained parallel id list here
+// previously let risk-register ship without it, leaving the chat panel
+// visibly bleeding over that module's full page until a later PR happened
+// to add it. EXTRA_FULL_PAGE_MODULE_IDS covers real activeModule values
+// that render outside the sidebar's MODULES registry entirely (platform-
+// admin/help routes), so they still need listing here explicitly.
+const CHAT_IS_THE_CONTENT_MODULE_IDS = new Set(["ai-assistant"]);
+const EXTRA_FULL_PAGE_MODULE_IDS = ["ai-corrections-review", "help-center"];
+const FULL_PAGE_MODULE_IDS = new Set([
+  ...MODULES.filter(m => !CHAT_IS_THE_CONTENT_MODULE_IDS.has(m.id)).map(m => m.id),
+  ...EXTRA_FULL_PAGE_MODULE_IDS,
+]);
+
 class ErrorBoundary extends Component {
   constructor(props){ super(props); this.state={hasError:false,error:null,reported:false}; }
   static getDerivedStateFromError(error){ return {hasError:true,error}; }
@@ -1182,7 +1198,7 @@ export default function ResinOps() {
     }
   };
 
-  const isSchedulerActive = ["dashboard","ops-analyst","scheduler","production","yield-dashboard","harvest","remediation","grow-map","clone-scheduler","mother-plants","pheno-hunt","strain-db","tc-tracker","cult-inputs","spray-log","ipm-tracker","qc-testing","gmp-hub","risk-register","bcp-builder","metrc","employees","batch-dashboard","labor-setup","labor-dash","trim-log","inventory","finance","equipment","facility-map","maintenance","sales","customers","data-manager","facility-settings","ai-corrections-review","help-center","resinex"].includes(activeModule);
+  const isSchedulerActive = FULL_PAGE_MODULE_IDS.has(activeModule);
   const isAIChat = activeModule === "ai-assistant";
 
   const showWelcome = messages.length === 0;
