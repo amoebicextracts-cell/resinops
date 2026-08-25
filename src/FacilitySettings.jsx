@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
 import { canAdministerFacility, FACILITY_ROLES } from "./lib/roles";
-import { MODULES } from "./lib/modules";
-import { isModuleVisible } from "./lib/moduleVisibility";
+import ModuleAccessEditor from "./ModuleAccessEditor.jsx";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
 
 const LICENSE_TYPES = [
@@ -56,22 +55,6 @@ const QB_ACCOUNT_FIELDS = [
   ["overheadDebit","Allocated Overhead — debit","COGS:Allocated Overhead"],["overheadCredit","Allocated Overhead — credit","Overhead Clearing"],
 ];
 
-// Toggleable modules, grouped for the Modules card — excludes "core"
-// modules (always on, not shown as a toggle) and preserves nav order.
-const TOGGLEABLE_SECTIONS = (()=>{
-  const sections = [];
-  let current = null;
-  for (const mod of MODULES) {
-    if (mod.tier === "core") continue;
-    if (mod.sectionBreak || !current) {
-      current = { name: mod.sectionBreak || "Other", mods: [] };
-      sections.push(current);
-    }
-    current.mods.push(mod);
-  }
-  return sections;
-})();
-
 // Matches supabase/migrations/20260723150000_add_section_scoped_permissions.sql's
 // table_scopes values — keep in sync if a scope is ever added/renamed there.
 const PERMISSION_SCOPES = [
@@ -114,7 +97,7 @@ const COMMON_STEP_NAMES = [
   "Extraction","Purge","Winterization","Distillation","Crystallization",
 ];
 
-export default function FacilitySettings(){
+export default function FacilitySettings({ isPlatformAdmin: isViewerPlatformAdmin } = {}){
   const [settings,setSettings] = useState(DEFAULTS);
   const [saved,setSaved] = useState(false);
   const [loading,setLoading] = useState(true);
@@ -509,38 +492,14 @@ export default function FacilitySettings(){
         </div>
 
         <div className="fs-card">
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-            <div className="fs-section" style={{margin:0}}>Modules</div>
-            <button className="fs-btn fs-secondary" style={{fontSize:11,padding:"5px 10px"}} onClick={()=>setF("moduleOverrides",{})}>Reset to tier defaults</button>
-          </div>
-          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
-            Choose a product tier, then hide/show individual modules to declutter the sidebar. This only controls visibility — it isn't a paywall, and doesn't affect your data.
-          </div>
-
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            {[["home","🌱 Home"],["commercial","🏭 Commercial"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setF("productTier",v)} style={{flex:1,padding:"10px 14px",borderRadius:8,border:"1px solid var(--border-2)",cursor:"pointer",fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,background:settings.productTier===v?"var(--accent)":"var(--surface-2)",color:settings.productTier===v?"#fff":"var(--text-2)"}}>{l}</button>
-            ))}
-          </div>
-
-          {TOGGLEABLE_SECTIONS.map(section=>(
-            <div key={section.name} style={{marginBottom:14}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>{section.name}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                {section.mods.map(mod=>{
-                  const enabled = isModuleVisible(mod, settings.productTier, settings.moduleOverrides);
-                  const isOverridden = Object.prototype.hasOwnProperty.call(settings.moduleOverrides||{}, mod.id);
-                  return(
-                    <label key={mod.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:6,background:"var(--surface-2)",cursor:"pointer",fontSize:12,color:"var(--text-2)"}}>
-                      <input type="checkbox" checked={enabled} onChange={e=>setF("moduleOverrides",{...settings.moduleOverrides,[mod.id]:e.target.checked})} />
-                      <span>{mod.icon} {mod.label}</span>
-                      {isOverridden&&<span style={{marginLeft:"auto",fontSize:9,color:"var(--accent-2)",fontWeight:600}}>custom</span>}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          <ModuleAccessEditor
+            productTier={settings.productTier}
+            moduleOverrides={settings.moduleOverrides}
+            readOnly={!isViewerPlatformAdmin}
+            onChangeTier={v=>setF("productTier",v)}
+            onChangeOverride={(modId,checked)=>setF("moduleOverrides",{...settings.moduleOverrides,[modId]:checked})}
+            onReset={()=>setF("moduleOverrides",{})}
+          />
         </div>
 
         <div className="fs-card">
