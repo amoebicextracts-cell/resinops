@@ -194,7 +194,7 @@ function makeTable(tableName) {
       : Promise.resolve(lsGet(tableName)),
 
     get:    (id)           => isSupabaseEnabled
-      ? supabase.from(tableName).select('*').eq('id', id).single().then(r => { if(r.error) throw r.error; return r.data; })
+      ? supabase.from(tableName).select('*').eq('id', id).single().then(r => { if(r.error) throw r.error; return transformFromDb(tableName, r.data); })
       : Promise.resolve(lsGet(tableName).find(r => String(r.id) === String(id))),
 
     upsert: (record)       => isSupabaseEnabled
