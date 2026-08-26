@@ -3,6 +3,7 @@ import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
+import { isReconcilableBatch, calcBatchReconciliation, LOSS_TYPES } from "./lib/reconciliation.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import { toISODate } from "./lib/dailyActions";
 import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
@@ -1149,6 +1150,7 @@ const EMPTY={
   washEvents:[],freezeDryCycles:[],
   pressRuns:[],coldCureBatches:[],
   dewaxPasses:[],purgeRuns:[],diamondSauceBatches:[],
+  actualYieldG:"",lossEntries:[],
 };
 
 function loadHarvestBatches(){ return []; } // loaded async now
@@ -1183,6 +1185,7 @@ export default function ProductionScheduler({onNavigate}){
   const[signoffs,setSignoffs]=useState([]);
   const[facility,setFacility]=useState({});
   const[expandedSteps,setExpandedSteps]=useState(null);
+  const[linkedYieldDrafts,setLinkedYieldDrafts]=useState({});
   const[summarySearch,setSummarySearch]=useState("");
   const[summaryFilters,setSummaryFilters]=useState({});
   const[summarySort,setSummarySort]=useState({col:null,dir:"asc"});
@@ -1357,7 +1360,8 @@ export default function ProductionScheduler({onNavigate}){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),unitPrice:String(b.unitPrice||""),packagingItemId:b.packagingItemId||"",
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",inputSource:b.harvestBatchId?"harvest":"manual",inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[]});
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",inputSource:b.harvestBatchId?"harvest":"manual",inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[],
+      actualYieldG:String(b.actualYieldG||""),lossEntries:b.lossEntries||[]});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
   function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
@@ -1373,7 +1377,7 @@ export default function ProductionScheduler({onNavigate}){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[]};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:parseFloat(form.actualYieldG)||0,lossEntries:form.lossEntries||[]};
 
     const mainId=formMode==="edit"?editId:crypto.randomUUID();
     const mainBatch={...base,id:mainId};
@@ -1445,6 +1449,17 @@ export default function ProductionScheduler({onNavigate}){
       await Promise.all([id,...linkedIds].map(bid=>db.production_batches.delete(bid)));
       setBatches(p=>p.filter(b=>b.id!==id&&b.linkedTo!==id));
     }catch(e){ setFormErr("Could not delete: "+(e.message||e)); }
+  }
+
+  // Linked co-product batches (HTE/Heads-Tails) have no "Edit" button of
+  // their own (see the isLinked check on that button below) -- their
+  // actual yield is captured inline from the parent batch's Reconciliation
+  // panel instead, saved independently of the parent's own Save Changes.
+  async function saveLinkedYield(linkedBatch, valueG){
+    try{
+      const saved=await db.production_batches.upsert({...linkedBatch, actualYieldG: parseFloat(valueG)||0});
+      setBatches(p=>p.map(b=>b.id===saved.id?saved:b));
+    }catch(e){ setFormErr("Could not save linked batch yield: "+(e.message||e)); }
   }
 
   const timelines=batches.map(b=>{
@@ -2939,6 +2954,75 @@ export default function ProductionScheduler({onNavigate}){
               </div>
             </div>
 
+            {formMode==="edit"&&isReconcilableBatch(form)&&(()=>{
+              const linkedChildren=batches.filter(b=>b.linkedTo===editId);
+              const recon=calcBatchReconciliation(form,linkedChildren);
+              return(
+                <div className="ps-box">
+                  <div className="ps-box-t">Mass-Balance Reconciliation</div>
+                  <div style={{fontSize:11,color:"var(--text-3)",marginBottom:10,lineHeight:1.6}}>
+                    Every gram from intake, accounted for: this batch's actual yield + its linked co-product batches' actual yields + recorded dewax/purge loss + any logged loss below, checked against intake weight. Informational only — doesn't block saving or release.
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                    <div>
+                      <label className="ps-lbl">Intake weight</label>
+                      <div style={{fontSize:13,fontWeight:600}}>{recon.intakeG.toLocaleString()} g</div>
+                    </div>
+                    <div>
+                      <label className="ps-lbl">This batch's actual yield (g)</label>
+                      <input type="number" step="0.1" className="ps-inp" value={form.actualYieldG} onChange={e=>setF("actualYieldG",e.target.value)} placeholder="e.g. 1300" />
+                    </div>
+                  </div>
+
+                  {linkedChildren.length>0&&(
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>Linked co-product batches</div>
+                      {linkedChildren.map(lb=>(
+                        <div key={lb.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                          <div style={{flex:1,fontSize:12,color:"var(--text-2)"}}>{lb.name}</div>
+                          <input type="number" step="0.1" className="ps-inp" style={{maxWidth:120}} placeholder="Actual yield (g)"
+                            value={linkedYieldDrafts[lb.id]??String(lb.actualYieldG||"")}
+                            onChange={e=>setLinkedYieldDrafts(d=>({...d,[lb.id]:e.target.value}))}
+                            onBlur={e=>{ saveLinkedYield(lb,e.target.value); setLinkedYieldDrafts(d=>{const n={...d};delete n[lb.id];return n;}); }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10,fontSize:12}}>
+                    <div><span style={{color:"var(--text-3)"}}>Dewax loss:</span> {recon.dewaxLossG.toLocaleString()} g</div>
+                    <div><span style={{color:"var(--text-3)"}}>Purge loss:</span> {recon.purgeLossG.toLocaleString()} g</div>
+                    <div><span style={{color:"var(--text-3)"}}>Logged loss:</span> {recon.loggedLossG.toLocaleString()} g</div>
+                  </div>
+
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"var(--text-3)",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:6}}>Logged losses (transfer, residual solvent, etc.)</div>
+                    {(form.lossEntries||[]).map((le,idx)=>(
+                      <div key={le.id||idx} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                        <select className="ps-sel" style={{maxWidth:180}} value={le.type||"transfer"} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],type:e.target.value};setF("lossEntries",ls);}}>
+                          {LOSS_TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
+                        </select>
+                        <input type="number" step="0.1" className="ps-inp" style={{maxWidth:110}} placeholder="Grams" value={le.amountG||""} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],amountG:e.target.value};setF("lossEntries",ls);}} />
+                        <input className="ps-inp" style={{flex:1}} placeholder="Note (optional)" value={le.note||""} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],note:e.target.value};setF("lossEntries",ls);}} />
+                        <button className="ps-btn ps-sm ps-del" onClick={()=>{const ls=[...(form.lossEntries||[])];ls.splice(idx,1);setF("lossEntries",ls);}}>✕</button>
+                      </div>
+                    ))}
+                    <button className="ps-btn ps-sm ps-secondary" onClick={()=>{const ls=[...(form.lossEntries||[])];ls.push({id:crypto.randomUUID(),type:"transfer",amountG:"",note:""});setF("lossEntries",ls);}}>+ Log a loss</button>
+                  </div>
+
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:7,
+                    background:!recon.hasAnyData?"var(--surface-2)":recon.balanced?"rgba(74,124,89,0.12)":"rgba(200,80,60,0.12)"}}>
+                    <span style={{fontSize:13,fontWeight:700,color:!recon.hasAnyData?"var(--text-3)":recon.balanced?"var(--accent-2)":"var(--danger)"}}>
+                      {!recon.hasAnyData?"No yield/loss data logged yet":recon.balanced?"✓ Balanced":`⚠ ${Math.abs(recon.deltaG).toLocaleString()} g unaccounted`}
+                    </span>
+                    <span style={{fontSize:11,color:"var(--text-3)"}}>
+                      {recon.intakeG.toLocaleString()}g in − {recon.totalOutputG.toLocaleString()}g output − {recon.totalLossG.toLocaleString()}g loss = {recon.deltaG.toLocaleString()}g delta
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {formErr&&<div style={{fontSize:12,color:"var(--danger)",marginBottom:10}}>{formErr}</div>}
             <div style={{display:"flex",gap:8}}>
               <button className="ps-btn ps-primary" onClick={saveBatch}>{formMode==="edit"?"Save Changes":"Add Batch"}</button>
@@ -3001,6 +3085,15 @@ export default function ProductionScheduler({onNavigate}){
                     {b.vapeHardware&&VAPE_HARDWARE[b.vapeHardware]&&<div style={{fontSize:9,color:"var(--accent-2)",fontWeight:600}}>🔌 {VAPE_HARDWARE[b.vapeHardware].brand} {VAPE_HARDWARE[b.vapeHardware].model}{VAPE_HARDWARE[b.vapeHardware].partner?" ✓":""}</div>}
                     {b.strains&&<div style={{fontSize:10,color:"var(--text-3)",lineHeight:1.3}}>{b.strains}</div>}
                     <div style={{fontSize:10,color:"var(--text-3)"}}>{b.yieldEst||"—"}</div>
+                    {!b.isLinked&&isReconcilableBatch(b)&&(()=>{
+                      const recon=calcBatchReconciliation(b,batches.filter(x=>x.linkedTo===b.id));
+                      if(!recon.hasAnyData) return null;
+                      return(
+                        <div style={{fontSize:9,fontWeight:700,marginTop:2,color:recon.balanced?"var(--accent-2)":"var(--danger)"}}>
+                          {recon.balanced?"✓ Balanced":`⚠ ${Math.abs(recon.deltaG).toLocaleString()}g unaccounted`}
+                        </div>
+                      );
+                    })()}
                     {b.cbBlendResult&&["edible","tincture","topical"].includes(b.cat)&&(
                       <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:2}}>
                         {CB_KEYS.filter(k=>b.cbBlendResult.results?.[k]>0.05).map(k=>(
