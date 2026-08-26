@@ -12,7 +12,8 @@
 //
 // Request format:
 // POST /api/resinex-confirm-document
-// { facilityId, documentId, fileSize }
+// { facilityId, documentId }
+// file_size is read from Storage's own object metadata, not the client.
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js';
@@ -57,7 +58,7 @@ export default async function handler(req, res) {
   const validationError = validateConfirmDocumentPayload(req.body);
   if (validationError) return sendApiError(res, 400, validationError, requestId);
 
-  const { facilityId, documentId, fileSize } = req.body;
+  const { facilityId, documentId } = req.body;
 
   const authz = await requireFacilityEditor(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
@@ -97,13 +98,18 @@ export default async function handler(req, res) {
       logApiError({ requestId, route: 'resinex-confirm-document', userId: auth.user.id, facilityId }, listError);
       return sendApiError(res, 502, 'Unable to verify the upload', requestId);
     }
-    if (!listing?.some(item => item.name === basename)) {
+    const storedObject = listing?.find(item => item.name === basename);
+    if (!storedObject) {
       return sendApiError(res, 409, 'Upload not found in storage — try uploading again', requestId);
     }
 
+    // Record Storage's own metadata.size rather than the client-supplied
+    // fileSize -- the caller controls the request body, so trusting its
+    // claim would let a confirmed document's size diverge from what's
+    // actually stored.
     const { data: record, error: updateError } = await admin
       .from('resinex_project_documents')
-      .update({ status: 'confirmed', file_size: fileSize || null })
+      .update({ status: 'confirmed', file_size: storedObject.metadata?.size ?? null })
       .eq('id', documentId)
       .select()
       .single();
