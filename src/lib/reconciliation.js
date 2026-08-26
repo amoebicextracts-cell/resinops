@@ -71,9 +71,12 @@ export function calcBatchReconciliation(batch, linkedBatches) {
   const loggedLossG = loggedLossLines.reduce((a, e) => a + e.amountG, 0);
   const totalLossG = dewaxLossG + purgeLossG + loggedLossG;
 
-  const mainYieldG = parseFloat(batch.actualYieldG) || 0;
+  // Clamped at 0 for the same reason as loggedLossLines above — a
+  // negative yield (typo, or a record saved before this clamp existed)
+  // would subtract from totalOutputG instead of adding to it.
+  const mainYieldG = Math.max(0, parseFloat(batch.actualYieldG) || 0);
   const linkedYields = (linkedBatches || []).map(lb => ({
-    id: lb.id, name: lb.name, yieldG: parseFloat(lb.actualYieldG) || 0,
+    id: lb.id, name: lb.name, yieldG: Math.max(0, parseFloat(lb.actualYieldG) || 0),
   }));
   const linkedYieldG = linkedYields.reduce((a, l) => a + l.yieldG, 0);
   const totalOutputG = mainYieldG + linkedYieldG;
