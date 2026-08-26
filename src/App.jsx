@@ -20,7 +20,7 @@ export const SUPPORT_EMAIL = "support@resinops.com";
 // that render outside the sidebar's MODULES registry entirely (platform-
 // admin/help routes), so they still need listing here explicitly.
 const CHAT_IS_THE_CONTENT_MODULE_IDS = new Set(["ai-assistant"]);
-const EXTRA_FULL_PAGE_MODULE_IDS = ["ai-corrections-review", "help-center"];
+const EXTRA_FULL_PAGE_MODULE_IDS = ["ai-corrections-review", "compliance-sources", "help-center", "client-access"];
 const FULL_PAGE_MODULE_IDS = new Set([
   ...MODULES.filter(m => !CHAT_IS_THE_CONTENT_MODULE_IDS.has(m.id)).map(m => m.id),
   ...EXTRA_FULL_PAGE_MODULE_IDS,
@@ -71,6 +71,7 @@ import FacilityMap from "./FacilityMap.jsx";
 import OpsAnalyst from "./OpsAnalyst.jsx";
 import AiCorrectionsReview from "./AiCorrectionsReview.jsx";
 import ComplianceSources from "./ComplianceSources.jsx";
+import ClientAccess from "./ClientAccess.jsx";
 import { ChatHistoryPanel, FlagCorrectionButton } from "./AiChatExtras.jsx";
 import QCTesting from "./QCTesting.jsx";
 import GMPHub from "./GMPHub.jsx";
@@ -1345,6 +1346,20 @@ export default function ResinOps() {
             </button>
           )}
 
+          {/* ── Platform-admin-only: set which modules each client facility sees ── */}
+          {isPlatformAdmin && (
+            <button
+              className={`module-btn ${activeModule === "client-access" ? "active" : ""}`}
+              onClick={() => switchModule("client-access")}
+            >
+              <span className="module-icon">🔑</span>
+              <span className="module-info">
+                <span className="module-name">Client Access</span>
+                <span className="module-desc">Set which modules each client facility can see</span>
+              </span>
+            </button>
+          )}
+
           {/* ── Settings at bottom (core modules — the section itself
               collapses like any other, but membership isn't gated by tier
               or scope the way the main accordion's modules are) ── */}
@@ -1483,7 +1498,8 @@ export default function ResinOps() {
             {activeModule === "batch-dashboard" ? <BatchDashboard /> : null}
             {activeModule === "dashboard" ? <Dashboard key={"dash-"+dashboardVersion} onNavigate={switchModule} /> : null}
             {activeModule === "data-manager" ? <DataManager isPlatformAdmin={isPlatformAdmin} /> : null}
-            {activeModule === "facility-settings" ? <FacilitySettings /> : null}
+            {activeModule === "facility-settings" ? <FacilitySettings isPlatformAdmin={isPlatformAdmin} /> : null}
+            {activeModule === "client-access" ? (isPlatformAdmin ? <ClientAccess /> : null) : null}
             {activeModule === "labor-setup" ? <LaborManager /> : null}
             {activeModule === "labor-dash" ? <LaborDashboard /> : null}
             {activeModule === "trim-log" ? <TrimLog /> : null}

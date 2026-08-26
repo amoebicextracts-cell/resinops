@@ -393,3 +393,22 @@ export const MODULE_SECTION = (() => {
   }
   return map;
 })();
+
+// Toggleable modules, grouped for a per-facility module-access editor —
+// excludes "core" modules (always on, never shown as a toggle) and
+// preserves nav order. Shared by FacilitySettings.jsx's own (now
+// platform-admin-only-editable, read-only otherwise) Modules card and
+// ClientAccess.jsx's cross-facility admin panel.
+export const TOGGLEABLE_SECTIONS = (() => {
+  const sections = [];
+  let current = null;
+  for (const mod of MODULES) {
+    if (mod.tier === "core") continue;
+    if (mod.sectionBreak || !current) {
+      current = { name: mod.sectionBreak || "Other", mods: [] };
+      sections.push(current);
+    }
+    current.mods.push(mod);
+  }
+  return sections;
+})();
