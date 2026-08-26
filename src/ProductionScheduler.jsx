@@ -3002,7 +3002,7 @@ export default function ProductionScheduler({onNavigate}){
                         <select className="ps-sel" style={{maxWidth:180}} value={le.type||"transfer"} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],type:e.target.value};setF("lossEntries",ls);}}>
                           {LOSS_TYPES.map(t=><option key={t.v} value={t.v}>{t.l}</option>)}
                         </select>
-                        <input type="number" step="0.1" className="ps-inp" style={{maxWidth:110}} placeholder="Grams" value={le.amountG||""} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],amountG:e.target.value};setF("lossEntries",ls);}} />
+                        <input type="number" step="0.1" min="0" className="ps-inp" style={{maxWidth:110}} placeholder="Grams" value={le.amountG||""} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],amountG:e.target.value};setF("lossEntries",ls);}} />
                         <input className="ps-inp" style={{flex:1}} placeholder="Note (optional)" value={le.note||""} onChange={e=>{const ls=[...(form.lossEntries||[])];ls[idx]={...ls[idx],note:e.target.value};setF("lossEntries",ls);}} />
                         <button className="ps-btn ps-sm ps-del" onClick={()=>{const ls=[...(form.lossEntries||[])];ls.splice(idx,1);setF("lossEntries",ls);}}>✕</button>
                       </div>

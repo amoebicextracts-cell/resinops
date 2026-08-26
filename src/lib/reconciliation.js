@@ -64,7 +64,10 @@ export function calcBatchReconciliation(batch, linkedBatches) {
 
   const dewaxLossG = stepLossG(batch.dewaxPasses, "prePassWeightG", "postPassWeightG");
   const purgeLossG = stepLossG(batch.purgeRuns, "prePurgeWeightG", "postPurgeWeightG");
-  const loggedLossLines = (batch.lossEntries || []).map(e => ({ ...e, amountG: parseFloat(e.amountG) || 0 }));
+  // Clamped at 0 -- a negative entry (typo or a stray minus sign) would
+  // otherwise subtract from totalLossG instead of adding to it, silently
+  // hiding a real imbalance behind a false "balanced" reading.
+  const loggedLossLines = (batch.lossEntries || []).map(e => ({ ...e, amountG: Math.max(0, parseFloat(e.amountG) || 0) }));
   const loggedLossG = loggedLossLines.reduce((a, e) => a + e.amountG, 0);
   const totalLossG = dewaxLossG + purgeLossG + loggedLossG;
 
