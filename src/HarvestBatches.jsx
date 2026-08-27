@@ -4,6 +4,7 @@ import { autoPopulateStrains } from "./strainUtils.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import { calcCo2Usage, daysEnrichedForCycle } from "./lib/co2.js";
 const LBS_TO_G = 453.592;
+const UNIT_TO_G = { g:1, lbs:LBS_TO_G, kg:1000 };
 
 
 const BUCKERS = {
@@ -50,6 +51,14 @@ function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function fmtS(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 function fmtF(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
 function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{...s,start:s0,end:e};});}
+
+function HbTransferNote({consumed,remaining}) {
+  return (
+    <div style={{fontSize:9,color:remaining<=0?"var(--accent-2)":"var(--text-3)"}}>
+      {Math.round(consumed).toLocaleString()}g → production{remaining>0?` · ${Math.round(remaining).toLocaleString()}g left`:" (fully allocated)"}
+    </div>
+  );
+}
 
 function calcBuckDays(wetWeightLbs, throughput) {
   const t = parseFloat(throughput) || 100;
@@ -98,6 +107,7 @@ export default function HarvestBatches() {
   const [growRooms, setGrowRooms] = useState([]);
   const [cultivationCosts, setCultivationCosts] = useState([]);
   const [batches, setBatches] = useState([]);
+  const [prodBatches, setProdBatches] = useState([]);
   const [laborTypes, setLaborTypes] = useState([]);
   const [hbSearch, setHbSearch] = useState("");
   const [hbFilters, setHbFilters] = useState({});
@@ -165,18 +175,20 @@ export default function HarvestBatches() {
   useEffect(()=>{
     async function load(){
       try{
-        const [hb, sp, lt, gr, cc] = await Promise.all([
+        const [hb, sp, lt, gr, cc, pb] = await Promise.all([
           db.harvest_batches.list(),
           db.grow_spaces.list(),
           db.labor_types.list(),
           db.grow_rooms.list(),
           db.cultivation_costs.list(),
+          db.production_batches.list(),
         ]);
         setBatches(hb.map(normalizeBatch));
         setSpaces(sp);
         setLaborTypes(lt);
         setGrowRooms(gr);
         setCultivationCosts(cc);
+        setProdBatches(pb);
       }catch(e){ console.error("HarvestBatches load error:",e); }
       setLoading(false);
     }
@@ -357,6 +369,19 @@ export default function HarvestBatches() {
   }
 
   if(loading) return(<div style={{padding:48,textAlign:"center",color:"var(--text-3)",fontSize:14}}>Loading harvest batches…</div>);
+
+  // Real formal hand-off to the production side: harvestBatchId +
+  // harvestGrade + inputAmt on each production_batches row IS the transfer
+  // record (see ProductionScheduler.jsx's gradeConsumedG for why no
+  // separate ledger table exists) -- surfaced here so cultivation can see
+  // what's actually been drawn against a lot, not just its original weight.
+  // isLinked (auto-created HTE/Heads-Tails byproduct) batches are excluded,
+  // same reasoning as the production side.
+  function gradeConsumedG(harvestBatchId, grade) {
+    return prodBatches
+      .filter(pb=>pb.harvestBatchId===harvestBatchId && pb.harvestGrade===grade && !pb.isLinked)
+      .reduce((sum,pb)=>sum+(parseFloat(pb.inputAmt)||0)*(UNIT_TO_G[pb.unit]||1), 0);
+  }
 
   // ── Batch table: search, per-column filters, sort ───────────────────────
   const hbRows=batches.map(b=>({
@@ -723,11 +748,11 @@ export default function HarvestBatches() {
                       <td style={{fontWeight:500,color:"var(--text)"}}>{b.strainName}{b.isFreshFrozen&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:8,background:"rgba(80,180,220,0.15)",color:"#78c8f0"}}>FRESH FROZEN</span>}</td>
                       <td>{b.spaceName||"—"}</td>
                       <td>{b.plants}</td>
-                      <td>{b.wetWeightG?`${parseFloat(b.wetWeightG)||0}g `:<span style={{color:"var(--text-3)"}}>—</span>}{b.wetWeightG?<span style={{fontSize:10,color:"var(--text-3)"}}>({((parseFloat(b.wetWeightG)||0)/LBS_TO_G).toFixed(1)} lbs)</span>:null}</td>
-                      <td>{(b.grades?.a?.weight||b.grades?.aa?.weight)?((b.grades?.a?.weight||b.grades?.aa?.weight)+"g"):"—"}</td>
-                      <td>{b.grades?.b?.weight?b.grades.b.weight+"g":"—"}</td>
-                      <td>{b.grades?.c?.weight?b.grades.c.weight+"g":"—"}</td>
-                      <td>{b.grades?.trim?.weight?b.grades.trim.weight+"g":"—"}</td>
+                      <td>{b.wetWeightG?`${parseFloat(b.wetWeightG)||0}g `:<span style={{color:"var(--text-3)"}}>—</span>}{b.wetWeightG?<span style={{fontSize:10,color:"var(--text-3)"}}>({((parseFloat(b.wetWeightG)||0)/LBS_TO_G).toFixed(1)} lbs)</span>:null}{b.isFreshFrozen&&gradeConsumedG(b.id,"fresh_frozen")>0&&<HbTransferNote consumed={gradeConsumedG(b.id,"fresh_frozen")} remaining={Math.max(0,(parseFloat(b.wetWeightG)||0)-gradeConsumedG(b.id,"fresh_frozen"))} />}</td>
+                      <td>{(b.grades?.a?.weight||b.grades?.aa?.weight)?((b.grades?.a?.weight||b.grades?.aa?.weight)+"g"):"—"}{gradeConsumedG(b.id,"a")>0&&<HbTransferNote consumed={gradeConsumedG(b.id,"a")} remaining={Math.max(0,(parseFloat(b.grades?.a?.weight||b.grades?.aa?.weight)||0)-gradeConsumedG(b.id,"a"))} />}</td>
+                      <td>{b.grades?.b?.weight?b.grades.b.weight+"g":"—"}{gradeConsumedG(b.id,"b")>0&&<HbTransferNote consumed={gradeConsumedG(b.id,"b")} remaining={Math.max(0,(parseFloat(b.grades?.b?.weight)||0)-gradeConsumedG(b.id,"b"))} />}</td>
+                      <td>{b.grades?.c?.weight?b.grades.c.weight+"g":"—"}{gradeConsumedG(b.id,"c")>0&&<HbTransferNote consumed={gradeConsumedG(b.id,"c")} remaining={Math.max(0,(parseFloat(b.grades?.c?.weight)||0)-gradeConsumedG(b.id,"c"))} />}</td>
+                      <td>{b.grades?.trim?.weight?b.grades.trim.weight+"g":"—"}{gradeConsumedG(b.id,"trim")>0&&<HbTransferNote consumed={gradeConsumedG(b.id,"trim")} remaining={Math.max(0,(parseFloat(b.grades?.trim?.weight)||0)-gradeConsumedG(b.id,"trim"))} />}</td>
                       <td style={{fontWeight:600,color:"var(--accent-2)"}}>{b.totalDryWeight?(parseFloat(b.totalDryWeight)||0).toFixed(0)+"g":"—"}</td>
                       <td><span className={"hb-pill hb-status-"+(b.status==="done"?"done":"open")}>{r.status}</span></td>
                       <td><div style={{display:"flex",gap:6}}>

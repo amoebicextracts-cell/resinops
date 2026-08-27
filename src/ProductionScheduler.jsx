@@ -1160,23 +1160,11 @@ export default function ProductionScheduler({onNavigate}){
   const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
   const[batches,setBatches]=useState([]);
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
-  const availableHarvest = harvestBatchesData.filter(hb => hb.status==="done" && (hb.isFreshFrozen || Object.values(hb.grades||{}).some(g=>parseFloat(g.weight)>0)));
   function harvestInputMaterialType(hb, grade) {
     if (!hb) return "";
     if (hb.isFreshFrozen) return "Fresh Frozen";
     if (grade === "trim") return "Dry Trim";
     return "Dry Bud";
-  }
-  function selectHarvestGrade(hbId, grade) {
-    const hb = harvestBatchesData.find(h=>h.id===hbId);
-    if (!hb) return;
-    if (hb.isFreshFrozen) {
-      setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:"fresh_frozen", inputAmt:String(hb.wetWeightG||0), unit:"g", strains: hb.strainName, inputMaterialType:"Fresh Frozen"}));
-      return;
-    }
-    const g = hb.grades[grade];
-    if (!g) return;
-    setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(g.weight), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags, inputMaterialType: harvestInputMaterialType(hb, grade)}));
   }
   const[inventoryData,setInventoryData]=useState([]);
   const[boms,setBoms]=useState([]);
@@ -1249,6 +1237,45 @@ export default function ProductionScheduler({onNavigate}){
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
   const[formErr,setFormErr]=useState("");
+
+  // Grade weight recorded on a harvest_batches row is a fixed snapshot from
+  // harvest -- it's never decremented when a production batch draws from
+  // it, so without this a second batch could select the same "B grade" lot
+  // a first batch already fully consumed and the picker would still show
+  // the full original weight as available (silent double-counted supply,
+  // corrupting the reconciliation ledger's intake figure). harvestBatchId
+  // + harvestGrade + inputAmt on each already-saved production_batches row
+  // *is* the transfer's provenance record -- no separate ledger table
+  // needed, just sum what's already been drawn. isLinked batches (auto-
+  // created HTE/Heads-Tails byproducts) are excluded -- they copy the same
+  // harvestBatchId/harvestGrade/inputAmt from their parent batch's `base`
+  // object and aren't a second, additional draw. The batch currently being
+  // edited is also excluded so reopening an existing harvest-sourced batch
+  // doesn't subtract its own already-recorded allocation from itself.
+  const editingBatchId = formMode==="edit" ? editId : null;
+  function gradeConsumedG(harvestBatchId, grade) {
+    return batches
+      .filter(b=>b.harvestBatchId===harvestBatchId && b.harvestGrade===grade && !b.isLinked && b.id!==editingBatchId)
+      .reduce((sum,b)=>sum+(parseFloat(b.inputAmt)||0)*(UNIT_TO_G[b.unit]||1), 0);
+  }
+  function gradeRemainingG(hb, grade) {
+    const totalG = grade==="fresh_frozen" ? (parseFloat(hb.wetWeightG)||0) : (parseFloat(hb.grades?.[grade]?.weight)||0);
+    return Math.max(0, totalG - gradeConsumedG(hb.id, grade));
+  }
+  const availableHarvest = harvestBatchesData.filter(hb => hb.status==="done" && (
+    hb.isFreshFrozen ? gradeRemainingG(hb,"fresh_frozen")>0 : Object.keys(hb.grades||{}).some(k=>gradeRemainingG(hb,k)>0)
+  ));
+  function selectHarvestGrade(hbId, grade) {
+    const hb = harvestBatchesData.find(h=>h.id===hbId);
+    if (!hb) return;
+    if (hb.isFreshFrozen) {
+      setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:"fresh_frozen", inputAmt:String(gradeRemainingG(hb,"fresh_frozen")), unit:"g", strains: hb.strainName, inputMaterialType:"Fresh Frozen"}));
+      return;
+    }
+    const g = hb.grades[grade];
+    if (!g) return;
+    setForm(f=>({...f, harvestBatchId:hbId, harvestGrade:grade, inputAmt:String(gradeRemainingG(hb,grade)), unit:"g", strains: hb.strainName, s2sSourceTags: g.s2s||f.s2sSourceTags, inputMaterialType: harvestInputMaterialType(hb, grade)}));
+  }
 
 
   const today=new Date();
@@ -1720,11 +1747,11 @@ export default function ProductionScheduler({onNavigate}){
                       </select>
                       {(()=>{
                         const selectedHb=harvestBatchesData.find(h=>h.id===form.harvestBatchId);
-                        if (selectedHb?.isFreshFrozen) return <div className="ps-inp" style={{display:"flex",alignItems:"center",color:"var(--accent-2)",fontWeight:600}}>Fresh Frozen ({selectedHb.wetWeightG||0}g)</div>;
+                        if (selectedHb?.isFreshFrozen) return <div className="ps-inp" style={{display:"flex",alignItems:"center",color:"var(--accent-2)",fontWeight:600}}>Fresh Frozen ({gradeRemainingG(selectedHb,"fresh_frozen")}g remaining)</div>;
                         return (
                           <select className="ps-sel" value={form.harvestGrade} onChange={e=>selectHarvestGrade(form.harvestBatchId,e.target.value)} disabled={!form.harvestBatchId}>
                             <option value="">— Grade —</option>
-                            {selectedHb && Object.entries(selectedHb.grades||{}).filter(([k,g])=>parseFloat(g.weight)>0).map(([k,g])=><option key={k} value={k}>{GRADE_LABELS[k]} ({g.weight}g)</option>)}
+                            {selectedHb && Object.entries(selectedHb.grades||{}).filter(([k])=>gradeRemainingG(selectedHb,k)>0).map(([k])=><option key={k} value={k}>{GRADE_LABELS[k]} ({gradeRemainingG(selectedHb,k)}g remaining)</option>)}
                           </select>
                         );
                       })()}
