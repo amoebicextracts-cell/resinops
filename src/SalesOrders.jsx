@@ -3,22 +3,11 @@ import { db } from "./lib/db";
 import SalesGoalDial from "./SalesGoalDial.jsx";
 import { agingBucket, paymentStatus } from "./lib/aging";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { batchBaseUnits, committedUnits, qcHoldSet } from "./lib/sales";
 
 function fmtC(n){return "$"+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtN(n){return Number(n||0).toLocaleString();}
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
-
-// Parse estimated unit count out of a batch's yieldEst string (same approach used in Finance.jsx)
-function extractUnits(yieldEst) {
-  if (!yieldEst) return 0;
-  const m = yieldEst.match(/([\d,]+)\s*(?:×|units|cones|carts|AIOs|bottles)/);
-  return m ? parseInt(m[1].replace(/,/g,"")) : 0;
-}
-function extractActualUnits(actualYield) {
-  if (!actualYield) return 0;
-  const m = actualYield.match(/([\d,]+)\s*units?/i);
-  return m ? parseInt(m[1].replace(/,/g,"")) : 0;
-}
 
 const CSS = `
   .so-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -94,10 +83,7 @@ export default function SalesOrders() {
         setSkus(sk);
         setCustomers(cu);
         setGoals(gl);
-        setQcHolds(new Set(
-          qc.filter(t=>t.onHold&&t.batchType==="production"&&t.productionBatchId)
-            .map(t=>String(t.productionBatchId))
-        ));
+        setQcHolds(qcHoldSet(qc));
       }catch(e){ console.error("SalesOrders load error:",e); }
       setLoading(false);
     }
@@ -124,16 +110,13 @@ export default function SalesOrders() {
 
   // ── Availability math ──────────────────────────────────────────────────
   function batchAvailability(b) {
-    const estUnits = extractUnits(b.yieldEst);
-    const actualUnits = extractActualUnits(b.actual_yield);
-    const baseUnits = actualUnits || estUnits;
+    const { estUnits, actualUnits, baseUnits, isActual } = batchBaseUnits(b);
     const pct = presellOverrides[b.id] !== undefined ? presellOverrides[b.id] : defaultPct;
     const cap = Math.floor(baseUnits * (parseFloat(pct)||0) / 100);
-    const committed = orders.filter(o=>o.status!=="canceled").reduce((a,o)=>
-      a + o.lines.filter(l=>l.batchId===b.id).reduce((aa,l)=>aa+(parseInt(l.qty)||0),0), 0);
+    const committed = committedUnits(b.id, orders);
     const onHold = qcHolds.has(String(b.id));
     const available = onHold ? 0 : Math.max(0, cap - committed);
-    return { estUnits, actualUnits, baseUnits, pct, cap, committed, available, isActual: !!actualUnits, onHold };
+    return { estUnits, actualUnits, baseUnits, pct, cap, committed, available, isActual, onHold };
   }
 
   function setPct(batchId, v) { setPresellOverrides(p=>({...p,[batchId]:v})); }

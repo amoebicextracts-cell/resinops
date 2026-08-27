@@ -3,6 +3,7 @@ import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import SalesGoalDial from "./SalesGoalDial.jsx";
 import { parseDateLocal, daysUntil } from "./lib/dateUtils";
+import { batchBaseUnits, committedUnits, qcHoldSet } from "./lib/sales";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -162,6 +163,42 @@ export default function Dashboard({ onNavigate }){
     });
   }
 
+  // ── Needs a new batch (demand-side) ─────────────────────────────────────
+  // "Available" here is true remaining physical yield not yet committed to
+  // an order, zeroed out if QC-held -- deliberately NOT SalesOrders.jsx's
+  // presell-throttled "available to advertise" number (that's a sales-side
+  // knob for how much of a batch to expose up front, held only in
+  // ephemeral component state with no persisted default; demand planning
+  // needs the real remaining supply, not what's currently marketed).
+  const RUNWAY_WINDOW_DAYS = 30;
+  const RUNWAY_ALERT_THRESHOLD_DAYS = 14;
+  function needsSchedulingItems(){
+    const holds = qcHoldSet(qcTests);
+    const groups = {};
+    for (const b of prodBatches) {
+      const key = [b.cat, b.sub, b.strains||""].join("|");
+      (groups[key] ||= {cat:b.cat, sub:b.sub, catLabel:b.catLabel, subLabel:b.subLabel, strains:b.strains, batches:[]}).batches.push(b);
+    }
+    const cutoff = addDays(today, -RUNWAY_WINDOW_DAYS);
+    const result = [];
+    for (const g of Object.values(groups)) {
+      const batchIds = new Set(g.batches.map(b=>String(b.id)));
+      const available = g.batches.reduce((a,b)=>{
+        if (holds.has(String(b.id))) return a;
+        const { baseUnits } = batchBaseUnits(b);
+        return a + Math.max(0, baseUnits - committedUnits(b.id, salesOrders));
+      }, 0);
+      const soldRecently = salesOrders
+        .filter(o=>o.status!=="canceled" && o.orderDate && parseDateLocal(o.orderDate) >= cutoff)
+        .reduce((a,o)=>a+(o.lines||[]).filter(l=>batchIds.has(String(l.batchId))).reduce((aa,l)=>aa+(parseInt(l.qty)||0),0), 0);
+      const velocity = soldRecently / RUNWAY_WINDOW_DAYS;
+      if (velocity <= 0) continue; // no recent demand signal -- nothing actionable
+      const daysLeft = available / velocity;
+      if (daysLeft < RUNWAY_ALERT_THRESHOLD_DAYS) result.push({...g, available, velocity, daysLeft});
+    }
+    return result.sort((a,b)=>a.daysLeft-b.daysLeft);
+  }
+
   // ── Today's shifts ───────────────────────────────────────────────────────
   const todayShifts=shifts.filter(s=>s.date===todayStr);
 
@@ -170,6 +207,7 @@ export default function Dashboard({ onNavigate }){
   const pm=pmAlerts();
   const licenses=licenseAlerts();
   const lowStock=lowStockItems();
+  const needsScheduling=needsSchedulingItems();
   const openWOs=workOrders.filter(w=>w.status!=="resolved");
   const openLoto=loto.filter(l=>l.status==="open");
   const openDevs=deviations.filter(d=>d.status==="open");
@@ -479,6 +517,27 @@ export default function Dashboard({ onNavigate }){
                   const stock=(item.lots||[]).reduce((a,l)=>a+(l.remaining||0),0)||item.stock||0;
                   return<tr key={i}><td style={{fontWeight:500,color:"var(--text)"}}>{item.n}</td><td style={{color:stock===0?"var(--danger)":"var(--amber)",fontWeight:600}}>{stock} {item.uom}</td><td style={{fontSize:11}}>{item.reorderAt} {item.uom}</td></tr>;
                 })}</tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Needs a new batch (demand-side) */}
+          <div className="db-card">
+            <div className="db-card-t">🧪 Needs a new batch</div>
+            {needsScheduling.length===0?<div className="db-empty">No products running low against recent sales pace</div>:(
+              <table className="db-tbl">
+                <thead><tr><th>Product</th><th>Available</th><th>Sold/day</th><th>Runway</th></tr></thead>
+                <tbody>{needsScheduling.slice(0,6).map((g,i)=>(
+                  <tr key={i}>
+                    <td>
+                      <div style={{fontWeight:500,color:"var(--text)"}}>{g.catLabel||g.cat}{g.subLabel?" — "+g.subLabel:""}</div>
+                      <div style={{fontSize:10,color:"var(--text-3)"}}>{g.strains||"—"}</div>
+                    </td>
+                    <td>{g.available}</td>
+                    <td style={{fontSize:11}}>{g.velocity.toFixed(1)}/day</td>
+                    <td style={{color:g.daysLeft<=3?"var(--danger)":"var(--amber)",fontWeight:600}}>{Math.floor(g.daysLeft)}d</td>
+                  </tr>
+                ))}</tbody>
               </table>
             )}
           </div>
