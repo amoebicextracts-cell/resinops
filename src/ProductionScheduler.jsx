@@ -1762,7 +1762,7 @@ export default function ProductionScheduler({onNavigate}){
               <div><label className="ps-lbl">{getInputLabel(form.cat)}</label>
                 <div style={{display:"flex",gap:6}}>
                   <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000" value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} disabled={form.inputSource==="harvest"&&!!form.harvestGrade} />
-                  <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
+                  <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}} disabled={form.inputSource==="harvest"&&!!form.harvestGrade}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
                 </div>
               </div>
               <div><label className="ps-lbl">Package / unit size</label><select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>{pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}</select></div>
