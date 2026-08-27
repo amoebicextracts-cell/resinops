@@ -189,7 +189,7 @@ export default function Dashboard({ onNavigate }){
         return a + Math.max(0, baseUnits - committedUnits(b.id, salesOrders));
       }, 0);
       const soldRecently = salesOrders
-        .filter(o=>o.status!=="canceled" && o.orderDate && parseDateLocal(o.orderDate) >= cutoff)
+        .filter(o=>o.status!=="canceled" && o.orderDate && parseDateLocal(o.orderDate) >= cutoff && parseDateLocal(o.orderDate) <= today)
         .reduce((a,o)=>a+(o.lines||[]).filter(l=>batchIds.has(String(l.batchId))).reduce((aa,l)=>aa+(parseInt(l.qty)||0),0), 0);
       const velocity = soldRecently / RUNWAY_WINDOW_DAYS;
       if (velocity <= 0) continue; // no recent demand signal -- nothing actionable
