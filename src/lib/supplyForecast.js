@@ -28,11 +28,18 @@ const GRADE_KEYS = ["a", "b", "c", "trim"];
 // picking whichever happens to be truthy first, or the other tier's
 // output silently disappears from the projection.
 function gradeWeight(hb, key) {
-  const modern = key === "a"
-    ? (parseFloat(hb.grades?.a?.weight) || 0) + (parseFloat(hb.grades?.aa?.weight) || 0)
-    : (parseFloat(hb.grades?.[key]?.weight) || 0);
+  // "a" and "aa" each need their own modern-then-legacy resolution before
+  // summing -- one tier recorded in the modern jsonb and the other only in
+  // its legacy flat column (a real possibility on an older, partially-
+  // edited harvest) would otherwise short-circuit on the first tier's
+  // modern value and never consult the second tier's legacy fallback.
+  if (key === "a") {
+    const a = parseFloat(hb.grades?.a?.weight) || parseFloat(hb.gradeA) || 0;
+    const aa = parseFloat(hb.grades?.aa?.weight) || parseFloat(hb.gradeAA) || 0;
+    return a + aa;
+  }
+  const modern = parseFloat(hb.grades?.[key]?.weight) || 0;
   if (modern > 0) return modern;
-  if (key === "a") return (parseFloat(hb.gradeA) || 0) + (parseFloat(hb.gradeAA) || 0);
   if (key === "b") return parseFloat(hb.gradeB) || 0;
   if (key === "c") return parseFloat(hb.gradeC) || 0;
   if (key === "trim") return parseFloat(hb.trimWeight) || 0;
