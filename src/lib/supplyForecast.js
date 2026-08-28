@@ -23,23 +23,33 @@ const GRADE_KEYS = ["a", "b", "c", "trim"];
 // modern-then-legacy-fallback reconciliation HarvestBatches.jsx's own
 // normalizeBatch() already does for display, so a strain's projection
 // isn't blind to its own older harvest history.
+// "a" and "aa" are two distinct grade tiers that can both carry real
+// weight on the same harvest (not an either/or) -- sum them rather than
+// picking whichever happens to be truthy first, or the other tier's
+// output silently disappears from the projection.
 function gradeWeight(hb, key) {
   const modern = key === "a"
-    ? (parseFloat(hb.grades?.a?.weight) || parseFloat(hb.grades?.aa?.weight) || 0)
+    ? (parseFloat(hb.grades?.a?.weight) || 0) + (parseFloat(hb.grades?.aa?.weight) || 0)
     : (parseFloat(hb.grades?.[key]?.weight) || 0);
   if (modern > 0) return modern;
-  if (key === "a") return parseFloat(hb.gradeA) || parseFloat(hb.gradeAA) || 0;
+  if (key === "a") return (parseFloat(hb.gradeA) || 0) + (parseFloat(hb.gradeAA) || 0);
   if (key === "b") return parseFloat(hb.gradeB) || 0;
   if (key === "c") return parseFloat(hb.gradeC) || 0;
   if (key === "trim") return parseFloat(hb.trimWeight) || 0;
   return 0;
 }
 
+// Matches HarvestBatches.jsx's own normalizeBatch() status canonicalization
+// -- QCTesting.jsx (and CSV imports) can persist "complete"/"completed"
+// rather than "done", and reading the raw (un-normalized) list() result
+// here would otherwise silently exclude that real harvest history.
+const DONE_STATUSES = new Set(["done", "complete", "completed"]);
+
 // Completed harvests with a real total weight and plant count -- anything
 // else has no basis for a per-plant or grade-split average.
 function completedSamples(harvestBatches, strainName) {
   return harvestBatches.filter(hb =>
-    hb.status === "done" &&
+    DONE_STATUSES.has((hb.status || "").toLowerCase()) &&
     (parseFloat(hb.totalDryWeight) || 0) > 0 &&
     (parseFloat(hb.plants) || 0) > 0 &&
     (!strainName || (hb.strainName || "").toLowerCase() === strainName.toLowerCase())

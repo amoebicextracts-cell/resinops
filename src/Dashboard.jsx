@@ -211,6 +211,8 @@ export default function Dashboard({ onNavigate }){
     if (strainNames.length === 0) return null;
     let totalG = 0, earliestDate = null;
     for (const sp of spaces) {
+      const hvDate = harvestDateForSpace(sp);
+      if (hvDate < today) continue; // already harvested -- real output now lives in harvest_batches, not this projection
       for (const s of (sp.strains || [])) {
         if (!strainNames.includes((s.name || "").toLowerCase())) continue;
         for (const [grade, earmark] of Object.entries(s.earmarks || {})) {
@@ -218,7 +220,6 @@ export default function Dashboard({ onNavigate }){
           const proj = projectedYieldForStrainRow(s.name, s.plants, harvestBatches);
           if (!proj || !(proj.grades[grade] > 0)) continue;
           totalG += proj.grades[grade];
-          const hvDate = harvestDateForSpace(sp);
           if (!earliestDate || hvDate < earliestDate) earliestDate = hvDate;
         }
       }
