@@ -329,33 +329,8 @@ const SFG={
   "Final Solvent Purge":"#f09090","QC / Testing":"#7090f8","Packaging":"#c080f8","Inventory":"#70d0d0",
 };
 
-export const CATS=[
-  {v:"whole_flower",l:"Whole Flower"},{v:"ground_flower",l:"Ground Flower"},
-  {v:"pre_roll",l:"Pre-Roll"},{v:"extract",l:"Extract / Concentrate"},
-  {v:"vape",l:"Vape"},{v:"tincture",l:"Tincture"},
-  {v:"topical",l:"Topical"},{v:"edible",l:"Edible"},
-];
-export const SUBS={
-  extract:[
-    {v:"shatter",l:"BHO — Shatter / Wax"},{v:"badder",l:"BHO — Badder / Budder"},
-    {v:"live_resin",l:"BHO — Live Resin"},{v:"sugar",l:"BHO — Sugar"},
-    {v:"diamonds",l:"BHO — Diamonds & Sauce"},{v:"rosin_fl",l:"Rosin — Flower Press"},
-    {v:"rosin_hash",l:"Rosin — Hash Press"},{v:"hash",l:"Ice Water Hash"},
-    {v:"co2",l:"CO2 Extract"},{v:"distillate",l:"Distillate (Ethanol or Hydrocarbon)"},
-    {v:"thca_ff",l:"THCa Isolate — Fresh Frozen Input"},
-    {v:"thca_trim",l:"THCa Isolate — Dry Trim Input"},
-    {v:"r134a_20l",l:"R-134a Extraction — 20L Machine"},
-    {v:"r134a_50l",l:"R-134a Extraction — 50L Machine"},
-  ],
-  vape:[
-    {v:"cartridge",l:"510-Thread Cartridge"},{v:"disposable",l:"AIO / Disposable"},
-    {v:"oil_rosin",l:"Vape Oil — Rosin-derived"},{v:"oil_live_resin",l:"Vape Oil — Live Resin-derived"},
-  ],
-  edible:[
-    {v:"gummies",l:"Gummies"},{v:"chocolate",l:"Chocolate"},
-    {v:"capsules",l:"Capsules"},{v:"beverage",l:"Beverage"},{v:"other",l:"Other"},
-  ],
-};
+export { CATS, SUBS } from "./lib/productCategories";
+import { CATS, SUBS } from "./lib/productCategories";
 
 const STEPS={
   whole_flower: [{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
