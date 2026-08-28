@@ -4,6 +4,7 @@ import { supabase, getCurrentFacility } from "./lib/supabase";
 import SalesGoalDial from "./SalesGoalDial.jsx";
 import { parseDateLocal, daysUntil } from "./lib/dateUtils";
 import { batchBaseUnits, committedUnits, qcHoldSet } from "./lib/sales";
+import { projectedYieldForStrainRow, harvestDateForSpace } from "./lib/supplyForecast";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -194,9 +195,36 @@ export default function Dashboard({ onNavigate }){
       const velocity = soldRecently / RUNWAY_WINDOW_DAYS;
       if (velocity <= 0) continue; // no recent demand signal -- nothing actionable
       const daysLeft = available / velocity;
-      if (daysLeft < RUNWAY_ALERT_THRESHOLD_DAYS) result.push({...g, available, velocity, daysLeft});
+      if (daysLeft < RUNWAY_ALERT_THRESHOLD_DAYS) result.push({...g, available, velocity, daysLeft, relief: reliefForGroup(g)});
     }
     return result.sort((a,b)=>a.daysLeft-b.daysLeft);
+  }
+
+  // Supply-side: is a still-growing space's strain already earmarked to
+  // relieve this exact urgent product (same cat+sub, matching strain name)?
+  // Sums projected grade output across every matching earmark and reports
+  // the soonest harvest date -- this is what actually connects the
+  // cultivation-side plan (Scheduler.jsx) to the sales-side alert.
+  function reliefForGroup(g) {
+    const targetKey = g.cat + "|" + (g.sub || "");
+    const strainNames = (g.strains || "").split(",").map(s=>s.trim().toLowerCase()).filter(Boolean);
+    if (strainNames.length === 0) return null;
+    let totalG = 0, earliestDate = null;
+    for (const sp of spaces) {
+      const hvDate = harvestDateForSpace(sp);
+      if (hvDate < today) continue; // already harvested -- real output now lives in harvest_batches, not this projection
+      for (const s of (sp.strains || [])) {
+        if (!strainNames.includes((s.name || "").toLowerCase())) continue;
+        for (const [grade, earmark] of Object.entries(s.earmarks || {})) {
+          if (earmark !== targetKey) continue;
+          const proj = projectedYieldForStrainRow(s.name, s.plants, harvestBatches);
+          if (!proj || !(proj.grades[grade] > 0)) continue;
+          totalG += proj.grades[grade];
+          if (!earliestDate || hvDate < earliestDate) earliestDate = hvDate;
+        }
+      }
+    }
+    return totalG > 0 && earliestDate ? { totalG, harvestDate: earliestDate } : null;
   }
 
   // ── Today's shifts ───────────────────────────────────────────────────────
@@ -532,6 +560,7 @@ export default function Dashboard({ onNavigate }){
                     <td>
                       <div style={{fontWeight:500,color:"var(--text)"}}>{g.catLabel||g.cat}{g.subLabel?" — "+g.subLabel:""}</div>
                       <div style={{fontSize:10,color:"var(--text-3)"}}>{g.strains||"—"}</div>
+                      {g.relief&&<div style={{fontSize:10,color:"var(--accent-2)",marginTop:2}}>🌱 Relief: ~{Math.round(g.relief.totalG).toLocaleString()}g by {g.relief.harvestDate.toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>}
                     </td>
                     <td>{g.available}</td>
                     <td style={{fontSize:11}}>{g.velocity.toFixed(1)}/day</td>

@@ -3,6 +3,20 @@ import { db } from "./lib/db";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import { toISODate } from "./lib/dailyActions";
 import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
+import { CATS, SUBS } from "./lib/productCategories";
+import { projectedYieldForStrainRow } from "./lib/supplyForecast";
+
+// Flat "Category — Subcategory" option list for earmarking a strain row's
+// projected grade output to a planned end product -- same vocabulary
+// ProductionScheduler.jsx's New Production Batch form uses, so an earmark
+// here and a "needs a new batch" flag on the Dashboard are guaranteed to
+// line up on the same cat|sub key.
+const EARMARK_OPTIONS = CATS.flatMap(c =>
+  (SUBS[c.v]||[]).length
+    ? SUBS[c.v].map(s => ({ value: c.v+"|"+s.v, label: c.l+" — "+s.l }))
+    : [{ value: c.v+"|", label: c.l }]
+);
+const EARMARK_GRADES = [{k:"a",l:"A-Bud"},{k:"b",l:"B-Bud"},{k:"c",l:"C-Bud"},{k:"trim",l:"Trim"}];
 
 const ROOTING   = 14;
 const DRYING    = 12;
@@ -151,6 +165,7 @@ const EMPTY_FORM = { name: "", d: "", veg: "4", flw: "9", strains: [{ id: 1, nam
 export default function Scheduler() {
   const [spaces, setSpaces] = useState([]);
   const [growMap, setGrowMap] = useState([]);
+  const [harvestBatches, setHarvestBatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm]         = useState(EMPTY_FORM);
   const [formMode, setFormMode] = useState(null);
@@ -176,12 +191,14 @@ export default function Scheduler() {
   useEffect(() => {
     async function load(){
       try{
-        const [sp, gm] = await Promise.all([
+        const [sp, gm, hb] = await Promise.all([
           db.grow_spaces.list(),
           db.grow_rooms.list(),
+          db.harvest_batches.list(),
         ]);
         setSpaces([...sp].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
         setGrowMap(gm);
+        setHarvestBatches(hb);
       }catch(e){ console.error("Scheduler load error:",e); }
       setLoading(false);
     }
@@ -213,7 +230,10 @@ export default function Scheduler() {
   const formTotalPlants = (form.strains||[]).reduce((a,s)=>a+(parseInt(s.plants)||0),0);
   const clones = formTotalPlants > 0 ? cloneTarget(formTotalPlants) : null;
   function setStrainField(i, k, v) { setForm(f => ({ ...f, strains: f.strains.map((s,idx)=>idx===i?{...s,[k]:v}:s) })); }
-  function addStrainRow() { setForm(f => ({ ...f, strains: [...f.strains, { id: Date.now(), name: "", plants: "" }] })); }
+  function setStrainEarmark(i, grade, catSub) {
+    setForm(f => ({ ...f, strains: f.strains.map((s,idx)=>idx===i?{...s, earmarks:{...(s.earmarks||{}), [grade]:catSub}}:s) }));
+  }
+  function addStrainRow() { setForm(f => ({ ...f, strains: [...f.strains, { id: Date.now(), name: "", plants: "", earmarks: {} }] })); }
   function removeStrainRow(i) { setForm(f => ({ ...f, strains: f.strains.filter((_,idx)=>idx!==i) })); }
 
   function openAdd() {
@@ -225,7 +245,7 @@ export default function Scheduler() {
   }
 
   function openEdit(sp) {
-    const strains = (sp.strains&&sp.strains.length) ? sp.strains.map(s=>({id:s.id,name:s.name,plants:String(s.plants)})) : [{ id: Date.now(), name: sp.strain||"", plants: String(sp.plants||"") }];
+    const strains = (sp.strains&&sp.strains.length) ? sp.strains.map(s=>({id:s.id,name:s.name,plants:String(s.plants),earmarks:s.earmarks||{}})) : [{ id: Date.now(), name: sp.strain||"", plants: String(sp.plants||""), earmarks: {} }];
     setForm({ name: sp.name, d: sp.d, veg: String(sp.veg), flw: String(sp.flw), strains, growMapId: sp.growMapId||"",
       co2Enabled: sp.co2EnrichmentEnabled||false,
       co2PpmTargetOverride: sp.co2PpmTargetOverride?String(sp.co2PpmTargetOverride):"",
@@ -295,7 +315,7 @@ export default function Scheduler() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
-    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
+    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants),earmarks:s.earmarks||{}}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     const record = {
       id: crypto.randomUUID(), name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
@@ -316,7 +336,7 @@ export default function Scheduler() {
     if (!validateForm()) return;
     const veg = Math.max(1, Math.min(24, parseInt(form.veg) || 4));
     const flw = Math.max(1, Math.min(24, parseInt(form.flw) || 9));
-    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants)}));
+    const strains = form.strains.filter(s=>s.name.trim()&&parseInt(s.plants)>0).map(s=>({id:s.id,name:s.name.trim(),plants:parseInt(s.plants),earmarks:s.earmarks||{}}));
     const totalP = strains.reduce((a,s)=>a+s.plants,0);
     const updated = { name: form.name.trim(), strains, strain: strains.map(s=>s.name).join(", "),
         d: form.d, plants: totalP, veg, flw, growMapId: form.growMapId||"",
@@ -535,8 +555,11 @@ export default function Scheduler() {
             Strains in this space — {formTotalPlants} total plants
           </div>
           <div style={{ display: "grid", gap: 8 }}>
-            {form.strains.map((s, i) => (
-              <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8 }}>
+            {form.strains.map((s, i) => {
+              const proj = s.name.trim() && parseInt(s.plants)>0 ? projectedYieldForStrainRow(s.name.trim(), s.plants, harvestBatches) : null;
+              return (
+              <div key={s.id} style={{ background:"var(--surface)", border:"1px solid var(--border-2)", borderRadius:8, padding:8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8 }}>
                 <StrainCombo className="sch-input" placeholder="Blue Dream" value={s.name}
                   onChange={(name) => setStrainField(i, "name", name)} />
                 <input type="number" min="1" className="sch-input" placeholder="Plants"
@@ -546,7 +569,28 @@ export default function Scheduler() {
                     style={{ background: "rgba(200,74,74,0.1)", border: "1px solid rgba(200,74,74,0.3)", color: "var(--danger)", borderRadius: 6, padding: "0 10px", cursor: "pointer" }}>✕</button>
                 )}
               </div>
-            ))}
+              {s.name.trim() && parseInt(s.plants)>0 && (
+                <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>
+                  <div style={{fontSize:10,color:"var(--text-3)",marginBottom:6}}>
+                    {proj ? <>Projected: ~{Math.round(proj.totalG).toLocaleString()}g{proj.usedFallback?" (facility avg, no history for this strain yet)":` (avg of ${proj.sampleSize} past harvest${proj.sampleSize===1?"":"s"})`}</> : "No harvest history yet to project a yield"}
+                  </div>
+                  <div style={{fontSize:10,color:"var(--text-3)",marginBottom:4,fontWeight:600,letterSpacing:"0.04em",textTransform:"uppercase"}}>Earmark projected output for</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                    {EARMARK_GRADES.map(g=>(
+                      <div key={g.k}>
+                        <label style={{fontSize:9,color:"var(--text-3)",display:"block",marginBottom:2}}>{g.l}{proj?` (~${Math.round(proj.grades[g.k]).toLocaleString()}g)`:""}</label>
+                        <select className="sch-input" style={{fontSize:11,padding:"4px 6px"}} value={(s.earmarks||{})[g.k]||""} onChange={e=>setStrainEarmark(i,g.k,e.target.value)}>
+                          <option value="">— Not planned —</option>
+                          {EARMARK_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              </div>
+              );
+            })}
           </div>
           <button type="button" className="sch-add-strain-btn" onClick={addStrainRow}
             style={{ marginTop: 8, background: "var(--surface)", border: "1px solid var(--border-2)", borderRadius: 6, padding: "5px 10px", fontSize: 11, color: "var(--accent-2)", cursor: "pointer", fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>
