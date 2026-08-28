@@ -1375,6 +1375,122 @@ export default function ProductionScheduler({onNavigate}){
     return true;
   }
 
+  // Regulator-facing "every gram accounted for" proof, built from data
+  // this app already tracks -- reuses calcBatchReconciliation (PR #86)
+  // rather than a new calculation, and mirrors GMPHub.jsx's jsPDF/
+  // autoTable styling convention. Deliberately a plain jsPDF .save()
+  // download, not routed through the e-signature/storage pipeline
+  // GMPHub's Sign & Release PDF uses -- this is an on-demand
+  // informational export (same "informational only" framing as the
+  // reconciliation ledger itself), not a tamper-evident signed artifact.
+  // jsPDF/jspdf-autotable are loaded on demand (not a static top-level
+  // import) -- GMPHub.jsx is the only other consumer, in a different Vite
+  // manualChunks group, and a static import here pulled the whole library
+  // (~140KB gzipped) into every Production Scheduler page load rather than
+  // only when this button is actually clicked.
+  async function exportReconciliationProof(batch){
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+    const linkedChildren=batches.filter(b=>b.linkedTo===batch.id);
+    const recon=calcBatchReconciliation(batch,linkedChildren);
+    const hb=harvestBatchesData.find(h=>h.id===batch.harvestBatchId);
+    const empName=(id)=>employees.find(e=>e.id===id)?.name||"—";
+    const batchSignoffs=signoffs.filter(so=>so.batchType==="production"&&so.batchId===batch.id);
+    const batchQcTests=qcTests.filter(t=>t.productionBatchId===batch.id);
+
+    const doc=new jsPDF();
+    let y=16;
+    doc.setFontSize(15);doc.setFont(undefined,"bold");
+    doc.text("Batch Reconciliation Proof",14,y);
+    doc.setFontSize(10);doc.setFont(undefined,"normal");
+    y+=7;
+    doc.text(batch.name||"Unnamed batch",14,y);
+    y+=6;
+    doc.setFontSize(9);doc.setTextColor(90);
+    doc.text(`${facility.facility_name||""} ${facility.license_number?"— "+facility.license_number:""} · Batch ID ${batch.id} · Generated ${todayLocalISO()}`,14,y);
+    doc.setTextColor(0);
+    y+=10;
+
+    autoTable(doc,{
+      startY:y,
+      head:[["Category","Strain(s)","Harvest Source","Grade","Input Amount"]],
+      body:[[
+        (()=>{
+          const catLabel=batch.catLabel||CATS.find(c=>c.v===batch.cat)?.l||batch.cat;
+          const subLabel=batch.subLabel||SUBS[batch.cat]?.find(s=>s.v===batch.sub)?.l||"";
+          return `${catLabel}${subLabel?" — "+subLabel:""}`;
+        })(),
+        batch.strains||"—",
+        hb?`${hb.strainName||""} — ${hb.spaceName||"manual"} (${fmtF(new Date(hb.d+"T12:00:00"))})`:"Manual entry",
+        batch.harvestGrade||"—",
+        batch.inputAmt?`${batch.inputAmt} ${batch.unit||"g"}`:"—",
+      ]],
+      theme:"striped",
+      headStyles:{fillColor:[74,124,89]},
+    });
+    y=doc.lastAutoTable.finalY+8;
+
+    doc.setFontSize(11);doc.setFont(undefined,"bold");
+    doc.text("Mass-Balance Reconciliation",14,y);
+    doc.setFont(undefined,"normal");
+    doc.setFontSize(9);
+    y+=6;
+    doc.text(`${recon.intakeG.toLocaleString()}g intake  -  ${recon.totalOutputG.toLocaleString()}g output  -  ${recon.totalLossG.toLocaleString()}g loss  =  ${recon.deltaG.toLocaleString()}g delta  (${recon.balanced?"Balanced":recon.hasAnyData?"Unbalanced":"No data logged"})`,14,y);
+    y+=6;
+
+    autoTable(doc,{
+      startY:y,
+      head:[["Yield Source","Amount (g)"]],
+      body:[
+        [batch.name||"Main batch",recon.mainYieldG.toLocaleString()],
+        ...recon.linkedYields.map(l=>[l.name,l.yieldG.toLocaleString()]),
+      ],
+      theme:"striped",
+      headStyles:{fillColor:[74,124,89]},
+    });
+    y=doc.lastAutoTable.finalY+4;
+
+    const lossRows=[
+      ...(recon.dewaxLossG>0?[["Dewax passes",recon.dewaxLossG.toLocaleString()]]:[]),
+      ...(recon.purgeLossG>0?[["Purge runs",recon.purgeLossG.toLocaleString()]]:[]),
+      ...recon.loggedLossLines.filter(l=>l.amountG>0).map(l=>[(LOSS_TYPES.find(t=>t.v===l.type)?.l||l.type)+(l.note?` — ${l.note}`:""),l.amountG.toLocaleString()]),
+    ];
+    if(lossRows.length){
+      autoTable(doc,{
+        startY:y+2,
+        head:[["Logged Loss","Amount (g)"]],
+        body:lossRows,
+        theme:"striped",
+        headStyles:{fillColor:[180,74,74]},
+      });
+      y=doc.lastAutoTable.finalY+4;
+    }
+
+    if(batchQcTests.length){
+      autoTable(doc,{
+        startY:y+4,
+        head:[["Lab","Sample ID","THCa %","Result"]],
+        body:batchQcTests.map(t=>[t.labName||"",t.sampleId||"",t.thca||"—",t.overallPass===true?"PASS":t.overallPass===false?"FAIL":"Pending"]),
+        theme:"striped",
+        headStyles:{fillColor:[74,124,89]},
+      });
+      y=doc.lastAutoTable.finalY+4;
+    }
+
+    autoTable(doc,{
+      startY:y+4,
+      head:[["Step","Tier","Signed By","Signed At"]],
+      body:batchSignoffs.flatMap(so=>SO_TIER_ORDER.filter(t=>so[t+"Id"]).map(t=>[so.stepName||"",SO_TIER_LABELS[t],empName(so[t+"Id"]),so[t+"At"]?parseDateLocal(so[t+"At"]).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—"])),
+      theme:"striped",
+      headStyles:{fillColor:[74,124,89]},
+    });
+    if(!batchSignoffs.some(so=>SO_TIER_ORDER.some(t=>so[t+"Id"]))){
+      doc.setFontSize(9);
+      doc.text("No GMP sign-offs recorded for this batch.",14,doc.lastAutoTable.finalY+6);
+    }
+
+    doc.save(`reconciliation-proof-${(batch.name||batch.id).replace(/[^a-z0-9]+/gi,"-").toLowerCase()}.pdf`);
+  }
+
   async function saveBatch(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
@@ -3021,6 +3137,7 @@ export default function ProductionScheduler({onNavigate}){
                       {recon.intakeG.toLocaleString()}g in − {recon.totalOutputG.toLocaleString()}g output − {recon.totalLossG.toLocaleString()}g loss = {recon.deltaG.toLocaleString()}g delta
                     </span>
                   </div>
+                  <button type="button" className="ps-btn ps-sm ps-secondary" style={{marginTop:10}} onClick={()=>exportReconciliationProof({...form,id:editId})}>📄 Export Reconciliation Proof (PDF)</button>
                 </div>
               );
             })()}
