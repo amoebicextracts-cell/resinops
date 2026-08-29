@@ -3137,6 +3137,17 @@ export default function ProductionScheduler({onNavigate}){
                       {recon.intakeG.toLocaleString()}g in − {recon.totalOutputG.toLocaleString()}g output − {recon.totalLossG.toLocaleString()}g loss = {recon.deltaG.toLocaleString()}g delta
                     </span>
                   </div>
+                  {(()=>{
+                    const cap=parseFloat(facility.max_transfer_loss_pct);
+                    if(!(cap>0)||recon.intakeG<=0) return null;
+                    const lossPct=recon.totalLossG/recon.intakeG*100;
+                    if(lossPct<=cap) return null;
+                    return(
+                      <div style={{marginTop:8,padding:"8px 10px",borderRadius:7,background:"rgba(200,150,58,0.12)",fontSize:11,color:"var(--amber)",fontWeight:600}}>
+                        ⚠ {lossPct.toFixed(1)}% loss exceeds the facility's {cap}% max transfer-loss threshold (Facility Settings) — informational, doesn't block saving.
+                      </div>
+                    );
+                  })()}
                   <button type="button" className="ps-btn ps-sm ps-secondary" style={{marginTop:10}} onClick={()=>exportReconciliationProof({...form,id:editId})}>📄 Export Reconciliation Proof (PDF)</button>
                 </div>
               );
@@ -3207,10 +3218,16 @@ export default function ProductionScheduler({onNavigate}){
                     {!b.isLinked&&isReconcilableBatch(b)&&(()=>{
                       const recon=calcBatchReconciliation(b,batches.filter(x=>x.linkedTo===b.id));
                       if(!recon.hasAnyData) return null;
+                      const cap=parseFloat(facility.max_transfer_loss_pct);
+                      const lossPct=recon.intakeG>0?recon.totalLossG/recon.intakeG*100:0;
+                      const overCap=cap>0&&lossPct>cap;
                       return(
-                        <div style={{fontSize:9,fontWeight:700,marginTop:2,color:recon.balanced?"var(--accent-2)":"var(--danger)"}}>
-                          {recon.balanced?"✓ Balanced":`⚠ ${Math.abs(recon.deltaG).toLocaleString()}g unaccounted`}
-                        </div>
+                        <>
+                          <div style={{fontSize:9,fontWeight:700,marginTop:2,color:recon.balanced?"var(--accent-2)":"var(--danger)"}}>
+                            {recon.balanced?"✓ Balanced":`⚠ ${Math.abs(recon.deltaG).toLocaleString()}g unaccounted`}
+                          </div>
+                          {overCap&&<div style={{fontSize:9,fontWeight:700,color:"var(--amber)"}}>⚠ {lossPct.toFixed(1)}% loss &gt; {cap}% cap</div>}
+                        </>
                       );
                     })()}
                     {b.cbBlendResult&&["edible","tincture","topical"].includes(b.cat)&&(

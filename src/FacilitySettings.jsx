@@ -45,6 +45,7 @@ const DEFAULTS = {
   productTier:"commercial",moduleOverrides:{},
   defaultCultivationAllocationBasis:"batch_weight",qbAccountMap:{},
   signoffEnforcement:"track_only",stepSignoffRequirements:{},
+  maxTransferLossPct:"",
 };
 
 const QB_ACCOUNT_FIELDS = [
@@ -161,6 +162,7 @@ export default function FacilitySettings({ isPlatformAdmin: isViewerPlatformAdmi
               qbAccountMap: data.qb_account_map||{},
               signoffEnforcement: data.signoff_enforcement||"track_only",
               stepSignoffRequirements: data.step_signoff_requirements||{},
+              maxTransferLossPct: data.max_transfer_loss_pct!=null?String(data.max_transfer_loss_pct):"",
             });
           }
         }catch(e){ console.error("FacilitySettings load error:",e); }
@@ -393,6 +395,7 @@ export default function FacilitySettings({ isPlatformAdmin: isViewerPlatformAdmi
           qb_account_map: settings.qbAccountMap,
           signoff_enforcement: settings.signoffEnforcement,
           step_signoff_requirements: settings.stepSignoffRequirements,
+          max_transfer_loss_pct: settings.maxTransferLossPct?parseFloat(settings.maxTransferLossPct):null,
           updated_at: new Date().toISOString(),
         }).eq('id', fid);
         if(error) throw error;
@@ -459,6 +462,7 @@ export default function FacilitySettings({ isPlatformAdmin: isViewerPlatformAdmi
             <div><label className="fs-lbl">Seed-to-sale system</label><select className="fs-sel" value={settings.tagSystem} onChange={e=>setF("tagSystem",e.target.value)}><option>METRC</option><option>BioTrackTHC</option><option>Leaf Data Systems</option><option>MJ Freeway</option><option>Flourish</option><option>COVA</option><option>Other</option></select></div>
             <div><label className="fs-lbl">Fiscal year start month</label><select className="fs-sel" value={settings.fiscalYearStart} onChange={e=>setF("fiscalYearStart",e.target.value)}>{["01","02","03","04","05","06","07","08","09","10","11","12"].map((m,i)=><option key={m} value={m}>{new Date(2024,i,1).toLocaleString("en-US",{month:"long"})}</option>)}</select></div>
             <div><label className="fs-lbl">Default cultivation cost allocation</label><select className="fs-sel" value={settings.defaultCultivationAllocationBasis} onChange={e=>setF("defaultCultivationAllocationBasis",e.target.value)}><option value="batch_weight">By weight</option><option value="time_occupied">By time occupied</option></select></div>
+            <div><label className="fs-lbl">Max transfer loss % (warning only)</label><input type="number" min="0" max="100" step="0.1" className="fs-inp" placeholder="e.g. 15" value={settings.maxTransferLossPct} onChange={e=>setF("maxTransferLossPct",e.target.value)} /><div style={{fontSize:10,color:"var(--text-3)",marginTop:2}}>Flags an extraction batch's mass-balance reconciliation loss above this %. Informational — doesn't block saving.</div></div>
           </div>
 
           <div className="fs-section">V2 Integrations — API Bridge</div>
