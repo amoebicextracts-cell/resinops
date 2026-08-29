@@ -63,6 +63,8 @@ const SCHEMAS = {
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis','co2_override','co2_actual_lbs'],
   cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes','linked_to_equipment'],
   operating_expenses: ['id','created_at','updated_at','facility_id','created_by','name','category','amount','date','notes'],
+  production_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','subcategory','status','notes'],
+  production_pool_transactions: ['id','created_at','facility_id','pool_id','created_by','type','amount_g','unit_cost_per_g','source_batch_id','destination_batch_id','notes'],
   pheno_hunts: ['id','created_at','updated_at','facility_id','created_by','strain_name','breeder','seed_source','seed_count','germ_date','notes','seeds'],
   metrc_transfer_manifests: ['id','created_at','updated_at','facility_id','created_by','sales_order_id','destination_facility_name','destination_license_number','transfer_type','planned_route','estimated_departure','estimated_arrival','driver_name','driver_license_number','vehicle_make','vehicle_model','vehicle_license_plate','phone_for_questions','packages','metrc_transfer_id','status','notes'],
   ipm_log: ['id','created_at','updated_at','facility_id','created_by','entry_type','room_name','grow_space_id','batch_ids','scheduled_date','performed_date','status','target_pest','species','release_rate','release_unit','pest_count','threshold_exceeded','action_taken','performed_by','notes'],
@@ -770,6 +772,17 @@ const FIELD_OVERRIDES = {
     productionPct: 'production_pct',
     allocationBasis: 'allocation_basis',
     linkedToEquipment: 'linked_to_equipment',
+  },
+  production_pools: {
+    createdBy: 'created_by',
+  },
+  production_pool_transactions: {
+    poolId: 'pool_id',
+    createdBy: 'created_by',
+    amountG: 'amount_g',
+    unitCostPerG: 'unit_cost_per_g',
+    sourceBatchId: 'source_batch_id',
+    destinationBatchId: 'destination_batch_id',
   },
   pheno_hunts: {
     strainName: 'strain_name',

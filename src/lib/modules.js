@@ -168,6 +168,15 @@ export const MODULES = [
     isScheduler: true,
     tier: "commercial",
   },
+  {
+    id: "production-pools",
+    label: "Production Pools",
+    icon: "🧪",
+    available: true,
+    description: "Named intermediate WIP pools (Diamond Production, HTE Refinement, etc.) with a weighted cost-per-gram basis, fed by and drawn down into production batches",
+    isScheduler: true,
+    tier: "commercial",
+  },
   // ── Compliance ──────────────────────────────────────────────────────────────
   {
     id: "gmp-hub",
