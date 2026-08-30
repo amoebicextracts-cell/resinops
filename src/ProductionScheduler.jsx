@@ -1530,7 +1530,13 @@ export default function ProductionScheduler({onNavigate}){
   async function syncPoolWithdrawal(batchId, amountG, batchName){
     const existingTx=poolTxData.find(t=>t.destinationBatchId===batchId && t.type==="withdrawal");
     if(form.inputSource==="pool" && form.poolId){
-      const unitCostPerG=currentAvgCostPerG(form.poolId, poolTxForLedger);
+      // Only recompute the snapshotted cost when the pool or amount actually
+      // changed -- otherwise re-saving a batch for an unrelated edit (e.g.
+      // fixing the strain name) would silently drift its historical cost
+      // basis to whatever the pool's live average happens to be today,
+      // defeating the whole point of snapshotting a withdrawal's cost.
+      const unchanged=existingTx && existingTx.poolId===form.poolId && parseFloat(existingTx.amountG)===amountG;
+      const unitCostPerG=unchanged?existingTx.unitCostPerG:currentAvgCostPerG(form.poolId, poolTxForLedger);
       const record={id:existingTx?.id||crypto.randomUUID(),poolId:form.poolId,type:"withdrawal",amountG,unitCostPerG,destinationBatchId:batchId,notes:existingTx?.notes||`Auto-logged from production batch "${batchName}"`};
       const saved=await db.production_pool_transactions.upsert(record);
       setPoolTxData(prev=>existingTx?prev.map(t=>t.id===saved.id?saved:t):[...prev,saved]);
@@ -1557,7 +1563,25 @@ export default function ProductionScheduler({onNavigate}){
     const otherLines=(existing?.manualMaterials||[]).filter(ml=>!isPoolLine(ml));
     const poolLine=poolResult?{itemId:null,name:`${poolResult.poolName} (pool withdrawal)`,qty:Math.round(poolResult.amountG*10)/10,uom:"g",unitCost:poolResult.unitCostPerG,cost:Math.round(poolResult.amountG*poolResult.unitCostPerG*100)/100}:null;
     if(!existing && !poolLine) return;
-    const record={id:existing?.id||crypto.randomUUID(),batchId,manualMaterials:poolLine?[poolLine,...otherLines]:otherLines,overrideMaterials:true,materialsLockedAt:existing?.materialsLockedAt||new Date().toISOString()};
+    const newLines=poolLine?[poolLine,...otherLines]:otherLines;
+    // Spread the existing row first (Finance.jsx's setRecord/unlockMaterials
+    // convention) so laborLines/testFee/etc. survive -- lsUpsert (localStorage
+    // mode) fully replaces a row with whatever's passed in, it doesn't merge.
+    let record;
+    if(newLines.length>0){
+      record={...existing,id:existing?.id||crypto.randomUUID(),batchId,manualMaterials:newLines,overrideMaterials:true,materialsLockedAt:existing?.materialsLockedAt||new Date().toISOString()};
+    } else if(existing?.overrideMaterials && (existing.manualMaterials||[]).every(isPoolLine)){
+      // The only reason this override existed was the pool line, and it's
+      // gone now -- clear it so live BOM/cultivation cost resolution takes
+      // back over, instead of leaving an empty manualMaterials:[] override
+      // that locks cost at $0. override_materials is NOT NULL (default
+      // false) in the DB, unlike manualMaterials/materialsLockedAt -- must
+      // send false, not undefined/null, or the upsert violates that
+      // constraint (Finance.jsx's unlockMaterials has this same latent bug).
+      record={...existing,manualMaterials:undefined,overrideMaterials:false,materialsLockedAt:undefined};
+    } else {
+      return; // existing override/materials were set independently of pools -- leave untouched
+    }
     const saved=await db.cogs_records.upsert(record);
     setCogsRecords(prev=>existing?prev.map(r=>r.id===saved.id?saved:r):[...prev,saved]);
   }
