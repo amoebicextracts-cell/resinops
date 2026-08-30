@@ -74,6 +74,7 @@ export default defineConfig({
           'modules-production': [
             './src/ProductionScheduler.jsx',
             './src/Remediation.jsx',
+            './src/ProductionPools.jsx',
           ],
           'modules-genetics': [
             './src/PhenoHunt.jsx',

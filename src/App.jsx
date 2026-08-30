@@ -55,6 +55,7 @@ class ErrorBoundary extends Component {
 import Scheduler from "./Scheduler.jsx";
 import ProductionScheduler from "./ProductionScheduler.jsx";
 import YieldDashboard from "./YieldDashboard.jsx";
+import ProductionPools from "./ProductionPools.jsx";
 import HarvestBatches from "./HarvestBatches.jsx";
 import Remediation from "./Remediation.jsx";
 import GrowMap from "./GrowMap.jsx";
@@ -1479,6 +1480,7 @@ export default function ResinOps() {
             {activeModule === "scheduler" ? <Scheduler /> : null}
             {activeModule === "production" ? <ProductionScheduler onNavigate={switchModule} /> : null}
             {activeModule === "yield-dashboard" ? <YieldDashboard /> : null}
+            {activeModule === "production-pools" ? <ProductionPools /> : null}
             {activeModule === "harvest" ? <HarvestBatches /> : null}
             {activeModule === "remediation" ? <Remediation /> : null}
             {activeModule === "grow-map" ? <GrowMap /> : null}
