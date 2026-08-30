@@ -1138,6 +1138,7 @@ export default function ProductionScheduler({onNavigate}){
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
   const[poolsData,setPoolsData]=useState([]);
   const[poolTxData,setPoolTxData]=useState([]);
+  const[cogsRecords,setCogsRecords]=useState([]);
   function harvestInputMaterialType(hb, grade) {
     if (!hb) return "";
     if (hb.isFreshFrozen) return "Fresh Frozen";
@@ -1175,7 +1176,7 @@ export default function ProductionScheduler({onNavigate}){
     async function load(){
       try{
         const fid=getCurrentFacility();
-        const [pb, hb, inv, bm, qc, emp, so, facRes, pl, ptx]=await Promise.all([
+        const [pb, hb, inv, bm, qc, emp, so, facRes, pl, ptx, cr]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.inventory_items.list(),
@@ -1186,6 +1187,7 @@ export default function ProductionScheduler({onNavigate}){
           fid&&supabase?supabase.from('facilities').select('*').eq('id',fid).single():Promise.resolve({data:null}),
           db.production_pools.list(),
           db.production_pool_transactions.list(),
+          db.cogs_records.list(),
         ]);
         setBoms(bm);
         setQcTests(qc);
@@ -1210,6 +1212,7 @@ export default function ProductionScheduler({onNavigate}){
         setInventoryData(inv);
         setPoolsData(pl);
         setPoolTxData(ptx);
+        setCogsRecords(cr);
       }catch(e){ console.error("ProductionScheduler load error:",e); }
       setLoading(false);
     }
@@ -1539,6 +1542,26 @@ export default function ProductionScheduler({onNavigate}){
     return null;
   }
 
+  // Keeps an already-saved batch's cogs_records materials in sync with its
+  // current pool sourcing when editing -- without this, changing a pool-
+  // sourced batch's amount (or switching away from pool sourcing entirely)
+  // would leave a stale pool-withdrawal line locked into COGS forever,
+  // since editing a batch doesn't otherwise touch cogs_records at all.
+  // Identifies "the" pool line by its "(pool withdrawal)" name suffix so
+  // any other locked materials (BOM lines, manual entries) are preserved
+  // untouched -- db.cogs_records.upsert only sends the columns in this
+  // object, so omitted fields (laborLines, testFee, etc.) are left as-is.
+  async function syncPoolCogsForEdit(batchId, poolResult){
+    const existing=cogsRecords.find(r=>r.batchId===batchId);
+    const isPoolLine=ml=>typeof ml?.name==="string" && ml.name.endsWith("(pool withdrawal)");
+    const otherLines=(existing?.manualMaterials||[]).filter(ml=>!isPoolLine(ml));
+    const poolLine=poolResult?{itemId:null,name:`${poolResult.poolName} (pool withdrawal)`,qty:Math.round(poolResult.amountG*10)/10,uom:"g",unitCost:poolResult.unitCostPerG,cost:Math.round(poolResult.amountG*poolResult.unitCostPerG*100)/100}:null;
+    if(!existing && !poolLine) return;
+    const record={id:existing?.id||crypto.randomUUID(),batchId,manualMaterials:poolLine?[poolLine,...otherLines]:otherLines,overrideMaterials:true,materialsLockedAt:existing?.materialsLockedAt||new Date().toISOString()};
+    const saved=await db.cogs_records.upsert(record);
+    setCogsRecords(prev=>existing?prev.map(r=>r.id===saved.id?saved:r):[...prev,saved]);
+  }
+
   async function saveBatch(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
@@ -1552,7 +1575,8 @@ export default function ProductionScheduler({onNavigate}){
       if(formMode==="edit"){
         const saved=await db.production_batches.upsert(mainBatch);
         setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d));});
-        await syncPoolWithdrawal(mainId, base.inputAmt, base.name);
+        const poolResult=await syncPoolWithdrawal(mainId, base.inputAmt, base.name);
+        await syncPoolCogsForEdit(mainId, poolResult);
       } else {
         const newBatches=[mainBatch];
         // Auto-create HTE linked batch for THCa isolate
@@ -1616,11 +1640,13 @@ export default function ProductionScheduler({onNavigate}){
           // from silently changing this batch's historical materials cost
           // (see lib/cogs.js calcMaterialCost's overrideMaterials branch).
           if (allMaterialLines.length) {
-            await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+            const savedCogs=await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+            setCogsRecords(p=>[...p,savedCogs]);
           }
         } else if (poolMaterialLine) {
           setDeductionNotice("");
-          await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+          const savedCogs=await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+          setCogsRecords(p=>[...p,savedCogs]);
         } else {
           setDeductionNotice("");
         }
