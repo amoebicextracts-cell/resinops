@@ -307,7 +307,13 @@ export default function Finance() {
     }catch(e){ setDeductMsg(p=>({...p,[batch.id]:"Deduction failed: "+e.message})); }
   }
   function unlockMaterials(batch){
-    setRecord(batch.id, {manualMaterials:undefined, overrideMaterials:undefined, materialsLockedAt:undefined});
+    // override_materials is NOT NULL (default false) in the DB, unlike
+    // manualMaterials/materialsLockedAt -- sending undefined for it (which
+    // transformForDb maps to null) violates that constraint. scheduleSave's
+    // upsert failure is only console.error'd, not surfaced to the user, so
+    // this previously failed silently: local state showed "unlocked" but
+    // the DB write never landed, and the lock reappeared on next reload.
+    setRecord(batch.id, {manualMaterials:undefined, overrideMaterials:false, materialsLockedAt:undefined});
   }
 
   function getRecord(batchId) { return cogsRecs.find(r=>r.batchId===batchId)||{}; }
