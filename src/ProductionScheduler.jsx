@@ -4,6 +4,7 @@ import { supabase, getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { deductForBatch } from "./lib/inventory.js";
 import { isReconcilableBatch, calcBatchReconciliation, LOSS_TYPES } from "./lib/reconciliation.js";
+import { poolLedger, currentAvgCostPerG } from "./lib/productionPools.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import { toISODate } from "./lib/dailyActions";
 import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
@@ -1102,7 +1103,7 @@ const CSS=`
 `;
 
 const EMPTY={
-  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",inputMaterialType:"",
+  name:"",cat:"whole_flower",sub:"",strains:"",d:"",inputAmt:"",unit:"g",pkgIdx:3,steps:null,inputSource:"manual",harvestBatchId:"",harvestGrade:"",poolId:"",inputMaterialType:"",
   stemWastePct:"30",moistureLossPct:"2",fillWastePct:"3",coneWeight:"1",packSize:"5",inputMaterial:"flower",
   overfillG:"0.1",vapeInputType:"distillate",sauceSepMethod:"pour_off",vapeHardware:"fg_xmini",vapeInputTerpPct:"0",
   additiveTHC:"35",additiveTerpPct:"50",targetBlendTHC:"85",
@@ -1135,6 +1136,8 @@ export default function ProductionScheduler({onNavigate}){
   const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
   const[batches,setBatches]=useState([]);
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
+  const[poolsData,setPoolsData]=useState([]);
+  const[poolTxData,setPoolTxData]=useState([]);
   function harvestInputMaterialType(hb, grade) {
     if (!hb) return "";
     if (hb.isFreshFrozen) return "Fresh Frozen";
@@ -1172,7 +1175,7 @@ export default function ProductionScheduler({onNavigate}){
     async function load(){
       try{
         const fid=getCurrentFacility();
-        const [pb, hb, inv, bm, qc, emp, so, facRes]=await Promise.all([
+        const [pb, hb, inv, bm, qc, emp, so, facRes, pl, ptx]=await Promise.all([
           db.production_batches.list(),
           db.harvest_batches.list(),
           db.inventory_items.list(),
@@ -1181,6 +1184,8 @@ export default function ProductionScheduler({onNavigate}){
           db.employees.list(),
           db.gmp_signoffs.list(),
           fid&&supabase?supabase.from('facilities').select('*').eq('id',fid).single():Promise.resolve({data:null}),
+          db.production_pools.list(),
+          db.production_pool_transactions.list(),
         ]);
         setBoms(bm);
         setQcTests(qc);
@@ -1203,6 +1208,8 @@ export default function ProductionScheduler({onNavigate}){
         })).sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
         setHarvestBatchesData(hb);
         setInventoryData(inv);
+        setPoolsData(pl);
+        setPoolTxData(ptx);
       }catch(e){ console.error("ProductionScheduler load error:",e); }
       setLoading(false);
     }
@@ -1212,6 +1219,7 @@ export default function ProductionScheduler({onNavigate}){
   const[formMode,setFormMode]=useState(null);
   const[editId,setEditId]=useState(null);
   const[formErr,setFormErr]=useState("");
+  const[depositForm,setDepositForm]=useState(null); // {poolId, amountG, unitCostPerG} -- banking a reconciliation delta into a pool (item 2)
 
   // Grade weight recorded on a harvest_batches row is a fixed snapshot from
   // harvest -- it's never decremented when a production batch draws from
@@ -1240,6 +1248,19 @@ export default function ProductionScheduler({onNavigate}){
   const availableHarvest = harvestBatchesData.filter(hb => hb.status==="done" && (
     hb.isFreshFrozen ? gradeRemainingG(hb,"fresh_frozen")>0 : Object.keys(hb.grades||{}).some(k=>gradeRemainingG(hb,k)>0)
   ));
+
+  // Item 2 of the TSW list ("vault"/carry-forward cost-per-gram) --
+  // production_pools already has the hard part (weighted-average cost
+  // basis, PR #92). This wires a batch's input to optionally draw from a
+  // pool instead of manual entry or a harvest batch. Excluding this
+  // batch's own existing withdrawal from the ledger (same reasoning as
+  // editingBatchId above for harvest grades) so reopening an existing
+  // pool-sourced batch doesn't subtract its own draw from itself.
+  const poolTxForLedger = poolTxData.filter(t=>!(editingBatchId && t.destinationBatchId===editingBatchId && t.type==="withdrawal"));
+  const availablePools = poolsData.filter(p=>p.status!=="archived").map(p=>{
+    const ledger=poolLedger(p.id, poolTxForLedger);
+    return {...p, balanceG:ledger.balanceG, avgCostPerG:ledger.avgCostPerG};
+  }).filter(p=>p.balanceG>0 || p.id===form.poolId);
   function selectHarvestGrade(hbId, grade) {
     const hb = harvestBatchesData.find(h=>h.id===hbId);
     if (!hb) return;
@@ -1348,8 +1369,9 @@ export default function ProductionScheduler({onNavigate}){
   function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
   function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};if(s.n==="Micron Filtration")return{...s,days:r134aInfo.filterDays};if(s.n==="Vacuum Purge (12 hr)")return{...s,days:r134aInfo.purgeDays};return s;})}));}
 
-  function openAdd(){window.__resinopsUnsaved=true;const d=todayLocalISO();const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");}
-  function openEdit(b){window.__resinopsUnsaved=true;
+  function openAdd(){window.__resinopsUnsaved=true;const d=todayLocalISO();const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");setDepositForm(null);}
+  function openEdit(b){window.__resinopsUnsaved=true;setDepositForm(null);
+    const existingPoolTx=poolTxData.find(t=>t.destinationBatchId===b.id && t.type==="withdrawal");
     setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
       overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",vapeInputTerpPct:String(b.vapeInputTerpPct||0),
@@ -1362,16 +1384,21 @@ export default function ProductionScheduler({onNavigate}){
       packagingType:b.packagingType||"jar",packagingStaff:String(b.packagingStaff||2),packagingBaseline:String(b.packagingBaseline||150),unitPrice:String(b.unitPrice||""),packagingItemId:b.packagingItemId||"",
       vapeStartPotency:String(b.vapeStartPotency||85),vapeTerpPct:String(b.vapeTerpPct||10),vapeTerpSource:b.vapeTerpSource||"pure",vapeTerpSrcPotency:String(b.vapeTerpSrcPotency??(TERP_SRCS[b.vapeTerpSource||"pure"]?.thc*100||0)),
       thcaMethod:b.thcaMethod||"controlled",thcaRecrystCycles:String(b.thcaRecrystCycles||1),
-      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",inputSource:b.harvestBatchId?"harvest":"manual",inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[],
+      s2sSystem:b.s2sSystem||"metrc",s2sSourceTags:b.s2sSourceTags||"",s2sOutputTags:b.s2sOutputTags||"",actual_yield:b.actual_yield||"",harvestBatchId:b.harvestBatchId||"",harvestGrade:b.harvestGrade||"",poolId:existingPoolTx?.poolId||"",inputSource:b.harvestBatchId?"harvest":(existingPoolTx?"pool":"manual"),inputMaterialType:b.inputMaterialType||"",washEvents:b.washEvents||[],freezeDryCycles:b.freezeDryCycles||[],pressRuns:b.pressRuns||[],coldCureBatches:b.coldCureBatches||[],dewaxPasses:b.dewaxPasses||[],purgeRuns:b.purgeRuns||[],diamondSauceBatches:b.diamondSauceBatches||[],
       actualYieldG:String(b.actualYieldG||""),lossEntries:b.lossEntries||[]});
     setEditId(b.id);setFormMode("edit");setFormErr("");
   }
-  function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);}
+  function closeForm(){window.__resinopsUnsaved=false;setFormMode(null);setEditId(null);setDepositForm(null);}
 
   function validate(){
     if(!form.name.trim()){setFormErr("Enter a batch name.");return false;}
     if(!form.d){setFormErr("Select a start date.");return false;}
     if(!form.inputAmt||parseFloat(form.inputAmt)<=0){setFormErr("Enter a valid input quantity.");return false;}
+    if(form.inputSource==="pool"){
+      if(!form.poolId){setFormErr("Select a production pool.");return false;}
+      const ledger=poolLedger(form.poolId, poolTxForLedger);
+      if(parseFloat(form.inputAmt)>ledger.balanceG){setFormErr(`Only ${ledger.balanceG}g available in the selected pool.`);return false;}
+    }
     return true;
   }
 
@@ -1491,11 +1518,32 @@ export default function ProductionScheduler({onNavigate}){
     doc.save(`reconciliation-proof-${(batch.name||batch.id).replace(/[^a-z0-9]+/gi,"-").toLowerCase()}.pdf`);
   }
 
+  // Keeps a batch's pool-sourced input in sync with its withdrawal
+  // transaction: creates one if this batch now draws from a pool, updates
+  // the amount/snapshot cost if it already did, or deletes it if the user
+  // switched away from pool sourcing. Returns the snapshotted cost so the
+  // caller can lock it into cogs_records the same way a BOM material line
+  // gets locked in below (see item 2's COGS integration).
+  async function syncPoolWithdrawal(batchId, amountG, batchName){
+    const existingTx=poolTxData.find(t=>t.destinationBatchId===batchId && t.type==="withdrawal");
+    if(form.inputSource==="pool" && form.poolId){
+      const unitCostPerG=currentAvgCostPerG(form.poolId, poolTxForLedger);
+      const record={id:existingTx?.id||crypto.randomUUID(),poolId:form.poolId,type:"withdrawal",amountG,unitCostPerG,destinationBatchId:batchId,notes:existingTx?.notes||`Auto-logged from production batch "${batchName}"`};
+      const saved=await db.production_pool_transactions.upsert(record);
+      setPoolTxData(prev=>existingTx?prev.map(t=>t.id===saved.id?saved:t):[...prev,saved]);
+      return {amountG,unitCostPerG,poolName:poolsData.find(p=>p.id===form.poolId)?.name||"Production pool"};
+    } else if(existingTx){
+      await db.production_pool_transactions.delete(existingTx.id);
+      setPoolTxData(prev=>prev.filter(t=>t.id!==existingTx.id));
+    }
+    return null;
+  }
+
   async function saveBatch(){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:(form.inputSource==="harvest"&&form.harvestGrade)?"g":form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:Math.max(0,parseFloat(form.actualYieldG)||0),lossEntries:(form.lossEntries||[]).map(le=>({...le,amountG:Math.max(0,parseFloat(le.amountG)||0)}))};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt),unit:((form.inputSource==="harvest"&&form.harvestGrade)||form.inputSource==="pool")?"g":form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.vapeHardware||"fg_xmini",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:Math.max(0,parseFloat(form.actualYieldG)||0),lossEntries:(form.lossEntries||[]).map(le=>({...le,amountG:Math.max(0,parseFloat(le.amountG)||0)}))};
 
     const mainId=formMode==="edit"?editId:crypto.randomUUID();
     const mainBatch={...base,id:mainId};
@@ -1504,6 +1552,7 @@ export default function ProductionScheduler({onNavigate}){
       if(formMode==="edit"){
         const saved=await db.production_batches.upsert(mainBatch);
         setBatches(p=>{const filtered=p.filter(b=>b.id!==editId&&b.linkedTo!==editId);return[...filtered,saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d));});
+        await syncPoolWithdrawal(mainId, base.inputAmt, base.name);
       } else {
         const newBatches=[mainBatch];
         // Auto-create HTE linked batch for THCa isolate
@@ -1531,11 +1580,28 @@ export default function ProductionScheduler({onNavigate}){
         const saved=await Promise.all(newBatches.map(b=>db.production_batches.upsert(b)));
         setBatches(p=>[...p,...saved].sort((a,b)=>parseDateLocal(a.d)-parseDateLocal(b.d)));
 
+        // Item 2 — if this batch's input came from a production pool, the
+        // pool's weighted-average cost/gram (snapshotted onto the
+        // withdrawal transaction) is a real, known direct material cost —
+        // fold it in as its own material line below, same treatment as a
+        // BOM material line, rather than an allocated cost like cultivation
+        // cost gets for harvest-sourced batches.
+        const poolResult = await syncPoolWithdrawal(mainId, base.inputAmt, base.name);
+        const poolMaterialLine = poolResult ? {
+          itemId: null,
+          name: `${poolResult.poolName} (pool withdrawal)`,
+          qty: Math.round(poolResult.amountG*10)/10,
+          uom: "g",
+          unitCost: poolResult.unitCostPerG,
+          cost: Math.round(poolResult.amountG*poolResult.unitCostPerG*100)/100,
+        } : null;
+
         // Real stock deduction — default trigger is "at batch creation"
         // (matches the deductTrigger dropdown's own default in Finance.jsx
         // whenever no cogs_records override says otherwise). Only the main
         // batch consumes the BOM, not auto-spawned linked byproduct batches.
         const { updatedItems, shortfalls, bom, materialLines } = deductForBatch(mainBatch, boms, inventoryData);
+        const allMaterialLines = poolMaterialLine ? [poolMaterialLine, ...materialLines] : materialLines;
         if (bom) {
           if (updatedItems.length) {
             const savedItems = await Promise.all(updatedItems.map(it=>db.inventory_items.upsert(it)));
@@ -1549,9 +1615,12 @@ export default function ProductionScheduler({onNavigate}){
           // user override to preserve. Prevents a later BOM recipe edit
           // from silently changing this batch's historical materials cost
           // (see lib/cogs.js calcMaterialCost's overrideMaterials branch).
-          if (materialLines.length) {
-            await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:materialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
+          if (allMaterialLines.length) {
+            await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
           }
+        } else if (poolMaterialLine) {
+          setDeductionNotice("");
+          await db.cogs_records.upsert({id:crypto.randomUUID(), batchId:mainId, manualMaterials:allMaterialLines, overrideMaterials:true, materialsLockedAt:new Date().toISOString()});
         } else {
           setDeductionNotice("");
         }
@@ -1559,6 +1628,26 @@ export default function ProductionScheduler({onNavigate}){
       autoPopulateStrains(form.strains, { source: "Production Scheduler" });
       closeForm();
     }catch(e){ setFormErr("Could not save: "+(e.message||e)); }
+  }
+
+  // Item 2 — banks a reconciliation delta (unaccounted-for material,
+  // recon.deltaG in the panel below) into a named pool as a deposit,
+  // rather than letting it sit as an unexplained gap. Cost/gram is
+  // user-entered, same as a manual deposit on the standalone Production
+  // Pools page -- deriving it from this batch's own COGS would need
+  // pulling the full cogs.js calculator in here, disproportionate for
+  // what's meant to be a quick "don't lose track of this WIP" action.
+  async function bankDeltaToPool(batchId){
+    const amount=parseFloat(depositForm.amountG);
+    if(!depositForm.poolId){setFormErr("Select a pool.");return;}
+    if(!(amount>0)){setFormErr("Enter a valid amount in grams.");return;}
+    try{
+      const record={id:crypto.randomUUID(),poolId:depositForm.poolId,type:"deposit",amountG:amount,unitCostPerG:parseFloat(depositForm.unitCostPerG)||0,sourceBatchId:batchId,notes:`Banked from "${form.name.trim()||"batch"}"'s reconciliation delta`};
+      const saved=await db.production_pool_transactions.upsert(record);
+      setPoolTxData(prev=>[...prev,saved]);
+      setDepositForm(null);
+      setFormErr("");
+    }catch(e){ setFormErr("Deposit failed: "+(e.message||e)); }
   }
 
   async function removeBatch(id){
@@ -1818,12 +1907,17 @@ export default function ProductionScheduler({onNavigate}){
               {subOpts.length>0&&<div><label className="ps-lbl">Product type</label><select className="ps-sel" value={form.sub} onChange={e=>changeSub(e.target.value)}>{subOpts.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}</select></div>}
               <div><label className="ps-lbl">Strain(s) — comma-separate blends</label><input className="ps-inp" placeholder="Blue Dream, OG Kush" value={form.strains} onChange={e=>setF("strains",e.target.value)} /></div>
               <div><label className="ps-lbl">Batch start date</label><input type="date" className="ps-inp" value={form.d} onChange={e=>setF("d",e.target.value)} /></div>
-              {(isFlowerCat(form.cat)||form.cat==="extract") && availableHarvest.length>0 && (
+              {((isFlowerCat(form.cat)||form.cat==="extract") && availableHarvest.length>0 || availablePools.length>0) && (
                 <div style={{gridColumn:"span 2"}}>
                   <label className="ps-lbl">Input source</label>
                   <div style={{display:"flex",gap:8,marginBottom:8}}>
-                    <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="manual"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="manual"?"#fff":"var(--text-2)",border:form.inputSource==="manual"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"manual",harvestBatchId:"",harvestGrade:""}))}>Manual Entry</button>
-                    <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="harvest"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="harvest"?"#fff":"var(--text-2)",border:form.inputSource==="harvest"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"harvest"}))}>From Harvest Batch</button>
+                    <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="manual"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="manual"?"#fff":"var(--text-2)",border:form.inputSource==="manual"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"manual",harvestBatchId:"",harvestGrade:"",poolId:""}))}>Manual Entry</button>
+                    {(isFlowerCat(form.cat)||form.cat==="extract") && availableHarvest.length>0 && (
+                      <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="harvest"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="harvest"?"#fff":"var(--text-2)",border:form.inputSource==="harvest"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"harvest",poolId:""}))}>From Harvest Batch</button>
+                    )}
+                    {availablePools.length>0 && (
+                      <button type="button" className="ps-btn" style={{fontSize:11,padding:"5px 12px",background:form.inputSource==="pool"?"var(--accent)":"var(--surface-2)",color:form.inputSource==="pool"?"#fff":"var(--text-2)",border:form.inputSource==="pool"?"none":"1px solid var(--border-2)"}} onClick={()=>setForm(f=>({...f,inputSource:"pool",harvestBatchId:"",harvestGrade:""}))}>From Production Pool</button>
+                    )}
                   </div>
                   {form.inputSource==="harvest" && (
                     <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
@@ -1848,12 +1942,24 @@ export default function ProductionScheduler({onNavigate}){
                       })()}
                     </div>
                   )}
+                  {form.inputSource==="pool" && (
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:8}}>
+                      <select className="ps-sel" value={form.poolId} onChange={e=>setForm(f=>({...f,poolId:e.target.value}))}>
+                        <option value="">— Select pool —</option>
+                        {availablePools.map(p=><option key={p.id} value={p.id}>{p.name} ({Math.round(p.balanceG*10)/10}g @ ${p.avgCostPerG.toFixed(2)}/g)</option>)}
+                      </select>
+                      {(()=>{
+                        const selectedPool=availablePools.find(p=>p.id===form.poolId);
+                        return <div className="ps-inp" style={{display:"flex",alignItems:"center",color:"var(--accent-2)",fontWeight:600}}>{selectedPool?`${Math.round(selectedPool.balanceG*10)/10}g available`:"Select a pool"}</div>;
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
               <div><label className="ps-lbl">{getInputLabel(form.cat)}</label>
                 <div style={{display:"flex",gap:6}}>
                   <input type="number" min="0" step="0.1" className="ps-inp" placeholder="1000" value={form.inputAmt} onChange={e=>setF("inputAmt",e.target.value)} style={{flex:1}} disabled={form.inputSource==="harvest"&&!!form.harvestGrade} />
-                  <select className="ps-sel" value={form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}} disabled={form.inputSource==="harvest"&&!!form.harvestGrade}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
+                  <select className="ps-sel" value={form.inputSource==="pool"?"g":form.unit} onChange={e=>setF("unit",e.target.value)} style={{width:64}} disabled={(form.inputSource==="harvest"&&!!form.harvestGrade)||form.inputSource==="pool"}><option value="g">g</option><option value="lbs">lbs</option><option value="kg">kg</option></select>
                 </div>
               </div>
               <div><label className="ps-lbl">Package / unit size</label><select className="ps-sel" value={pkgIdx} onChange={e=>setF("pkgIdx",parseInt(e.target.value))}>{pkgOpts.map((p,i)=><option key={i} value={i}>{p.l}</option>)}</select></div>
@@ -3148,7 +3254,29 @@ export default function ProductionScheduler({onNavigate}){
                       </div>
                     );
                   })()}
-                  <button type="button" className="ps-btn ps-sm ps-secondary" style={{marginTop:10}} onClick={()=>exportReconciliationProof({...form,id:editId})}>📄 Export Reconciliation Proof (PDF)</button>
+                  <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+                    <button type="button" className="ps-btn ps-sm ps-secondary" onClick={()=>exportReconciliationProof({...form,id:editId})}>📄 Export Reconciliation Proof (PDF)</button>
+                    {recon.deltaG>=0.5 && (
+                      <button type="button" className="ps-btn ps-sm ps-secondary" onClick={()=>setDepositForm({poolId:"",amountG:String(recon.deltaG),unitCostPerG:""})}>💧 Bank {recon.deltaG.toLocaleString()}g to a Pool</button>
+                    )}
+                  </div>
+                  {depositForm && (
+                    <div style={{marginTop:10,padding:12,background:"var(--surface-2)",borderRadius:8}}>
+                      <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>Bank unaccounted WIP into a pool</div>
+                      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:8,marginBottom:8}}>
+                        <select className="ps-sel" value={depositForm.poolId} onChange={e=>setDepositForm(f=>({...f,poolId:e.target.value}))}>
+                          <option value="">— Select pool —</option>
+                          {poolsData.filter(p=>p.status!=="archived").map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <input type="number" min="0" step="0.1" className="ps-inp" placeholder="Grams" value={depositForm.amountG} onChange={e=>setDepositForm(f=>({...f,amountG:e.target.value}))} />
+                        <input type="number" min="0" step="0.0001" className="ps-inp" placeholder="Cost / gram ($)" value={depositForm.unitCostPerG} onChange={e=>setDepositForm(f=>({...f,unitCostPerG:e.target.value}))} />
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button type="button" className="ps-btn ps-sm ps-edit" onClick={()=>bankDeltaToPool(editId)}>Deposit</button>
+                        <button type="button" className="ps-btn ps-sm ps-secondary" onClick={()=>setDepositForm(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })()}
