@@ -6,7 +6,7 @@ import { validateSignDocumentPayload } from '../api/_request-security.js';
 const validPayload = {
   password: 'correct-horse-battery-staple',
   documentType: 'batch_record',
-  documentId: 'batch-123',
+  documentId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
   documentLabel: 'Whole Flower — Trimming QC Head release',
   facilityId: 'facility-1',
   pdfBase64: 'JVBERi0xLjQK',
@@ -44,4 +44,15 @@ test('validateSignDocumentPayload rejects missing required fields', () => {
 test('validateSignDocumentPayload rejects a non-object body', () => {
   assert.match(validateSignDocumentPayload(null), /invalid/i);
   assert.match(validateSignDocumentPayload([]), /invalid/i);
+});
+
+// documentId is interpolated directly into the signed-documents storage
+// path with no DB-existence check downstream (unlike documentType, which
+// is allowlisted, and facilityId, which is transitively constrained by the
+// facility-membership lookup) -- a path-traversal-shaped value here could
+// write/delete objects outside the caller's own facility prefix.
+test('validateSignDocumentPayload rejects a documentId that is not a UUID', () => {
+  assert.match(validateSignDocumentPayload({ ...validPayload, documentId: 'batch-123' }), /documentId/i);
+  assert.match(validateSignDocumentPayload({ ...validPayload, documentId: '../other-facility/x' }), /documentId/i);
+  assert.match(validateSignDocumentPayload({ ...validPayload, documentId: '../../etc/passwd' }), /documentId/i);
 });
