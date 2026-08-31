@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { db, auth } from "./lib/db";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import NumpadInput from "./NumpadInput.jsx";
 
 // Matches harvest_batches' own grade keys (aa/a/b/c) so a trim entry's grade
 // lines up with the batch's own grade breakdown rather than inventing a
@@ -249,7 +250,7 @@ export default function TrimLog(){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                 <div>
                   <label className="tl-lbl">Grams trimmed</label>
-                  <input type="number" min="0" step="0.1" className="tl-inp" placeholder="0.0" value={form.gramsTrimmed} onChange={e=>setF("gramsTrimmed",e.target.value)} />
+                  <NumpadInput value={form.gramsTrimmed} onChange={v=>setF("gramsTrimmed",v)} placeholder="0.0" unit="g" />
                 </div>
                 <div>
                   <label className="tl-lbl">Grade (optional)</label>
