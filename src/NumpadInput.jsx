@@ -29,7 +29,7 @@ export default function NumpadInput({ value, onChange, placeholder, unit, allowD
   function press(key) {
     const v = value || "";
     if (key === "back") { onChange(v.slice(0, -1)); return; }
-    if (key === ".") { if (!allowDecimal || v.includes(".")) return; onChange(v + "."); return; }
+    if (key === ".") { if (!allowDecimal || v.includes(".")) return; onChange(v ? v + "." : "0."); return; }
     onChange(v + key);
   }
   const keys = ["7", "8", "9", "4", "5", "6", "1", "2", "3", allowDecimal ? "." : "", "0", "back"];
