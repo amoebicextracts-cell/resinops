@@ -103,6 +103,13 @@ export function validateErrorReportPayload(body) {
 
 const SIGN_DOCUMENT_TYPES = new Set(['batch_record', 'sop', 'deviation']);
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/i;
+// Every real caller passes a crypto.randomUUID() row id here (sopId, devId,
+// batch.id) -- documentId is never DB-verified before being interpolated
+// into the signed-documents storage path below (unlike documentType, which
+// is allowlisted, and facilityId, which is transitively constrained by the
+// facility-membership lookup). Without this, a value like "../otherFacility"
+// could write or delete objects outside the caller's own facility prefix.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Base64 grows ~33% over raw bytes; these are short text-only PDFs, so an
 // 8MB decoded-size budget is generous headroom, not a real ceiling.
 const MAX_PDF_BASE64_LENGTH = 11_000_000;
@@ -112,7 +119,7 @@ export function validateSignDocumentPayload(body) {
   const { password, documentType, documentId, documentLabel, facilityId, pdfBase64, sha256 } = body;
   if (typeof password !== 'string' || !password) return 'password is required';
   if (typeof documentType !== 'string' || !SIGN_DOCUMENT_TYPES.has(documentType)) return 'Unknown documentType';
-  if (typeof documentId !== 'string' || !documentId.trim() || documentId.length > 200) return 'documentId is required';
+  if (typeof documentId !== 'string' || !UUID_PATTERN.test(documentId)) return 'documentId must be a valid UUID';
   if (typeof documentLabel !== 'string' || !documentLabel.trim() || documentLabel.length > 500) return 'documentLabel is required';
   if (typeof facilityId !== 'string' || !facilityId.trim()) return 'facilityId is required';
   if (typeof sha256 !== 'string' || !SHA256_HEX_PATTERN.test(sha256)) return 'sha256 must be a 64-character hex digest';
