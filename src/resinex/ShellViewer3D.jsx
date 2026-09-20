@@ -1,8 +1,9 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Grid, Edges } from "@react-three/drei";
+import EquipmentModel from "./EquipmentModel.jsx";
+import { resolveShape, equipmentDimsFt } from "./equipmentShapes.js";
 
 const ROOM_COLORS = { grow: "#4a7c59", production: "#3d5a7a", business: "#a07a3d", other: "#6a6a6a" };
-const IN_PER_FT = 12;
 
 function RoomBox({ room, shellW, shellD, defaultHeight }) {
   const h = Number(room.height_ft) || defaultHeight;
@@ -23,20 +24,24 @@ function RoomBox({ room, shellW, shellD, defaultHeight }) {
 }
 
 // Equipment dims are in inches (phase 1); room/placement coords are feet.
-function EquipmentBox({ placement, eq, room, shellW, shellD, roomHeight }) {
-  const rotated = Number(placement.rotation_deg) === 90 || Number(placement.rotation_deg) === 270;
-  const wIn = Number(eq?.width_in) || 24, dIn = Number(eq?.depth_in) || 24, hIn = Number(eq?.height_in) || 36;
-  const w = (rotated ? dIn : wIn) / IN_PER_FT;
-  const d = (rotated ? wIn : dIn) / IN_PER_FT;
-  const h = Math.min(hIn / IN_PER_FT, roomHeight); // never render taller than its own room
-  const cx = Number(room.x_ft) + Number(placement.x_ft) + w / 2 - shellW / 2;
-  const cz = Number(room.y_ft) + Number(placement.y_ft) + d / 2 - shellD / 2;
+// The placement's x/y is the top-left of the (possibly rotated) footprint,
+// so the model is positioned at the footprint center and the shape itself
+// is drawn unrotated then turned clockwise (seen from above) by rotation_deg.
+function EquipmentItem({ placement, eq, room, shellW, shellD, roomHeight }) {
+  const deg = Number(placement.rotation_deg) || 0;
+  const rotated = deg === 90 || deg === 270;
+  const dims = equipmentDimsFt(eq);
+  const h = Math.min(dims.h, roomHeight); // never render taller than its own room
+  const fw = rotated ? dims.d : dims.w; // footprint after rotation
+  const fd = rotated ? dims.w : dims.d;
+  const cx = Number(room.x_ft) + Number(placement.x_ft) + fw / 2 - shellW / 2;
+  const cz = Number(room.y_ft) + Number(placement.y_ft) + fd / 2 - shellD / 2;
+  // Lights/fans/cameras hang from the ceiling rather than standing on the floor.
+  const y = resolveShape(eq) === "overhead" ? roomHeight - h : 0;
   return (
-    <mesh position={[cx, h / 2, cz]}>
-      <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color="#d0d0d0" />
-      <Edges color="#000" />
-    </mesh>
+    <group position={[cx, y, cz]} rotation={[0, (-deg * Math.PI) / 180, 0]}>
+      <EquipmentModel eq={eq} w={dims.w} d={dims.d} h={h} />
+    </group>
   );
 }
 
@@ -61,7 +66,7 @@ export default function ShellViewer3D({ shell, rooms, roomEquipment, equipment }
           <group key={room.id}>
             <RoomBox room={room} shellW={shellW} shellD={shellD} defaultHeight={defaultHeight} />
             {(roomEquipment || []).filter(re => re.room_id === room.id).map(pe => (
-              <EquipmentBox
+              <EquipmentItem
                 key={pe.id}
                 placement={pe}
                 eq={equipmentById.get(pe.equipment_id)}
