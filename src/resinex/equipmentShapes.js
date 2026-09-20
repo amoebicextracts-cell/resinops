@@ -8,10 +8,21 @@
 //
 // Pure functions only (no React/three imports) so node --test can cover them.
 //
-// `eq.shape_type` is honored when present so a future column can override
-// the guess; nothing writes it yet, so today every shape is inferred.
+// `eq.shape_type` (equipment.shape_type, set from the Equipment form's
+// "3D shape" dropdown) overrides the guess when present; when it is null the
+// shape is inferred.
 
 export const SHAPE_TYPES = ["box", "tank", "rack", "bench", "overhead", "line"];
+
+// Plain-language names for the Equipment form's "3D shape" dropdown.
+export const SHAPE_LABELS = {
+  box: "Box / cabinet (ovens, chillers, freezers)",
+  tank: "Tank / cylinder (vessels, columns, boilers)",
+  rack: "Rack / frame (racks, shelving, carts)",
+  bench: "Bench / table",
+  overhead: "Ceiling-mounted (lights, fans, cameras)",
+  line: "Conveyor / process line",
+};
 
 const IN_PER_FT = 12;
 

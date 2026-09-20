@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "./lib/db";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { SHAPE_TYPES, SHAPE_LABELS, resolveShape } from "./resinex/equipmentShapes.js";
 
 const EQUIP_CATS = [
   "Extraction","Trimming & Bucking","Drying & Curing","Pre-Roll & Packaging",
@@ -216,6 +217,16 @@ export default function Equipment() {
                 <div><label className="eq-lbl">Weight (lbs)</label><input type="number" step="0.1" className="eq-inp" value={form.weightLbs} onChange={e=>setF("weightLbs",e.target.value)} /></div>
               </div>
               <div style={{fontSize:11,color:"var(--text-3)",marginTop:-4,marginBottom:10}}>Footprint (sqft) is calculated automatically from width × depth once saved — used by the future ResinEx 3D facility layout view.</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10}}>
+                <div>
+                  <label className="eq-lbl">3D shape (ResinEx)</label>
+                  <select className="eq-sel" value={form.shapeType||""} onChange={e=>setF("shapeType",e.target.value)}>
+                    <option value="">Auto (looks like: {SHAPE_LABELS[resolveShape({name:form.name,category:form.cat})].split(" /")[0]})</option>
+                    {SHAPE_TYPES.map(t=><option key={t} value={t}>{SHAPE_LABELS[t]}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:"var(--text-3)",marginTop:-4,marginBottom:10}}>How this equipment is drawn in the ResinEx 3D view. Leave on Auto unless the guess from the name is wrong.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 <div><label className="eq-lbl">PM / calibration frequency</label><select className="eq-sel" value={form.pmFreqDays} onChange={e=>setF("pmFreqDays",e.target.value)}>{PM_FREQ.map(p=><option key={p.v} value={p.v}>{p.l}</option>)}</select></div>
                 <div><label className="eq-lbl">Last service date</label><input type="date" className="eq-inp" value={form.lastServiceDate} onChange={e=>setF("lastServiceDate",e.target.value)} /></div>
