@@ -1,0 +1,19 @@
+<!--
+  Deliberately has no {{ .ConfirmationURL }} link. Corporate mail scanners
+  open one-time links before the recipient does, which burns the token for
+  the link AND the code. The link below only opens the app's code-entry
+  page, so a scanner visiting it changes nothing.
+-->
+<div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a2e1a;">
+  <h2 style="margin:0 0 12px;">You've been invited to ResinOps</h2>
+  <p style="margin:0 0 16px;">Your invite code is:</p>
+  <p style="font-family:monospace;font-size:28px;font-weight:700;letter-spacing:4px;margin:0 0 16px;">{{ .Token }}</p>
+  <p style="margin:0 0 16px;">
+    Go to <a href="{{ .SiteURL }}/accept-invite">{{ .SiteURL }}/accept-invite</a>,
+    enter this email address ({{ .Email }}) and the code above, then choose a password.
+  </p>
+  <p style="margin:0;font-size:12px;color:#6b8c6b;">
+    The code expires in 1 hour. If it has expired, ask your facility admin to resend the invite.
+    If you weren't expecting this, you can ignore this email.
+  </p>
+</div>

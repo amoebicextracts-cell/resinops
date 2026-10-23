@@ -3,7 +3,7 @@
 // src/lib/supabase.js
 // ============================================================
 import { createClient } from '@supabase/supabase-js';
-import { isPasswordRecoveryUrl, isInviteUrl } from './auth.js';
+import { isPasswordRecoveryUrl, isInviteUrl, hasAuthCallbackToken } from './auth.js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -16,6 +16,11 @@ export const passwordRecoveryFromInitialUrl = typeof window !== 'undefined'
 
 export const inviteFromInitialUrl = typeof window !== 'undefined'
   && isInviteUrl(window.location.href);
+
+// Whether the invite link itself brought a session. Without this, a saved
+// session for some other account would look like the invitee's.
+export const inviteTokenFromInitialUrl = inviteFromInitialUrl
+  && hasAuthCallbackToken(window.location.href);
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('ResinOps: Supabase env vars not set — running in localStorage mode');

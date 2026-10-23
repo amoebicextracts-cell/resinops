@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { auth } from "./lib/db";
-import { supabase, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles } from "./lib/supabase";
-import { MIN_PASSWORD_LENGTH, passwordResetRedirect, passwordValidationError } from "./lib/auth";
+import { supabase, inviteTokenFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles } from "./lib/supabase";
+import { MAX_EMAIL_OTP_LENGTH, MIN_PASSWORD_LENGTH, isPlausibleOtpCode, normalizeOtpCode, passwordResetRedirect, passwordValidationError } from "./lib/auth";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -40,6 +40,28 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
   const [mfaCode, setMfaCode] = useState("");
   const [pendingUser, setPendingUser] = useState(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  // Only a session the invite link itself carried skips the code step. A
+  // saved session for another account must not, or the password form would
+  // change that account's password. A link whose token was already burned
+  // (by a mail scanner) yields no session and falls back to the code step.
+  const [inviteSessionChecked, setInviteSessionChecked] = useState(initialMode !== "accept-invite");
+
+  useEffect(() => {
+    if (initialMode !== "accept-invite") return;
+    if (!inviteTokenFromInitialUrl) {
+      setMode("invite-code");
+      setInviteSessionChecked(true);
+      return;
+    }
+    let cancelled = false;
+    auth.getSession().then(session => {
+      if (cancelled) return;
+      if (!session) setMode("invite-code");
+      setInviteSessionChecked(true);
+    });
+    return () => { cancelled = true; };
+  }, [initialMode]);
 
   function changeMode(nextMode) {
     setMode(nextMode);
@@ -107,6 +129,20 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     setLoading(false);
   }
 
+  async function handleVerifyInviteCode() {
+    if (!email.trim() || !isPlausibleOtpCode(inviteCode)) return;
+    setLoading(true); setError("");
+    const { error: verifyError } = await auth.verifyInviteCode(email.trim(), inviteCode);
+    if (verifyError) {
+      setError("That code didn't work. Check the email address and code, or ask your admin to resend the invite if it's more than an hour old.");
+      setLoading(false);
+      return;
+    }
+    setInviteCode("");
+    changeMode("accept-invite");
+    setLoading(false);
+  }
+
   async function handleAcceptInvite() {
     const validationError = passwordValidationError(password, passwordConfirmation);
     if (validationError) { setError(validationError); return; }
@@ -151,6 +187,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
     if (mode === "signin") handleSignIn();
     else if (mode === "forgot") handleForgotPassword();
     else if (mode === "recovery") handleRecovery();
+    else if (mode === "invite-code") handleVerifyInviteCode();
     else if (mode === "accept-invite") handleAcceptInvite();
     else if (mode === "mfa-challenge") handleMfaVerify();
   }
@@ -190,8 +227,39 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
               <button className="auth-link" onClick={()=>changeMode("forgot")} style={{fontSize:12,background:"none",border:"none"}}>Forgot password?</button>
             </div>
             <div className="auth-toggle">
+              {/* Full navigation, not changeMode: the invite route is what
+                  keeps main.jsx from dropping a just-verified invitee
+                  straight into the app before they set a password. */}
+              Have an invite code? <a href="/accept-invite">Activate your account</a>
+            </div>
+            <div className="auth-toggle" style={{marginTop:8}}>
               Need an account? <a href="https://resinops.com/#waitlist" target="_blank" rel="noopener noreferrer">Request access</a>
             </div>
+          </>}
+
+          {mode === "invite-code" && <>
+            <div className="auth-title">Activate your invite</div>
+            <div className="auth-sub">Enter the email address your invite was sent to and the code from that email.</div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="invite-email">Email</label>
+              <input id="invite-email" className="auth-inp" type="email" value={email}
+                onChange={event=>setEmail(event.target.value)} onKeyDown={handleKey}
+                placeholder="you@example.com" autoComplete="email" autoFocus />
+            </div>
+            <div className="auth-field">
+              <label className="auth-lbl" htmlFor="invite-code">Invite Code</label>
+              <input id="invite-code" className="auth-inp" value={inviteCode}
+                onChange={event=>setInviteCode(normalizeOtpCode(event.target.value))}
+                onKeyDown={handleKey} placeholder="123456" inputMode="numeric"
+                autoComplete="one-time-code" maxLength={MAX_EMAIL_OTP_LENGTH}
+                style={{fontFamily:"monospace",letterSpacing:2}} />
+            </div>
+            <button className="auth-btn" onClick={handleVerifyInviteCode} disabled={loading || !email || !isPlausibleOtpCode(inviteCode)}>
+              {loading ? "Checking..." : "Continue"}
+            </button>
+            <button className="auth-btn secondary" onClick={()=>{ window.location.href = "/"; }} disabled={loading}>
+              Back to Sign In
+            </button>
           </>}
 
           {mode === "mfa-challenge" && <>
@@ -247,7 +315,7 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
             </button>
           </>}
 
-          {mode === "accept-invite" && <>
+          {mode === "accept-invite" && inviteSessionChecked && <>
             <div className="auth-title">Welcome to ResinOps</div>
             <div className="auth-sub">Set a password to activate your account. Use at least {MIN_PASSWORD_LENGTH} characters.</div>
             <div className="auth-field">

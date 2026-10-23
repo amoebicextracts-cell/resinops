@@ -28,6 +28,32 @@ export function isPasswordRecoveryUrl(urlLike) {
     || hashParameters.get('type') === 'recovery';
 }
 
+// True when the URL carries a session from an emailed auth link (implicit
+// flow hash, PKCE code, or token hash), as opposed to a bare route visit.
+export function hasAuthCallbackToken(urlLike) {
+  const href = typeof urlLike === 'string' ? urlLike : urlLike?.href;
+  if (!href) return false;
+
+  const url = new URL(href, 'https://app.resinops.com');
+  const hashParameters = new URLSearchParams(url.hash.replace(/^#/, ''));
+
+  return hashParameters.has('access_token')
+    || url.searchParams.has('code')
+    || url.searchParams.has('token_hash');
+}
+
+// Supabase email OTPs are 6 digits by default but the project setting
+// allows up to 10, so accept that whole range rather than hardcoding 6.
+export const MAX_EMAIL_OTP_LENGTH = 10;
+
+export function normalizeOtpCode(value) {
+  return String(value ?? '').replace(/\D/g, '').slice(0, MAX_EMAIL_OTP_LENGTH);
+}
+
+export function isPlausibleOtpCode(value) {
+  return /^\d{6,10}$/.test(value);
+}
+
 // Supabase's invite email redirects the same way a recovery link does — a
 // magic link that lands with access_token/type in the URL hash. This mirrors
 // isPasswordRecoveryUrl exactly, just matching "invite" instead of "recovery".
