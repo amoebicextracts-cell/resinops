@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { isInviteUrl, isPlausibleOtpCode, normalizeOtpCode } from '../src/lib/auth.js';
+import { hasAuthCallbackToken, isInviteUrl, isPlausibleOtpCode, normalizeOtpCode } from '../src/lib/auth.js';
 
 test('invite codes keep digits only and cap at the longest Supabase OTP', () => {
   assert.equal(normalizeOtpCode(' 123 456 '), '123456');
@@ -20,6 +20,13 @@ test('only 6 to 10 digit codes are submitted', () => {
 
 test('the bare accept-invite route opens the invite flow without a token in the URL', () => {
   assert.equal(isInviteUrl('https://app.resinops.com/accept-invite'), true);
+});
+
+test('only a token in the invite URL counts as the invitee session', () => {
+  assert.equal(hasAuthCallbackToken('https://app.resinops.com/accept-invite#access_token=x&type=invite'), true);
+  assert.equal(hasAuthCallbackToken('https://app.resinops.com/accept-invite?code=abc'), true);
+  assert.equal(hasAuthCallbackToken('https://app.resinops.com/accept-invite?token_hash=abc&type=invite'), true);
+  assert.equal(hasAuthCallbackToken('https://app.resinops.com/accept-invite'), false);
 });
 
 test('the invite email carries a code and no one-time link a mail scanner could burn', () => {

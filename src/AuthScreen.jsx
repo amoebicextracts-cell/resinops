@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { auth } from "./lib/db";
-import { supabase, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles } from "./lib/supabase";
+import { supabase, inviteTokenFromInitialUrl, setCurrentFacility, setCurrentFacilityRole, setCurrentFacilityScopeRoles } from "./lib/supabase";
 import { MAX_EMAIL_OTP_LENGTH, MIN_PASSWORD_LENGTH, isPlausibleOtpCode, normalizeOtpCode, passwordResetRedirect, passwordValidationError } from "./lib/auth";
 
 const CSS = `
@@ -41,12 +41,19 @@ export default function AuthScreen({ onAuth, initialMode = "signin", initialNoti
   const [pendingUser, setPendingUser] = useState(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
-  // Invite links arrive with a session already in the URL hash; typed-code
-  // invites arrive with none. Until we know which, hold the form back.
+  // Only a session the invite link itself carried skips the code step. A
+  // saved session for another account must not, or the password form would
+  // change that account's password. A link whose token was already burned
+  // (by a mail scanner) yields no session and falls back to the code step.
   const [inviteSessionChecked, setInviteSessionChecked] = useState(initialMode !== "accept-invite");
 
   useEffect(() => {
     if (initialMode !== "accept-invite") return;
+    if (!inviteTokenFromInitialUrl) {
+      setMode("invite-code");
+      setInviteSessionChecked(true);
+      return;
+    }
     let cancelled = false;
     auth.getSession().then(session => {
       if (cancelled) return;
