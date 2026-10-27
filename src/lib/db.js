@@ -255,6 +255,14 @@ export const auth = {
     return supabase.auth.resetPasswordForEmail(email, { redirectTo });
   },
 
+  // Typed-code alternative to the invite link. Corporate mail scanners
+  // open one-time links before the recipient does, burning the token; a
+  // code the person types themselves can't be consumed that way.
+  verifyInviteCode: async (email, token) => {
+    if (!isSupabaseEnabled) return { error: new Error('Supabase not configured') };
+    return supabase.auth.verifyOtp({ email, token, type: 'invite' });
+  },
+
   updatePassword: async (password, currentPassword) => {
     if (!isSupabaseEnabled) return { error: new Error('Supabase not configured') };
     const attributes = { password };
