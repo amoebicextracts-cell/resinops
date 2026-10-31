@@ -12,8 +12,24 @@
 -- references the column's type; the audit trigger copies whole rows as
 -- jsonb and is type-agnostic.
 --
+-- The column was added to production outside the migration history, so a
+-- database built from migrations alone doesn't have it. Only convert where
+-- it exists and isn't already text.
+--
 -- Not applied automatically; review and run it through the disposable
 -- database job (or `supabase test db`) first.
 
-alter table public.production_batches
-  alter column actual_yield type text using actual_yield::text;
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'production_batches'
+      and column_name = 'actual_yield'
+      and data_type <> 'text'
+  ) then
+    alter table public.production_batches
+      alter column actual_yield type text using actual_yield::text;
+  end if;
+end
+$$;
