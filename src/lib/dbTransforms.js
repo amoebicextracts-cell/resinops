@@ -889,6 +889,15 @@ export function transformForDb(tableName, record) {
   return result;
 }
 
+// Columns the app treats as free text ("1,180 units", "~245g") but that are
+// numeric in the production schema, so PostgREST hands back a JS number.
+// String ops on them (.match/.trim/.toLowerCase) then throw -- this crashed
+// the Dashboard for any facility with a recorded actual yield. Coerce on
+// read so every consumer sees the text type it was written for.
+const TEXT_ON_READ = {
+  production_batches: ['actual_yield'],
+};
+
 /**
  * Transform a record from Supabase format back to app format.
  * Renames snake_case columns back to every camelCase app field name that
@@ -900,6 +909,9 @@ export function transformFromDb(tableName, record) {
   if (!reverseMap) return record;
 
   const result = { ...record };
+  for (const column of TEXT_ON_READ[tableName] || []) {
+    if (typeof result[column] === 'number') result[column] = String(result[column]);
+  }
   for (const [dbKey, appKeys] of Object.entries(reverseMap)) {
     if (dbKey in result) {
       for (const appKey of appKeys) {

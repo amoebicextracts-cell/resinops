@@ -14,17 +14,21 @@
 
 export function extractUnits(yieldEst) {
   if (!yieldEst) return 0;
-  const m = yieldEst.match(/([\d,]+)\s*(?:×|units|cones|carts|AIOs|bottles)/);
+  const m = String(yieldEst).match(/([\d,]+)\s*(?:×|units|cones|carts|AIOs|bottles)/);
   if (m) return parseInt(m[1].replace(/,/g,""));
   // Bulk/weight-sold concentrate output (e.g. "~180g hash rosin") has no
   // discrete unit count -- fall back to grams so weight-based products get
   // a real signal instead of always reading as 0.
-  const g = yieldEst.match(/([\d,.]+)\s*g\b/i);
+  const g = String(yieldEst).match(/([\d,.]+)\s*g\b/i);
   return g ? parseFloat(g[1].replace(/,/g,"")) : 0;
 }
 
 export function extractActualUnits(actualYield) {
   if (!actualYield) return 0;
+  // actual_yield is numeric in the production schema, so a recorded value
+  // can arrive as a number or as a bare-number string with no unit text.
+  if (typeof actualYield === 'number') return actualYield;
+  if (/^\s*[\d,.]+\s*$/.test(actualYield)) return parseFloat(actualYield.replace(/,/g,"")) || 0;
   const m = actualYield.match(/([\d,]+)\s*units?/i);
   if (m) return parseInt(m[1].replace(/,/g,""));
   const g = actualYield.match(/([\d,.]+)\s*g\b/i);
