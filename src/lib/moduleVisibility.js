@@ -22,7 +22,7 @@
 // empty.
 // ============================================================
 
-import { MODULE_SECTION } from "./modules.js";
+import { MODULE_SECTION, MODULES } from "./modules.js";
 
 const SECTION_TO_SCOPE = {
   "Cultivation": "cultivation",
@@ -74,3 +74,18 @@ export function isModuleVisible(mod, productTier, overrides, scopeRoles, globalR
 }
 
 export { EDIT_ROLES as SCOPE_EDIT_ROLES };
+
+// ── Does this facility cultivate? ────────────────────────────────────────────
+// Facilities that only buy flower/biomass and process it (no grow) turn the
+// Harvest Batches module off. That one toggle is the signal the rest of the
+// app reads, so non-cultivation modules stop assuming a grow exists:
+// QC Testing and COA import stop creating placeholder harvest batches, the
+// Production Scheduler hides the harvest-input picker, and the Dashboard
+// hides clone-cut / harvest widgets. Resolved without the viewer's own
+// scope roles on purpose — it describes the facility, not the user.
+export const CULTIVATION_MODULE_ID = "harvest";
+
+export function facilityCultivates(productTier, overrides) {
+  const mod = MODULES.find((m) => m.id === CULTIVATION_MODULE_ID);
+  return mod ? isModuleVisible(mod, productTier, overrides) : true;
+}

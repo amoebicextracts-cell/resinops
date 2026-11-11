@@ -501,7 +501,7 @@ export default function FacilitySettings({ isPlatformAdmin: isViewerPlatformAdmi
             moduleOverrides={settings.moduleOverrides}
             readOnly={!isViewerPlatformAdmin}
             onChangeTier={v=>setF("productTier",v)}
-            onChangeOverride={(modId,checked)=>setF("moduleOverrides",{...settings.moduleOverrides,[modId]:checked})}
+            onChangeOverride={(modId,checked)=>setSettings(s=>({...s,moduleOverrides:{...s.moduleOverrides,[modId]:checked}}))}
             onReset={()=>setF("moduleOverrides",{})}
           />
         </div>

@@ -5,6 +5,7 @@ import { getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import SignToConfirmModal from "./SignToConfirmModal.jsx";
+import { useFacilityFeatures } from "./lib/facilityFeatures";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function daysUntil(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -80,6 +81,8 @@ const EMPTY={
 };
 
 export default function QCTesting(){
+  // A facility that doesn't cultivate has no harvests to link or create.
+  const { cultivates } = useFacilityFeatures();
   const [harvestBatches,setHarvestBatches]=useState([]);
   const [prodBatches,setProdBatches]=useState([]);
   const [tests,setTests]=useState([]);
@@ -157,7 +160,7 @@ export default function QCTesting(){
       else setTests(p=>[...p,saved]);
 
       // Auto-create harvest batch from passing COA
-      if(overall===true&&!f.batchId){
+      if(overall===true&&!f.batchId&&cultivates){
         const alreadyExists=harvestBatches.some(b=>b.coaSampleId===f.sampleId||b.coa_sample_id===f.sampleId);
         if(!alreadyExists){
           try{
@@ -302,7 +305,7 @@ export default function QCTesting(){
             <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:3}}>QC & Lab Testing</div>
             <div style={{fontSize:12,color:"var(--text-3)"}}>Full COA panel tracking — failed microbial tests auto-flag to Remediation and hold Sales availability</div>
           </div>
-          {!form&&<button className="qc-btn qc-primary" onClick={()=>setForm({...EMPTY})}>+ New test submission</button>}
+          {!form&&<button className="qc-btn qc-primary" onClick={()=>setForm({...EMPTY,batchType:cultivates?"harvest":"production"})}>+ New test submission</button>}
         </div>
 
         {(failedCount>0||pendingCount>0)&&(
@@ -325,12 +328,12 @@ export default function QCTesting(){
               <>
                 {form.id&&!form.batchId&&(
                   <div style={{background:"rgba(90,63,160,0.08)",border:"1px solid rgba(90,63,160,0.3)",borderRadius:8,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#9080f0"}}>
-                    📥 <strong>COA Import</strong> — This record was imported from a lab PDF. Batch linkage is optional; cannabinoid and terpene data is on the next tabs. If a passing result is saved, a harvest batch will be auto-created and the strain catalogue updated.
+                    📥 <strong>COA Import</strong> — This record was imported from a lab PDF. Batch linkage is optional; cannabinoid and terpene data is on the next tabs.{cultivates?" If a passing result is saved, a harvest batch will be auto-created and the strain catalogue updated.":""}
                   </div>
                 )}
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                   <div><label className="qc-lbl">Source type</label><select className="qc-sel" value={form.batchType} onChange={e=>setForm(f=>({...f,batchType:e.target.value,batchId:"",batchName:"",strainName:""}))}>
-                    <option value="harvest">Harvest Batch</option><option value="production">Production Batch</option>
+                    {(cultivates||form.batchType==="harvest")&&<option value="harvest">Harvest Batch</option>}<option value="production">Production Batch</option>
                   </select></div>
                   <div><label className="qc-lbl">Batch</label><select className="qc-sel" value={form.batchId} onChange={e=>selectBatch(e.target.value)}>
                     <option value="">— Select batch —</option>

@@ -5,6 +5,7 @@ import SalesGoalDial from "./SalesGoalDial.jsx";
 import { parseDateLocal, daysUntil } from "./lib/dateUtils";
 import { batchBaseUnits, committedUnits, qcHoldSet } from "./lib/sales";
 import { projectedYieldForStrainRow, harvestDateForSpace } from "./lib/supplyForecast";
+import { useFacilityFeatures } from "./lib/facilityFeatures";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"—";}
 function daysFromNow(dt){return dt?Math.round((new Date(dt)-new Date())/86400000):null;}
@@ -36,6 +37,7 @@ const CSS=`
 `;
 
 export default function Dashboard({ onNavigate }){
+  const { cultivates } = useFacilityFeatures();
   const [loading,setLoading]=useState(true);
   const [settings,setSettings]=useState({});
   const [spaces,setSpaces]=useState([]);
@@ -479,6 +481,9 @@ export default function Dashboard({ onNavigate }){
             </div>
           )}
 
+          {/* Grow-only cards: clone cuts and upcoming harvests mean nothing to a
+              facility that buys its flower (see lib/facilityFeatures.js). */}
+          {cultivates&&(<>
           {/* Clone cut alerts */}
           <div className="db-card">
             <div className="db-card-t">✂️ Upcoming clone cuts</div>
@@ -512,6 +517,7 @@ export default function Dashboard({ onNavigate }){
               </table>
             )}
           </div>
+          </>)}
 
           {/* PM & license alerts */}
           <div className="db-card">
