@@ -5,6 +5,12 @@ import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { canAdministerFacility } from "./lib/roles";
 import { DEFAULT_LABOR_TYPES } from "./LaborManager.jsx";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
+import { CATS, SUBS, inferProductCategory, defaultSteps, catLabel as catLabelFor, subLabel as subLabelFor } from "./lib/productCategories";
+import {
+  LINK_NEW_PRODUCTION, LINK_NEW_HARVEST, LINK_NONE, harvestLink, productionLink, parseLink,
+  coaBatchName, coaProductType, inferCoaCategory, buildProductionBatchFromCoa,
+  matchProductionBatch, defaultCoaLink, isCoaPlaceholderHarvest,
+} from "./lib/coaImport";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -398,7 +404,13 @@ CRITICAL: For COA PDFs, output records using these EXACT field names (not the la
   waterActivity → Aw value as plain number (0.562)
   moistureContent → moisture % as plain number
   foreignMatterPass → boolean true=pass false=fail
-  overallPass → true if ALL panels passed, false if ANY failed` : "";
+  overallPass → true if ALL panels passed, false if ANY failed
+Also keep these when the source has them (copy the value verbatim, do not invent one):
+  batchName → the product/lot or batch name the sample was taken from (e.g. "Blue Dream 1g Vape - LOT-0521-B02")
+  productType → product format (e.g. "2g Disposable Vape", "Raw Pre-Roll", "Bulk Flower", "Live Rosin")
+  metrcTag → METRC package tag of the sampled batch (24 characters starting "1A4")
+  productionDate → date the batch was produced (YYYY-MM-DD)
+  notes → any notes column` : "";
 
   const system = `You are a data import assistant for ResinOps, a cannabis operations platform.
 Return ONLY valid JSON with no markdown, no backticks, no explanation.
@@ -489,7 +501,11 @@ export default function DataManager({ isPlatformAdmin }){
   const [importResult,setImportResult]=useState(null);
   const [importErr,setImportErr]=useState("");
   const [importTarget,setImportTarget]=useState("");
-  const [coaBatchLinks,setCoaBatchLinks]=useState({}); // sampleId -> harvestBatchId
+  // COA "Link" step: per record index -> {link, cat, sub}. link is one of
+  // LINK_NEW_PRODUCTION / LINK_NEW_HARVEST / LINK_NONE / "h:<id>" / "p:<id>";
+  // cat/sub are only used when link creates a new production batch.
+  const [coaLinks,setCoaLinks]=useState({});
+  const [coaBatches,setCoaBatches]=useState({harvest:[],production:[]});
   const [restoreConfirm,setRestoreConfirm]=useState(false);
   const [statusMsg,setStatusMsg]=useState("");
   const [demoLoading,setDemoLoading]=useState(false);
@@ -1808,7 +1824,26 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
     return norm;
   }
 
-  async function confirmImport(batchLinks={}){
+  // Loads both batch lists from the real tables (the dropdown used to read
+  // localStorage, which is empty once Supabase is on) and pre-picks a link
+  // for every COA row.
+  async function enterCoaMatch(){
+    setImportErr("");
+    try{
+      const [harvest,production]=await Promise.all([db.harvest_batches.list(),db.production_batches.list()]);
+      const links={};
+      (importResult?.records||[]).forEach((raw,i)=>{
+        const r=normalizeQCRecord(raw);
+        const guess=inferCoaCategory(r)||{cat:"whole_flower",sub:""};
+        links[i]={link:defaultCoaLink(r,{harvestBatches:harvest,productionBatches:production}),cat:guess.cat,sub:guess.sub};
+      });
+      setCoaBatches({harvest,production});
+      setCoaLinks(links);
+      setImportState("coamatch");
+    }catch(e){ setImportErr("Couldn't load batches to link: "+e.message); }
+  }
+
+  async function confirmImport(coaLinkChoices={}){
     if(!importResult?.records?.length) return;
     const target=importTarget||importResult.detectedType;
     const tgt=IMPORT_TARGETS[target];
@@ -1822,23 +1857,59 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       }));
       // ── Normalize records based on target type ──────────────────────────
       let newRecords;
+      // Per-record outcome of the COA link step, aligned with newRecords.
+      const coaKinds=[];
+      const coaSkippedLocked=[];
+      const coaRelinkedFrom=[];
+      let coaProdCreated=0;
+      let coaPlaceholdersRemoved=0;
       if(target==="qc_tests"){
-        const hb=await db.harvest_batches.list();
-        newRecords = rawRecords.map((r,i)=>{
-          // Resolve sampleId from all possible field name variants
-          const sampleId=r.sampleId||r.sample_id||r["Sample ID"]||r["Lab Sample ID"]||"";
-          // Auto-link: check if harvest batch already has matching coaSampleId
-          const autoMatch=sampleId?hb.find(b=>(b.coaSampleId||b.coa_sample_id||b["COA Sample ID"]||"")===sampleId):null;
-          const linkedId=batchLinks[sampleId||i]||autoMatch?.id||"";
-          const linkedBatch=linkedId?hb.find(b=>String(b.id)===String(linkedId)):null;
-          // batchId alone isn't a real qc_tests column — harvestBatchId/
-          // productionBatchId are, split by batchType, same as
-          // QCTesting.jsx's own save() does. Every COA-import link here
-          // is to a harvest batch (linkedBatch comes from hb, the
-          // harvest_batches list), so batchType stays the "harvest"
-          // default normalizeQCRecord already applies.
-          return normalizeQCRecord({...r,sampleId,batchId:linkedId||"",harvestBatchId:linkedId||"",batchName:linkedBatch?(linkedBatch.strainName+(linkedBatch.d?" ("+parseDateLocal(linkedBatch.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):"",});
+        const [hb,pb,existingQc]=await Promise.all([db.harvest_batches.list(),db.production_batches.list(),db.qc_tests.list()]);
+        const today=todayLocalISO();
+        const newProdByName=new Map();
+        const prodToCreate=[];
+        newRecords=[];
+        rawRecords.forEach((raw,i)=>{
+          const r=normalizeQCRecord(raw);
+          const choice=coaLinkChoices[i]||{link:defaultCoaLink(r,{harvestBatches:hb,productionBatches:pb}),...(inferCoaCategory(r)||{cat:"whole_flower",sub:""})};
+          const link=parseLink(choice.link);
+          // Re-importing a COA updates its existing test (same lab sample
+          // ID) instead of adding a duplicate — this is also how older
+          // imports get re-linked to production batches. Signed tests are
+          // locked by a database trigger, so leave them alone.
+          const sid=String(r.sampleId||"").trim();
+          const prior=sid?existingQc.find(q=>String(q.sampleId||"").trim()===sid):null;
+          if(prior?.lockedAt){ coaSkippedLocked.push(sid); return; }
+          if(prior) r.id=prior.id;
+          let rec;
+          if(link.kind==="production"||link.kind===LINK_NEW_PRODUCTION){
+            let batch=link.kind==="production"?pb.find(b=>String(b.id)===link.id):null;
+            if(link.kind===LINK_NEW_PRODUCTION){
+              const key=coaBatchName(r).toLowerCase();
+              batch=newProdByName.get(key)||matchProductionBatch(r,pb);
+              if(!batch){
+                batch=buildProductionBatchFromCoa(r,{id:crypto.randomUUID(),cat:choice.cat||"whole_flower",sub:choice.sub||"",today});
+                prodToCreate.push(batch);
+              }
+              newProdByName.set(key,batch);
+            }
+            rec={...r,batchType:"production",productionBatchId:batch?.id||"",harvestBatchId:"",batchId:batch?.id||"",batchName:batch?.name||coaBatchName(r)};
+          } else if(link.kind==="harvest"){
+            const linked=hb.find(b=>String(b.id)===link.id);
+            rec={...r,batchType:"harvest",harvestBatchId:link.id,productionBatchId:"",batchId:link.id,batchName:linked?(linked.strainName+(linked.d?" ("+parseDateLocal(linked.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")":"")):""};
+          } else if(link.kind===LINK_NEW_HARVEST&&prior?.harvestBatchId&&!prior?.productionBatchId){
+            // Already has its harvest batch from an earlier import — keep it.
+            rec={...r,batchType:"harvest",harvestBatchId:prior.harvestBatchId,productionBatchId:"",batchId:prior.harvestBatchId,batchName:prior.batchName||r.batchName};
+          } else {
+            rec={...r,batchType:"harvest",harvestBatchId:"",productionBatchId:"",batchId:""};
+          }
+          if(prior?.harvestBatchId&&String(prior.harvestBatchId)!==String(rec.harvestBatchId||"")) coaRelinkedFrom.push(String(prior.harvestBatchId));
+          newRecords.push(rec);
+          coaKinds.push(link);
         });
+        // Production batches first: qc_tests.production_batch_id points at them.
+        for(const b of prodToCreate){ await db.production_batches.upsert(b); }
+        coaProdCreated=prodToCreate.length;
       } else if(target==="employees"){
         newRecords = rawRecords.map(r=>({...r,id:r.id,name:r.name||r.full_name||r["Full Name"]||r["Employee Name"]||"",role:r.role||r.job_title||r["Job Title"]||r["Title"]||r["Position"]||"Other",department:r.department||r["Department / Area"]||r["Department"]||r["Area"]||"Other",status:["active","inactive"].includes((r.status||"").toLowerCase())?(r.status||"").toLowerCase():"active",hireDate:r.hireDate||r.employment_start||r["Employment Start"]||r["Start Date"]||r["Hire Date"]||"",phone:r.phone||r.cell_phone||r["Cell Phone"]||r["Phone"]||"",email:r.email||r.work_email||r["Work Email"]||r["Email"]||"",pestLicenseNum:r.pestLicenseNum||r.pesticide_cert_number||r.cert_number||r["Pesticide Cert #"]||r["License #"]||"",pestLicenseCategory:r.pestLicenseCategory||r.pesticide_cert_category||r.cert_category||r["Cert Category"]||r["License Type"]||"",pestLicenseExpiry:r.pestLicenseExpiry||r.pesticide_cert_expiry||r.cert_expiry_date||r["Cert Expiry Date"]||r["License Expires"]||"",certs:Array.isArray(r.certs)?r.certs:[],trainings:Array.isArray(r.trainings)?r.trainings:[],notes:r.notes||r["Notes"]||"",}));
       } else if(target==="equipment"){
@@ -1971,26 +2042,26 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           return {...r,id:r.id,n:name,cat,uom:r.uom||r.unit||r.unit_of_measure||r["Unit of Measure"]||"each",reorderAt:parseFloat(r.reorderAt??r.reorder_at??r.reorder_point??r["Reorder At"]??0)||0,reorderQty:parseFloat(r.reorderQty??r.reorder_qty??r["Reorder Qty"]??0)||0,vm:["fifo","average","last"].includes((r.vm||r.valuation_method||r["Valuation Method"]||"").toLowerCase())?(r.vm||r.valuation_method||r["Valuation Method"]).toLowerCase():"average",lots,lastCost:cost||0,notes:r.notes||r["Notes"]||"",};
         });
       } else if(target==="production_batches"){
-        const WF=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:3},{n:"Curing",days:10},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-        const PR=[{n:"Drying",days:12},{n:"Bucking",days:2},{n:"Trimming",days:2},{n:"Curing",days:10},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
-        const EX=[{n:"Intake & Prep",days:2},{n:"Extraction",days:3},{n:"Post-Processing",days:5},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}];
         newRecords = rawRecords.map(r=>{
-          const rawCat=(r.catLabel||r.cat_label||r.product_type||r["Product Type"]||r["Category"]||"").toLowerCase();
-          let cat="whole_flower", catLabel="Whole Flower";
-          if(rawCat.includes("pre")||rawCat.includes("roll")||rawCat.includes("cone")){ cat="pre_roll"; catLabel="Pre-Roll"; }
-          else if(rawCat.includes("extract")||rawCat.includes("concentrate")||rawCat.includes("rosin")||rawCat.includes("distillate")){ cat="extract"; catLabel="Concentrate"; }
-          else if(rawCat.includes("vape")||rawCat.includes("cart")){ cat="vape"; catLabel="Vape"; }
-          else if(rawCat.includes("edible")||rawCat.includes("gummy")){ cat="edible"; catLabel="Edible"; }
+          // Same category vocabulary and step templates as the Production
+          // Scheduler's own form, so a vape or rosin batch gets its real
+          // process steps instead of the whole-flower drying/curing ones.
+          const catText=r.catLabel||r.cat_label||r.product_type||r["Product Type"]||r["Category"]||"";
+          const subText=r.subLabel||r.sub_label||r.sub_type||r["Sub-Type"]||r["Sub Type"]||"";
+          const guess=inferProductCategory(`${catText} ${subText}`)||inferProductCategory(r.name||r.batch_name||r["Batch Name"]||"")||{cat:"whole_flower",sub:""};
+          const cat=guess.cat, sub=guess.sub;
+          const catLabel=catLabelFor(cat);
           const rawStatus=(r.status||r["Status"]||"").toLowerCase();
           const status=rawStatus.includes("complete")||rawStatus.includes("done")||rawStatus.includes("finish")?"complete":rawStatus.includes("progress")||rawStatus.includes("active")?"in_progress":"scheduled";
-          const steps=cat==="pre_roll"?PR.map(s=>({...s})):cat==="extract"?EX.map(s=>({...s})):WF.map(s=>({...s}));
+          const steps=defaultSteps(cat,sub);
           return {
             ...r,
             id: r.id,
             name: resolveRequired(r.name||r.batch_name||r["Batch Name"]||r["Name"]||"",r,/name|batch/i),
             cat,
+            sub,
             catLabel: r.catLabel||r.cat_label||catLabel,
-            subLabel: r.subLabel||r.sub_label||r.sub_type||r["Sub-Type"]||r["Sub Type"]||"",
+            subLabel: subText||subLabelFor(cat,sub),
             strains: r.strains||r.strain||r["Strain(s)"]||r["Strain"]||r["Cultivar"]||"",
             d: r.d||r.scheduled_start||r.start_date||r["Scheduled Start"]||r["Start Date"]||r["Date"]||"",
             status,
@@ -2248,7 +2319,12 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         const strains=await db.strains.list();
         const strainNames=new Set(strains.map(s=>s.name.toLowerCase()));
         const newStrains=newRecords
-          .filter(r=>r.strainName&&!strainNames.has(r.strainName.toLowerCase()))
+          .filter(r=>{
+            const k=(r.strainName||"").toLowerCase();
+            if(!k||strainNames.has(k)) return false;
+            strainNames.add(k); // one strain per name, even if several COAs share it
+            return true;
+          })
           .map(r=>({
             id:crypto.randomUUID(),
             name:r.strainName,type:"Unknown",parentage:"",breeder:"",
@@ -2259,39 +2335,61 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           }));
         for(const s of newStrains){ await db.strains.upsert(s); }
 
-        // Auto-create completed harvest batches for passing COAs, or update linked ones
-        const passingRecords=newRecords.filter(r=>r.overallPass===true);
-        if(passingRecords.length){
-          const hb=await db.harvest_batches.list();
-          const existingSampleIds=new Set(hb.map(b=>b.coaSampleId).filter(Boolean));
-          for(const [i,r] of passingRecords.entries()){
-            if(r.harvestBatchId){
-              // Update the linked batch to complete with COA data
-              const linked=hb.find(b=>String(b.id)===String(r.harvestBatchId));
-              if(linked){
-                await db.harvest_batches.upsert({
-                  ...linked,status:"complete",coaSampleId:r.sampleId,
-                  thca:r.thca||linked.thca,thc:r.thc||linked.thc,totalTerpenes:r.totalTerpenes||linked.totalTerpenes,
-                  labName:r.labName||linked.labName,
-                });
-              }
-            } else if(!existingSampleIds.has(r.sampleId)){
-              // No linked batch — create placeholder
+        // Passing COAs: complete the harvest batch they're linked to, or —
+        // only when the row asked for it — create a placeholder harvest.
+        // Rows linked to production batches never touch harvest_batches.
+        const hb=await db.harvest_batches.list();
+        const existingSampleIds=new Set(hb.map(b=>b.coaSampleId).filter(Boolean));
+        for(const [i,r] of newRecords.entries()){
+          const kind=coaKinds[i]?.kind;
+          if(r.overallPass!==true) continue;
+          if(kind==="harvest"){
+            const linked=hb.find(b=>String(b.id)===String(r.harvestBatchId));
+            if(linked){
               await db.harvest_batches.upsert({
-                id:crypto.randomUUID(),
-                strainName:r.strainName||"Unknown",
-                d:r.receivedDate||r.submittedDate||todayLocalISO(),
-                status:"complete",coaSampleId:r.sampleId,labName:r.labName,
-                thca:r.thca,thc:r.thc,totalTerpenes:r.totalTerpenes,
-                notes:"Auto-created from passing COA import ("+(r.sampleId||"no sample ID")+")",
+                ...linked,status:"done",coaSampleId:r.sampleId,
+                thca:r.thca||linked.thca,thc:r.thc||linked.thc,totalTerpenes:r.totalTerpenes||linked.totalTerpenes,
+                labName:r.labName||linked.labName,
               });
+            }
+          } else if(kind===LINK_NEW_HARVEST&&!r.harvestBatchId&&!existingSampleIds.has(r.sampleId)){
+            const placeholderId=crypto.randomUUID();
+            await db.harvest_batches.upsert({
+              id:placeholderId,
+              strainName:r.strainName||"Unknown",
+              d:r.receivedDate||r.submittedDate||todayLocalISO(),
+              status:"done",coaSampleId:r.sampleId,labName:r.labName,
+              thca:r.thca,thc:r.thc,totalTerpenes:r.totalTerpenes,
+              notes:"Auto-created from passing COA import ("+(r.sampleId||"no sample ID")+")",
+            });
+            // Point the test at its placeholder so the two stay connected.
+            await db.qc_tests.upsert({...r,harvestBatchId:placeholderId,batchId:placeholderId,batchName:(r.strainName||"Unknown")+" (COA placeholder)"});
+          }
+        }
+
+        // A re-import that moved a test off an auto-created placeholder
+        // harvest batch leaves that placeholder orphaned. Delete it only if
+        // it is still an untouched placeholder (no weights entered) and no
+        // test points at it any more.
+        if(coaRelinkedFrom.length){
+          const qcNow=await db.qc_tests.list();
+          const stillUsed=new Set(qcNow.map(q=>String(q.harvestBatchId||"")).filter(Boolean));
+          for(const id of new Set(coaRelinkedFrom)){
+            const b=hb.find(x=>String(x.id)===id);
+            if(b&&isCoaPlaceholderHarvest(b)&&!stillUsed.has(id)&&!b.wetWeightG&&!b.totalDryWeight){
+              await db.harvest_batches.delete(id);
+              coaPlaceholdersRemoved++;
             }
           }
         }
       }
 
       setImportState("done");
-      const extras=target==="qc_tests"?` — strain catalogue & harvest batches updated`:"";
+      const extras=target==="qc_tests"?[
+        coaProdCreated?` — ${coaProdCreated} production batch${coaProdCreated!==1?"es":""} created`:"",
+        coaPlaceholdersRemoved?`, ${coaPlaceholdersRemoved} unused placeholder harvest batch${coaPlaceholdersRemoved!==1?"es":""} removed`:"",
+        coaSkippedLocked.length?` (${coaSkippedLocked.length} signed test${coaSkippedLocked.length!==1?"s":""} left unchanged: ${coaSkippedLocked.join(", ")})`:"",
+      ].join("")||" — strain catalogue & harvest batches updated":"";
       const skipped=rawRecords.length-newRecords.length;
       const skipMsg=skipped>0?` (${skipped} skipped — missing required fields)`:"";
       setStatusMsg(newRecords.length+" record"+(newRecords.length!==1?"s":"")+" imported to "+tgt.label+extras+skipMsg+" ✓");
@@ -2315,7 +2413,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
     }catch(e){ setImportErr("Save failed: "+e.message); }
   }
 
-  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaBatchLinks({});setFileQueue([]);setBatchTotal(0);setBatchIndex(0);setAutoTargetNote("");batchFixedTargetRef.current=""; }
+  function reset(){ setImportState("idle");setImportResult(null);setImportErr("");setImportTarget("");setCoaLinks({});setCoaBatches({harvest:[],production:[]});setFileQueue([]);setBatchTotal(0);setBatchIndex(0);setAutoTargetNote("");batchFixedTargetRef.current=""; }
 
   // Lets the operator fix a bad AI field mapping directly in the preview
   // table instead of canceling the whole import and starting over (or,
@@ -2467,7 +2565,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                   <div style={{fontSize:11,color:"var(--text-3)",fontStyle:"italic",marginBottom:8}}>{autoTargetNote}</div>
                 )}
                 {(importResult?.isCOA||(importTarget||importResult?.detectedType)==="qc_tests"
-                  ?[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview COA data"],["coamatch","🔗 Link to harvest batches"],["done","✅ Import complete"]]
+                  ?[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview COA data"],["coamatch","🔗 Link to batches"],["done","✅ Import complete"]]
                   :[["reading","📂 Reading file"],["analyzing","✨ AI analyzing & mapping"],["preview","👁 Preview — confirm before saving"],["done","✅ Import complete"]]
                 ).map(([s,l])=>(
                   <div key={s} className={"dm-step dm-step-"+(stepStatus(s))}>
@@ -2607,7 +2705,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <div style={{display:"flex",gap:8}}>
                   <button className="dm-btn dm-primary" onClick={()=>{
                     const isCOA=importResult.isCOA||(importTarget||importResult.detectedType)==="qc_tests";
-                    if(isCOA) setImportState("coamatch");
+                    if(isCOA) enterCoaMatch();
                     else confirmImport();
                   }}>
                     {(importResult.isCOA||(importTarget||importResult.detectedType)==="qc_tests")
@@ -2619,60 +2717,96 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               </div>
             )}
 
-            {importState==="coamatch"&&importResult&&(
+            {importState==="coamatch"&&importResult&&(()=>{
+              const today=todayLocalISO();
+              const fmt=(d)=>d?parseDateLocal(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+              const setAll=(link)=>setCoaLinks(prev=>Object.fromEntries((importResult.records||[]).map((_,i)=>[i,{...(prev[i]||{cat:"whole_flower",sub:""}),link}])));
+              const harvestOpts=coaBatches.harvest.filter(b=>!isCoaPlaceholderHarvest(b));
+              const prodOpts=[...coaBatches.production].sort((a,b)=>String(b.d||"").localeCompare(String(a.d||"")));
+              const counts=Object.values(coaLinks).reduce((a,c)=>{const k=parseLink(c.link).kind;a[k]=(a[k]||0)+1;return a;},{});
+              return(
               <div>
-                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Link COA results to existing harvest batches</div>
-                <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
-                  Match each COA result to the harvest batch you created when you sent the sample to Kaycha.
-                  If you don't have a batch yet, leave it unlinked — ResinOps will create a placeholder batch automatically.
+                <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Link COA results to batches</div>
+                <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>
+                  Finished-product COAs (vapes, pre-rolls, extracts, packaged flower) belong to a <strong>production batch</strong>: link an existing one or let ResinOps create it on the Production Scheduler.
+                  Bulk flower tested straight from a harvest belongs to a <strong>harvest batch</strong>.
+                  Re-importing a COA with the same lab sample ID updates its existing test instead of adding a duplicate.
                 </div>
-                {importResult.records?.map((r,i)=>{
-                  const hb=JSON.parse(localStorage.getItem("resinops_harvest_batches")||"[]");
-                  // Resolve display fields — Claude may use snake_case or CSV column names
-                  const strain=r.strainName||r.strain_name||r.sample_name||r["Sample Name"]||r["Strain"]||"Unknown Strain";
-                  const sampleId=r.sampleId||r.sample_id||r["Sample ID"]||r["Lab Sample ID"]||"—";
-                  const thca=r.thca||r.thca_percent||r["THCa %"]||r["THCa"]||"";
-                  const terps=r.totalTerpenes||r.total_terpenes||r.total_terpenes_percent||r["Total Terpenes %"]||"";
-                  const passed=r.overallPass??r.overall_pass??(
-                    (r["Overall Result"]||r.overall_result||"").toLowerCase()==="pass"?true:
-                    (r["Overall Result"]||r.overall_result||"").toLowerCase()==="fail"?false:undefined
-                  );
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:14,fontSize:11,color:"var(--text-3)"}}>
+                  <span>Set all rows:</span>
+                  <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setAll(LINK_NEW_PRODUCTION)}>New production batches</button>
+                  <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setAll(LINK_NEW_HARVEST)}>Placeholder harvest batches</button>
+                  <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>enterCoaMatch()}>Reset to suggestions</button>
+                  <span style={{marginLeft:"auto"}}>
+                    {[["production","linked to production"],[LINK_NEW_PRODUCTION,"new production"],["harvest","linked to harvest"],[LINK_NEW_HARVEST,"new placeholder harvest"],[LINK_NONE,"unlinked"]].filter(([k])=>counts[k]).map(([k,l])=>`${counts[k]} ${l}`).join(" · ")}
+                  </span>
+                </div>
+                {importResult.records?.map((raw,i)=>{
+                  const r=normalizeQCRecord(raw);
+                  const choice=coaLinks[i]||{link:LINK_NEW_HARVEST,cat:"whole_flower",sub:""};
+                  const link=parseLink(choice.link);
+                  const setChoice=(patch)=>setCoaLinks(prev=>({...prev,[i]:{...choice,...patch}}));
+                  const productType=coaProductType(r);
+                  const existingProd=link.kind===LINK_NEW_PRODUCTION?matchProductionBatch(r,coaBatches.production):null;
+                  const preview=link.kind===LINK_NEW_PRODUCTION&&!existingProd?buildProductionBatchFromCoa(r,{id:"",cat:choice.cat,sub:choice.sub,today}):null;
                   return(
                     <div key={i} style={{background:"var(--surface-2)",borderRadius:8,padding:"12px 14px",marginBottom:10,border:"1px solid var(--border-2)"}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                        <div>
-                          <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{strain}</div>
-                          <div style={{fontSize:11,color:"var(--text-3)"}}>Kaycha Sample ID: <span style={{fontFamily:"monospace",color:"var(--text-2)"}}>{sampleId}</span></div>
-                          <div style={{fontSize:11,color:"var(--text-3)"}}>
-                            {thca&&<span style={{marginRight:10}}>THCa: <strong style={{color:"var(--accent-2)"}}>{thca}%</strong></span>}
-                            {terps&&<span>Terps: <strong style={{color:"var(--accent-2)"}}>{terps}%</strong></span>}
-                            {passed===true&&<span style={{marginLeft:10,color:"var(--accent-2)",fontWeight:600}}>✓ PASS</span>}
-                            {passed===false&&<span style={{marginLeft:10,color:"var(--danger)",fontWeight:600}}>✗ FAIL</span>}
-                          </div>
+                      <div style={{marginBottom:8}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{r.strainName||"Unknown Strain"}{productType&&<span style={{fontWeight:400,color:"var(--text-3)"}}> · {productType}</span>}</div>
+                        {r.batchName&&r.batchName!==r.strainName&&<div style={{fontSize:11,color:"var(--text-2)"}}>{r.batchName}</div>}
+                        <div style={{fontSize:11,color:"var(--text-3)"}}>Lab Sample ID: <span style={{fontFamily:"monospace",color:"var(--text-2)"}}>{r.sampleId||"—"}</span>{r.submittedDate&&<> · submitted {fmt(r.submittedDate)}</>}</div>
+                        <div style={{fontSize:11,color:"var(--text-3)"}}>
+                          {r.thca&&<span style={{marginRight:10}}>THCa: <strong style={{color:"var(--accent-2)"}}>{r.thca}%</strong></span>}
+                          {(r.totalThc||r.thc)&&<span style={{marginRight:10}}>Total THC: <strong style={{color:"var(--accent-2)"}}>{r.totalThc||r.thc}%</strong></span>}
+                          {r.totalTerpenes&&<span>Terps: <strong style={{color:"var(--accent-2)"}}>{r.totalTerpenes}%</strong></span>}
+                          {r.overallPass===true&&<span style={{marginLeft:10,color:"var(--accent-2)",fontWeight:600}}>✓ PASS</span>}
+                          {r.overallPass===false&&<span style={{marginLeft:10,color:"var(--danger)",fontWeight:600}}>✗ FAIL</span>}
                         </div>
                       </div>
-                      <div>
-                        <label className="dm-lbl">Link to harvest batch in ResinOps</label>
-                        <select className="dm-inp" style={{cursor:"pointer"}}
-                          value={coaBatchLinks[sampleId!=="—"?sampleId:i]||""}
-                          onChange={e=>setCoaBatchLinks(prev=>({...prev,[sampleId!=="—"?sampleId:i]:e.target.value}))}>
-                          <option value="">— No match / create placeholder batch —</option>
-                          {hb.filter(b=>!b.source||b.source!=="coa_import").map(b=>(
-                            <option key={b.id} value={b.id}>
-                              {b.strainName} {b.d?`(${parseDateLocal(b.d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})})`:""} {b.coaSampleId?`— ${b.coaSampleId}`:""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <label className="dm-lbl">Link to</label>
+                      <select className="dm-inp" style={{cursor:"pointer"}} value={choice.link} onChange={e=>setChoice({link:e.target.value})}>
+                        <option value={LINK_NEW_PRODUCTION}>➕ Create a new production batch</option>
+                        <option value={LINK_NEW_HARVEST}>➕ Create a placeholder harvest batch{r.overallPass===true?"":" (passing COAs only)"}</option>
+                        <option value={LINK_NONE}>Leave unlinked</option>
+                        {prodOpts.length>0&&<optgroup label="Production batches">
+                          {prodOpts.map(b=><option key={b.id} value={productionLink(b.id)}>{b.name}{b.d?` (${fmt(b.d)})`:""}</option>)}
+                        </optgroup>}
+                        {harvestOpts.length>0&&<optgroup label="Harvest batches">
+                          {harvestOpts.map(b=><option key={b.id} value={harvestLink(b.id)}>{b.strainName}{b.d?` (${fmt(b.d)})`:""}{b.coaSampleId?` — ${b.coaSampleId}`:""}</option>)}
+                        </optgroup>}
+                      </select>
+                      {existingProd&&(
+                        <div style={{fontSize:11,color:"var(--text-3)",marginTop:6}}>Matches existing production batch <strong>{existingProd.name}</strong>. The COA will be linked to it; nothing new is created.</div>
+                      )}
+                      {preview&&(
+                        <div style={{display:"grid",gridTemplateColumns:SUBS[choice.cat]?"1fr 1fr":"1fr",gap:8,marginTop:8}}>
+                          <div>
+                            <label className="dm-lbl">Product category</label>
+                            <select className="dm-inp" value={choice.cat} onChange={e=>setChoice({cat:e.target.value,sub:SUBS[e.target.value]?.[0]?.v||""})}>
+                              {CATS.map(c=><option key={c.v} value={c.v}>{c.l}</option>)}
+                            </select>
+                          </div>
+                          {SUBS[choice.cat]&&<div>
+                            <label className="dm-lbl">Type</label>
+                            <select className="dm-inp" value={choice.sub} onChange={e=>setChoice({sub:e.target.value})}>
+                              {SUBS[choice.cat].map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+                            </select>
+                          </div>}
+                          <div style={{gridColumn:"1 / -1",fontSize:11,color:"var(--text-3)"}}>
+                            Creates <strong style={{color:"var(--text-2)"}}>{preview.name}</strong> starting {fmt(preview.d)} ({preview.steps.length} steps{preview.metrcTag?`, METRC ${preview.metrcTag}`:""}). Input weight is left at 0; fill it in on the Production Scheduler for yield and cost numbers.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
                 <div style={{display:"flex",gap:8,marginTop:4}}>
-                  <button className="dm-btn dm-primary" onClick={()=>confirmImport(coaBatchLinks)}>Import & save COA results</button>
+                  <button className="dm-btn dm-primary" onClick={()=>confirmImport(coaLinks)}>Import & save COA results</button>
                   <button className="dm-btn dm-secondary" onClick={()=>setImportState("preview")}>← Back to preview</button>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {importState==="done"&&(
               <div style={{textAlign:"center",padding:32}}>
