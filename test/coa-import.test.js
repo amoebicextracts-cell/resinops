@@ -71,9 +71,8 @@ test('a harvest batch already carrying the sample ID is linked, but COA placehol
 test('start date backs off from lab submission by the steps before QC', () => {
   // disposable: Intake 1 + Formulation 2 + Filling 3 = 6 days before QC / Testing
   assert.equal(coaStartDate(vapeRow, defaultSteps('vape', 'disposable'), '2026-11-09'), '2026-10-20');
-  // A lot date never overrides the submission anchor: the pre-roll template
-  // starts with ~4 weeks of drying/curing, so starting on the lot date
-  // would put QC a month after the sample really went to the lab.
+  // A lot date never overrides the submission anchor: the scheduler's QC
+  // step has to line up with when the sample really went to the lab.
   const preRoll = defaultSteps('pre_roll', '');
   const start = coaStartDate({ submittedDate: '2026-10-26', productionDate: '2026-10-23' }, preRoll, 'x');
   const qcStart = preRoll.slice(0, preRoll.findIndex(s => s.n === 'QC / Testing')).reduce((a, s) => a + s.days, 0);

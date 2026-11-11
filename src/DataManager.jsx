@@ -11,6 +11,7 @@ import {
   coaBatchName, coaProductType, inferCoaCategory, buildProductionBatchFromCoa,
   matchProductionBatch, defaultCoaLink, isCoaPlaceholderHarvest,
 } from "./lib/coaImport";
+import { useFacilityFeatures } from "./lib/facilityFeatures";
 
 // All localStorage keys that belong to ResinOps
 const ALL_KEYS = [
@@ -478,6 +479,8 @@ function resolveRequired(direct, r, pattern){
 }
 
 export default function DataManager({ isPlatformAdmin }){
+  // No grow at this facility: COAs never default to (or offer) harvest batches.
+  const { cultivates } = useFacilityFeatures();
   const [tab,setTab]=useState("import");
   const [dragOver,setDragOver]=useState(false);
   const [importHistory, setImportHistory] = useState([]);
@@ -1835,7 +1838,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
       (importResult?.records||[]).forEach((raw,i)=>{
         const r=normalizeQCRecord(raw);
         const guess=inferCoaCategory(r)||{cat:"whole_flower",sub:""};
-        links[i]={link:defaultCoaLink(r,{harvestBatches:harvest,productionBatches:production}),cat:guess.cat,sub:guess.sub};
+        links[i]={link:defaultCoaLink(r,{harvestBatches:harvest,productionBatches:production,cultivates}),cat:guess.cat,sub:guess.sub};
       });
       setCoaBatches({harvest,production});
       setCoaLinks(links);
@@ -1871,7 +1874,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
         newRecords=[];
         rawRecords.forEach((raw,i)=>{
           const r=normalizeQCRecord(raw);
-          const choice=coaLinkChoices[i]||{link:defaultCoaLink(r,{harvestBatches:hb,productionBatches:pb}),...(inferCoaCategory(r)||{cat:"whole_flower",sub:""})};
+          const choice=coaLinkChoices[i]||{link:defaultCoaLink(r,{harvestBatches:hb,productionBatches:pb,cultivates}),...(inferCoaCategory(r)||{cat:"whole_flower",sub:""})};
           const link=parseLink(choice.link);
           // Re-importing a COA updates its existing test (same lab sample
           // ID) instead of adding a duplicate — this is also how older
@@ -1901,7 +1904,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             // Already has its harvest batch from an earlier import — keep it.
             rec={...r,batchType:"harvest",harvestBatchId:prior.harvestBatchId,productionBatchId:"",batchId:prior.harvestBatchId,batchName:prior.batchName||r.batchName};
           } else {
-            rec={...r,batchType:"harvest",harvestBatchId:"",productionBatchId:"",batchId:""};
+            rec={...r,batchType:cultivates?"harvest":"production",harvestBatchId:"",productionBatchId:"",batchId:""};
           }
           if(prior?.harvestBatchId&&String(prior.harvestBatchId)!==String(rec.harvestBatchId||"")) coaRelinkedFrom.push(String(prior.harvestBatchId));
           newRecords.push(rec);
@@ -2721,7 +2724,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
               const today=todayLocalISO();
               const fmt=(d)=>d?parseDateLocal(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
               const setAll=(link)=>setCoaLinks(prev=>Object.fromEntries((importResult.records||[]).map((_,i)=>[i,{...(prev[i]||{cat:"whole_flower",sub:""}),link}])));
-              const harvestOpts=coaBatches.harvest.filter(b=>!isCoaPlaceholderHarvest(b));
+              const harvestOpts=cultivates?coaBatches.harvest.filter(b=>!isCoaPlaceholderHarvest(b)):[];
               const prodOpts=[...coaBatches.production].sort((a,b)=>String(b.d||"").localeCompare(String(a.d||"")));
               const counts=Object.values(coaLinks).reduce((a,c)=>{const k=parseLink(c.link).kind;a[k]=(a[k]||0)+1;return a;},{});
               return(
@@ -2729,13 +2732,13 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 <div style={{fontSize:13,fontWeight:600,color:"var(--text)",marginBottom:4}}>Link COA results to batches</div>
                 <div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>
                   Finished-product COAs (vapes, pre-rolls, extracts, packaged flower) belong to a <strong>production batch</strong>: link an existing one or let ResinOps create it on the Production Scheduler.
-                  Bulk flower tested straight from a harvest belongs to a <strong>harvest batch</strong>.
+                  {cultivates?<>Bulk flower tested straight from a harvest belongs to a <strong>harvest batch</strong>.</>:<>Purchased bulk inputs (distillate, bulk flower) aren't production batches — leave them unlinked.</>}
                   Re-importing a COA with the same lab sample ID updates its existing test instead of adding a duplicate.
                 </div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:14,fontSize:11,color:"var(--text-3)"}}>
                   <span>Set all rows:</span>
                   <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setAll(LINK_NEW_PRODUCTION)}>New production batches</button>
-                  <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setAll(LINK_NEW_HARVEST)}>Placeholder harvest batches</button>
+                  {cultivates&&<button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>setAll(LINK_NEW_HARVEST)}>Placeholder harvest batches</button>}
                   <button className="dm-btn dm-secondary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>enterCoaMatch()}>Reset to suggestions</button>
                   <span style={{marginLeft:"auto"}}>
                     {[["production","linked to production"],[LINK_NEW_PRODUCTION,"new production"],["harvest","linked to harvest"],[LINK_NEW_HARVEST,"new placeholder harvest"],[LINK_NONE,"unlinked"]].filter(([k])=>counts[k]).map(([k,l])=>`${counts[k]} ${l}`).join(" · ")}
@@ -2743,7 +2746,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                 </div>
                 {importResult.records?.map((raw,i)=>{
                   const r=normalizeQCRecord(raw);
-                  const choice=coaLinks[i]||{link:LINK_NEW_HARVEST,cat:"whole_flower",sub:""};
+                  const choice=coaLinks[i]||{link:cultivates?LINK_NEW_HARVEST:LINK_NONE,cat:"whole_flower",sub:""};
                   const link=parseLink(choice.link);
                   const setChoice=(patch)=>setCoaLinks(prev=>({...prev,[i]:{...choice,...patch}}));
                   const productType=coaProductType(r);
@@ -2766,7 +2769,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
                       <label className="dm-lbl">Link to</label>
                       <select className="dm-inp" style={{cursor:"pointer"}} value={choice.link} onChange={e=>setChoice({link:e.target.value})}>
                         <option value={LINK_NEW_PRODUCTION}>➕ Create a new production batch</option>
-                        <option value={LINK_NEW_HARVEST}>➕ Create a placeholder harvest batch{r.overallPass===true?"":" (passing COAs only)"}</option>
+                        {(cultivates||choice.link===LINK_NEW_HARVEST)&&<option value={LINK_NEW_HARVEST}>➕ Create a placeholder harvest batch{r.overallPass===true?"":" (passing COAs only)"}</option>}
                         <option value={LINK_NONE}>Leave unlinked</option>
                         {prodOpts.length>0&&<optgroup label="Production batches">
                           {prodOpts.map(b=><option key={b.id} value={productionLink(b.id)}>{b.name}{b.d?` (${fmt(b.d)})`:""}</option>)}

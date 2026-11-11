@@ -142,11 +142,26 @@ export function isCoaPlaceholderHarvest(b) {
 
 // Default link for a COA row: an existing batch it clearly belongs to,
 // else a new production batch when it's a finished product, else the old
-// behaviour (placeholder harvest batch).
-export function defaultCoaLink(r, { harvestBatches = [], productionBatches = [] } = {}) {
+// behaviour (placeholder harvest batch). A facility that doesn't cultivate
+// (moduleVisibility.facilityCultivates) never gets harvest links: an
+// unrecognised COA -- e.g. purchased bulk distillate -- stays unlinked.
+export function defaultCoaLink(r, { harvestBatches = [], productionBatches = [], cultivates = true } = {}) {
   const pb = matchProductionBatch(r, productionBatches);
   if (pb) return productionLink(pb.id);
-  const hb = matchHarvestBatch(r, harvestBatches);
-  if (hb) return harvestLink(hb.id);
-  return inferCoaCategory(r) ? LINK_NEW_PRODUCTION : LINK_NEW_HARVEST;
+  if (cultivates) {
+    const hb = matchHarvestBatch(r, harvestBatches);
+    if (hb) return harvestLink(hb.id);
+  }
+  if (!inferCoaCategory(r)) return cultivates ? LINK_NEW_HARVEST : LINK_NONE;
+  // Bulk inputs (distillate, biomass) are purchased materials, not products
+  // this facility made; without a grow there's no harvest to tie them to.
+  if (!cultivates && isBulkInput(r)) return LINK_NONE;
+  return LINK_NEW_PRODUCTION;
+}
+
+// "Bulk Distillate", "Bulk Flower", "Biomass", "Trim" -- material a
+// processor buys in, as opposed to a finished, packaged product.
+export function isBulkInput(r) {
+  const t = `${coaProductType(r)} ${r.batchName || ""}`.toLowerCase();
+  return /\bbulk\b|biomass|\btrim\b|\bcrude\b/.test(t);
 }

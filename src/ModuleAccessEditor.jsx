@@ -36,6 +36,20 @@ export default function ModuleAccessEditor({ productTier, moduleOverrides, onCha
       {TOGGLEABLE_SECTIONS.map(section => (
         <div key={section.name} style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>{section.name}</div>
+          {section.name === "Cultivation" && (
+            <div style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span>
+                Turning off <strong>Harvest Batches</strong> marks this facility as non-cultivating: QC and COA imports stop creating
+                harvest batches, the Production Scheduler stops offering harvests as an input, and the Dashboard hides grow cards.
+              </span>
+              {!readOnly && (
+                <button type="button" onClick={() => section.mods.filter(m => m.id !== "strain-db").forEach(m => onChangeOverride(m.id, false))}
+                  style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface-2)", color: "var(--text-2)", cursor: "pointer" }}>
+                  We don't cultivate — turn these off
+                </button>
+              )}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {section.mods.map(mod => {
               const enabled = isModuleVisible(mod, productTier, moduleOverrides);

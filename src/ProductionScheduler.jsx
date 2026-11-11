@@ -7,6 +7,7 @@ import { isReconcilableBatch, calcBatchReconciliation, LOSS_TYPES } from "./lib/
 import { poolLedger, currentAvgCostPerG } from "./lib/productionPools.js";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import { toISODate } from "./lib/dailyActions";
+import { useFacilityFeatures } from "./lib/facilityFeatures";
 import { AgendaView, MonthView } from "./SchedulerCalendarViews.jsx";
 
 // Keep in sync with GMPHub.jsx's TIER_ORDER/TIER_LABELS/getRequiredTiers —
@@ -1073,6 +1074,8 @@ function loadHarvestBatches(){ return []; } // loaded async now
 const GRADE_LABELS={a:"A-Bud",b:"B-Bud",c:"C-Bud",trim:"Trim"};
 
 export default function ProductionScheduler({onNavigate}){
+  // No grow here: inputs are purchased, so never offer harvest batches as a source.
+  const { cultivates } = useFacilityFeatures();
   const isFlowerCat = (cat) => ["whole_flower","ground_flower","pre_roll"].includes(cat);
   const[batches,setBatches]=useState([]);
   const[harvestBatchesData,setHarvestBatchesData]=useState([]);
@@ -1188,7 +1191,7 @@ export default function ProductionScheduler({onNavigate}){
     const totalG = grade==="fresh_frozen" ? (parseFloat(hb.wetWeightG)||0) : (parseFloat(hb.grades?.[grade]?.weight)||0);
     return Math.max(0, totalG - gradeConsumedG(hb.id, grade));
   }
-  const availableHarvest = harvestBatchesData.filter(hb => hb.status==="done" && (
+  const availableHarvest = !cultivates ? [] : harvestBatchesData.filter(hb => hb.status==="done" && (
     hb.isFreshFrozen ? gradeRemainingG(hb,"fresh_frozen")>0 : Object.keys(hb.grades||{}).some(k=>gradeRemainingG(hb,k)>0)
   ));
 

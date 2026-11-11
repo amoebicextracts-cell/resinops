@@ -5,7 +5,8 @@ import { authenticatedApiFetch, formatApiError } from "./lib/api";
 import { tokenizeInlineMarkdown } from "./lib/markdown";
 import { MIN_PASSWORD_LENGTH, passwordValidationError } from "./lib/auth";
 import { getCurrentFacility, getCurrentFacilityRole, getCurrentFacilityScopeRoles } from "./lib/supabase";
-import { isModuleVisible } from "./lib/moduleVisibility";
+import { isModuleVisible, facilityCultivates } from "./lib/moduleVisibility";
+import { FacilityFeaturesContext } from "./lib/facilityFeatures";
 import { MODULES, ALL_SECTION_NAMES } from "./lib/modules";
 
 export const SUPPORT_EMAIL = "support@resinops.com";
@@ -912,6 +913,9 @@ export default function ResinOps() {
     loadModuleVisibility();
   },[]);
 
+  // Facility-wide feature flags every module can read (lib/facilityFeatures.js).
+  const facilityFeatures = { cultivates: facilityCultivates(productTier, moduleOverrides) };
+
   // If a module gets hidden (tier switched, or an override flips off)
   // while it's the active one, don't leave the user stranded on a page
   // that's no longer in the nav.
@@ -1473,6 +1477,7 @@ export default function ResinOps() {
             </div>
           </div>
 
+          <FacilityFeaturesContext.Provider value={facilityFeatures}>
           <ErrorBoundary key={activeModule} moduleName={activeModule} onReport={submitIssueReport}>
             {activeModule === "ai-corrections-review" ? (isPlatformAdmin ? <AiCorrectionsReview /> : null) : null}
             {activeModule === "compliance-sources" ? (isPlatformAdmin ? <ComplianceSources /> : null) : null}
@@ -1520,6 +1525,7 @@ export default function ResinOps() {
             {activeModule === "customers" ? <Customers /> : null}
             {activeModule === "help-center" ? <HelpCenter /> : null}
           </ErrorBoundary>
+          </FacilityFeaturesContext.Provider>
 
           <div className="chat-area" style={{display: (isSchedulerActive && !isAIChat) ? "none" : undefined}}>
             {showWelcome && (
