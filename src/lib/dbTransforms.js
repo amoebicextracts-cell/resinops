@@ -58,7 +58,7 @@ const SCHEMAS = {
   work_orders: ['id','created_at','updated_at','facility_id','title','category','equipment_id','severity','reported_by','reported_date','status','assigned_to','down_start','down_end','labor_type_id','labor_hours','parts_cost','vendor_id','description','resolution_notes','labor_cost','total_cost'],
   loto_log: ['id','created_at','updated_at','facility_id','equipment_id','date','reason','locked_by','lock_time','reenergized_by','reenergize_time','verified_safe','notes','status'],
   remediation: ['id','created_at','updated_at','facility_id','created_by','source_type','source_id','strain_name','weight_g','lab_name','lab_report_ref','test_date','tyam_cfu','tab_cfu','aspergillus','gy_per_hour','turn_required','status','retest_result','notes','dose','retest_qc_test_id'],
-  gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes','worker_id','worker_at','supervisor_id','supervisor_at','manager_id','manager_at','qc_head_id','qc_head_at'],
+  gmp_signoffs: ['id','created_at','updated_at','facility_id','created_by','batch_type','batch_id','step_name','performed_by_id','verified_by_id','performed_at','notes','worker_id','worker_at','supervisor_id','supervisor_at','manager_id','manager_at','qc_head_id','qc_head_at','on_behalf'],
   cogs_records: ['id','created_at','updated_at','facility_id','created_by','production_batch_id','material_cost_override','override_materials','manual_materials','labor_cost_override','labor_lines','test_fee','cult_cost','actual_units','deduct_trigger','units_sold','sku_price_id','rev_per_unit','total_rev_override','materials_locked_at','actual_material_usage'],
   cultivation_costs: ['id','created_at','updated_at','facility_id','created_by','grow_space_id','media','nutrients','ipm','other','allocation_basis','co2_override','co2_actual_lbs'],
   cost_pools: ['id','created_at','updated_at','facility_id','created_by','name','category','period_amount','period','production_pct','allocation_basis','active','notes','linked_to_equipment'],
@@ -742,6 +742,7 @@ const FIELD_OVERRIDES = {
     managerAt: 'manager_at',
     qc_headId: 'qc_head_id',
     qc_headAt: 'qc_head_at',
+    onBehalf: 'on_behalf',
   },
   cogs_records: {
     batchId: 'production_batch_id',

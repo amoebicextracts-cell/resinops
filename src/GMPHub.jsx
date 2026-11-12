@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "./lib/db";
-import { supabase, getCurrentFacility } from "./lib/supabase";
+import { supabase, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
 import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -204,6 +204,16 @@ export default function GMPHub(){
   }
 
   function empName(id){return employees.find(e=>e.id===id)?.name||"—";}
+  // Sign-offs an owner/admin recorded for someone else (see
+  // 20261112090000_add_gmp_signoff_on_behalf.sql). The database stamps
+  // who entered it and when; this just shows it.
+  const canRecordOnBehalf=["owner","admin"].includes(getCurrentFacilityRole());
+  function onBehalfInfo(so,tier){
+    const m=so?.onBehalf?.[tier];
+    if(!m) return null;
+    const by=employees.find(e=>e.user_id&&e.user_id===m.entered_by)?.name||"an admin";
+    return {by,at:m.entered_at,reason:m.reason||"",text:`Recorded on behalf by ${by} on ${fmtDT(m.entered_at)} — ${m.reason||""}`};
+  }
 
   // ── SOPs ──
   async function saveSop(){
@@ -403,6 +413,29 @@ export default function GMPHub(){
     }catch(e){ setErr("Could not undo: "+e.message); }
   }
 
+  const [onBehalfForm,setOnBehalfForm]=useState(null); // {type,batchId,stepName,tier,employeeId,date,reason}
+  const [onBehalfBusy,setOnBehalfBusy]=useState(false);
+  async function recordOnBehalf(f){
+    if(!f.employeeId||!f.reason.trim()||!f.date) return;
+    const existing=findSignoff(f.type,f.batchId,f.stepName);
+    const at=new Date(f.date+"T16:00:00");
+    const patch={
+      [f.tier+"Id"]:f.employeeId,
+      [f.tier+"At"]:(at.getTime()>Date.now()?new Date():at).toISOString(),
+      onBehalf:{...(existing?.onBehalf||{}),[f.tier]:{reason:f.reason.trim()}},
+    };
+    setOnBehalfBusy(true);
+    try{
+      const saved=existing
+        ? await db.gmp_signoffs.update(existing.id,patch)
+        : await db.gmp_signoffs.upsert({id:crypto.randomUUID(),batchType:f.type,batchId:f.batchId,stepName:f.stepName,notes:"",...patch});
+      setSignoffs(p=>existing?p.map(x=>x.id===saved.id?saved:x):[...p,saved]);
+      setOnBehalfForm(null);
+      setErr("");
+    }catch(e){ setErr("Could not record sign-off: "+e.message); }
+    setOnBehalfBusy(false);
+  }
+
   // ── Signed Batch Record PDF ── built for the QC Head "Sign & Release"
   // flow. Sources the sign-off table from TIER_ORDER/TIER_LABELS reading
   // so[tier+"Id"]/so[tier+"At"] -- unlike the older "🖨 Print Batch
@@ -426,7 +459,7 @@ export default function GMPHub(){
     autoTable(doc,{
       startY:y,
       head:[["Step","Tier","Signed By","Signed At"]],
-      body:batchSignoffs.flatMap(so=>TIER_ORDER.filter(t=>so[t+"Id"]).map(t=>[so.stepName||"",TIER_LABELS[t],empName(so[t+"Id"]),fmtDT(so[t+"At"])])),
+      body:batchSignoffs.flatMap(so=>TIER_ORDER.filter(t=>so[t+"Id"]).map(t=>{const ob=onBehalfInfo(so,t);return [so.stepName||"",TIER_LABELS[t],empName(so[t+"Id"])+(ob?` (${ob.text})`:""),fmtDT(so[t+"At"])];})),
       theme:"striped",
       headStyles:{fillColor:[74,124,89]},
     });
@@ -538,6 +571,7 @@ export default function GMPHub(){
                           <span style={{color:"var(--text-3)"}}>{TIER_LABELS[tier]}:</span>
                           <span style={{color:"var(--text)"}}>{empName(signedId)}</span>
                           <span style={{color:"var(--text-3)"}}>{fmtDT(signedAt)}</span>
+                          {onBehalfInfo(so,tier)&&<span title={onBehalfInfo(so,tier).text} style={{color:"var(--amber)"}}>· recorded on behalf by {onBehalfInfo(so,tier).by}</span>}
                           <button className="gh-sm gh-del" style={{padding:"1px 5px"}} onClick={()=>promptForReason(
                             `Unsign ${TIER_LABELS[tier]}`,
                             `Removing ${empName(signedId)}'s ${TIER_LABELS[tier]} sign-off for "${step.n}". This is recorded permanently with your reason.`,
@@ -545,7 +579,8 @@ export default function GMPHub(){
                           )}>✕</button>
                         </div>
                       ):(
-                        <TierSignoffPicker key={tier} tier={tier} employees={employees} currentUserId={currentUserId}
+                        <span key={tier} style={{display:"inline-flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                        <TierSignoffPicker tier={tier} employees={employees} currentUserId={currentUserId}
                           buttonLabel={tier==="qc_head"?"Sign & Release":"Sign"}
                           onSign={empId=>{
                             if(tier!=="qc_head"){ signOffTier(type,id,step.n,tier,empId); return; }
@@ -559,6 +594,13 @@ export default function GMPHub(){
                               onSigned:()=>signOffTier(type,id,step.n,"qc_head",empId),
                             });
                           }} />
+                        {canRecordOnBehalf&&tier!=="qc_head"&&(
+                          <button className="gh-sm gh-secondary" title="Enter a past sign-off for another employee, e.g. one who has left. It is marked as recorded on behalf, with your name and reason."
+                            onClick={()=>setOnBehalfForm({type,batchId:id,stepName:step.n,tier,employeeId:"",date:todayLocalISO(),reason:""})}>
+                            Record on behalf…
+                          </button>
+                        )}
+                        </span>
                       );
                     })}
                   </div>
@@ -734,7 +776,7 @@ export default function GMPHub(){
                           {r.required.map(tier=>{
                             const signedId=r.so?.[tier+"Id"];
                             return signedId?(
-                              <span key={tier} style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.15)",borderRadius:6,padding:"3px 8px"}}>✓ {TIER_LABELS[tier]}: {empName(signedId)}</span>
+                              <span key={tier} style={{fontSize:11,color:"var(--accent-2)",background:"rgba(74,124,89,0.15)",borderRadius:6,padding:"3px 8px"}}>✓ {TIER_LABELS[tier]}: {empName(signedId)}{onBehalfInfo(r.so,tier)&&<span title={onBehalfInfo(r.so,tier).text}> (on behalf)</span>}</span>
                             ):tier==="qc_head"?(
                               <button key={tier} className="gh-sm gh-edit" onClick={()=>{setTab("record");setBatchRecordId({type:r.type,id:String(r.batch.id)});}}>
                                 → Sign in Batch Record
@@ -762,7 +804,7 @@ export default function GMPHub(){
                         <td style={{fontWeight:500,color:"var(--text)"}}>{r.stepName}</td>
                         {TIER_ORDER.map(t=>{
                           const id=r.so?.[t+"Id"];
-                          return <td key={t} style={{fontSize:11}}>{id?<>{empName(id)}<br/><span style={{color:"var(--text-3)"}}>{fmtDT(r.so[t+"At"])}</span></>:<span style={{color:"var(--text-3)"}}>—</span>}</td>;
+                          return <td key={t} style={{fontSize:11}}>{id?<>{empName(id)}<br/><span style={{color:"var(--text-3)"}}>{fmtDT(r.so[t+"At"])}</span>{onBehalfInfo(r.so,t)&&<><br/><span title={onBehalfInfo(r.so,t).text} style={{color:"var(--amber)"}}>on behalf · {onBehalfInfo(r.so,t).by}</span></>}</>:<span style={{color:"var(--text-3)"}}>—</span>}</td>;
                         })}
                       </tr>
                     ))}</tbody>
@@ -1083,6 +1125,35 @@ export default function GMPHub(){
           onSigned={async(record)=>{ await signingModal.onSigned(record); setSigningModal(null); }}
           onCancel={()=>setSigningModal(null)}
         />
+      )}
+      {onBehalfForm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>{if(!onBehalfBusy)setOnBehalfForm(null);}}>
+          <div className="gh-card" style={{width:440,maxWidth:"90vw",margin:0}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:8}}>Record {TIER_LABELS[onBehalfForm.tier]} sign-off on behalf</div>
+            <div style={{fontSize:12,color:"var(--text-3)",marginBottom:14}}>
+              For "{onBehalfForm.stepName}". Use this only for work another employee actually did, such as a historical record or someone who has left.
+              The sign-off is permanently marked as recorded on behalf, with your name, the time you entered it, and your reason.
+            </div>
+            <form onSubmit={e=>{e.preventDefault(); if(!onBehalfBusy) recordOnBehalf(onBehalfForm);}}>
+              <label className="gh-lbl" htmlFor="ob-emp">Employee who did the work</label>
+              <select id="ob-emp" className="gh-sel" value={onBehalfForm.employeeId} onChange={e=>{const v=e.target.value;setOnBehalfForm(f=>({...f,employeeId:v}));}}>
+                <option value="">— Select employee —</option>
+                {employees.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(e=>(
+                  <option key={e.id} value={e.id}>{e.name}{e.status&&e.status!=="active"?` (${e.status})`:""}</option>
+                ))}
+              </select>
+              <label className="gh-lbl" htmlFor="ob-date" style={{marginTop:10}}>Date the step was signed off</label>
+              <input id="ob-date" type="date" className="gh-inp" max={todayLocalISO()} value={onBehalfForm.date} onChange={e=>{const v=e.target.value;setOnBehalfForm(f=>({...f,date:v}));}} />
+              <label className="gh-lbl" htmlFor="ob-reason" style={{marginTop:10}}>Reason</label>
+              <textarea id="ob-reason" className="gh-inp" rows={3} style={{resize:"vertical"}} placeholder="e.g. Historical backfill — employee no longer with the company"
+                value={onBehalfForm.reason} onChange={e=>{const v=e.target.value;setOnBehalfForm(f=>({...f,reason:v}));}} />
+              <div style={{display:"flex",gap:8,marginTop:14}}>
+                <button type="submit" className="gh-btn gh-primary" disabled={onBehalfBusy||!onBehalfForm.employeeId||!onBehalfForm.date||!onBehalfForm.reason.trim()}>{onBehalfBusy?"Saving…":"Record sign-off"}</button>
+                <button type="button" className="gh-btn gh-secondary" disabled={onBehalfBusy} onClick={()=>setOnBehalfForm(null)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
       {reasonPrompt&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={()=>{if(!reasonBusy){setReasonPrompt(null);setReasonText("");}}}>

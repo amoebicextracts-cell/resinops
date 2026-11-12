@@ -3420,6 +3420,7 @@ export default function ProductionScheduler({onNavigate}){
                                     <span key={tier} style={{fontSize:10,background:"var(--surface)",border:"1px solid var(--border-2)",borderRadius:6,padding:"2px 6px",display:"inline-flex",alignItems:"center",gap:5}}>
                                       <span style={{color:"var(--text-3)"}}>{SO_TIER_LABELS[tier]}:</span>
                                       <span style={{color:"var(--text)"}}>{empName(signedId)}</span>
+                                      {so?.onBehalf?.[tier]&&<span title={"Recorded on behalf — "+(so.onBehalf[tier].reason||"")} style={{color:"var(--amber)"}}>(on behalf)</span>}
                                       <button className="ps-btn ps-sm ps-del" style={{padding:"0 4px"}} onClick={()=>unsignStepTier(b.id,step.name,tier)}>✕</button>
                                     </span>
                                   ):(
