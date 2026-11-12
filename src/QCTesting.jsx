@@ -161,17 +161,25 @@ export default function QCTesting(){
 
       // Auto-create harvest batch from passing COA
       if(overall===true&&!f.batchId&&cultivates){
-        const alreadyExists=harvestBatches.some(b=>b.coaSampleId===f.sampleId||b.coa_sample_id===f.sampleId);
-        if(!alreadyExists){
-          try{
+        const existing=harvestBatches.find(b=>f.sampleId&&(b.coaSampleId===f.sampleId||b.coa_sample_id===f.sampleId));
+        try{
+          let hbId=existing?.id;
+          if(!existing){
             const newBatch={id:crypto.randomUUID(),strainName:f.strainName||"Unknown",
               d:f.receivedDate||f.submittedDate||todayLocalISO(),
               status:"complete",coaSampleId:f.sampleId,labName:f.labName,
-              thca:f.thca,notes:"Auto-created from passing COA import"};
+              thca:f.thca,notes:"Auto-created from passing COA import ("+(f.sampleId||"no sample ID")+")"};
             const savedHb=await db.harvest_batches.upsert(newBatch);
             setHarvestBatches(p=>[...p,savedHb]);
-          }catch(e){ console.error("Auto harvest batch failed:",e); }
-        }
+            hbId=savedHb.id;
+          }
+          // Link the test to its batch. Without this the placeholder was
+          // orphaned: nothing pointed at it, so a later COA import that moved
+          // the test to a production batch could never clean it up.
+          const linked=await db.qc_tests.upsert({...saved,batchType:"harvest",harvestBatchId:hbId,productionBatchId:null});
+          linked.batchId=hbId;
+          setTests(p=>p.map(x=>x.id===linked.id?linked:x));
+        }catch(e){ console.error("Auto harvest batch failed:",e); }
       } else if(overall===true&&f.batchId&&isHarvest){
         // Mark linked harvest batch complete
         const hb=harvestBatches.find(b=>String(b.id)===String(f.batchId));
