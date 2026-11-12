@@ -1039,7 +1039,9 @@ export default function ResinOps() {
 
   const switchModule = (id) => {
     const mod = MODULES.find((m) => m.id === id);
-    if (id !== "ai-corrections-review" && id !== "compliance-sources" && id !== "help-center" && !mod?.available) return;
+    // Admin/help pages live outside the MODULES registry; use the shared list
+    // so a new one (Client Access was missed) can't silently ignore clicks.
+    if (!EXTRA_FULL_PAGE_MODULE_IDS.includes(id) && !mod?.available) return;
     if(window.__resinopsUnsaved && activeModule !== id) {
       if(!window.confirm("You have unsaved changes. Leave anyway?")) return;
       window.__resinopsUnsaved = false;
