@@ -1907,6 +1907,11 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
             rec={...r,batchType:cultivates?"harvest":"production",harvestBatchId:"",productionBatchId:"",batchId:""};
           }
           if(prior?.harvestBatchId&&String(prior.harvestBatchId)!==String(rec.harvestBatchId||"")) coaRelinkedFrom.push(String(prior.harvestBatchId));
+          // Placeholders auto-created by QC Testing before it linked them back
+          // to the test are only tied to the COA by sample ID — catch those too.
+          if(sid&&prior&&!rec.harvestBatchId){
+            hb.filter(b=>String(b.coaSampleId||"").trim()===sid&&isCoaPlaceholderHarvest(b)).forEach(b=>coaRelinkedFrom.push(String(b.id)));
+          }
           newRecords.push(rec);
           coaKinds.push(link);
         });
@@ -2379,7 +2384,7 @@ Return every row as a record. Do not skip rows. Map all columns you can identify
           const stillUsed=new Set(qcNow.map(q=>String(q.harvestBatchId||"")).filter(Boolean));
           for(const id of new Set(coaRelinkedFrom)){
             const b=hb.find(x=>String(x.id)===id);
-            if(b&&isCoaPlaceholderHarvest(b)&&!stillUsed.has(id)&&!b.wetWeightG&&!b.totalDryWeight){
+            if(b&&isCoaPlaceholderHarvest(b)&&!stillUsed.has(id)&&!(b.wetWeightG||b.wetWeight)&&!b.totalDryWeight&&!(b.plantCount||b.plants)){
               await db.harvest_batches.delete(id);
               coaPlaceholdersRemoved++;
             }
