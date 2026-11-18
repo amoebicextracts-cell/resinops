@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from "react";
+import VapeFormulationPanel from "./VapeFormulationPanel.jsx";
 import { db } from "./lib/db";
 import { supabase, getCurrentFacility } from "./lib/supabase";
 import { autoPopulateStrains } from "./strainUtils.js";
@@ -1068,6 +1069,7 @@ const EMPTY={
   pressRuns:[],coldCureBatches:[],
   dewaxPasses:[],purgeRuns:[],diamondSauceBatches:[],
   actualYieldG:"",lossEntries:[],
+  batchFormulation:null,
 };
 
 function loadHarvestBatches(){ return []; } // loaded async now
@@ -1318,7 +1320,7 @@ export default function ProductionScheduler({onNavigate}){
   function openAdd(){window.__resinopsUnsaved=true;const d=todayLocalISO();const steps=(STEPS["whole_flower"]||[]).map(s=>({n:s.n,days:s.days}));setForm({...EMPTY,d,steps});setFormMode("add");setFormErr("");setDepositForm(null);}
   function openEdit(b){window.__resinopsUnsaved=true;setDepositForm(null);
     const existingPoolTx=poolTxData.find(t=>t.destinationBatchId===b.id && t.type==="withdrawal");
-    setForm({name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
+    setForm({batchFormulation:b.batchFormulation||null,name:b.name,cat:b.cat,sub:b.sub||"",strains:b.strains||"",d:b.d,inputAmt:String(b.inputAmt||""),unit:b.unit||"g",pkgIdx:b.pkgIdx||0,steps:(Array.isArray(b.steps)?b.steps:[]).map(s=>({n:s.n,days:s.days})),
       stemWastePct:String(b.stemWastePct||30),moistureLossPct:String(b.moistureLossPct||2),fillWastePct:String(b.fillWastePct||3),coneWeight:String(b.coneWeight||1),packSize:String(b.packSize||5),inputMaterial:b.inputMaterial||"flower",
       overfillG:String(b.overfillG||0.1),vapeInputType:b.vapeInputType||"distillate",sauceSepMethod:b.sauceSepMethod||"pour_off",vapeHardware:b.vapeHardware||"fg_xmini",vapeInputTerpPct:String(b.vapeInputTerpPct||0),
       additiveTHC:String(b.additiveTHC||35),additiveTerpPct:String(b.additiveTerpPct||50),targetBlendTHC:String(b.targetBlendTHC||85),
@@ -1540,7 +1542,7 @@ export default function ProductionScheduler({onNavigate}){
     if(!validate())return;
     const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
     const sub=subOpts.find(s=>s.v===form.sub);
-    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt)||0,unit:((form.inputSource==="harvest"&&form.harvestGrade)||form.inputSource==="pool")?"g":form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.cat==="vape"?(form.vapeHardware||"fg_xmini"):"",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:Math.max(0,parseFloat(form.actualYieldG)||0),lossEntries:(form.lossEntries||[]).map(le=>({...le,amountG:Math.max(0,parseFloat(le.amountG)||0)}))};
+    const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt)||0,unit:((form.inputSource==="harvest"&&form.harvestGrade)||form.inputSource==="pool")?"g":form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.cat==="vape"?(form.vapeHardware||"fg_xmini"):"",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:Math.max(0,parseFloat(form.actualYieldG)||0),lossEntries:(form.lossEntries||[]).map(le=>({...le,amountG:Math.max(0,parseFloat(le.amountG)||0)})),batchFormulation:form.batchFormulation||null};
 
     const mainId=formMode==="edit"?editId:crypto.randomUUID();
     const mainBatch={...base,id:mainId};
@@ -2767,6 +2769,19 @@ export default function ProductionScheduler({onNavigate}){
               <div style={{maxWidth:320}}><label className="ps-lbl">Separation method</label><select className="ps-sel" value={form.sauceSepMethod} onChange={e=>setF("sauceSepMethod",e.target.value)}><option value="pour_off">Pour Off</option><option value="centrifuge">Centrifuge</option></select></div>
             </div>}
 
+            {/* House vape formulation + METRC batch # (feeds the GMP Hub batch record) */}
+            {isVapeFormulable&&<VapeFormulationPanel
+              value={form.batchFormulation}
+              onChange={v=>setF("batchFormulation",v)}
+              product={(form.strains||"").split(",")[0].trim()||form.name}
+              labelG={pkgSel?.v}
+              isAio={form.sub==="disposable"}
+              dateISO={form.d}
+              batches={batches}
+              editId={formMode==="edit"?editId:null}
+              onUseBlendAsInput={g=>setF("inputAmt",String(g))}
+              onUseBatchNumberInName={n=>setF("name",((form.name||"").replace(/\s*-?\s*GCCNY[-_][A-Za-z0-9._-]+\s*$/,"").trim()||(form.strains||"Batch"))+" - "+n)}
+            />}
             {/* Vape formulation calculator */}
             {/* Two-component vape blend calculator */}
             {isVapeFormulable&&<div className="ps-box">
