@@ -5,6 +5,7 @@ import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import SignToConfirmModal from "./SignToConfirmModal.jsx";
+import { buildHouseBatchRecordPdf, batchRecordFileBase, batchRecordFolder } from "./lib/batchRecordPdf.js";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
 function fmtDT(dt){return dt?parseDateLocal(dt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"—";}
@@ -180,6 +181,7 @@ export default function GMPHub(){
   const [soView,setSoView]=useState("outstanding"); // outstanding | history
   const [shiftEntries,setShiftEntries]=useState([]);
   const [batchRecordId,setBatchRecordId]=useState({type:"harvest",id:""});
+  const [exportState,setExportState]=useState({busy:false,msg:""});
   const [err,setErr]=useState("");
   const [signingModal,setSigningModal]=useState(null);
 
@@ -442,6 +444,9 @@ export default function GMPHub(){
   // Record" HTML export below, which reads a legacy performed_by_id/
   // verified_by_id/timestamp triad that signOffTier() never writes.
   function buildBatchRecordPdf(batch,type,batchSignoffs,batchDevs,batchQcTests,batchShiftEntries,batchCultInputs){
+    // Production batches print in the house format (sections 1-6, with the
+    // batch_formulation targets); harvest batches keep the summary layout.
+    if(type==="production") return buildHouseBatchRecordPdf({batch,facility,signoffs:batchSignoffs,deviations:batchDevs,qcTests:batchQcTests,shiftEntries:batchShiftEntries,empName,onBehalf:onBehalfInfo,generatedAt:todayLocalISO(),signed:true});
     const doc=new jsPDF();
     let y=16;
 
@@ -510,6 +515,40 @@ export default function GMPHub(){
     }
 
     return doc;
+  }
+
+  // ── House-format record for one production batch (unsigned snapshot) ──
+  function houseRecordFor(batch){
+    const id=String(batch.id);
+    return buildHouseBatchRecordPdf({batch,facility,
+      signoffs:signoffs.filter(s=>s.batchType==="production"&&String(s.batchId)===id),
+      deviations:deviations.filter(d=>d.batchType==="production"&&String(d.batchId)===id),
+      qcTests:qcTests.filter(t=>t.batchType==="production"&&String(t.batchId)===id),
+      shiftEntries:shifts.flatMap(sh=>(sh.entries||[]).filter(e=>e.batchType==="production"&&String(e.batchId)===id).map(e=>({...e,shiftDate:sh.date}))),
+      empName,onBehalf:onBehalfInfo,generatedAt:todayLocalISO()});
+  }
+  function saveBlob(blob,filename){
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }
+  // Every production batch with at least one linked COA, one PDF each,
+  // zipped as <Vapes|Pre-Rolls|…>/<METRC P.B. #>/BatchRecord_<#>.pdf.
+  async function exportBatchRecords(){
+    setExportState({busy:true,msg:"Building batch records…"});
+    try{
+      const {default:JSZip}=await import("jszip");
+      const zip=new JSZip();
+      const withCoa=prodBatches.filter(b=>qcTests.some(t=>t.batchType==="production"&&String(t.batchId)===String(b.id)));
+      if(!withCoa.length){ setExportState({busy:false,msg:"No production batches have a linked COA yet."}); return; }
+      const used=new Set();
+      for(const b of withCoa){
+        let base=batchRecordFileBase(b); while(used.has(base)) base+="_"+String(b.id).slice(0,4); used.add(base);
+        zip.file(`${batchRecordFolder(b)}/${base}/BatchRecord_${base}.pdf`,houseRecordFor(b).output("arraybuffer"));
+      }
+      saveBlob(await zip.generateAsync({type:"blob"}),`BatchRecords_${todayLocalISO()}.zip`);
+      setExportState({busy:false,msg:`Exported ${withCoa.length} batch record${withCoa.length===1?"":"s"} (production batches with a linked COA).`});
+    }catch(e){ setExportState({busy:false,msg:"Export failed: "+e.message}); }
   }
 
   // ── Batch Record ──
@@ -887,7 +926,17 @@ export default function GMPHub(){
                   w.document.write(html);w.document.close();
                 }}>🖨 Print Batch Record</button>
               )}
+              {batchRecordId.id&&batchRecordId.type==="production"&&(
+                <button className="gh-btn gh-secondary" style={{whiteSpace:"nowrap",marginLeft:8}} title="House-format batch record (sections 1-6) with this batch's sign-offs, COAs and formulation targets. Unsigned snapshot; use Sign & Release for the signed record." onClick={()=>{
+                  const b=prodBatches.find(x=>String(x.id)===batchRecordId.id); if(!b) return;
+                  saveBlob(houseRecordFor(b).output("blob"),`BatchRecord_${batchRecordFileBase(b)}.pdf`);
+                }}>⬇ Batch Record PDF</button>
+              )}
+              <button className="gh-btn gh-secondary" style={{whiteSpace:"nowrap",marginLeft:8}} disabled={exportState.busy} title="Download a zip with a house-format batch record for every production batch that has a linked COA" onClick={exportBatchRecords}>
+                {exportState.busy?"Exporting…":"⬇ Export batch records (COA batches)"}
+              </button>
             </div>
+            {exportState.msg&&<div style={{fontSize:12,color:"var(--text-3)",marginBottom:10}}>{exportState.msg}</div>}
             <BatchRecord />
           </div>
         )}
