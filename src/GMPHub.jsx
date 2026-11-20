@@ -5,6 +5,7 @@ import { parseDateLocal, todayLocalISO } from "./lib/dateUtils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import SignToConfirmModal from "./SignToConfirmModal.jsx";
+import DocumentControl from "./DocumentControl.jsx";
 import { buildHouseBatchRecordPdf, batchRecordFileBase, batchRecordFolder } from "./lib/batchRecordPdf.js";
 
 function fmtD(dt){return dt?parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";}
@@ -714,7 +715,7 @@ export default function GMPHub(){
         {openDevs>0&&<div style={{background:"rgba(200,74,74,0.08)",border:"1px solid rgba(200,74,74,0.3)",borderRadius:8,padding:"8px 14px",marginBottom:12,fontSize:12,color:"var(--danger)",fontWeight:500}}>⚠ {openDevs} open deviation{openDevs>1?"s":""} require CAPA sign-off</div>}
 
         <div className="gh-tabs">
-          {[["shifts","🕐 Shift Log"],["signoffs","✅ Step Sign-Offs"],["record","📄 Batch Record"],["cleaning","🧹 Cleaning Log"],["deviations","⚠ Deviations"],["sops","📚 SOP Library"]].map(([v,l])=>(
+          {[["shifts","🕐 Shift Log"],["signoffs","✅ Step Sign-Offs"],["record","📄 Batch Record"],["cleaning","🧹 Cleaning Log"],["deviations","⚠ Deviations"],["sops","📚 SOP Library"],["documents","📁 Documents"]].map(([v,l])=>(
             <button key={v} className={"gh-tab"+(tab===v?" active":"")} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </div>
@@ -1111,6 +1112,7 @@ export default function GMPHub(){
         )}
 
         {/* ── SOP LIBRARY ── */}
+        {tab==="documents"&&<DocumentControl />}
         {tab==="sops"&&(
           <div className="gh-card">
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
