@@ -118,6 +118,12 @@ as $$
 declare
   v public.controlled_document_versions;
 begin
+  -- Lock the parent document first: two editors confirming different
+  -- versions of the same document must serialize, or both could supersede
+  -- the old current row and one would then hit the one-current index.
+  perform 1 from public.controlled_documents
+   where id = (select document_id from public.controlled_document_versions where id = p_version_id)
+   for update;
   select * into v from public.controlled_document_versions where id = p_version_id for update;
   if not found then
     raise exception 'version % not found', p_version_id;
@@ -173,6 +179,33 @@ create policy facility_isolation_update on public.controlled_documents
 
 -- Versions: read-only to clients.
 grant select on public.controlled_document_versions to authenticated;
+
+-- New tables are not auto-exposed to the Data API roles, and bypassing RLS
+-- does not bypass table privileges: the service-role API and the backfill
+-- script need these explicitly (delete is used only to roll back a failed
+-- upload start).
+grant select, insert, update, delete on public.controlled_documents to service_role;
+grant select, insert, update, delete on public.controlled_document_versions to service_role;
+
+-- The caller's effective Document Control access, honoring section-scoped
+-- permissions (scope_roles.compliance) the same way RLS does. The API acts
+-- as the service role, so it asks this as the user before writing.
+create or replace function public.controlled_documents_access(p_facility uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case
+    when private.can_edit_facility(p_facility, 'controlled_document_versions') then 'edit'
+    when private.can_view_facility(p_facility, 'controlled_document_versions') then 'view'
+    else 'none'
+  end
+$$;
+
+revoke all on function public.controlled_documents_access(uuid) from public, anon;
+grant execute on function public.controlled_documents_access(uuid) to authenticated;
 
 create policy facility_isolation_select on public.controlled_document_versions
   for select to authenticated

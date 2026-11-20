@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(15);
 
 insert into auth.users (
   id, instance_id, aud, role, email, encrypted_password,
@@ -9,7 +9,8 @@ insert into auth.users (
 ) values
   ('15000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-owner-a@resinops.test', '', now(), '{}', '{}', now(), now()),
   ('25000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-owner-b@resinops.test', '', now(), '{}', '{}', now(), now()),
-  ('35000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-viewer-a@resinops.test', '', now(), '{}', '{}', now(), now());
+  ('35000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-viewer-a@resinops.test', '', now(), '{}', '{}', now(), now()),
+  ('45000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'dc-scoped-a@resinops.test', '', now(), '{}', '{}', now(), now());
 
 insert into public.facilities (id, facility_name, created_by)
 values
@@ -21,6 +22,13 @@ values
   ('c5000000-0000-0000-0000-000000000001', '15000000-0000-0000-0000-000000000001', 'owner', now()),
   ('c5000000-0000-0000-0000-000000000001', '35000000-0000-0000-0000-000000000003', 'viewer', now()),
   ('d5000000-0000-0000-0000-000000000002', '25000000-0000-0000-0000-000000000002', 'owner', now());
+
+-- A manager whose Compliance section is switched off.
+insert into public.facility_members (facility_id, user_id, role, scope_roles, accepted_at)
+values ('c5000000-0000-0000-0000-000000000001', '45000000-0000-0000-0000-000000000004', 'manager', '{"compliance": "none"}', now());
+
+select ok(has_table_privilege('service_role', 'public.controlled_documents', 'INSERT'), 'the service-role API can create documents');
+select ok(has_table_privilege('service_role', 'public.controlled_document_versions', 'INSERT'), 'the service-role API can create versions');
 
 -- Seeded as the service role would (the API writes these).
 insert into public.controlled_documents (id, facility_id, doc_key, title, category)
@@ -57,6 +65,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '15000000-0000-0000-0000-000000000001', true);
 
 select is((select count(*) from public.controlled_documents), 1::bigint, 'an owner sees only their facility''s documents');
+select is(public.controlled_documents_access('c5000000-0000-0000-0000-000000000001'), 'edit', 'an owner gets edit access');
 select is((select count(*) from public.controlled_document_versions), 2::bigint, 'an owner sees only their facility''s versions');
 
 select throws_ok(
@@ -106,6 +115,10 @@ select results_eq(
   $$values (0::bigint)$$,
   'a viewer cannot edit a document'
 );
+select is(public.controlled_documents_access('c5000000-0000-0000-0000-000000000001'), 'view', 'a viewer gets view access');
+
+select set_config('request.jwt.claim.sub', '45000000-0000-0000-0000-000000000004', true);
+select is(public.controlled_documents_access('c5000000-0000-0000-0000-000000000001'), 'none', 'a Compliance scope override of none blocks the API');
 
 select * from finish();
 rollback;

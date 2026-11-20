@@ -48,6 +48,15 @@ function getServiceRoleClient() {
   return createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+// Section-scoped permissions (scope_roles.compliance) can narrow a member's
+// global role, so ask the database as the caller (RLS-equivalent check).
+async function requireDocumentAccess(auth, facilityId, need) {
+  const { data, error } = await auth.supabase.rpc('controlled_documents_access', { p_facility: facilityId });
+  if (error) return { error: 'Unable to verify facility access', status: 503 };
+  if (data === 'edit' || (need === 'view' && data === 'view')) return {};
+  return { error: need === 'edit' ? 'Compliance edit access required' : 'Facility access denied', status: 403 };
+}
+
 async function createUploadUrl({ req, res, auth, admin, requestId }) {
   const validationError = validateCreateUploadPayload(req.body);
   if (validationError) return sendApiError(res, 400, validationError, requestId);
@@ -56,6 +65,8 @@ async function createUploadUrl({ req, res, auth, admin, requestId }) {
 
   const authz = await requireFacilityEditor(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
+  const scoped = await requireDocumentAccess(auth, facilityId, 'edit');
+  if (scoped.error) return sendApiError(res, scoped.status, scoped.error, requestId);
 
   let createdDocumentId = null;
   if (newDocument) {
@@ -155,6 +166,8 @@ async function confirmVersion({ req, res, auth, admin, requestId }) {
 
   const authz = await requireFacilityEditor(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
+  const scoped = await requireDocumentAccess(auth, facilityId, 'edit');
+  if (scoped.error) return sendApiError(res, scoped.status, scoped.error, requestId);
 
   const { data: version, error } = await loadVersion(admin, versionId);
   if (error) return sendApiError(res, 502, 'Unable to look up the version', requestId);
@@ -186,6 +199,8 @@ async function getVersionUrl({ req, res, auth, admin, requestId }) {
 
   const authz = await requireFacilityMember(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
+  const scoped = await requireDocumentAccess(auth, facilityId, 'view');
+  if (scoped.error) return sendApiError(res, scoped.status, scoped.error, requestId);
 
   const { data: version, error } = await loadVersion(admin, versionId);
   if (error) return sendApiError(res, 502, 'Unable to look up the version', requestId);

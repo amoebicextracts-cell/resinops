@@ -9,7 +9,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "./lib/db";
 import { authenticatedApiFetch, formatApiError } from "./lib/api";
-import { supabase, isSupabaseEnabled, getCurrentFacility, getCurrentFacilityRole } from "./lib/supabase";
+import { supabase, isSupabaseEnabled, getCurrentFacility, getCurrentFacilityRole, getCurrentFacilityScopeRoles } from "./lib/supabase";
+import { transformFromDb } from "./lib/dbTransforms";
 import { canEditFacilityData } from "./lib/roles";
 import {
   DOC_CATEGORIES, CATEGORY_LABEL, PRODUCT_TYPES,
@@ -17,6 +18,21 @@ import {
 } from "./lib/documentControl";
 
 const MAX_MB = 25;
+const PAGE = 1000; // PostgREST max_rows
+
+// Page through a facility's rows so history never silently truncates at max_rows.
+async function listAll(table) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from(table).select("*")
+      .eq("facility_id", getCurrentFacility())
+      .order("created_at", { ascending: false }).order("id")
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) return rows.map(r => transformFromDb(table, r));
+  }
+}
 const STATUS_PILL = { current: "sop-active", superseded: "sop-retired" };
 const fmtDate = s => (s ? new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—");
 
@@ -62,10 +78,13 @@ export default function DocumentControl() {
   const [versionForm, setVersionForm] = useState(null);
   const newFileRef = useRef(null);
   const versionFileRef = useRef(null);
-  const canEdit = canEditFacilityData(getCurrentFacilityRole());
+  // Mirror the compliance-scope override the API and RLS enforce.
+  const role = getCurrentFacilityRole();
+  const complianceRole = getCurrentFacilityScopeRoles()?.compliance;
+  const canEdit = canEditFacilityData(role === "owner" || role === "admin" ? role : (complianceRole ?? role));
 
   async function reload() {
-    const [docs, vers] = await Promise.all([db.controlled_documents.list(), db.controlled_document_versions.list()]);
+    const [docs, vers] = await Promise.all([listAll("controlled_documents"), listAll("controlled_document_versions")]);
     setDocuments(docs); setVersions(vers);
   }
 
@@ -174,7 +193,7 @@ export default function DocumentControl() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,1fr) minmax(320px,1.4fr)", gap: 14, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 14, alignItems: "start" }}>
         <div>
           {groups.length === 0 && <div style={{ textAlign: "center", padding: 32, color: "var(--text-3)" }}>No documents yet. Upload a batch record or template to start its version history.</div>}
           {groups.map(g => (
