@@ -29,7 +29,7 @@
 
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { authenticateRequest, requireFacilityEditor, requireFacilityMember } from './_auth.js';
+import { authenticateRequest, requireFacilityMember } from './_auth.js';
 import { applyCors, checkRateLimit, isOriginAllowed } from './_request-security.js';
 import { initializeApiRequest, logApiError, sendApiError } from './_observability.js';
 import {
@@ -63,7 +63,7 @@ async function createUploadUrl({ req, res, auth, admin, requestId }) {
   const { facilityId, newDocument, versionLabel, changelog, fileName, mimeType, effectiveDate } = req.body;
   let { documentId } = req.body;
 
-  const authz = await requireFacilityEditor(auth, facilityId);
+  const authz = await requireFacilityMember(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
   const scoped = await requireDocumentAccess(auth, facilityId, 'edit');
   if (scoped.error) return sendApiError(res, scoped.status, scoped.error, requestId);
@@ -164,7 +164,7 @@ async function confirmVersion({ req, res, auth, admin, requestId }) {
   if (validationError) return sendApiError(res, 400, validationError, requestId);
   const { facilityId, versionId } = req.body;
 
-  const authz = await requireFacilityEditor(auth, facilityId);
+  const authz = await requireFacilityMember(auth, facilityId);
   if (authz.error) return sendApiError(res, authz.status, authz.error, requestId);
   const scoped = await requireDocumentAccess(auth, facilityId, 'edit');
   if (scoped.error) return sendApiError(res, scoped.status, scoped.error, requestId);
