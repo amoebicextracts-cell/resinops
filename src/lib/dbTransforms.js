@@ -32,6 +32,8 @@ const SCHEMAS = {
   resinex_facility_shells: ['id','created_at','updated_at','project_id','facility_id','width_ft','depth_ft','ceiling_height_ft','notes'],
   resinex_rooms: ['id','created_at','updated_at','shell_id','facility_id','name','room_type','x_ft','y_ft','width_ft','depth_ft','height_ft','color','linked_grow_room_id','linked_facility_map_space_id','notes'],
   resinex_room_equipment: ['id','created_at','updated_at','facility_id','room_id','equipment_id','x_ft','y_ft','rotation_deg','notes'],
+  controlled_documents: ['id','created_at','updated_at','facility_id','created_by','doc_key','title','category','product_type','rd_dosed','status','notes'],
+  controlled_document_versions: ['id','created_at','facility_id','document_id','version_label','changelog','effective_date','status','file_name','mime_type','file_size','sha256','storage_path','uploaded_by','promoted_at'],
   resinex_project_documents: ['id','created_at','updated_at','facility_id','project_id','uploaded_by','file_name','mime_type','file_size','category','status','storage_path','notes'],
   resinex_project_actuals: ['id','created_at','updated_at','facility_id','project_id','description','category','estimated_amount','actual_amount','status','linked_document_id','notes'],
   resinex_expansion_tasks: ['id','created_at','updated_at','facility_id','project_id','name','category','start_date','duration_days','status','depends_on_task_id','notes'],

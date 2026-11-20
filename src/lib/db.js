@@ -81,6 +81,8 @@ const LS_KEYS = {
   resinex_rooms:      'resinops_resinex_rooms',
   resinex_room_equipment: 'resinops_resinex_room_equipment',
   resinex_project_documents: 'resinops_resinex_project_documents',
+  controlled_documents: 'resinops_controlled_documents',
+  controlled_document_versions: 'resinops_controlled_document_versions',
   resinex_project_actuals: 'resinops_resinex_project_actuals',
   resinex_expansion_tasks: 'resinops_resinex_expansion_tasks',
   compliance_sources: 'resinops_compliance_sources',
