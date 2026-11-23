@@ -91,10 +91,10 @@ test('vape records are phased: bulk oil + heavy-metal test units, hold, COA rele
   // A vape with no formulation still gets the phased layout.
   const bare = buildHouseBatchRecordPdf({ batch: { id: 'b4', name: 'Mystery Cart', cat: 'vape' } }).output();
   assert.ok(bare.includes('6. COA Review and Phase 2 Release'));
-  // Other product types keep the six-section record.
-  const flower = buildHouseBatchRecordPdf({ batch: { id: 'b5', name: 'Grape Pie Raw Flower Pre-Roll', cat: 'pre_roll' } }).output();
-  assert.ok(flower.includes('5. QC Results, Yield Reconciliation and Waste'));
-  assert.ok(!flower.includes('Phase 2'));
+  // Infused pre-rolls and edibles keep the six-section record.
+  const infused = buildHouseBatchRecordPdf({ batch: { id: 'b5', name: 'Infused Pre-Roll IPR', cat: 'pre_roll' } }).output();
+  assert.ok(infused.includes('5. QC Results, Yield Reconciliation and Waste'));
+  assert.ok(!infused.includes('Phase 2'));
 });
 
 test("a bulk oil lab sample is added to the blend, not taken from the filled units", () => {
@@ -115,4 +115,13 @@ test("pre-roll records include the reject rework step; vapes do not", () => {
   assert.ok(infused.includes("Infused Pre-Roll Batch Record") && infused.includes("Reject rework"));
   const vape = buildHouseBatchRecordPdf({ batch: { id: "b9", name: "Cart", cat: "vape" } }).output();
   assert.ok(!vape.includes("Reject rework"));
+});
+
+test('raw flower pre-roll records are phased: test portion, random lab samples, hold, COA release, then Phase 2', () => {
+  const pdf = buildHouseBatchRecordPdf({ batch: { id: 'b10', name: 'Tropicana Cookies 1g Flower Pre-Roll - GCCNY-TCOOK-1GRPR-111826-B01', cat: 'pre_roll', inputAmt: 2270, unit: 'g' } }).output();
+  for (const s of ['5. Test Portion: Random Sampling, Lab Submission and Hold', '6. COA Review and Phase 2 Release', '7. Yield Reconciliation and Waste',
+    '8. Packaging, Labeling, Deviations, and Release', 'Random unit numbers generated', '[LOCK] Grinder setting', 'Phase 2 Production Date',
+    'Remainder check before Phase 2', 'Reject rework', 'of 2270 g'])
+    assert.ok(pdf.includes(s), s);
+  assert.ok(!pdf.includes('Bulk oil'));
 });
