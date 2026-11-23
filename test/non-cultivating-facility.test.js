@@ -11,8 +11,13 @@ test('production templates never include post-harvest (cultivation) steps', () =
     const bad = steps.filter((s) => CULTIVATION_STEPS.test(s.n)).map((s) => s.n);
     assert.deepEqual(bad, [], `${key} has ${bad.join(', ')}`);
   }
-  assert.deepEqual(defaultSteps('pre_roll', '').map((s) => s.n),
+  assert.deepEqual(defaultSteps('pre_roll', 'infused').map((s) => s.n),
     ['Intake / Prep', 'Grinding', 'Rolling / Filling', 'QC / Testing', 'Packaging', 'Inventory']);
+  // Raw flower pre-rolls follow the phased test-portion run, in part-days.
+  const raw = defaultSteps('pre_roll', '');
+  assert.deepEqual(raw.map((s) => [s.n, s.days]), [
+    ['Grind / Sift', 0.25], ['Phase 1 Rolling (lab portion)', 0.25], ['QC / Testing', 7],
+    ['Phase 2 Rolling (remainder)', 0.5], ['Reject Rework', 0.25], ['Packaging', 2], ['Inventory', 1]]);
 });
 
 test('a facility cultivates unless Harvest Batches is turned off', () => {

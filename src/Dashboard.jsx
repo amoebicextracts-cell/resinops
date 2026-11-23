@@ -218,7 +218,8 @@ export default function Dashboard({ onNavigate }){
       for (const s of (sp.strains || [])) {
         if (!strainNames.includes((s.name || "").toLowerCase())) continue;
         for (const [grade, earmark] of Object.entries(s.earmarks || {})) {
-          if (earmark !== targetKey) continue;
+          // Flower earmarked for pre-rolls in general also covers infused pre-rolls.
+          if (earmark !== targetKey && !(g.cat === "pre_roll" && earmark === "pre_roll|")) continue;
           const proj = projectedYieldForStrainRow(s.name, s.plants, harvestBatches);
           if (!proj || !(proj.grades[grade] > 0)) continue;
           totalG += proj.grades[grade];

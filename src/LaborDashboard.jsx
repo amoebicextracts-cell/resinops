@@ -30,20 +30,23 @@ function cultInventoryDate(sp){
 function stepCalDays(step, shiftHours) {
   const sh = parseFloat(shiftHours) || 8;
   if (step.isPassive) return Math.max(1, parseInt(step.calDays || step.hours || step.days || 1));
-  if (step.days !== undefined && step.hours === undefined) return Math.max(1, parseInt(step.days));
+  // Scheduler steps can be part-days (raw pre-roll: 1/4 day grind).
+  if (step.days !== undefined && step.hours === undefined) return Math.max(0, parseFloat(step.days) || 0);
   const hrs = parseFloat(step.hours) || sh;
   const staff = parseInt(step.staffCount) || 1;
   return Math.max(1, Math.ceil(hrs / (staff * sh)));
 }
 
 function buildTimeline(d, steps, shiftHours) {
-  let c = new Date(d + "T12:00:00");
+  // Offsets in days from the batch start; a part-day step lands on the
+  // calendar day its offset falls on (same as the Production Scheduler).
+  const base = new Date(d + "T12:00:00");
+  let off = 0;
   return (steps || []).map(s => {
-    const s0 = new Date(c);
     const days = stepCalDays(s, shiftHours);
-    const e = dAdd(c, days);
-    c = e;
-    return { ...s, name: s.n || s.name, calDays: days, start: s0, end: e };
+    const startOff = off;
+    off += days;
+    return { ...s, name: s.n || s.name, calDays: days, start: dAdd(base, Math.floor(startOff + 1e-9)), end: dAdd(base, Math.floor(off + 1e-9)), startOff, endOff: off };
   });
 }
 
@@ -55,14 +58,18 @@ function getDayDemand(date, batches, spaces, shiftHours, ltMap) {
 
   batches.filter(b => !b.isLinked).forEach(batch => {
     const tl = buildTimeline(batch.d, batch.steps, shiftHours);
+    // Day k of the batch covers offsets [k, k+1); a step gets hours for the
+    // share of that day it covers (a 1/4-day grind = 1/4 shift).
+    const k = dDiff(new Date(batch.d + "T00:00:00"), dStart);
     tl.forEach(step => {
-      if (step.start <= dEnd && step.end > dStart) {
+      const share = Math.min(step.endOff, k + 1) - Math.max(step.startOff, k);
+      if (share > 1e-9) {
         const def = STEP_LABOR[step.name] || {};
         const isP = step.isPassive !== undefined ? step.isPassive : (def.p || false);
         const ltId = step.laborTypeId || "unassigned";
         const dailyHrs = isP
-          ? ((step.monitorHrsPerDay !== undefined ? step.monitorHrsPerDay : (def.m || 0.25)) * (step.staffCount || def.s || 1))
-          : ((step.staffCount || def.s || 1) * parseFloat(shiftHours || 8));
+          ? ((step.monitorHrsPerDay !== undefined ? step.monitorHrsPerDay : (def.m || 0.25)) * (step.staffCount || def.s || 1)) * share
+          : ((step.staffCount || def.s || 1) * parseFloat(shiftHours || 8)) * share;
         const rate = ltMap[ltId]?.rate || 0;
         items.push({ batchName:batch.name, stepName:step.name, ltId, ltName:ltMap[ltId]?.n||"Unassigned", hours:dailyHrs, cost:dailyHrs*rate, isPassive:isP });
       }

@@ -37,7 +37,11 @@ export function withdrawFifo(item, qty) {
 // per_lb_input / per_batch) so estimated cost and actual deduction always
 // agree on how much of each material a batch consumes.
 export function resolveBom(batch, boms) {
-  return boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + (batch.sub || "") || (b.category === batch.cat && (b.subcategory || "") === (batch.sub || "")))) || null;
+  const match = (sub) => boms.find(b => batch.cat && (b.catSub === batch.cat + "|" + sub || (b.category === batch.cat && (b.subcategory || "") === sub)));
+  const exact = match(batch.sub || "");
+  // Infused pre-rolls use the general pre-roll recipe until they get their own.
+  if (!exact && batch.cat === "pre_roll" && batch.sub) return match("") || null;
+  return exact || null;
 }
 
 // "Actual units produced" is only ever saved on the batch's cogs_records
