@@ -107,3 +107,12 @@ test("a bulk oil lab sample is added to the blend, not taken from the filled uni
   const pdf = buildHouseBatchRecordPdf({ batch: { id: "b6", name: "Test Vape", cat: "vape", batchFormulation: { ...TERPAJA, labUnits: "2" } } }).output();
   assert.ok(pdf.includes("CHECK BEFORE STARTING"));
 });
+
+test("pre-roll records include the reject rework step; vapes do not", () => {
+  const raw = buildHouseBatchRecordPdf({ batch: { id: "b7", name: "Grape Pie Raw Flower Pre-Roll", cat: "pre_roll" } }).output();
+  for (const s of ["Reject rework", "unroll and re-roll", "Rework loss", "Reworked units packaged under this batch number"]) assert.ok(raw.includes(s), s);
+  const infused = buildHouseBatchRecordPdf({ batch: { id: "b8", name: "Infused Pre-Roll IPR", cat: "pre_roll" } }).output();
+  assert.ok(infused.includes("Infused Pre-Roll Batch Record") && infused.includes("Reject rework"));
+  const vape = buildHouseBatchRecordPdf({ batch: { id: "b9", name: "Cart", cat: "vape" } }).output();
+  assert.ok(!vape.includes("Reject rework"));
+});

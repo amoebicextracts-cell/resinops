@@ -99,6 +99,7 @@ export function buildHouseBatchRecordPdf(p) {
   text('Good documentation rules: write at the time of the activity. No pencil, no white-out. Correct errors with a single line, initials, date, and reason. Write "N/A" in any field that does not apply. Never leave a blank. Blue bold entries come from ResinOps: calculated targets, recorded sign-offs and linked COA results.');
   const phased = kind === "vape";
   const S = phased ? { yield: 7, dev: 8 } : { yield: 5, dev: 6 };
+  const joints = kind === "preroll" || kind === "infused";   // rejects are unrolled and re-rolled
   if (phased) text("Phased run (test samples first): this batch is made in two phases under one batch number. Phase 1: weigh and blend the whole batch, pull a bulk oil sample for the full panel, and fill 3–6 units for heavy-metal testing; everything is held until the COA passes (Sections 5 and 6). Phase 2: re-warm and re-mix the held oil and fill the rest on the same hardware lot at the Phase 1 settings. Rows marked [LOCK] must match Phase 1; a mismatch is a deviation (Section 8) and QA decides whether to retest.", { bold: true });
   if (p.signed) text("Signed record: frozen at QC Head Sign & Release.", { size: 9, bold: true, color: BLUE });
   const planChecks = [...(vc?.errs || [])];
@@ -244,6 +245,20 @@ export function buildHouseBatchRecordPdf(p) {
     h3("In-process weight checks");
     table(["Check #", "Time", "Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6", "Unit 7", "Unit 8", "Unit 9", "Unit 10", "Avg (g)", "In Spec?", "Initials"], blanks(6, 15), [0.5, 0.5, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.5, 0.5, 0.5], 17);
   }
+  if (joints) {
+    h3("Reject rework (unroll and re-roll)");
+    text(`After QC, every rejected unit goes back to be reworked: unroll it, recover the ${kind === "infused" ? "infused " : ""}flower, and re-roll it into new units at the same settings (cone type, fill method, target weight). Reworked units must pass the same weight and visual checks before they are added to the batch total. Keep rejects in a labeled container for this batch only. A reworked unit that fails again goes to the waste log unless the SOP allows another rework.`);
+    table(["Reject Reason", "Qty"], ["Underweight", "Overweight", "Loose pack / voids", "Bad close / spill", "Torn or damaged paper", "Draw test fail", "Other: ____________"]
+      .map(r => [r, ""]).concat([[b("Total rejects"), ""]]), [4, 1.2], 16);
+    table(["Rework #", "Rejects In (qty)", "Flower Recovered (g)", "Cones Discarded (qty)", "Re-rolled (qty)", "Passed QC (qty)", "Failed Again (qty)", "Operator / Verifier"],
+      blanks(3, 8).concat([[b("Total"), "", "", "", "", "", "", ""]]), [0.6, 0.75, 0.85, 0.8, 0.75, 0.75, 0.75, 1.05], 18);
+    fields([["Recovered flower from this batch only, free of paper and debris (Y/N)", ""],
+      ["Re-rolled at the same settings: cone type, fill method, target weight (Y/N)", ""],
+      ["Every reworked unit weighed and visually checked (100%), all in spec (Y/N)", ""],
+      ["Reworked units added to the batch count (qty) and packaged under this batch number", ""],
+      ["Units that failed again: disposition (waste log / second rework per SOP)", ""],
+      ["Rework verified by (sign / date)", ""]]);
+  }
   if (shiftEntries.length) {
     h3("Labor entries (from ResinOps)");
     table(["Date", "Employee", "In", "Out", "Hours", "Task"], shiftEntries.map(e => [fmtDate(e.shiftDate), v(empName(e.employeeId)), e.timeIn || "", e.timeOut || "", e.hoursWorked || "", e.taskNotes || ""]), [0.9, 1.4, 0.6, 0.6, 0.6, 2.4], 16);
@@ -318,10 +333,10 @@ export function buildHouseBatchRecordPdf(p) {
   ], [0.4, 3.6, 1.1, 1.1], 18);
   else table(["Line", "Item", "Expected", "Recorded"], [
     ["A", vc ? "Total blend made (actual total net)" : "Total input issued", vc ? v(n(vc.blend, 1) + " g") : batch.inputAmt ? v(`${batch.inputAmt} ${batch.unit || "g"}`) : "", ""],
-    ["B", `Good units produced (qty: ______ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, vc ? v(n(vc.units * vc.fill, 1) + " g") : batch.yieldEst ? v(batch.yieldEst) : "", batch.actual_yield ? v(batch.actual_yield) : batch.actualYieldG ? v(batch.actualYieldG + " g") : ""],
-    ["C", "Rejected units", "", ""], ["D", "Lab and retain samples", vc ? v(n(vc.lab * vc.fill, 1) + " g") : "", ""],
+    ["B", `Good units produced (qty: ______ ${joints ? "incl. ____ reworked " : ""})${unitG ? " × " + n(unitG, 3) + " g" : ""}`, vc ? v(n(vc.units * vc.fill, 1) + " g") : batch.yieldEst ? v(batch.yieldEst) : "", batch.actual_yield ? v(batch.actual_yield) : batch.actualYieldG ? v(batch.actualYieldG + " g") : ""],
+    ["C", joints ? "Rework loss = flower in rejected units minus flower recovered" : "Rejected units", "", ""], ["D", "Lab and retain samples", vc ? v(n(vc.lab * vc.fill, 1) + " g") : "", ""],
     ["E", "Left in equipment / returned to inventory", vc ? v("~" + n(vc.lossG, 1) + " g") : "", ""],
-    ["F", "Waste (from waste log)", "", (batch.lossEntries || []).length ? v((batch.lossEntries || []).reduce((a, le) => a + (+le.amountG || 0), 0) + " g") : ""],
+    ["F", joints ? "Waste (from waste log, incl. units that failed rework)" : "Waste (from waste log)", "", (batch.lossEntries || []).length ? v((batch.lossEntries || []).reduce((a, le) => a + (+le.amountG || 0), 0) + " g") : ""],
     ["G", "Accounted for = B + C + D + E + F", "", ""], ["H", "Unaccounted variance = A minus G", "", ""], ["I", "Variance % = H ÷ A × 100", "", ""],
   ], [0.4, 3.6, 1.1, 1.1], 18);
   line(`Allowed variance per SOP: ______ %. If line ${phased ? "L" : "I"} exceeds it, open a deviation in Section ${S.dev} before release.`);
@@ -331,6 +346,7 @@ export function buildHouseBatchRecordPdf(p) {
   // ── 6. Packaging, deviations, release ──
   h2(`${S.dev}. Packaging, Labeling, Deviations, and Release`);
   table(["Check", "Entry", "Initials"], [["Units per package", batch.packagingUnitsPerPack ? v(batch.packagingUnitsPerPack) : "", ""], ["Packages produced (qty)", "", ""],
+    ...(joints ? [["Reworked units packaged under this batch number (Y/N)", "", ""]] : []),
     ...(phased ? [["Hardware lot on packaged units matches the heavy-metal test units (Y/N)", "", ""]] : []),
     ["Label potency taken from the product COA, not the calculated value (Y/N)", "", ""], ["Label matches product, strain, weight, and potency on COA (Y/N)", "", ""],
     ["Required state warnings and universal symbol present (Y/N)", "", ""], ["Child-resistant closure verified (Y/N)", "", ""],
