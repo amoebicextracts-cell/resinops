@@ -80,3 +80,39 @@ test('house batch record builds for a vape with sign-offs and a COA, and for a b
   assert.ok(doc2.output().includes('Pre-Roll Batch Record'));
   assert.equal(batchRecordFolder(legacy), 'Pre-Rolls');
 });
+
+test('vape records are phased: bulk oil + heavy-metal test units, hold, COA release, then Phase 2 fill', () => {
+  const batch = { id: 'b3', name: 'Wedding Cake 2g Uzo Disposable Vape - GCCNY-WEDDING2GUZO-DISTY-111826-B03', cat: 'vape',
+    strains: 'Wedding Cake', d: '2026-11-18', batchFormulation: { ...TERPAJA, metrcBatch: 'GCCNY-WEDDING2GUZO-DISTY-111826-B03' } };
+  const pdf = buildHouseBatchRecordPdf({ batch, generatedAt: '2026-11-23' }).output();
+  for (const s of ['5. Test Samples, Lab Submission and Hold', '6. COA Review and Phase 2 Release', '7. Yield Reconciliation and Waste',
+    '8. Packaging, Labeling, Deviations, and Release', 'Heavy-metal test units', 'Phase 2 Fill Date', '[LOCK] Hardware model', 'Filled test units'])
+    assert.ok(pdf.includes(s), s);
+  // A vape with no formulation still gets the phased layout.
+  const bare = buildHouseBatchRecordPdf({ batch: { id: 'b4', name: 'Mystery Cart', cat: 'vape' } }).output();
+  assert.ok(bare.includes('6. COA Review and Phase 2 Release'));
+  // Other product types keep the six-section record.
+  const flower = buildHouseBatchRecordPdf({ batch: { id: 'b5', name: 'Grape Pie Raw Flower Pre-Roll', cat: 'pre_roll' } }).output();
+  assert.ok(flower.includes('5. QC Results, Yield Reconciliation and Waste'));
+  assert.ok(!flower.includes('Phase 2'));
+});
+
+test("a bulk oil lab sample is added to the blend, not taken from the filled units", () => {
+  const base = calcVapeFormulation({ ...TERPAJA, holdupPct: "0", sellableUnits: "100", labUnits: "6" });
+  const withBulk = calcVapeFormulation({ ...TERPAJA, holdupPct: "0", sellableUnits: "100", labUnits: "6", bulkSampleG: "10" });
+  assert.equal(+base.blend.toFixed(3), 212);
+  assert.equal(+withBulk.blend.toFixed(3), 222);
+  assert.equal(withBulk.bulkG, 10);
+  assert.equal(+(withBulk.blend - withBulk.bulkG - withBulk.lossG).toFixed(3), 212);
+  const pdf = buildHouseBatchRecordPdf({ batch: { id: "b6", name: "Test Vape", cat: "vape", batchFormulation: { ...TERPAJA, labUnits: "2" } } }).output();
+  assert.ok(pdf.includes("CHECK BEFORE STARTING"));
+});
+
+test("pre-roll records include the reject rework step; vapes do not", () => {
+  const raw = buildHouseBatchRecordPdf({ batch: { id: "b7", name: "Grape Pie Raw Flower Pre-Roll", cat: "pre_roll" } }).output();
+  for (const s of ["Reject rework", "unroll and re-roll", "Rework loss", "Reworked units packaged under this batch number"]) assert.ok(raw.includes(s), s);
+  const infused = buildHouseBatchRecordPdf({ batch: { id: "b8", name: "Infused Pre-Roll IPR", cat: "pre_roll" } }).output();
+  assert.ok(infused.includes("Infused Pre-Roll Batch Record") && infused.includes("Reject rework"));
+  const vape = buildHouseBatchRecordPdf({ batch: { id: "b9", name: "Cart", cat: "vape" } }).output();
+  assert.ok(!vape.includes("Reject rework"));
+});

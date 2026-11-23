@@ -40,6 +40,7 @@ export function calcVapeFormulation(f = {}, opts = {}) {
   const units = Math.max(0, Math.round(num(f.sellableUnits)));
   const lab = Math.max(0, Math.round(num(f.labUnits)));
   const loss = Math.min(0.5, Math.max(0, num(f.holdupPct) / 100));
+  const bulkG = Math.max(0, num(f.bulkSampleG));   // bulk oil pulled for the lab before filling
   const errs = [], warns = [];
 
   let df, tf;
@@ -57,7 +58,8 @@ export function calcVapeFormulation(f = {}, opts = {}) {
   if (f.potencySource === "coa") warns.push("Distillate potency is from the supplier COA, not an in-house retest of this drum.");
 
   const total = units + lab;
-  const blend = fill > 0 ? total * fill / (1 - loss) : 0;
+  // Hold-up is lost while filling; the bulk lab sample comes out of the blend before that.
+  const blend = fill > 0 ? total * fill / (1 - loss) + bulkG : 0;
   const dist = blend * df, terpG = blend * tf;
   const rows = Array.isArray(f.terps) && f.terps.length ? f.terps : [{ name: "", share: 100 }];
   const shareSum = rows.reduce((a, t) => a + Math.max(0, num(t.share)), 0) || 1;
@@ -71,7 +73,7 @@ export function calcVapeFormulation(f = {}, opts = {}) {
   const thc = df * pot;
   return {
     pot, label, fill, tol, units, lab, total, loss, df, tf, thc,
-    blend, dist, terpG, terps, lossG: blend * loss,
+    blend, dist, terpG, terps, bulkG, lossG: (blend - bulkG) * loss,
     mgPerUnit: label * thc * 10,
     errs, warns,
   };

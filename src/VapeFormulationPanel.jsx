@@ -59,7 +59,8 @@ export default function VapeFormulationPanel({ value, onChange, product, labelG,
         {inp("overfillG", "Overfill per unit (g)", { type: "number", step: "0.005" })}
         {inp("tolG", "Fill tolerance (± g)", { type: "number", step: "0.005" })}
         {inp("sellableUnits", "Sellable units", { type: "number", step: "1" })}
-        {inp("labUnits", "Extra lab / retain units", { type: "number", step: "1" })}
+        {inp("labUnits", "Extra lab / retain units (incl. 3–6 heavy-metal test units)", { type: "number", step: "1" })}
+        {inp("bulkSampleG", "Bulk oil lab sample (g)", { type: "number", step: "0.5" })}
         {inp("holdupPct", "Hold-up loss (% of blend)", { type: "number", step: "0.5" })}
         {tempSel("heatF", "Heat distillate to")}
         {tempSel("mixF", "Add terpenes / mix at")}
@@ -83,7 +84,7 @@ export default function VapeFormulationPanel({ value, onChange, product, labelG,
       {!c.errs.length && c.total > 0 && (
         <div style={{ marginTop: 10, background: "var(--surface-2)", borderRadius: 8, padding: "10px 12px", fontSize: 12, display: "grid", gap: 4 }}>
           <div><strong>{fmt(c.thc)}% THC</strong> expected · {fmt(c.mgPerUnit, 0)} mg per unit · {c.total} units ({c.units} + {c.lab} lab/retain) at {fmt(c.fill, 3)} g ± {fmt(c.tol, 3)}</div>
-          <div>Pull <strong>{fmt(c.dist)} g distillate</strong>{c.tf > 0 && <> + {c.terps.map(t => `${fmt(t.g, 2)} g ${t.name}`).join(" + ")}</>} = <strong>{fmt(c.blend)} g blend</strong> (incl. {fmt(c.lossG)} g hold-up)</div>
+          <div>Pull <strong>{fmt(c.dist)} g distillate</strong>{c.tf > 0 && <> + {c.terps.map(t => `${fmt(t.g, 2)} g ${t.name}`).join(" + ")}</>} = <strong>{fmt(c.blend)} g blend</strong> (incl. {fmt(c.lossG)} g hold-up{c.bulkG > 0 && <> and {fmt(c.bulkG)} g bulk lab sample</>})</div>
           {onUseBlendAsInput && <div><button type="button" className="ps-btn" onClick={() => onUseBlendAsInput(+c.blend.toFixed(1))}>Use {fmt(c.blend)} g as this batch's input</button></div>}
         </div>
       )}
