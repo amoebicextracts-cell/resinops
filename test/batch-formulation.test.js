@@ -80,3 +80,19 @@ test('house batch record builds for a vape with sign-offs and a COA, and for a b
   assert.ok(doc2.output().includes('Pre-Roll Batch Record'));
   assert.equal(batchRecordFolder(legacy), 'Pre-Rolls');
 });
+
+test('vape records are phased: bulk oil + heavy-metal test units, hold, COA release, then Phase 2 fill', () => {
+  const batch = { id: 'b3', name: 'Wedding Cake 2g Uzo Disposable Vape - GCCNY-WEDDING2GUZO-DISTY-111826-B03', cat: 'vape',
+    strains: 'Wedding Cake', d: '2026-11-18', batchFormulation: { ...TERPAJA, metrcBatch: 'GCCNY-WEDDING2GUZO-DISTY-111826-B03' } };
+  const pdf = buildHouseBatchRecordPdf({ batch, generatedAt: '2026-11-23' }).output();
+  for (const s of ['5. Test Samples, Lab Submission and Hold', '6. COA Review and Phase 2 Release', '7. Yield Reconciliation and Waste',
+    '8. Packaging, Labeling, Deviations, and Release', 'Heavy-metal test units', 'Phase 2 Fill Date', '[LOCK] Hardware model', 'Filled test units'])
+    assert.ok(pdf.includes(s), s);
+  // A vape with no formulation still gets the phased layout.
+  const bare = buildHouseBatchRecordPdf({ batch: { id: 'b4', name: 'Mystery Cart', cat: 'vape' } }).output();
+  assert.ok(bare.includes('6. COA Review and Phase 2 Release'));
+  // Other product types keep the six-section record.
+  const flower = buildHouseBatchRecordPdf({ batch: { id: 'b5', name: 'Grape Pie Raw Flower Pre-Roll', cat: 'pre_roll' } }).output();
+  assert.ok(flower.includes('5. QC Results, Yield Reconciliation and Waste'));
+  assert.ok(!flower.includes('Phase 2'));
+});

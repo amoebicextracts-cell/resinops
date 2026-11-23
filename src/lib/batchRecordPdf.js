@@ -1,6 +1,11 @@
 // House-format GMP batch record (sections 1-6, same layout as the paper
 // Pre-Roll Batch Record the production floor uses).
 //
+// Vapes are made as a phased run (sections 1-8): Phase 1 blends the whole
+// batch, sends a bulk oil sample (full panel) and 3-6 filled units (heavy
+// metals), and holds everything for the COA; Phase 2 fills the rest on the
+// same hardware lot at the Phase 1 settings, under the same batch number.
+//
 // Pure function of the batch and its related records, so the GMP Hub's
 // Sign & Release flow, its per-batch download and the bulk export all
 // print the same document. Values ResinOps already knows are printed in
@@ -92,6 +97,9 @@ export function buildHouseBatchRecordPdf(p) {
   text([facility.facility_name, facility.license_number].filter(Boolean).join(" · ") + (metrc ? `   |   METRC P.B. ${metrc}` : ""), { size: 9.5, color: GREY, gap: 6 });
   text("This is the batch record for the production floor. Fill in by hand in blue or black ink, then enter it into the ResinOps GMP Hub by end of shift. The paper original is filed with the batch.");
   text('Good documentation rules: write at the time of the activity. No pencil, no white-out. Correct errors with a single line, initials, date, and reason. Write "N/A" in any field that does not apply. Never leave a blank. Blue bold entries come from ResinOps: calculated targets, recorded sign-offs and linked COA results.');
+  const phased = kind === "vape";
+  const S = phased ? { yield: 7, dev: 8 } : { yield: 5, dev: 6 };
+  if (phased) text("Phased run (test samples first): this batch is made in two phases under one batch number. Phase 1: weigh and blend the whole batch, pull a bulk oil sample for the full panel, and fill 3–6 units for heavy-metal testing; everything is held until the COA passes (Sections 5 and 6). Phase 2: re-warm and re-mix the held oil and fill the rest on the same hardware lot at the Phase 1 settings. Rows marked [LOCK] must match Phase 1; a mismatch is a deviation (Section 8) and QA decides whether to retest.", { bold: true });
   if (p.signed) text("Signed record: frozen at QC Head Sign & Release.", { size: 9, bold: true, color: BLUE });
   if (vc?.errs.length) text("CHECK BEFORE STARTING: " + vc.errs.join(" "), { size: 9, bold: true, color: [180, 0, 0] });
 
@@ -121,9 +129,15 @@ export function buildHouseBatchRecordPdf(p) {
       ["Estimated Output", batch.yieldEst ? v(batch.yieldEst) : ""],
     );
   }
+  if (phased) idRows.push(
+    ["Production Plan", v("Phased: blend the whole batch, send a bulk oil sample (full panel) and 3–6 filled units (heavy metals), hold for the COA, then fill the rest at the Phase 1 settings under the same batch number")],
+    ["Heavy-Metal Test Units (qty, 3–6)", ""],
+  );
   idRows.push(
     ["Master SOP / BOM Reference and Revision", ""], ["Facility / Room", ""],
-    ["Production Date", batch.d ? v(fmtDate(batch.d)) : ""], ["Start Time / End Time", ""],
+    [phased ? "Phase 1 Date (blend, samples, test units)" : "Production Date", batch.d ? v(fmtDate(batch.d)) : ""],
+    ...(phased ? [["Phase 2 Fill Date", ""]] : []),
+    [phased ? "Start / End Time (Phase 1  |  Phase 2)" : "Start Time / End Time", ""],
     ["Production Lead (print, sign)", ""], ["Operators on Batch", ""],
   );
   fields(idRows);
@@ -155,14 +169,21 @@ export function buildHouseBatchRecordPdf(p) {
 
   // ── 3. Line clearance ──
   h2("3. Line Clearance and Equipment Checks");
-  text('Complete before any material enters the room. Any "No" stops the batch until resolved and logged as a deviation in Section 6.');
+  text('Complete before any material enters the room. Any "No" stops the batch until resolved and logged as a deviation in Section ' + S.dev + '.' + (phased ? ' Do it once for each phase.' : ''));
   const clear = ["Previous batch materials, labels, and paperwork removed",
     kind === "vape" ? "Mixing vessel, stirrer, filler reservoir, and lines cleaned and dry (no previous flavor)" : kind === "infused" ? "Tumbler drum, spray gun, knockbox, trays, and screens cleaned; no previous strain or flavor" : "Work surfaces, grinder, and filling machine cleaned and sanitized",
     "Cleaning log signed for this room and equipment", "No other product, strain, or lot present at the station",
     "Staff in required PPE", "Room temperature (°F) and RH (%) within SOP range: ____ °F / ____ %"];
-  table(["Check", "Yes / No", "Initials", "Time"], clear.map(c => [c, "", "", ""]), [4.6, 0.7, 0.7, 0.7]);
-  table(["Balance", "Test Weight (g)", "Reading (g)", "Pass (within ± ____ g)?", "Initials"], [["Bulk balance", "", "", "", ""], ["Check-weigh balance (0.01 g)", "", "", "", ""]], [1.7, 1.1, 1.1, 1.5, 0.8]);
-  line("Line clearance verified by (QA or Lead, sign / date): ______________________________");
+  if (phased) {
+    table(["Check", "Phase 1 Y/N", "Initials / Time", "Phase 2 Y/N", "Initials / Time"], clear.map(c => [c, "", "", "", ""]), [3.7, 0.7, 0.85, 0.7, 0.85]);
+    table(["Phase", "Balance", "Test Weight (g)", "Reading (g)", "Pass (within ± ____ g)?", "Initials"],
+      [["1", "Bulk balance"], ["1", "Check-weigh balance (0.01 g)"], ["2", "Bulk balance"], ["2", "Check-weigh balance (0.01 g)"]].map(r => [...r, "", "", "", ""]), [0.5, 1.6, 1, 1, 1.4, 0.8]);
+    line("Line clearance verified by (QA or Lead, sign / date):  Phase 1 ____________________   Phase 2 ____________________");
+  } else {
+    table(["Check", "Yes / No", "Initials", "Time"], clear.map(c => [c, "", "", ""]), [4.6, 0.7, 0.7, 0.7]);
+    table(["Balance", "Test Weight (g)", "Reading (g)", "Pass (within ± ____ g)?", "Initials"], [["Bulk balance", "", "", "", ""], ["Check-weigh balance (0.01 g)", "", "", "", ""]], [1.7, 1.1, 1.1, 1.5, 0.8]);
+    line("Line clearance verified by (QA or Lead, sign / date): ______________________________");
+  }
 
   // ── 4. Production ──
   h2("4. Production");
@@ -178,8 +199,23 @@ export function buildHouseBatchRecordPdf(p) {
       ["Vessel covered during mixing? Y/N", "Y", "", ""], ["Mix time (min)", "", "", ""],
       ["Blend uniform: no streaks, layers, or separation? Y/N", "Y", "", ""],
       ["Actual terpene % = terpene net ÷ total net × 100", v(n(vc.tf * 100) + "%"), "", ""],
-      ["Oil temperature at fill (°F)", temp(f.fillF), "", ""], ["Filler / dose setting", "", "", ""], ["Capping method and press setting", "", "", ""],
     ], [3, 1.3, 1, 1], 18);
+  }
+  if (phased) {
+    h3("Fill (Phase 1 = heavy-metal test units, Phase 2 = remainder)");
+    text("Fill the 3–6 test units in Phase 1 on the hardware lot and settings Phase 2 will use. Before Phase 2, set every [LOCK] row to the Phase 1 value, then record the Phase 2 actual and mark Match.", { size: 8.5, color: GREY });
+    const lock = t => "[LOCK] " + t, na = () => g("—");
+    table(["Field", "Target", "Phase 1 (test units)", "Phase 2 (remainder)", "Match P1? (Y/N)"], [
+      [lock("Hardware model / supplier"), "", "", "", ""],
+      [lock("Hardware lot # (Phase 2 must use the test-unit lot)"), "", "", "", ""],
+      [lock("Target fill weight and tolerance (g net)"), vc ? v(`${n(vc.fill, 3)} ± ${n(vc.tol, 3)}`) : "", "", "", ""],
+      [lock("Oil temperature at fill (°F)"), vc ? temp(f.fillF) : "", "", "", ""],
+      [lock("Filler / dose setting"), "", "", "", ""],
+      [lock("Capping method and press setting"), "", "", "", ""],
+      ["Held oil re-warmed to (°F) and re-mixed (min) before fill", "", na(), "", na()],
+      ["Units filled (qty)", vc ? v(`${vc.total} total`) : "", "", "", na()],
+      ["Date / operator / verifier", "", "", "", na()],
+    ], [2.6, 0.9, 1.1, 1.1, 0.7], 18);
   }
   h3("Step sign-offs (from ResinOps)");
   const steps = Array.isArray(batch.steps) ? batch.steps.map(s => s.n) : [];
@@ -197,7 +233,7 @@ export function buildHouseBatchRecordPdf(p) {
   table(["Step", "Tier", "Signed By", "Signed At", "Note"], soRows, [1.6, 1, 1.3, 1.1, 1.6], 16);
   if (vc) {
     const every = Math.max(10, Math.round(vc.total / 20 / 5) * 5) || 10, nChk = Math.min(30, Math.floor(Math.max(0, vc.total - 1) / every) + 2);
-    h3("In-process fill weight checks");
+    h3(phased ? "In-process fill weight checks (Phase 2)" : "In-process fill weight checks");
     text(`Weigh the first unit, then one every ${every} units, and the last unit. Target ${n(vc.fill, 3)} g net, accept ${n(vc.fill - vc.tol, 3)} to ${n(vc.fill + vc.tol, 3)} g. Two in a row out of spec: stop, adjust the filler, and log a deviation.`);
     table(["Check #", "Unit #", "Time", "Empty Unit (g)", "Filled Unit (g)", "Net Fill (g)", "In Spec?", "Initials"],
       Array.from({ length: nChk }, (_, i) => [String(i + 1), g(i === 0 ? "1" : i === nChk - 1 ? `last (${vc.total})` : String(i * every)), "", "", "", "", "", ""]), [0.6, 0.9, 0.7, 1, 1, 1, 0.7, 0.7], 16);
@@ -211,7 +247,27 @@ export function buildHouseBatchRecordPdf(p) {
   }
 
   // ── 5. QC, yield, waste ──
-  h2("5. QC Results, Yield Reconciliation and Waste");
+  if (phased) {
+    h2("5. Test Samples, Lab Submission and Hold (Phase 1)");
+    text("Pull the bulk oil sample from the finished blend after the blend-uniform check. Fill the 3–6 heavy-metal test units from the same blend, on the hardware lot and filler settings Phase 2 will use, so the heavy-metal result covers the hardware the batch ships in.");
+    h3("Bulk oil sample (full panel)");
+    fields([["Sample weight (g) / container type and ID", ""], ["Pulled from (top / middle / bottom of the mixed vessel)", ""], ["Pulled by / witness, date and time", ""],
+      ["METRC lab sample package tag", ""], ["Tests requested (full panel per lab test plan)", ""]]);
+    h3("Heavy-metal test units (3–6)");
+    table(["#", "Unit ID", "Hardware Lot #", "Empty Unit (g)", "Filled Unit (g)", "Net Fill (g)", "In Spec?", "Initials"], blanks(6, 8), [0.3, 0.9, 1.2, 0.9, 0.9, 0.9, 0.7, 0.7], 17);
+    line("Test units sent: ______ (3 to 6)     METRC lab sample package tag: ______________________");
+    h3("Lab submission");
+    fields([["Testing lab (name / license #)", ""], ["Sampled by (in-house name / lab sampler name)", ""], ["Transfer manifest #", ""],
+      ["Date / time released to the lab", ""], ["Chain of custody signed (Y/N, by)", ""]]);
+    h3("Hold (everything waits for the COA)");
+    fields([["Bulk oil remaining after sampling (g)", ""], ["Container (material / ID) and storage location", ""], ["Storage temperature (°F) / protected from light (Y/N)", ""],
+      ["Sealed with tamper-evident seal (seal #)", ""], ["Hardware of the test-unit lot set aside for Phase 2 (qty / location)", ""],
+      ["HOLD labels on bulk oil and hardware (Y/N)", ""], ["ResinOps QC hold entered / METRC package status (Y/N)", ""], ["Hold start date / time, by", ""]]);
+    h2("6. COA Review and Phase 2 Release");
+    text("Do not fill Phase 2 until this section is complete and QA has signed it.", { bold: true, color: [180, 0, 0] });
+  } else {
+    h2("5. QC Results, Yield Reconciliation and Waste");
+  }
   h3("Lab results (linked COAs)");
   if (qcTests.length) {
     table(["Lab", "Sample ID", "Reported", "Total THC %", "Total Terps %", "Micro", "Pest.", "Metals", "Result"],
@@ -222,9 +278,42 @@ export function buildHouseBatchRecordPdf(p) {
   } else {
     table(["Lab", "Sample ID", "Reported", "Total THC %", "Result"], [["", "", "", "", ""]], [1, 1.4, 0.9, 0.9, 0.9], 20);
   }
+  if (phased) {
+    h3("COA panel review");
+    table(["Panel", "Sample", "Result", "Limit / Spec", "Pass / Fail"], [
+      ["Total THC (%)", "Bulk oil"], ["Total terpenes (%)", "Bulk oil"], ["Residual solvents", "Bulk oil"], ["Microbials", "Bulk oil"],
+      ["Mycotoxins", "Bulk oil"], ["Pesticides", "Bulk oil"], ["Heavy metals", "Bulk oil"], ["Heavy metals", "Filled test units"], [b("Overall"), ""],
+    ].map(r => [...r, "", "", ""]), [2, 1.2, 1, 1, 0.8], 17);
+    h3("Held oil and hardware check before Phase 2");
+    fields([["Days on hold", ""], ["Seal intact and seal # matches Section 5 (Y/N)", ""],
+      ["Storage temperature stayed in range, protected from light (log reviewed, Y/N)", ""],
+      ["Oil appearance: no separation, crystallization, color change, or off odor (Y/N)", ""],
+      ["Bulk oil weight now (g) / change since hold start (g)", ""],
+      ["Phase 2 hardware is the same lot as the test units (Y/N; No = deviation and heavy-metal retest)", ""],
+      ["Filler and capper set to the Phase 1 [LOCK] values in Section 4 (Y/N)", ""]]);
+    h3("QA decision");
+    text("Circle one:   COA PASS: Phase 2 fill authorized   /   COA FAIL: do NOT fill Phase 2; keep the oil, test units and hardware on hold, open a deviation (Section 8), and disposition per SOP (retest, remediation, or destruction)");
+    table(["Role", "Print Name", "Signature", "Date / Time"], [["QA Reviewer", "", "", ""], ["Production Lead (acknowledged)", "", "", ""]], [1.6, 1.8, 1.8, 1], 24);
+    h2(`${S.yield}. Yield Reconciliation and Waste`);
+    text("Reconcile once, after Phase 2, across both phases.");
+  }
   h3("Material balance");
   const unitG = vc ? vc.fill : null;
-  table(["Line", "Item", "Expected", "Recorded"], [
+  const wasteG = (batch.lossEntries || []).length ? v((batch.lossEntries || []).reduce((a, le) => a + (+le.amountG || 0), 0) + " g") : "";
+  const goodG = batch.actual_yield ? v(batch.actual_yield) : batch.actualYieldG ? v(batch.actualYieldG + " g") : "";
+  if (phased) table(["Line", "Item", "Expected", "Recorded"], [
+    ["A", "Total blend made (actual total net)", vc ? v(n(vc.blend, 1) + " g") : batch.inputAmt ? v(`${batch.inputAmt} ${batch.unit || "g"}`) : "", ""],
+    ["B", `Good units produced, Phase 2 (qty: ______ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, vc ? v(n(vc.units * vc.fill, 1) + " g") : batch.yieldEst ? v(batch.yieldEst) : "", goodG],
+    ["C", "Rejected units (both phases)", "", ""],
+    ["D", "Bulk oil sample sent to the lab (Section 5)", "", ""],
+    ["E", `Heavy-metal test units sent (qty: ____ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, "", ""],
+    ["F", "Retain samples", "", ""],
+    ["G", "Left in equipment / returned to inventory", vc ? v("~" + n(vc.lossG, 1) + " g") : "", ""],
+    ["H", "Bulk oil weight change during the hold (Section 6)", "", ""],
+    ["I", "Waste (from waste log)", "", wasteG],
+    ["J", "Accounted for = B + C + D + E + F + G + H + I", "", ""], ["K", "Unaccounted variance = A minus J", "", ""], ["L", "Variance % = K ÷ A × 100", "", ""],
+  ], [0.4, 3.6, 1.1, 1.1], 18);
+  else table(["Line", "Item", "Expected", "Recorded"], [
     ["A", vc ? "Total blend made (actual total net)" : "Total input issued", vc ? v(n(vc.blend, 1) + " g") : batch.inputAmt ? v(`${batch.inputAmt} ${batch.unit || "g"}`) : "", ""],
     ["B", `Good units produced (qty: ______ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, vc ? v(n(vc.units * vc.fill, 1) + " g") : batch.yieldEst ? v(batch.yieldEst) : "", batch.actual_yield ? v(batch.actual_yield) : batch.actualYieldG ? v(batch.actualYieldG + " g") : ""],
     ["C", "Rejected units", "", ""], ["D", "Lab and retain samples", vc ? v(n(vc.lab * vc.fill, 1) + " g") : "", ""],
@@ -232,17 +321,19 @@ export function buildHouseBatchRecordPdf(p) {
     ["F", "Waste (from waste log)", "", (batch.lossEntries || []).length ? v((batch.lossEntries || []).reduce((a, le) => a + (+le.amountG || 0), 0) + " g") : ""],
     ["G", "Accounted for = B + C + D + E + F", "", ""], ["H", "Unaccounted variance = A minus G", "", ""], ["I", "Variance % = H ÷ A × 100", "", ""],
   ], [0.4, 3.6, 1.1, 1.1], 18);
-  line("Allowed variance per SOP: ______ %. If line I exceeds it, open a deviation in Section 6 before release.");
+  line(`Allowed variance per SOP: ______ %. If line ${phased ? "L" : "I"} exceeds it, open a deviation in Section ${S.dev} before release.`);
   h3("Waste log (render unusable per state rules before disposal)");
   table(["Time", "Waste Type", "Weight (g)", "Method Rendered Unusable", "METRC Waste Logged (Y/N)", "Witness 1", "Witness 2"], blanks(3, 7, false), [0.6, 1.6, 0.7, 1.3, 0.9, 0.8, 0.8], 18);
 
   // ── 6. Packaging, deviations, release ──
-  h2("6. Packaging, Labeling, Deviations, and Release");
+  h2(`${S.dev}. Packaging, Labeling, Deviations, and Release`);
   table(["Check", "Entry", "Initials"], [["Units per package", batch.packagingUnitsPerPack ? v(batch.packagingUnitsPerPack) : "", ""], ["Packages produced (qty)", "", ""],
+    ...(phased ? [["Hardware lot on packaged units matches the heavy-metal test units (Y/N)", "", ""]] : []),
     ["Label potency taken from the product COA, not the calculated value (Y/N)", "", ""], ["Label matches product, strain, weight, and potency on COA (Y/N)", "", ""],
     ["Required state warnings and universal symbol present (Y/N)", "", ""], ["Child-resistant closure verified (Y/N)", "", ""],
     ["Batch / lot number printed on each package (Y/N)", "", ""], ["New METRC package tag(s) created", batch.s2sOutputTags ? v(batch.s2sOutputTags) : "", ""]], [4, 1.6, 0.7], 18);
   h3("Deviations (from ResinOps)");
+  if (phased) text("Include any [LOCK] mismatch, a different hardware lot in Phase 2, a broken hold seal, or oil that changed on hold, and QA's retest decision.", { size: 8.5, color: GREY });
   table(["#", "Type", "Severity", "What Happened", "Corrective Action", "Status"],
     deviations.length ? deviations.map((d, i) => [String(i + 1), v(d.type || ""), v(d.severity || ""), v(d.title || d.description || ""), v(d.correctiveAction || ""), v(d.status || "")]) : blanks(2, 6),
     [0.3, 1.1, 0.7, 2, 1.8, 0.7], 22);
