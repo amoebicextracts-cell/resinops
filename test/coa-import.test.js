@@ -15,7 +15,7 @@ import {
 test('product categories are inferred from lab product types and batch names', () => {
   assert.deepEqual(inferProductCategory('2g Disposable Vape'), { cat: 'vape', sub: 'disposable' });
   assert.deepEqual(inferProductCategory('1g Vape Cartridge'), { cat: 'vape', sub: 'cartridge' });
-  assert.deepEqual(inferProductCategory('Raw Pre-Roll'), { cat: 'pre_roll', sub: 'raw' });
+  assert.deepEqual(inferProductCategory('Raw Pre-Roll'), { cat: 'pre_roll', sub: '' });
   assert.deepEqual(inferProductCategory('Infused Pre-Roll (1g)'), { cat: 'pre_roll', sub: 'infused' });
   assert.deepEqual(inferProductCategory('Bulk Distillate'), { cat: 'extract', sub: 'distillate' });
   assert.deepEqual(inferProductCategory('Bulk Flower'), { cat: 'whole_flower', sub: '' });

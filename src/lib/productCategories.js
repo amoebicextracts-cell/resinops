@@ -22,7 +22,9 @@ export const CATS=[
 ];
 export const SUBS={
   pre_roll:[
-    {v:"raw",l:"Raw Flower (phased test portion)"},{v:"infused",l:"Infused"},
+    // Raw keeps the blank sub so existing "pre_roll|" recipes, earmarks and
+    // batches (all raw) still match.
+    {v:"",l:"Raw Flower (phased test portion)"},{v:"infused",l:"Infused"},
   ],
   extract:[
     {v:"shatter",l:"BHO — Shatter / Wax"},{v:"badder",l:"BHO — Badder / Budder"},
@@ -140,7 +142,7 @@ export function inferProductCategory(text){
   const has=(re)=>re.test(t);
   if(has(/disposable|\baio\b|all[- ]in[- ]one/)) return {cat:"vape",sub:"disposable"};
   if(has(/\bvape\b|cartridge|\bcarts?\b|\b510\b|\bpod\b/)) return {cat:"vape",sub:"cartridge"};
-  if(has(/pre-?roll|preroll|\bipr\b|\bjoint|\bblunt|\bcone/)) return {cat:"pre_roll",sub:has(/infus|\d*g?ipr\b/)?"infused":"raw"};
+  if(has(/pre-?roll|preroll|\bipr\b|\bjoint|\bblunt|\bcone/)) return {cat:"pre_roll",sub:has(/infus|ipr\b/)?"infused":""};
   if(has(/gumm/)) return {cat:"edible",sub:"gummies"};
   if(has(/chocolate/)) return {cat:"edible",sub:"chocolate"};
   if(has(/capsule/)) return {cat:"edible",sub:"capsules"};
