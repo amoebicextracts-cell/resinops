@@ -289,7 +289,7 @@ function getThcaSteps(sub, method, cycles) {
 
 const SBG={
   "Intake / Prep":"#1e3248","Drying":"#1e4420","Bucking":"#2e5010","Trimming":"#3a5e14",
-  "Curing":"#143810","Grinding":"#504810","Rolling / Filling":"#583c0e","Extraction":"#582208",
+  "Curing":"#143810","Grinding":"#504810","Rolling / Filling":"#583c0e","Grind / Sift":"#504810","Phase 1 Rolling (lab portion)":"#583c0e","Phase 2 Rolling (remainder)":"#6a4a10","Reject Rework":"#582030","Extraction":"#582208",
   "Pressing":"#4a2008","Washing":"#143848","Lyophilization":"#0e2848","Purge / Process":"#3e1414",
   "Winterization":"#221438","Extensive Winterization":"#281448","CRC Remediation":"#301838",
   "Decarb":"#481c0e","Distillation":"#200e48","Formulation":"#0e3848",
@@ -311,7 +311,7 @@ const SBG={
 };
 const SFG={
   "Intake / Prep":"#90c0f0","Drying":"#90f0a0","Bucking":"#b0e080","Trimming":"#c0f090",
-  "Curing":"#80d080","Grinding":"#f0e060","Rolling / Filling":"#f0b860","Extraction":"#f8a870",
+  "Curing":"#80d080","Grinding":"#f0e060","Rolling / Filling":"#f0b860","Grind / Sift":"#f0e060","Phase 1 Rolling (lab portion)":"#f0b860","Phase 2 Rolling (remainder)":"#f8c870","Reject Rework":"#f0a0b0","Extraction":"#f8a870",
   "Pressing":"#f09870","Washing":"#80d0f0","Lyophilization":"#78b0f0","Purge / Process":"#f09090",
   "Winterization":"#b090f8","Extensive Winterization":"#c0a0ff","CRC Remediation":"#d090e0",
   "Decarb":"#f0a870","Distillation":"#c090ff","Formulation":"#70d0f0",
@@ -997,7 +997,13 @@ function dAdd(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function dDiff(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
 function fmtS(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric"});}
 function fmtF(dt){return parseDateLocal(dt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
-function buildTimeline(d,steps){let c=new Date(d+"T12:00:00");return steps.map(s=>{const s0=new Date(c),e=dAdd(c,s.days);c=e;return{name:s.n,days:s.days,start:s0,end:e};});}
+// Steps can be part-days (raw pre-roll: 1/4 day grind, 1/2 day Phase 2).
+// Offsets are kept in days from the batch start; start/end dates are the
+// calendar day each offset falls on, and the Gantt draws from the offsets.
+function buildTimeline(d,steps){const base=new Date(d+"T12:00:00");let off=0;return steps.map(s=>{const days=Math.max(0,Number(s.days)||0);const startOff=off;off+=days;return{name:s.n,days,start:dAdd(base,Math.floor(startOff+1e-9)),end:dAdd(base,Math.floor(off+1e-9)),startOff,endOff:off};});}
+function fmtDays(n){const v=Math.round((Number(n)||0)*100)/100;return String(v);}
+// Raw pre-roll grind/sift: 1/4 day per 10 lb of flower (5-10 lb = 1/4 day).
+function calcGrindDays(inputG){const lbs=inputG/453.592;return Math.max(0.25,Math.ceil(lbs/10)*0.25);}
 
 const CSS=`
   .ps-wrap{padding:24px;flex:1;overflow-y:auto;}
@@ -1230,7 +1236,7 @@ export default function ProductionScheduler({onNavigate}){
   const subOpts=SUBS[form.cat]||[];
   const isThcaSub=form.sub==="thca_ff"||form.sub==="thca_trim";
   const formSteps=form.steps||(isThcaSub?getThcaSteps(form.sub,form.thcaMethod||"controlled",form.thcaRecrystCycles||1):(STEPS[getStepKey(form.cat,form.sub)]||[]).map(s=>({n:s.n,days:s.days})));
-  const totalDays=formSteps.reduce((a,s)=>a+(parseInt(s.days)||0),0);
+  const totalDays=fmtDays(formSteps.reduce((a,s)=>a+(parseFloat(s.days)||0),0));
   const inputG=(parseFloat(form.inputAmt)||0)*(UNIT_TO_G[form.unit]||1);
   const isFlower=["whole_flower","ground_flower","pre_roll"].includes(form.cat);
   const isVape=form.cat==="vape";
@@ -1277,6 +1283,10 @@ export default function ProductionScheduler({onNavigate}){
   const preRollUnits = preRollUnitMatch ? parseInt(preRollUnitMatch[1].replace(/,/g,"")) : 0;
   const prerollCalc = isPreRoll && preRollUnits>0 ? calcPrerollDays(preRollUnits, form.prerollThroughput) : null;
   function applyPrerollDays(){ if(!prerollCalc) return; setForm(f=>({...f, steps:formSteps.map(s=>s.n==="Rolling / Filling"?{...s,days:prerollCalc}:s)})); }
+  const hasRollingStep = formSteps.some(s=>s.n==="Rolling / Filling");
+  const hasGrindSift = formSteps.some(s=>s.n==="Grind / Sift");
+  const grindCalc = isPreRoll && hasGrindSift && inputG>0 ? calcGrindDays(inputG) : null;
+  function applyGrindDays(){ if(!grindCalc) return; setForm(f=>({...f, steps:formSteps.map(s=>s.n==="Grind / Sift"?{...s,days:grindCalc}:s)})); }
 
   // Vape formulation
   const formCalc=isVapeFormulable&&inputG>0?calcFormulation(inputG,form.vapeStartPotency,form.vapeTerpPct,form.vapeTerpSource,pkgSel?.v,form.vapeTerpSrcPotency):null;
@@ -1312,7 +1322,7 @@ export default function ProductionScheduler({onNavigate}){
     const steps=getThcaSteps(form.sub,form.thcaMethod||"controlled",cycles);
     setForm(f=>({...f,thcaRecrystCycles:cycles,steps}));
   }
-  function updateStep(i,v){setForm(f=>({...f,steps:formSteps.map((s,idx)=>idx===i?{...s,days:parseInt(v)||0}:s)}));}
+  function updateStep(i,v){setForm(f=>({...f,steps:formSteps.map((s,idx)=>idx===i?{...s,days:v===""?"":Math.max(0,parseFloat(v)||0)}:s)}));}
   function applyTrimDays(){if(!trimCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Trimming"?{...s,days:trimCalc.days}:s)}));}
   function applyPkgDays(){if(!pkgCalc)return;setForm(f=>({...f,steps:formSteps.map(s=>s.n==="Packaging"?{...s,days:pkgCalc.days}:s)}));}
   function applyR134aDays(){if(!r134aInfo)return;setForm(f=>({...f,steps:formSteps.map(s=>{if(s.n==="R-134a Terp Cut")return{...s,days:r134aInfo.terpDays};if(s.n==="Material Decarb 125C")return{...s,days:r134aInfo.decarbDays};if(s.n==="R-134a Cannabinoid Cut")return{...s,days:r134aInfo.cannabDays};if(s.n==="Micron Filtration")return{...s,days:r134aInfo.filterDays};if(s.n==="Vacuum Purge (12 hr)")return{...s,days:r134aInfo.purgeDays};return s;})}));}
@@ -1540,7 +1550,7 @@ export default function ProductionScheduler({onNavigate}){
 
   async function saveBatch(){
     if(!validate())return;
-    const steps=formSteps.map(s=>({n:s.n,days:parseInt(s.days)||0}));
+    const steps=formSteps.map(s=>({n:s.n,days:Math.max(0,parseFloat(s.days)||0)}));
     const sub=subOpts.find(s=>s.v===form.sub);
     const base={name:form.name.trim(),cat:form.cat,sub:form.sub,strains:form.strains.trim(),d:form.d,inputAmt:parseFloat(form.inputAmt)||0,unit:((form.inputSource==="harvest"&&form.harvestGrade)||form.inputSource==="pool")?"g":form.unit,pkgIdx,steps,yieldEst,pkgLabel:pkgSel?.l,catLabel:CATS.find(c=>c.v===form.cat)?.l||form.cat,subLabel:sub?.l||"",stemWastePct:parseFloat(form.stemWastePct)||0,moistureLossPct:parseFloat(form.moistureLossPct)||0,fillWastePct:parseFloat(form.fillWastePct)||0,coneWeight:parseFloat(form.coneWeight)||1,packSize:parseInt(form.packSize)||5,inputMaterial:form.inputMaterial,overfillG:parseFloat(form.overfillG)||0,vapeInputType:form.vapeInputType,sauceSepMethod:form.sauceSepMethod,extractInputType:form.extractInputType,inputPotencyPct:parseFloat(form.inputPotencyPct)||80,tincBottleSize:parseFloat(form.tincBottleSize)||30,tincPotencyMgPerMl:parseFloat(form.tincPotencyMgPerMl)||33,kiefSift:form.kiefSift,kief40Pct:parseFloat(form.kief40Pct)||12,kief100Pct:parseFloat(form.kief100Pct)||8,cannabinoids:form.cannabinoids,trimType:form.trimType,trimMachine:form.trimMachine,trimThroughput:parseFloat(form.trimThroughput)||215,trimmerCount:parseInt(form.trimmerCount)||4,gramsPerTrimmerDay:parseFloat(form.gramsPerTrimmerDay)||350,prerollMachine:form.prerollMachine,prerollThroughput:parseFloat(form.prerollThroughput)||529,packagingType:form.packagingType,packagingContainer:form.packagingContainer||"",packagingUnitsPerPack:parseInt(form.packagingUnitsPerPack)||5,packagingStaff:parseInt(form.packagingStaff)||2,packagingBaseline:parseFloat(form.packagingBaseline)||150,unitPrice:parseFloat(form.unitPrice)||0,packagingItemId:form.packagingItemId||"",vapeStartPotency:parseFloat(form.vapeStartPotency)||85,vapeTerpPct:parseFloat(form.vapeTerpPct)||10,vapeTerpSource:form.vapeTerpSource,vapeTerpSrcPotency:parseFloat(form.vapeTerpSrcPotency)||0,vapeHardware:form.cat==="vape"?(form.vapeHardware||"fg_xmini"):"",vapeInputTerpPct:parseFloat(form.vapeInputTerpPct)||0,additiveTHC:parseFloat(form.additiveTHC)||35,additiveTerpPct:parseFloat(form.additiveTerpPct)||50,targetBlendTHC:parseFloat(form.targetBlendTHC)||85,formulationResult:formCalc,cbBlendComponents:form.cbBlendComponents||[],cbTargets:form.cbTargets||{},pieceWeightG:parseFloat(form.pieceWeightG)||0,cbBlendResult:cbBlendCalc&&!cbBlendCalc.error?cbBlendCalc:null,linkedCocIds:form.packagingItemId&&!(form.linkedCocIds||[]).includes(form.packagingItemId)?[...(form.linkedCocIds||[]),form.packagingItemId]:(form.linkedCocIds||[]),s2sSystem:form.s2sSystem||"metrc",s2sSourceTags:form.s2sSourceTags.trim(),s2sOutputTags:form.s2sOutputTags.trim(),actual_yield:form.actual_yield.trim(),inputSource:form.inputSource,harvestBatchId:form.harvestBatchId,harvestGrade:form.harvestGrade,inputMaterialType:form.inputMaterialType||"",washEvents:form.washEvents||[],freezeDryCycles:form.freezeDryCycles||[],pressRuns:form.pressRuns||[],coldCureBatches:form.coldCureBatches||[],dewaxPasses:form.dewaxPasses||[],purgeRuns:form.purgeRuns||[],diamondSauceBatches:form.diamondSauceBatches||[],actualYieldG:Math.max(0,parseFloat(form.actualYieldG)||0),lossEntries:(form.lossEntries||[]).map(le=>({...le,amountG:Math.max(0,parseFloat(le.amountG)||0)})),batchFormulation:form.batchFormulation||null};
 
@@ -2546,7 +2556,13 @@ export default function ProductionScheduler({onNavigate}){
                 <div><label className="ps-lbl">Machine</label><select className="ps-sel" value={form.prerollMachine} onChange={e=>{setF("prerollMachine",e.target.value);setF("prerollThroughput",String(PREROLL_MACHINES[e.target.value]?.t||500));}}>{Object.entries(PREROLL_MACHINES).map(([k,v])=><option key={k} value={k}>{v.l}</option>)}</select></div>
                 <div><label className="ps-lbl">Throughput (joints/hr) — editable</label><input type="number" min="0" className="ps-inp" value={form.prerollThroughput} onChange={e=>setF("prerollThroughput",e.target.value)} disabled={form.prerollMachine==="hand"} /></div>
               </div>
-              {prerollCalc && (
+              {grindCalc && (
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <div className="ps-calc-note">Grind / sift: {fmtDays(grindCalc)} day for {(inputG/453.592).toFixed(1)} lb (1/4 day per 10 lb)</div>
+                  <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyGrindDays}>Apply to step</button>
+                </div>
+              )}
+              {prerollCalc && hasRollingStep && (
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div className="ps-calc-note">Calculated rolling/filling time: {prerollCalc} day{prerollCalc>1?"s":""} for ~{preRollUnits.toLocaleString()} cones (8-hr shifts)</div>
                   <button className="ps-btn ps-secondary" style={{fontSize:11,padding:"3px 10px",flexShrink:0}} onClick={applyPrerollDays}>Apply to step</button>
@@ -3146,7 +3162,7 @@ export default function ProductionScheduler({onNavigate}){
                   <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
                     <div style={{width:10,height:10,borderRadius:2,background:SBG[s.n]||"#333",border:"1px solid rgba(255,255,255,0.15)",flexShrink:0}} />
                     <span style={{fontSize:12,color:"var(--text-2)",flex:1,minWidth:0}}>{s.n}</span>
-                    <input className="ps-days" type="number" min="1" max="365" value={s.days} onChange={e=>updateStep(i,e.target.value)} />
+                    <input className="ps-days" type="number" min="0" max="365" step="0.25" value={s.days} onChange={e=>updateStep(i,e.target.value)} />
                     <span style={{fontSize:11,color:"var(--text-3)",width:28}}>days</span>
                   </div>
                 ))}
@@ -3393,7 +3409,7 @@ export default function ProductionScheduler({onNavigate}){
                   </div>
                   <div className="ps-tl" style={{minWidth:twPx,minHeight:RH}}>
                     {weeks.map((w,i)=><div key={i} style={{position:"absolute",left:w.x,top:0,bottom:0,width:1,background:"var(--border)",opacity:0.4}} />)}
-                    {tl.map((step,si)=>{const x=dDiff(gStart,step.start)*PX;const w=Math.max(dDiff(step.start,step.end)*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" → "+fmtF(step.end)+" ("+step.days+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
+                    {tl.map((step,si)=>{const x=(dDiff(gStart,tl[0].start)+step.startOff)*PX;const w=Math.max(step.days*PX,2);return(<div key={si} title={step.name+" — "+fmtF(step.start)+" → "+fmtF(step.end)+" ("+fmtDays(step.days)+" days)"} style={{position:"absolute",left:x,top:12,width:w,height:RH-24,background:SBG[step.name]||"#333",opacity:b.isLinked?0.7:1,borderRadius:si===0?"5px 0 0 5px":si===tl.length-1?"0 5px 5px 0":"0",borderRight:si<tl.length-1?"1px solid rgba(0,0,0,0.25)":"none",display:"flex",alignItems:"center",overflow:"hidden",padding:"0 6px"}}>{w>30&&<span style={{fontSize:9,fontWeight:700,color:SFG[step.name]||"#fff",whiteSpace:"nowrap",letterSpacing:"0.03em"}}>{step.name}</span>}</div>);})}
                     {todayOff>=0&&todayOff<=total&&<div style={{position:"absolute",left:todayOff*PX,top:0,bottom:0,width:2,background:"var(--danger)",zIndex:3,opacity:0.9}} title="Today" />}
                   </div>
                 </div>

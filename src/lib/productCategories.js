@@ -21,6 +21,9 @@ export const CATS=[
   {v:"topical",l:"Topical"},{v:"edible",l:"Edible"},
 ];
 export const SUBS={
+  pre_roll:[
+    {v:"raw",l:"Raw Flower (phased test portion)"},{v:"infused",l:"Infused"},
+  ],
   extract:[
     {v:"shatter",l:"BHO — Shatter / Wax"},{v:"badder",l:"BHO — Badder / Budder"},
     {v:"live_resin",l:"BHO — Live Resin"},{v:"sugar",l:"BHO — Sugar"},
@@ -52,7 +55,13 @@ export const STEPS={
   // flower never does them, and a grower already logs them on the harvest.
   whole_flower: [{n:"Intake / Prep",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   ground_flower:[{n:"Intake / Prep",days:1},{n:"Grinding",days:1},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
-  pre_roll:     [{n:"Intake / Prep",days:1},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  // Raw flower pre-rolls run in two phases under one batch number (see the
+  // house batch record): grind/sift the whole lot (1/4 day per 5-10 lb),
+  // roll the test portion (1/4 day), hold for the lab (7 days), roll the
+  // remainder at the Phase 1 settings (1/2 day), then rework rejects into
+  // passing joints (1/4 day). Days may be fractional.
+  pre_roll:     [{n:"Grind / Sift",days:0.25},{n:"Phase 1 Rolling (lab portion)",days:0.25},{n:"QC / Testing",days:7},{n:"Phase 2 Rolling (remainder)",days:0.5},{n:"Reject Rework",days:0.25},{n:"Packaging",days:2},{n:"Inventory",days:1}],
+  pre_roll_infused:[{n:"Intake / Prep",days:1},{n:"Grinding",days:1},{n:"Rolling / Filling",days:2},{n:"QC / Testing",days:10},{n:"Packaging",days:2},{n:"Inventory",days:1}],
   shatter:      [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   badder:       [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:4},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
   live_resin:   [{n:"Intake / Prep",days:1},{n:"Extraction",days:2},{n:"Purge / Process",days:3},{n:"QC / Testing",days:10},{n:"Packaging",days:1},{n:"Inventory",days:1}],
@@ -104,7 +113,8 @@ export const STEPS={
 };
 
 export function getStepKey(cat,sub){
-  if(["whole_flower","ground_flower","pre_roll","tincture","topical"].includes(cat))return cat;
+  if(cat==="pre_roll")return sub==="infused"?"pre_roll_infused":"pre_roll";
+  if(["whole_flower","ground_flower","tincture","topical"].includes(cat))return cat;
   if(cat==="extract")return sub||"shatter";
   if(cat==="vape")return sub||"cartridge";
   if(cat==="edible")return sub||"gummies";
@@ -130,7 +140,7 @@ export function inferProductCategory(text){
   const has=(re)=>re.test(t);
   if(has(/disposable|\baio\b|all[- ]in[- ]one/)) return {cat:"vape",sub:"disposable"};
   if(has(/\bvape\b|cartridge|\bcarts?\b|\b510\b|\bpod\b/)) return {cat:"vape",sub:"cartridge"};
-  if(has(/pre-?roll|preroll|\bipr\b|\bjoint|\bblunt|\bcone/)) return {cat:"pre_roll",sub:""};
+  if(has(/pre-?roll|preroll|\bipr\b|\bjoint|\bblunt|\bcone/)) return {cat:"pre_roll",sub:has(/infus|\d*g?ipr\b/)?"infused":"raw"};
   if(has(/gumm/)) return {cat:"edible",sub:"gummies"};
   if(has(/chocolate/)) return {cat:"edible",sub:"chocolate"};
   if(has(/capsule/)) return {cat:"edible",sub:"capsules"};

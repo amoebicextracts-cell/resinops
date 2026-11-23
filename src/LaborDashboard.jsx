@@ -30,19 +30,23 @@ function cultInventoryDate(sp){
 function stepCalDays(step, shiftHours) {
   const sh = parseFloat(shiftHours) || 8;
   if (step.isPassive) return Math.max(1, parseInt(step.calDays || step.hours || step.days || 1));
-  if (step.days !== undefined && step.hours === undefined) return Math.max(1, parseInt(step.days));
+  // Scheduler steps can be part-days (raw pre-roll: 1/4 day grind).
+  if (step.days !== undefined && step.hours === undefined) return Math.max(0, parseFloat(step.days) || 0);
   const hrs = parseFloat(step.hours) || sh;
   const staff = parseInt(step.staffCount) || 1;
   return Math.max(1, Math.ceil(hrs / (staff * sh)));
 }
 
 function buildTimeline(d, steps, shiftHours) {
-  let c = new Date(d + "T12:00:00");
+  // Offsets in days from the batch start; a part-day step lands on the
+  // calendar day its offset falls on (same as the Production Scheduler).
+  const base = new Date(d + "T12:00:00");
+  let off = 0;
   return (steps || []).map(s => {
-    const s0 = new Date(c);
     const days = stepCalDays(s, shiftHours);
-    const e = dAdd(c, days);
-    c = e;
+    const s0 = dAdd(base, Math.floor(off + 1e-9));
+    off += days;
+    const e = days < 1 && Math.floor(off + 1e-9) === Math.floor(off - days + 1e-9) ? new Date(s0.getTime() + 1) : dAdd(base, Math.floor(off + 1e-9));
     return { ...s, name: s.n || s.name, calDays: days, start: s0, end: e };
   });
 }

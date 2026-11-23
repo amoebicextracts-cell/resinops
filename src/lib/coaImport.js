@@ -78,7 +78,9 @@ function isoField(r, ...keys) {
 // curing) would otherwise push QC weeks past when it really happened.
 export function coaStartDate(r, steps, today) {
   const qcIdx = steps.findIndex((s) => /qc|testing/i.test(s.n));
-  const before = (qcIdx === -1 ? [] : steps.slice(0, qcIdx)).reduce((a, s) => a + (Number(s.days) || 0), 0);
+  // Whole days only: part-day steps (raw pre-roll grind + test portion)
+  // happen on the day the sample goes out.
+  const before = Math.floor((qcIdx === -1 ? [] : steps.slice(0, qcIdx)).reduce((a, s) => a + (Number(s.days) || 0), 0));
   const submitted = isoField(r, "submittedDate", "submitted_date");
   if (submitted) return addDays(submitted, -before);
   const produced = isoField(r, "productionDate", "production_date");
