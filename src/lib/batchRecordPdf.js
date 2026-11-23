@@ -288,7 +288,7 @@ export function buildHouseBatchRecordPdf(p) {
     fields([["Recovered flower from this batch only, free of paper and debris (Y/N)", ""],
       ["Re-rolled at the same settings: cone type, fill method, target weight (Y/N)", ""],
       ["Every reworked unit weighed and visually checked (100%), all in spec (Y/N)", ""],
-      ["Reworked units added to the batch count (qty) and packaged under this batch number", ""],
+      ["Reworked units added to the batch count (qty; not already in a phase count) and packaged under this batch number", ""],
       ["Units that failed again: disposition (waste log / second rework per SOP)", ""],
       ["Rework verified by (sign / date)", ""]]);
   }
@@ -395,14 +395,14 @@ export function buildHouseBatchRecordPdf(p) {
   else if (isRaw) table(["Line", "Item", "Expected", "Recorded"], [
     ["A", "Total cannabis input issued", batch.inputAmt ? v(`${batch.inputAmt} ${batch.unit || "g"}`) : "", ""],
     ["A1", "    of which Phase 1 test portion", "", ""], ["A2", "    of which Phase 2 remainder (= A minus A1)", "", ""],
-    ["B", "Good units kept (Phase 1 ____ + Phase 2 ____ + reworked ____ ) × unit weight", batch.yieldEst ? v(batch.yieldEst) : "", goodG],
+    ["B", "Good units kept, each unit counted once (first-pass Phase 1 ____ + first-pass Phase 2 ____ + reworked ____ ) × unit weight", batch.yieldEst ? v(batch.yieldEst) : "", goodG],
     ["C", "Grind, sift and stem losses (Section 4, both phases)", "", ""],
     ["D", "Rework loss = flower in rejected units minus flower recovered", "", ""],
     ["E", "Lab test samples sent (Section 5, ____ units)", "", ""],
     ["F", "Retain samples", "", ""],
     ["G", "Unused flower returned to inventory", "", ""],
     ["H", "Remainder lost during the hold = hold start minus before Phase 2 (Section 6; a gain is negative)", "", ""],
-    ["I", "Waste (from waste log, incl. units that failed rework)", "", wasteG],
+    ["I", "Other waste from the waste log, incl. units that failed rework (do not count stems or losses already in C or D)", "", wasteG],
     ["J", "Accounted for = B + C + D + E + F + G + H + I", "", ""], ["K", "Unaccounted variance = A minus J", "", ""], ["L", "Variance % = K ÷ A × 100", "", ""],
   ], [0.4, 3.6, 1.1, 1.1], 18);
   else table(["Line", "Item", "Expected", "Recorded"], [
