@@ -96,3 +96,14 @@ test('vape records are phased: bulk oil + heavy-metal test units, hold, COA rele
   assert.ok(flower.includes('5. QC Results, Yield Reconciliation and Waste'));
   assert.ok(!flower.includes('Phase 2'));
 });
+
+test("a bulk oil lab sample is added to the blend, not taken from the filled units", () => {
+  const base = calcVapeFormulation({ ...TERPAJA, holdupPct: "0", sellableUnits: "100", labUnits: "6" });
+  const withBulk = calcVapeFormulation({ ...TERPAJA, holdupPct: "0", sellableUnits: "100", labUnits: "6", bulkSampleG: "10" });
+  assert.equal(+base.blend.toFixed(3), 212);
+  assert.equal(+withBulk.blend.toFixed(3), 222);
+  assert.equal(withBulk.bulkG, 10);
+  assert.equal(+(withBulk.blend - withBulk.bulkG - withBulk.lossG).toFixed(3), 212);
+  const pdf = buildHouseBatchRecordPdf({ batch: { id: "b6", name: "Test Vape", cat: "vape", batchFormulation: { ...TERPAJA, labUnits: "2" } } }).output();
+  assert.ok(pdf.includes("CHECK BEFORE STARTING"));
+});

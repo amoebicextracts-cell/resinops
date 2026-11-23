@@ -101,7 +101,10 @@ export function buildHouseBatchRecordPdf(p) {
   const S = phased ? { yield: 7, dev: 8 } : { yield: 5, dev: 6 };
   if (phased) text("Phased run (test samples first): this batch is made in two phases under one batch number. Phase 1: weigh and blend the whole batch, pull a bulk oil sample for the full panel, and fill 3–6 units for heavy-metal testing; everything is held until the COA passes (Sections 5 and 6). Phase 2: re-warm and re-mix the held oil and fill the rest on the same hardware lot at the Phase 1 settings. Rows marked [LOCK] must match Phase 1; a mismatch is a deviation (Section 8) and QA decides whether to retest.", { bold: true });
   if (p.signed) text("Signed record: frozen at QC Head Sign & Release.", { size: 9, bold: true, color: BLUE });
-  if (vc?.errs.length) text("CHECK BEFORE STARTING: " + vc.errs.join(" "), { size: 9, bold: true, color: [180, 0, 0] });
+  const planChecks = [...(vc?.errs || [])];
+  if (kind === "vape" && vc && vc.lab < 3) planChecks.push(`Only ${vc.lab} lab / retain units are planned; the heavy-metal test needs 3–6 filled units.`);
+  if (kind === "vape" && vc && !vc.bulkG) planChecks.push("No bulk oil lab sample is budgeted in the formulation; pulling one will leave Phase 2 short of the sellable count.");
+  if (planChecks.length) text("CHECK BEFORE STARTING: " + planChecks.join(" "), { size: 9, bold: true, color: [180, 0, 0] });
 
   // ── 1. Batch identification ──
   h2("1. Batch Identification");
@@ -120,8 +123,8 @@ export function buildHouseBatchRecordPdf(p) {
       ["Expected Potency (theoretical)", v(`${n(vc.thc, 1)}% THC, ${n(vc.mgPerUnit, 0)} mg THC per unit (${n(vc.pot)}% x ${n(vc.df * 100)}%)`)],
       ["Target Fill Weight (g, net)", v(`${n(vc.fill, 3)} g`)],
       ["Allowed Fill Tolerance (± g)", v(`± ${n(vc.tol, 3)} g  (accept ${n(vc.fill - vc.tol, 3)} to ${n(vc.fill + vc.tol, 3)} g)`)],
-      ["Target Unit Count", v(`${vc.total} filled (${vc.units} sellable + ${vc.lab} lab / retain)`)],
-      ["Batch Size (blend)", v(`${n(vc.blend, 1)} g  (includes ${n(vc.lossG, 1)} g hold-up allowance, ${n(vc.loss * 100, 1)}%)`)],
+      ["Target Unit Count", v(`${vc.total} filled (${vc.units} sellable + ${vc.lab} lab / retain${kind === "vape" ? ", incl. the 3–6 heavy-metal test units" : ""})`)],
+      ["Batch Size (blend)", v(`${n(vc.blend, 1)} g  (includes ${n(vc.lossG, 1)} g hold-up allowance, ${n(vc.loss * 100, 1)}%${vc.bulkG > 0 ? `, and ${n(vc.bulkG, 1)} g bulk oil lab sample` : ""})`)],
     );
   } else {
     idRows.push(
@@ -234,9 +237,9 @@ export function buildHouseBatchRecordPdf(p) {
   if (vc) {
     const every = Math.max(10, Math.round(vc.total / 20 / 5) * 5) || 10, nChk = Math.min(30, Math.floor(Math.max(0, vc.total - 1) / every) + 2);
     h3(phased ? "In-process fill weight checks (Phase 2)" : "In-process fill weight checks");
-    text(`Weigh the first unit, then one every ${every} units, and the last unit. Target ${n(vc.fill, 3)} g net, accept ${n(vc.fill - vc.tol, 3)} to ${n(vc.fill + vc.tol, 3)} g. Two in a row out of spec: stop, adjust the filler, and log a deviation.`);
+    text(`${phased ? "Number Phase 2 units from 1. " : ""}Weigh the first unit, then one every ${every} units, and the last unit. Target ${n(vc.fill, 3)} g net, accept ${n(vc.fill - vc.tol, 3)} to ${n(vc.fill + vc.tol, 3)} g. Two in a row out of spec: stop, adjust the filler, and log a deviation.`);
     table(["Check #", "Unit #", "Time", "Empty Unit (g)", "Filled Unit (g)", "Net Fill (g)", "In Spec?", "Initials"],
-      Array.from({ length: nChk }, (_, i) => [String(i + 1), g(i === 0 ? "1" : i === nChk - 1 ? `last (${vc.total})` : String(i * every)), "", "", "", "", "", ""]), [0.6, 0.9, 0.7, 1, 1, 1, 0.7, 0.7], 16);
+      Array.from({ length: nChk }, (_, i) => [String(i + 1), g(i === 0 ? "1" : i === nChk - 1 ? (phased ? "last (Phase 2)" : `last (${vc.total})`) : String(i * every)), "", "", "", "", "", ""]), [0.6, 0.9, 0.7, 1, 1, 1, 0.7, 0.7], 16);
   } else {
     h3("In-process weight checks");
     table(["Check #", "Time", "Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6", "Unit 7", "Unit 8", "Unit 9", "Unit 10", "Avg (g)", "In Spec?", "Initials"], blanks(6, 15), [0.5, 0.5, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.5, 0.5, 0.5], 17);
@@ -251,7 +254,7 @@ export function buildHouseBatchRecordPdf(p) {
     h2("5. Test Samples, Lab Submission and Hold (Phase 1)");
     text("Pull the bulk oil sample from the finished blend after the blend-uniform check. Fill the 3–6 heavy-metal test units from the same blend, on the hardware lot and filler settings Phase 2 will use, so the heavy-metal result covers the hardware the batch ships in.");
     h3("Bulk oil sample (full panel)");
-    fields([["Sample weight (g) / container type and ID", ""], ["Pulled from (top / middle / bottom of the mixed vessel)", ""], ["Pulled by / witness, date and time", ""],
+    fields([["Sample weight (g) / container type and ID", vc?.bulkG ? v(`target ${n(vc.bulkG, 1)} g`) : ""], ["Pulled from (top / middle / bottom of the mixed vessel)", ""], ["Pulled by / witness, date and time", ""],
       ["METRC lab sample package tag", ""], ["Tests requested (full panel per lab test plan)", ""]]);
     h3("Heavy-metal test units (3–6)");
     table(["#", "Unit ID", "Hardware Lot #", "Empty Unit (g)", "Filled Unit (g)", "Net Fill (g)", "In Spec?", "Initials"], blanks(6, 8), [0.3, 0.9, 1.2, 0.9, 0.9, 0.9, 0.7, 0.7], 17);
@@ -288,7 +291,7 @@ export function buildHouseBatchRecordPdf(p) {
     fields([["Days on hold", ""], ["Seal intact and seal # matches Section 5 (Y/N)", ""],
       ["Storage temperature stayed in range, protected from light (log reviewed, Y/N)", ""],
       ["Oil appearance: no separation, crystallization, color change, or off odor (Y/N)", ""],
-      ["Bulk oil weight now (g) / change since hold start (g)", ""],
+      ["Bulk oil weight now (g) / lost on hold = hold start minus now (g; a gain is negative)", ""],
       ["Phase 2 hardware is the same lot as the test units (Y/N; No = deviation and heavy-metal retest)", ""],
       ["Filler and capper set to the Phase 1 [LOCK] values in Section 4 (Y/N)", ""]]);
     h3("QA decision");
@@ -305,11 +308,11 @@ export function buildHouseBatchRecordPdf(p) {
     ["A", "Total blend made (actual total net)", vc ? v(n(vc.blend, 1) + " g") : batch.inputAmt ? v(`${batch.inputAmt} ${batch.unit || "g"}`) : "", ""],
     ["B", `Good units produced, Phase 2 (qty: ______ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, vc ? v(n(vc.units * vc.fill, 1) + " g") : batch.yieldEst ? v(batch.yieldEst) : "", goodG],
     ["C", "Rejected units (both phases)", "", ""],
-    ["D", "Bulk oil sample sent to the lab (Section 5)", "", ""],
+    ["D", "Bulk oil sample sent to the lab (Section 5)", vc?.bulkG ? v(n(vc.bulkG, 1) + " g") : "", ""],
     ["E", `Heavy-metal test units sent (qty: ____ )${unitG ? " × " + n(unitG, 3) + " g" : ""}`, "", ""],
     ["F", "Retain samples", "", ""],
     ["G", "Left in equipment / returned to inventory", vc ? v("~" + n(vc.lossG, 1) + " g") : "", ""],
-    ["H", "Bulk oil weight change during the hold (Section 6)", "", ""],
+    ["H", "Bulk oil lost during the hold = hold start minus before Phase 2 (Section 6; a gain is negative)", "", ""],
     ["I", "Waste (from waste log)", "", wasteG],
     ["J", "Accounted for = B + C + D + E + F + G + H + I", "", ""], ["K", "Unaccounted variance = A minus J", "", ""], ["L", "Variance % = K ÷ A × 100", "", ""],
   ], [0.4, 3.6, 1.1, 1.1], 18);
